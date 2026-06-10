@@ -1,0 +1,51 @@
+@use '../styles/variables' as *;
+
+.alert {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border-radius: 6px;
+  border: 1px solid;
+  font-size: 0.9375rem;
+
+  &__title {
+    font-weight: 600;
+  }
+
+  &--info {
+    background: $color-info-bg;
+    border-color: $color-info-border;
+
+    .alert__title {
+      color: $color-info;
+    }
+  }
+
+  &--success {
+    background: $color-success-bg;
+    border-color: $color-success-border;
+
+    .alert__title {
+      color: $color-success;
+    }
+  }
+
+  &--warning {
+    background: $color-warning-bg;
+    border-color: $color-warning-border;
+
+    .alert__title {
+      color: $color-warning;
+    }
+  }
+
+  &--error {
+    background: $color-error-bg;
+    border-color: $color-error-border;
+
+    .alert__title {
+      color: $color-error;
+    }
+  }
+}

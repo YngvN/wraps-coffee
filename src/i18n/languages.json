@@ -1,0 +1,50 @@
+{
+  "en": {
+    "label": "English",
+    "translations": {
+      "nav": {
+        "home": "Home",
+        "profile": "Profile",
+        "components": "Components"
+      },
+      "home": {
+        "title": "Home",
+        "welcome": "Welcome to the Vite template."
+      },
+      "profile": {
+        "title": "Profile",
+        "signedInAs": "Signed in as {{name}} ({{email}})"
+      },
+      "auth": {
+        "emailLabel": "Email",
+        "passwordLabel": "Password",
+        "signIn": "Sign in",
+        "signingIn": "Signing in…"
+      }
+    }
+  },
+  "no": {
+    "label": "Norsk",
+    "translations": {
+      "nav": {
+        "home": "Hjem",
+        "profile": "Profil",
+        "components": "Komponenter"
+      },
+      "home": {
+        "title": "Hjem",
+        "welcome": "Velkommen til Vite-malen."
+      },
+      "profile": {
+        "title": "Profil",
+        "signedInAs": "Innlogget som {{name}} ({{email}})"
+      },
+      "auth": {
+        "emailLabel": "E-post",
+        "passwordLabel": "Passord",
+        "signIn": "Logg inn",
+        "signingIn": "Logger inn…"
+      }
+    }
+  }
+}

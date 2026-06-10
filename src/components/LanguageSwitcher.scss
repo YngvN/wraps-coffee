@@ -1,0 +1,17 @@
+@use '../styles/variables' as *;
+
+.language-switcher {
+  font-family: inherit;
+  font-size: 0.875rem;
+  padding: calc($spacing-unit / 1.5) $spacing-unit;
+  border-radius: 6px;
+  border: 1px solid $color-border;
+  background: $color-bg;
+  color: $color-text;
+  cursor: pointer;
+
+  &:focus {
+    outline: 2px solid $color-accent;
+    outline-offset: 1px;
+  }
+}

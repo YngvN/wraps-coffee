@@ -1,0 +1,17 @@
+@use '../styles/variables' as *;
+
+.card {
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  padding: $spacing-unit * 2;
+  background: $color-bg;
+
+  &__title {
+    margin: 0 0 $spacing-unit;
+    font-size: 1.125rem;
+  }
+
+  &__body {
+    color: $color-text-muted;
+  }
+}

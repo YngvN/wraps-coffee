@@ -1,0 +1,35 @@
+@use '../styles/variables' as *;
+
+.input-field {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+
+  label {
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  &__error {
+    color: $color-error;
+    font-size: 0.875rem;
+    margin: 0;
+  }
+}
+
+.input {
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: 1px solid $color-border;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-family: inherit;
+
+  &:focus {
+    outline: 2px solid $color-accent;
+    outline-offset: 1px;
+  }
+
+  &--error {
+    border-color: $color-error;
+  }
+}

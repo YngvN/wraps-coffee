@@ -1,0 +1,36 @@
+@use '../styles/variables' as *;
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: calc($spacing-unit / 4) calc($spacing-unit * 1.25);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.5;
+
+  &--neutral {
+    background: $color-surface;
+    color: $color-text;
+  }
+
+  &--success {
+    background: $color-success-bg;
+    color: $color-success;
+  }
+
+  &--warning {
+    background: $color-warning-bg;
+    color: $color-warning;
+  }
+
+  &--error {
+    background: $color-error-bg;
+    color: $color-error;
+  }
+
+  &--info {
+    background: $color-info-bg;
+    color: $color-info;
+  }
+}

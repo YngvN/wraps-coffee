@@ -1,0 +1,25 @@
+@use '../styles/variables' as *;
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: calc($spacing-unit / 1.5);
+  cursor: pointer;
+  font-size: 0.9375rem;
+
+  input {
+    width: 16px;
+    height: 16px;
+    accent-color: $color-accent;
+    cursor: pointer;
+  }
+
+  &:has(input:disabled) {
+    color: $color-text-muted;
+    cursor: not-allowed;
+
+    input {
+      cursor: not-allowed;
+    }
+  }
+}

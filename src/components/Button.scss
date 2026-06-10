@@ -1,0 +1,37 @@
+@use '../styles/variables' as *;
+
+.btn {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: $spacing-unit calc($spacing-unit * 2.5);
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    opacity 0.15s ease;
+
+  &--primary {
+    background: $color-accent;
+    color: $color-accent-contrast;
+
+    &:hover:not(:disabled) {
+      opacity: 0.9;
+    }
+  }
+
+  &--secondary {
+    background: transparent;
+    border-color: $color-border;
+    color: $color-text;
+
+    &:hover:not(:disabled) {
+      background: $color-surface-hover;
+    }
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}

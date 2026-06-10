@@ -1,0 +1,43 @@
+@use '../styles/variables' as *;
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: $color-overlay;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  position: relative;
+  background: $color-bg;
+  border-radius: 8px;
+  padding: $spacing-unit * 3;
+  max-width: 480px;
+  width: calc(100% - #{$spacing-unit * 4});
+  box-shadow:
+    $color-shadow 0 10px 15px -3px,
+    $color-shadow 0 4px 6px -2px;
+
+  &__title {
+    margin: 0 0 $spacing-unit;
+  }
+
+  &__close {
+    position: absolute;
+    top: $spacing-unit;
+    right: $spacing-unit;
+    border: none;
+    background: transparent;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    color: $color-text-muted;
+
+    &:hover {
+      color: $color-text;
+    }
+  }
+}

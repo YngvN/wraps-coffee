@@ -1,0 +1,32 @@
+@use '../styles/variables' as *;
+
+.spinner {
+  display: inline-block;
+  border-radius: 50%;
+  border: 2px solid $color-border;
+  border-top-color: $color-accent;
+  animation: spinner-rotate 0.6s linear infinite;
+
+  &--sm {
+    width: 16px;
+    height: 16px;
+  }
+
+  &--md {
+    width: 24px;
+    height: 24px;
+    border-width: 3px;
+  }
+
+  &--lg {
+    width: 36px;
+    height: 36px;
+    border-width: 4px;
+  }
+}
+
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
