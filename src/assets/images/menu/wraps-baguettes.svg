@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="Wrap and baguette illustration">
+  <rect width="160" height="160" rx="24" fill="#FBF1DD" />
+  <g transform="rotate(-18 80 80)">
+    <rect x="30" y="62" width="100" height="36" rx="18" fill="#DFA93E" />
+    <path d="M40 62v36M58 62v36M76 62v36M94 62v36M112 62v36" stroke="#8F250C" stroke-width="3" opacity="0.5" />
+    <path d="M118 62h12a18 18 0 0 1 0 36h-12z" fill="#FBF1DD" />
+    <path d="M30 80c-6-10 0-22 14-22 6 10 4 26-4 30-6-2-8-4-10-8z" fill="#88D18A" />
+  </g>
+</svg>

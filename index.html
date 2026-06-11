@@ -1,28 +1,37 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite Template</title>
-    <script>
-      // Set the theme on <html> before first paint to avoid a flash of the
-      // wrong theme. Prefers a saved choice, then falls back to the OS
-      // light/dark setting.
-      ;(function () {
-        var stored = localStorage.getItem('theme')
-        var theme =
-          stored === 'light' || stored === 'dark'
-            ? stored
-            : window.matchMedia('(prefers-color-scheme: dark)').matches
-              ? 'dark'
-              : 'light'
-        document.documentElement.setAttribute('data-theme', theme)
-      })()
-    </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="/src/assets/images/logo/favicon.ico" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wraps & Coffee</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=DynaPuff:wght@400..700&family=Pangolin&family=Quicksand:wght@300..700&display=swap"
+    rel="stylesheet"
+  />
+  <script>
+    // Set the theme on <html> before first paint to avoid a flash of the
+    // wrong theme. Prefers a saved choice, then falls back to the OS
+    // light/dark setting.
+    ; (function () {
+      var stored = localStorage.getItem('theme')
+      var theme =
+        stored === 'light' || stored === 'dark'
+          ? stored
+          : window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
+      document.documentElement.setAttribute('data-theme', theme)
+    })()
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
 </html>

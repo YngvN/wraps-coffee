@@ -1,15 +1,20 @@
-# vite-template
+# Wraps & Coffee
 
-A template for Vite + React + TypeScript projects, with routing, state management, a reusable component library, theming, and internationalization set up out of the box.
+The website for Wraps & Coffee, a cozy cafe serving wraps, baguettes, pizza, nacho plates, salads and a varied selection of coffee and drinks. Built on a Vite + React + TypeScript template with routing, state management, a reusable component library, theming, and internationalization set up out of the box.
 
 ## Features
 
+- **Home page** (`/`) with a hero introduction featuring the next upcoming event (with image, linking to the Events page), a preview of the menu offering (salads, wraps, baguettes, pizza, nacho plates, coffee & drinks) linking to the full menu, and a "Find us" section with an OpenStreetMap embed of the cafe's location.
+- **Menu page** (`/menu`) with the full menu, grouped into categories (salads, wraps, baguettes, pizza, nachos, coffee & drinks), each item with a name, description and price. Linking to `/menu#<category>` (e.g. from the Home page) scrolls to that category.
+- **Events page** (`/events`) listing recurring events at the cafe (poetry night, movie nights, live acoustic sessions, coffee tastings).
+- **Cafe theme** using the Wraps & Coffee colour palette (black, mustard, dark greyish-green, burgundy, lime green) with `DynaPuff` headings, `Pangolin` accents/sub-headings and `Quicksand` body text, in both light and dark mode (`src/styles`).
 - **Vite + React + TypeScript** for fast dev/build tooling.
 - **Routing** via `react-router-dom`, with routes defined in `main.tsx`.
 - **State management** via Redux Toolkit (`react-redux`) and an Axios client, demonstrated by the `auth` feature (`authSlice.ts` / `authApi.ts`).
-- **Reusable UI components** (`Button`, `Input`, `Card`, `Badge`, `Alert`, `Modal`, `Spinner`, `Checkbox`, and more) exported from `src/components`, with a live preview at the `/components` route.
-- **Light / dark theme** that follows the OS preference by default, can be toggled in the header, and persists the choice (`src/hooks/useTheme.ts`, `ThemeToggle`).
-- **Internationalization (i18n)** with English and Norwegian included, switchable via the `LanguageSwitcher` and easy to extend with more languages (`src/i18n`).
+- **Reusable UI components** (`Button`, `Input`, `Card`, `Badge`, `Alert`, `Modal`, `Spinner`, `Checkbox`, `LocationMap`, and more) exported from `src/components`, with a live preview at the `/components` route.
+- **Light / dark theme** that follows the OS preference by default, can be toggled in the footer, and persists the choice (`src/hooks/useTheme.ts`, `ThemeToggle`).
+- **Internationalization (i18n)** with English and Norwegian included, switchable via the `LanguageSwitcher` in the footer and easy to extend with more languages (`src/i18n`).
+- **Footer** with company details (name, organization number, address), the cafe tagline, copyright, and the language/theme controls.
 
 ## Tech stack
 
@@ -20,6 +25,7 @@ A template for Vite + React + TypeScript projects, with routing, state managemen
 - **[Axios](https://axios-http.com/)** — HTTP client (`src/lib/axiosClient.ts`).
 - **[Sass](https://sass-lang.com/)** — component styling with theme variables (`src/styles`).
 - **[Framer Motion](https://www.framer.com/motion/)** — animations (e.g. the `TranslatedText` fade transition).
+- **[Leaflet](https://leafletjs.com/) + [React Leaflet](https://react-leaflet.js.org/)** — OpenStreetMap embed showing the cafe's location (`LocationMap`).
 - **[ESLint](https://eslint.org/)** — linting.
 
 ## Getting started
@@ -50,6 +56,8 @@ src/
   lib/            # Integration clients (e.g. Axios)
   pages/          # Route-level views
     Home.tsx
+    Menu.tsx
+    Events.tsx
     Profile.tsx
     Components.tsx
     ...

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="Salad bowl illustration">
+  <rect width="160" height="160" rx="24" fill="#FBF1DD" />
+  <path d="M30 86c0 24 22 44 50 44s50-20 50-44z" fill="#8F250C" />
+  <ellipse cx="80" cy="86" rx="50" ry="10" fill="#DFA93E" />
+  <circle cx="58" cy="76" r="14" fill="#88D18A" />
+  <circle cx="84" cy="68" r="16" fill="#88D18A" />
+  <circle cx="106" cy="78" r="13" fill="#88D18A" />
+  <circle cx="70" cy="74" r="6" fill="#DFA93E" />
+  <circle cx="96" cy="72" r="5" fill="#626C66" />
+</svg>

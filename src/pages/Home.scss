@@ -1,0 +1,227 @@
+@use '../styles/variables' as *;
+
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 6;
+}
+
+// Hero
+.home__hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit * 3;
+  min-height: 420px;
+  border: 1px solid $color-border;
+  border-radius: 24px;
+  padding: $spacing-unit * 4;
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+
+  // Darken the background photo so the overlaid text stays readable in
+  // both light and dark mode.
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: $color-overlay;
+    z-index: 1;
+  }
+}
+
+.home__hero-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-unit * 1.5;
+  max-width: 560px;
+  color: #ffffff;
+  // Leave room for the delivery buttons overlaid in the top-left corner.
+  padding-top: $spacing-unit * 9;
+
+  h1 {
+    margin: 0;
+    font-size: clamp(2rem, 5vw, 3rem);
+  }
+}
+
+.home__slogan {
+  margin: 0;
+  font-family: $font-subheading;
+  font-size: 1.375rem;
+  color: $color-mustard;
+}
+
+// Upcoming event preview, shown on the right side of the hero
+.home__hero-event {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit * 1.5;
+  flex-shrink: 0;
+  max-width: 320px;
+  padding: $spacing-unit * 1.5;
+  border-radius: 16px;
+  background: $color-surface;
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 4px 16px $color-shadow;
+  transition: transform 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    transform: translateY(-2px);
+  }
+}
+
+.home__hero-event-image {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.home__hero-event-details {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+  min-width: 0;
+
+  h3 {
+    margin: 0;
+    font-size: 1rem;
+  }
+}
+
+.home__hero-event-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: $color-mustard;
+}
+
+.home__hero-event-date {
+  margin: 0;
+  font-size: 0.875rem;
+  color: $color-lime;
+  font-weight: 600;
+}
+
+.home__cta {
+  display: inline-block;
+  margin-top: $spacing-unit;
+  padding: $spacing-unit calc($spacing-unit * 3);
+  border-radius: 999px;
+  border: 2px solid $color-mustard;
+  background: $color-mustard;
+  color: #111111;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 2px 8px $color-shadow;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    opacity: 0.85;
+    box-shadow: 0 4px 12px $color-shadow;
+  }
+
+  &--secondary {
+    background: transparent;
+    border-color: $color-burgundy;
+    color: $color-burgundy;
+
+    &:hover,
+    &:focus-visible {
+      background: $color-burgundy;
+      color: #ffffff;
+      opacity: 1;
+    }
+  }
+}
+
+// Shared section heading spacing
+.home__menu,
+.home__location {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+
+  h2 {
+    margin: 0;
+  }
+
+  > p {
+    margin: 0 0 $spacing-unit;
+    color: $color-text-muted;
+  }
+}
+
+// Menu grid
+.home__menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: $spacing-unit * 2;
+}
+
+.home__menu-card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 12px;
+  transition: transform 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    transform: translateY(-2px);
+  }
+}
+
+.home__menu-card {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  height: 100%;
+
+  h3 {
+    margin: 0;
+  }
+
+  p {
+    margin: 0;
+    color: $color-text-muted;
+  }
+}
+
+.home__menu-image {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+@media (max-width: 768px) {
+  .home__hero {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-end;
+    min-height: 360px;
+    padding: $spacing-unit * 3;
+  }
+
+  .home__hero-event {
+    max-width: none;
+  }
+}

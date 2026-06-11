@@ -12,6 +12,14 @@ $color-accent-contrast: var(--color-accent-contrast);
 $color-border: var(--color-border);
 $color-overlay: var(--color-overlay);
 $color-shadow: var(--color-shadow);
+$color-logo: var(--color-logo);
+$color-gold: var(--color-gold);
+
+// Brand palette (Wraps & Coffee). These stay constant across light/dark themes.
+$color-mustard: #dfa93e;
+$color-neutral-green: #626c66;
+$color-burgundy: #8f250c;
+$color-lime: #88d18a;
 
 $color-success: var(--color-success);
 $color-success-bg: var(--color-success-bg);
@@ -30,7 +38,9 @@ $color-info-bg: var(--color-info-bg);
 $color-info-border: var(--color-info-border);
 
 // Typography
-$font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+$font-sans: 'Quicksand', system-ui, 'Segoe UI', Roboto, sans-serif;
+$font-heading: 'DynaPuff', system-ui, sans-serif;
+$font-subheading: 'Pangolin', cursive;
 $font-mono: ui-monospace, Consolas, monospace;
 
 // Spacing

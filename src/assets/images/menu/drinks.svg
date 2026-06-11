@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="Drinks illustration">
+  <rect width="160" height="160" rx="24" fill="#FBF1DD" />
+  <path d="M48 70h54l-6 44a10 10 0 0 1-10 8H64a10 10 0 0 1-10-8z" fill="#8F250C" />
+  <path d="M102 78h10a12 12 0 0 1 0 24h-8" fill="none" stroke="#8F250C" stroke-width="6" />
+  <path d="M58 56c2-8-4-10-2-18M74 56c2-8-4-10-2-18M90 56c2-8-4-10-2-18" stroke="#626C66" stroke-width="4" fill="none" stroke-linecap="round" />
+  <rect x="48" y="68" width="54" height="8" rx="4" fill="#DFA93E" />
+  <path d="M30 130h30l-5 14a4 4 0 0 1-4 3H39a4 4 0 0 1-4-3z" fill="#88D18A" />
+  <rect x="28" y="120" width="34" height="12" rx="2" fill="#DFA93E" />
+</svg>

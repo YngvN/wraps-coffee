@@ -5,8 +5,10 @@ import {
   Button,
   Card,
   Checkbox,
+  DeliveryLinks,
   Input,
   LanguageSwitcher,
+  LocationMap,
   Modal,
   Spinner,
   ThemeToggle,
@@ -106,6 +108,22 @@ export function Components() {
           <Spinner size="sm" />
           <Spinner size="md" />
           <Spinner size="lg" />
+        </div>
+      </section>
+
+      <section>
+        <h2>Delivery Links</h2>
+        <p>Round buttons linking to the cafe's delivery platform pages, with a hover/focus zoom on the logo.</p>
+        <div className="components-page__preview">
+          <DeliveryLinks />
+        </div>
+      </section>
+
+      <section>
+        <h2>Location Map</h2>
+        <p>An OpenStreetMap embed with a marker, used to show the cafe's location.</p>
+        <div className="components-page__preview">
+          <LocationMap popupText="Wraps & Coffee – Ulvenveien 82 E, 0581 Oslo" />
         </div>
       </section>
 

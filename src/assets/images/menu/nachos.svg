@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="Nacho plate illustration">
+  <rect width="160" height="160" rx="24" fill="#FBF1DD" />
+  <ellipse cx="80" cy="118" rx="58" ry="14" fill="#626C66" opacity="0.25" />
+  <path d="M40 118 60 56 78 118Z" fill="#DFA93E" />
+  <path d="M64 118 84 50 100 118Z" fill="#DFA93E" />
+  <path d="M88 118 106 58 122 118Z" fill="#DFA93E" />
+  <circle cx="70" cy="100" r="8" fill="#8F250C" />
+  <circle cx="98" cy="96" r="7" fill="#88D18A" />
+  <circle cx="84" cy="108" r="6" fill="#FBF1DD" />
+</svg>

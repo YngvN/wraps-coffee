@@ -9,15 +9,17 @@
   color-scheme: light;
 
   --color-bg: #ffffff;
-  --color-surface: #f4f3ec;
+  --color-surface: #fffaf2;
   --color-surface-hover: rgba(0, 0, 0, 0.04);
-  --color-text: #1a1a1a;
-  --color-text-muted: #6b6375;
-  --color-accent: #646cff;
-  --color-accent-contrast: #ffffff;
-  --color-border: #e5e4e7;
-  --color-overlay: rgba(0, 0, 0, 0.5);
-  --color-shadow: rgba(0, 0, 0, 0.1);
+  --color-text: #111111;
+  --color-text-muted: #5c594e;
+  --color-accent: #dfa93e;
+  --color-accent-contrast: #111111;
+  --color-border: #efe7d8;
+  --color-overlay: rgba(0, 0, 0, 0.55);
+  --color-shadow: rgba(0, 0, 0, 0.12);
+  --color-logo: #000000;
+  --color-gold: #dfa93e;
 
   --color-success: #16a34a;
   --color-success-bg: rgba(22, 163, 74, 0.1);
@@ -40,16 +42,18 @@
 [data-theme='dark'] {
   color-scheme: dark;
 
-  --color-bg: #16171d;
-  --color-surface: #1f2028;
-  --color-surface-hover: rgba(255, 255, 255, 0.06);
-  --color-text: #f3f4f6;
-  --color-text-muted: #9ca3af;
-  --color-accent: #818cf8;
-  --color-accent-contrast: #16171d;
-  --color-border: #2e303a;
-  --color-overlay: rgba(0, 0, 0, 0.7);
-  --color-shadow: rgba(0, 0, 0, 0.4);
+  --color-bg: #000000;
+  --color-surface: #050505;
+  --color-surface-hover: rgba(255, 255, 255, 0.08);
+  --color-text: #f5f5f5;
+  --color-text-muted: #c4c4c4;
+  --color-accent: #dfa93e;
+  --color-accent-contrast: #000000;
+  --color-border: #171717;
+  --color-overlay: rgba(0, 0, 0, 0.86);
+  --color-shadow: rgba(0, 0, 0, 0.9);
+  --color-logo: #000000;
+  --color-gold: #dfa93e;
 
   --color-success: #4ade80;
   --color-success-bg: rgba(74, 222, 128, 0.12);
@@ -86,6 +90,16 @@ a {
   color: $color-accent;
 }
 
+h1 {
+  font-family: $font-heading;
+  font-weight: 600;
+}
+
+h2 {
+  font-family: $font-subheading;
+  font-weight: 400;
+}
+
 .app {
   display: flex;
   flex-direction: column;
@@ -96,32 +110,104 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: $spacing-unit * 2;
   border-bottom: 1px solid $color-border;
-  padding: $spacing-unit * 2;
+  padding: $spacing-unit * 2 $spacing-unit * 3;
+}
+
+.app__logo {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  text-decoration: none;
+  color: $color-text;
+}
+
+.app__logo-mark {
+  width: 36px;
+  height: 36px;
+}
+
+.app__logo-text {
+  font-family: $font-heading;
+  font-size: 1.25rem;
+  line-height: 1;
 }
 
 .app__nav {
   display: flex;
-  gap: $spacing-unit * 2;
+  gap: $spacing-unit * 3;
 
   a {
     text-decoration: none;
     color: $color-text;
+    font-weight: 600;
 
     &.active {
       color: $color-accent;
-      font-weight: 600;
     }
   }
-}
-
-.app__actions {
-  display: flex;
-  align-items: center;
-  gap: $spacing-unit;
 }
 
 .app__content {
   flex: 1;
   padding: $spacing-unit * 3;
+}
+
+.app__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit * 3;
+  border-top: 1px solid $color-border;
+  padding: $spacing-unit * 2 $spacing-unit * 3;
+  color: $color-text-muted;
+  font-size: 0.875rem;
+}
+
+.app__footer-section {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  margin: 0;
+
+  p {
+    margin: 0;
+  }
+}
+
+.app__footer-company {
+  font-family: $font-subheading;
+  font-size: 1.125rem;
+  color: $color-text;
+}
+
+.app__footer-actions {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+}
+
+@media (max-width: 640px) {
+  .app__header {
+    flex-wrap: wrap;
+    padding: $spacing-unit * 1.5 $spacing-unit * 2;
+  }
+
+  .app__nav {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+    gap: $spacing-unit * 2;
+  }
+
+  .app__content {
+    padding: $spacing-unit * 2;
+  }
+
+  .app__footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

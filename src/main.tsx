@@ -6,7 +6,9 @@ import App from './App.tsx'
 import { store } from './app/store'
 import { LanguageProvider } from './i18n'
 import { Components } from './pages/Components'
+import { Events } from './pages/Events'
 import { Home } from './pages/Home'
+import { Menu } from './pages/Menu'
 import { Profile } from './pages/Profile'
 import './styles/global.scss'
 
@@ -16,6 +18,8 @@ const router = createBrowserRouter([
     element: <App />,
     children: [
       { index: true, element: <Home /> },
+      { path: 'menu', element: <Menu /> },
+      { path: 'events', element: <Events /> },
       { path: 'profile', element: <Profile /> },
       { path: 'components', element: <Components /> },
     ],

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="Smoothie illustration">
+  <rect width="160" height="160" rx="24" fill="#FBF1DD" />
+  <path d="M52 56h56l-8 66a10 10 0 0 1-10 9H70a10 10 0 0 1-10-9z" fill="#88D18A" />
+  <path d="M55 82h50l-3 26H58z" fill="#DFA93E" />
+  <path d="M53.5 69h53l-1.5 13h-50z" fill="#8F250C" />
+  <rect x="48" y="50" width="64" height="8" rx="4" fill="#626C66" />
+  <path d="M96 50l10-28" stroke="#626C66" stroke-width="6" fill="none" stroke-linecap="round" />
+  <circle cx="108" cy="20" r="4" fill="#626C66" />
+</svg>

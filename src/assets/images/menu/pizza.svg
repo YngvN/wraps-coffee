@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="Pizza slice illustration">
+  <rect width="160" height="160" rx="24" fill="#FBF1DD" />
+  <path d="M80 28 134 122 26 122Z" fill="#DFA93E" />
+  <path d="M26 122 134 122 128 134H32Z" fill="#8F250C" />
+  <circle cx="74" cy="70" r="7" fill="#8F250C" />
+  <circle cx="96" cy="92" r="7" fill="#8F250C" />
+  <circle cx="68" cy="100" r="6" fill="#88D18A" />
+  <circle cx="92" cy="64" r="5" fill="#88D18A" />
+</svg>
