@@ -1,0 +1,496 @@
+[
+  {
+    "eventID": "1",
+    "title": "Live Jazz Evening",
+    "category": "Music",
+    "date": "2026-06-20",
+    "time": "19:00",
+    "endTime": "21:30",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "A local jazz trio plays relaxed sets while you enjoy dinner, drinks and good company.",
+    "capacity": 40,
+    "attendeesCount": 18,
+    "price": 0,
+    "currency": "NOK",
+    "tags": [
+      "music",
+      "evening",
+      "live"
+    ],
+    "participants": [
+      {
+        "name": "Marius Kvale",
+        "email": "marius.kvale@example.com",
+        "roleAtEvent": "Performer"
+      },
+      {
+        "name": "Sondre Lien",
+        "email": "sondre.lien@example.com",
+        "roleAtEvent": "Performer"
+      },
+      {
+        "name": "Ingrid Aas",
+        "email": "ingrid.aas@example.com",
+        "roleAtEvent": "Attendee"
+      }
+    ],
+    "contactPerson": {
+      "name": "Bjørn Haugen",
+      "phone": "91234567",
+      "email": "bjorn@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "45",
+        "name": "Cappuccino",
+        "price": 50
+      },
+      {
+        "itemID": "48",
+        "name": "Mocha",
+        "price": 55
+      },
+      {
+        "itemID": "27",
+        "name": "Margherita",
+        "price": 179
+      }
+    ],
+    "status": "scheduled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "/images/events/live-jazz-evening.svg",
+    "registrationRequired": false
+  },
+  {
+    "eventID": "2",
+    "title": "Latte Art Workshop",
+    "category": "Workshop",
+    "date": "2026-06-27",
+    "time": "11:00",
+    "endTime": "13:00",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "Learn to pour hearts, rosettas and tulips with our head barista. Aprons, milk and coffee included.",
+    "capacity": 12,
+    "attendeesCount": 9,
+    "price": 250,
+    "currency": "NOK",
+    "tags": [
+      "workshop",
+      "coffee",
+      "hands-on"
+    ],
+    "participants": [
+      {
+        "name": "Camilla Stensrud",
+        "email": "camilla.stensrud@example.com",
+        "roleAtEvent": "Instructor"
+      },
+      {
+        "name": "Erik Moen",
+        "email": "erik.moen@example.com",
+        "roleAtEvent": "Attendee"
+      },
+      {
+        "name": "Nora Fjeld",
+        "email": "nora.fjeld@example.com",
+        "roleAtEvent": "Attendee"
+      }
+    ],
+    "contactPerson": {
+      "name": "Camilla Stensrud",
+      "phone": "92345678",
+      "email": "camilla@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "45",
+        "name": "Cappuccino",
+        "price": 50
+      },
+      {
+        "itemID": "46",
+        "name": "Café Latte",
+        "price": 50
+      },
+      {
+        "itemID": "50",
+        "name": "Flat White",
+        "price": 45
+      }
+    ],
+    "status": "scheduled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "/images/events/latte-art-workshop.svg",
+    "registrationRequired": true
+  },
+  {
+    "eventID": "3",
+    "title": "Local Artists Exhibition Opening",
+    "category": "Exhibition",
+    "date": "2026-07-04",
+    "time": "17:00",
+    "endTime": "20:00",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "Opening night for a rotating exhibition featuring paintings and photography from artists in the local community.",
+    "capacity": 60,
+    "attendeesCount": 27,
+    "price": 0,
+    "currency": "NOK",
+    "tags": [
+      "exhibition",
+      "art",
+      "evening"
+    ],
+    "participants": [
+      {
+        "name": "Thea Solberg",
+        "email": "thea.solberg@example.com",
+        "roleAtEvent": "Artist"
+      },
+      {
+        "name": "Jonas Berge",
+        "email": "jonas.berge@example.com",
+        "roleAtEvent": "Artist"
+      },
+      {
+        "name": "Anders Vik",
+        "email": "anders.vik@example.com",
+        "roleAtEvent": "Curator"
+      }
+    ],
+    "contactPerson": {
+      "name": "Anders Vik",
+      "phone": "93456789",
+      "email": "anders@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "46",
+        "name": "Café Latte",
+        "price": 50
+      },
+      {
+        "itemID": "51",
+        "name": "Tea",
+        "price": 50
+      },
+      {
+        "itemID": "4",
+        "name": "Feta Salad",
+        "price": 189
+      }
+    ],
+    "status": "scheduled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "/images/events/local-artists-exhibition-opening.svg",
+    "registrationRequired": false
+  },
+  {
+    "eventID": "4",
+    "title": "Board Game Night",
+    "category": "Games",
+    "date": "2026-07-18",
+    "time": "18:00",
+    "endTime": "22:00",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "Bring friends or make new ones for an evening of board and card games. Our game shelf is open to everyone, or bring your own.",
+    "capacity": 30,
+    "attendeesCount": 14,
+    "price": 0,
+    "currency": "NOK",
+    "tags": [
+      "games",
+      "evening",
+      "social"
+    ],
+    "participants": [
+      {
+        "name": "Sigrid Holm",
+        "email": "sigrid.holm@example.com",
+        "roleAtEvent": "Organizer"
+      },
+      {
+        "name": "Petter Lund",
+        "email": "petter.lund@example.com",
+        "roleAtEvent": "Attendee"
+      }
+    ],
+    "contactPerson": {
+      "name": "Sigrid Holm",
+      "phone": "94567890",
+      "email": "sigrid@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "30",
+        "name": "Chicken Nachos",
+        "price": 189
+      },
+      {
+        "itemID": "52",
+        "name": "Orange, Strawberry & Banana",
+        "price": 89
+      },
+      {
+        "itemID": "47",
+        "name": "Chai Latte",
+        "price": 55
+      }
+    ],
+    "status": "cancelled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "/images/events/board-game-night.svg",
+    "registrationRequired": false
+  },
+  {
+    "eventID": "5",
+    "title": "Coffee Cupping & Tasting",
+    "category": "Tasting",
+    "date": "2026-08-08",
+    "time": "11:00",
+    "endTime": "12:30",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "A guided cupping session through three single-origin beans, exploring aroma, acidity and body.",
+    "capacity": 14,
+    "attendeesCount": 6,
+    "price": 150,
+    "currency": "NOK",
+    "tags": [
+      "coffee",
+      "tasting",
+      "workshop"
+    ],
+    "participants": [
+      {
+        "name": "Bjørn Haugen",
+        "email": "bjorn.haugen@example.com",
+        "roleAtEvent": "Host"
+      },
+      {
+        "name": "Lise Eide",
+        "email": "lise.eide@example.com",
+        "roleAtEvent": "Attendee"
+      }
+    ],
+    "contactPerson": {
+      "name": "Bjørn Haugen",
+      "phone": "91234567",
+      "email": "bjorn@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "39",
+        "name": "Espresso",
+        "price": 40
+      },
+      {
+        "itemID": "40",
+        "name": "Long Black",
+        "price": 45
+      },
+      {
+        "itemID": "44",
+        "name": "Cortado",
+        "price": 47
+      }
+    ],
+    "status": "postponed",
+    "postponedDetails": {
+      "newDate": "2026-08-15",
+      "newTime": "11:00",
+      "newEndTime": "12:30"
+    },
+    "imageUrl": "/images/events/coffee-cupping-and-tasting.svg",
+    "registrationRequired": true
+  },
+  {
+    "eventID": "6",
+    "title": "Christmas Market Pop-up",
+    "category": "Market",
+    "date": "2026-12-12",
+    "time": "12:00",
+    "endTime": "18:00",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "Local makers and small businesses set up stalls inside and outside the café, with mulled drinks and festive treats all day.",
+    "capacity": 100,
+    "attendeesCount": 41,
+    "price": 0,
+    "currency": "NOK",
+    "tags": [
+      "market",
+      "christmas",
+      "family"
+    ],
+    "participants": [
+      {
+        "name": "Hanne Reiersen",
+        "email": "hanne.reiersen@example.com",
+        "roleAtEvent": "Organizer"
+      },
+      {
+        "name": "Ola Nordmann",
+        "email": "ola.nordmann@example.com",
+        "roleAtEvent": "Vendor"
+      },
+      {
+        "name": "Kari Nordmann",
+        "email": "kari.nordmann@example.com",
+        "roleAtEvent": "Vendor"
+      }
+    ],
+    "contactPerson": {
+      "name": "Hanne Reiersen",
+      "phone": "95678901",
+      "email": "hanne@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "47",
+        "name": "Chai Latte",
+        "price": 55
+      },
+      {
+        "itemID": "48",
+        "name": "Mocha",
+        "price": 55
+      },
+      {
+        "itemID": "51",
+        "name": "Tea",
+        "price": 50
+      }
+    ],
+    "status": "scheduled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "/images/events/christmas-market-pop-up.svg",
+    "registrationRequired": false
+  },
+  {
+    "eventID": "7",
+    "title": "Weekly Quiz Night",
+    "category": "Quiz",
+    "date": "2026-06-18",
+    "time": "19:00",
+    "endTime": "21:00",
+    "recurring": true,
+    "recurrence": {
+      "frequency": "weekly",
+      "dayOfWeek": 4,
+      "interval": 1
+    },
+    "exceptions": [
+      {
+        "date": "2026-07-02",
+        "reason": "Quizmaster on holiday",
+        "status": "cancelled"
+      }
+    ],
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "Test your knowledge across categories from pop culture to history. Teams of up to six, with prizes for the winning team every week.",
+    "capacity": 50,
+    "attendeesCount": 32,
+    "price": 0,
+    "currency": "NOK",
+    "tags": [
+      "quiz",
+      "weekly",
+      "social",
+      "recurring"
+    ],
+    "participants": [
+      {
+        "name": "Tobias Berg",
+        "email": "tobias.berg@example.com",
+        "roleAtEvent": "Quizmaster"
+      },
+      {
+        "name": "Maria Dahl",
+        "email": "maria.dahl@example.com",
+        "roleAtEvent": "Attendee"
+      }
+    ],
+    "contactPerson": {
+      "name": "Tobias Berg",
+      "phone": "96789012",
+      "email": "tobias@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "45",
+        "name": "Cappuccino",
+        "price": 50
+      },
+      {
+        "itemID": "30",
+        "name": "Chicken Nachos",
+        "price": 189
+      },
+      {
+        "itemID": "54",
+        "name": "Orange, Tzatziki & Pesto",
+        "price": 89
+      }
+    ],
+    "status": "scheduled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "/images/events/weekly-quiz-night.svg",
+    "registrationRequired": true
+  }
+]

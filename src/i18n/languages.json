@@ -387,6 +387,20 @@
             "date": "First Sunday of the month, 11:00",
             "description": "A guided tasting through our favourite beans and brewing methods."
           }
+        },
+        "modal": {
+          "price": "Price",
+          "free": "Free",
+          "capacity": "Capacity",
+          "spotsFilled": "{{count}} of {{capacity}} spots filled",
+          "registrationRequired": "Registration required",
+          "signUp": "Sign up",
+          "nameLabel": "Name",
+          "emailLabel": "Email",
+          "submit": "Submit",
+          "signUpSuccess": "Thanks! Your spot is reserved — we'll see you there.",
+          "menuHighlights": "Menu highlights",
+          "postponed": "Postponed"
         }
       },
       "profile": {
@@ -789,6 +803,20 @@
             "date": "Første søndag i måneden, 11:00",
             "description": "En guidet smaksrunde gjennom våre favorittbønner og traktemetoder."
           }
+        },
+        "modal": {
+          "price": "Pris",
+          "free": "Gratis",
+          "capacity": "Kapasitet",
+          "spotsFilled": "{{count}} av {{capacity}} plasser fylt",
+          "registrationRequired": "Påmelding kreves",
+          "signUp": "Meld deg på",
+          "nameLabel": "Navn",
+          "emailLabel": "E-post",
+          "submit": "Send",
+          "signUpSuccess": "Takk! Plassen din er reservert — vi sees!",
+          "menuHighlights": "Fra menyen",
+          "postponed": "Utsatt"
         }
       },
       "profile": {
