@@ -114,9 +114,7 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: $spacing-unit * 2;
-  border-bottom: 1px solid $color-border;
   padding: $spacing-unit * 2 $spacing-unit * 3;
-  background: $color-bg;
 }
 
 .app__logo {
@@ -146,6 +144,9 @@ h2 {
 .app__nav {
   display: flex;
   gap: $spacing-unit * 3;
+  padding: calc($spacing-unit / 2) $spacing-unit * 2;
+  border-radius: 999px;
+  background: $color-bg;
 
   a {
     text-decoration: none;

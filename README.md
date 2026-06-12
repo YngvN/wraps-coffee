@@ -4,7 +4,7 @@ The website for Wraps & Coffee, a cozy cafe serving wraps, baguettes, pizza, nac
 
 ## Features
 
-- **Home page** (`/`) with a hero introduction featuring the next upcoming event (with image, linking to the Events page), a preview of the menu offering (salads, wraps, baguettes, pizza, nacho plates, coffee & drinks) linking to the full menu, and a "Find us" section with an OpenStreetMap embed of the cafe's location.
+- **Home page** (`/`) with a full-bleed hero introduction featuring the next upcoming event (with image, linking to the Events page), a preview of the menu offering (salads, wraps, baguettes, pizza, nacho plates, coffee & drinks) linking to the full menu, and a "Find us" section with an OpenStreetMap embed of the cafe's location. The hero sits behind a transparent header; scrolling down animates the hero out of view and reveals the "Wraps & Coffee" name in the header, while the nav links stay fixed in a sticky pill.
 - **Menu page** (`/menu`) with the full menu, grouped into categories (salads, wraps, baguettes, pizza, nachos, coffee & drinks), each item with a name, description and price. Linking to `/menu#<category>` (e.g. from the Home page) scrolls to that category.
 - **Events page** (`/events`) listing recurring events at the cafe (poetry night, movie nights, live acoustic sessions, coffee tastings).
 - **Cafe theme** using the Wraps & Coffee colour palette (black, mustard, dark greyish-green, burgundy, lime green) with `DynaPuff` headings, `Pangolin` accents/sub-headings and `Quicksand` body text, in both light and dark mode (`src/styles`).

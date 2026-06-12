@@ -8,10 +8,22 @@
 
 // Hero
 // Wrapper collapses smoothly to 0 height once the user scrolls, so the
-// rest of the page slides up into the space the hero leaves behind.
+// rest of the page slides up into the space the hero leaves behind. The
+// negative horizontal margins cancel out `.app__content`'s padding so the
+// hero spans the full viewport width, and the negative top margin pulls it
+// up behind the transparent sticky header so it touches the top edge too.
+// Once collapsed, the top margin is reset so the next section sits in its
+// normal place below the header instead of underneath it.
 .home__hero-wrapper {
   overflow: hidden;
-  transition: height 0.4s ease;
+  margin: calc(-1 * (var(--header-height, 0px) + $spacing-unit * 3)) calc($spacing-unit * -3) 0;
+  transition:
+    height 0.4s ease,
+    margin-top 0.4s ease;
+
+  &--scrolled {
+    margin-top: 0;
+  }
 }
 
 .home__hero {
@@ -21,8 +33,6 @@
   justify-content: space-between;
   gap: $spacing-unit * 3;
   min-height: 420px;
-  border: 1px solid $color-border;
-  border-radius: 24px;
   padding: $spacing-unit * 4;
   background-size: cover;
   background-position: center;
@@ -240,5 +250,15 @@
 
   .home__hero-event {
     max-width: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .home__hero-wrapper {
+    margin: calc(-1 * (var(--header-height, 0px) + $spacing-unit * 2)) calc($spacing-unit * -2) 0;
+
+    &--scrolled {
+      margin-top: 0;
+    }
   }
 }
