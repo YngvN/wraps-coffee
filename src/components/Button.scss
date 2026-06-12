@@ -9,12 +9,13 @@
   cursor: pointer;
   transition:
     background-color 0.15s ease,
+    color 0.15s ease,
     opacity 0.15s ease,
     box-shadow 0.1s ease;
 
   &--primary {
-    background: $color-accent;
-    color: $color-accent-contrast;
+    background: $color-button;
+    color: $color-button-contrast;
 
     @media (hover: hover) {
       &:hover:not(:disabled) {
@@ -25,12 +26,13 @@
 
   &--secondary {
     background: transparent;
-    border-color: $color-border;
-    color: $color-text;
+    border-color: $color-button;
+    color: $color-button;
 
     @media (hover: hover) {
       &:hover:not(:disabled) {
-        background: $color-surface-hover;
+        background: $color-button;
+        color: $color-button-contrast;
       }
     }
   }

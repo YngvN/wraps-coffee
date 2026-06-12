@@ -242,9 +242,9 @@
   min-height: var(--hero-action-size);
   padding: $spacing-unit calc($spacing-unit * 2.5);
   border-radius: 999px;
-  border: 2px solid $color-mustard;
-  background: $color-mustard;
-  color: #111111;
+  border: 2px solid $color-button;
+  background: $color-button;
+  color: $color-button-contrast;
   font-weight: 600;
   text-decoration: none;
   box-shadow: 0 2px 8px $color-shadow;
@@ -270,14 +270,14 @@
 
   &--secondary {
     background: transparent;
-    border-color: $color-burgundy;
-    color: $color-burgundy;
+    border-color: $color-button;
+    color: $color-button;
 
     @media (hover: hover) {
       &:hover,
       &:focus-visible {
-        background: $color-burgundy;
-        color: #ffffff;
+        background: $color-button;
+        color: $color-button-contrast;
       }
     }
   }
