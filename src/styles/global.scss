@@ -107,31 +107,40 @@ h2 {
 }
 
 .app__header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: $spacing-unit * 2;
   border-bottom: 1px solid $color-border;
   padding: $spacing-unit * 2 $spacing-unit * 3;
+  background: $color-bg;
 }
 
 .app__logo {
   display: flex;
   align-items: center;
-  gap: $spacing-unit;
+  overflow: hidden;
   text-decoration: none;
   color: $color-text;
-}
-
-.app__logo-mark {
-  width: 36px;
-  height: 36px;
 }
 
 .app__logo-text {
   font-family: $font-heading;
   font-size: 1.25rem;
   line-height: 1;
+  transform: translateY(-150%);
+  opacity: 0;
+  transition:
+    transform 0.4s ease,
+    opacity 0.3s ease;
+}
+
+.app__header--scrolled .app__logo-text {
+  transform: translateY(0);
+  opacity: 1;
 }
 
 .app__nav {

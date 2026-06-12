@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import heroBackground from '../assets/images/hero/hero-background.jpg'
 import coffeeTastingImage from '../assets/images/events/coffee-tasting.svg'
@@ -11,6 +12,7 @@ import saladsImage from '../assets/images/menu/salads.svg'
 import smoothieImage from '../assets/images/menu/smoothie.svg'
 import wrapsBaguettesImage from '../assets/images/menu/wraps-baguettes.svg'
 import { Card, DeliveryLinks, LocationMap, TranslatedText } from '../components'
+import { useIsScrolled } from '../hooks/useIsScrolled'
 import { useLanguage } from '../i18n'
 import { EVENT_RECURRENCES, getNextEventDate } from '../utils/eventSchedule'
 import './Home.scss'
@@ -48,28 +50,50 @@ function getNextEvent() {
 export function Home() {
   const { t } = useLanguage()
   const nextEvent = getNextEvent()
+  const isScrolled = useIsScrolled()
+  const heroRef = useRef<HTMLElement>(null)
+  const [heroHeight, setHeroHeight] = useState<number | null>(null)
+
+  // Measure the hero's natural height so the wrapper can be collapsed to 0
+  // smoothly once the user scrolls, letting the rest of the page slide up
+  // into the space it leaves behind.
+  useEffect(() => {
+    const updateHeroHeight = () => setHeroHeight(heroRef.current?.offsetHeight ?? null)
+    updateHeroHeight()
+    window.addEventListener('resize', updateHeroHeight)
+    return () => window.removeEventListener('resize', updateHeroHeight)
+  }, [])
 
   return (
     <div className="home">
-      <section className="home__hero" style={{ backgroundImage: `url(${heroBackground})` }}>
-        <DeliveryLinks />
-        <div className="home__hero-content">
-          <TranslatedText as="h1" id="home.hero.title" />
-          <TranslatedText as="p" className="home__slogan" id="home.hero.slogan" />
-          <TranslatedText as="p" id="home.hero.description" />
-          <Link className="home__cta" to="/menu">
-            {t('home.hero.cta')}
-          </Link>
-        </div>
-        <Link className="home__hero-event" to="/events">
-          <img className="home__hero-event-image" src={nextEvent.image} alt="" />
-          <div className="home__hero-event-details">
-            <span className="home__hero-event-label">{t('home.hero.upcomingEvent')}</span>
-            <h3>{t(`events.items.${nextEvent.key}.title`)}</h3>
-            <p className="home__hero-event-date">{t(`events.items.${nextEvent.key}.date`)}</p>
+      <div
+        className={`home__hero-wrapper${isScrolled ? ' home__hero-wrapper--scrolled' : ''}`}
+        style={heroHeight !== null ? { height: isScrolled ? 0 : heroHeight } : undefined}
+      >
+        <section
+          ref={heroRef}
+          className={`home__hero${isScrolled ? ' home__hero--scrolled' : ''}`}
+          style={{ backgroundImage: `url(${heroBackground})` }}
+        >
+          <DeliveryLinks />
+          <div className="home__hero-content">
+            <TranslatedText as="h1" id="home.hero.title" />
+            <TranslatedText as="p" className="home__slogan" id="home.hero.slogan" />
+            <TranslatedText as="p" id="home.hero.description" />
+            <Link className="home__cta" to="/menu">
+              {t('home.hero.cta')}
+            </Link>
           </div>
-        </Link>
-      </section>
+          <Link className="home__hero-event" to="/events">
+            <img className="home__hero-event-image" src={nextEvent.image} alt="" />
+            <div className="home__hero-event-details">
+              <span className="home__hero-event-label">{t('home.hero.upcomingEvent')}</span>
+              <h3>{t(`events.items.${nextEvent.key}.title`)}</h3>
+              <p className="home__hero-event-date">{t(`events.items.${nextEvent.key}.date`)}</p>
+            </div>
+          </Link>
+        </section>
+      </div>
 
       <section className="home__menu">
         <TranslatedText as="h2" id="home.menu.title" />

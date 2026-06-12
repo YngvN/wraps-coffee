@@ -7,6 +7,13 @@
 }
 
 // Hero
+// Wrapper collapses smoothly to 0 height once the user scrolls, so the
+// rest of the page slides up into the space the hero leaves behind.
+.home__hero-wrapper {
+  overflow: hidden;
+  transition: height 0.4s ease;
+}
+
 .home__hero {
   position: relative;
   display: flex;
@@ -20,6 +27,9 @@
   background-size: cover;
   background-position: center;
   overflow: hidden;
+  transition:
+    transform 0.4s ease,
+    opacity 0.4s ease;
 
   // Darken the background photo so the overlaid text stays readable in
   // both light and dark mode.
@@ -29,6 +39,13 @@
     inset: 0;
     background: $color-overlay;
     z-index: 1;
+  }
+
+  // Slides out of view and fades when the user scrolls down, in sync with
+  // the header's company name revealing in the opposite direction.
+  &--scrolled {
+    transform: translateY(-60px);
+    opacity: 0;
   }
 }
 
@@ -163,7 +180,7 @@
     margin: 0;
   }
 
-  > p {
+  >p {
     margin: 0 0 $spacing-unit;
     color: $color-text-muted;
   }

@@ -1,21 +1,25 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
-import logoMark from './assets/images/logo/logo-mark.svg'
 import { LanguageSwitcher, ThemeToggle, TranslatedText } from './components'
+import { useIsScrolled } from './hooks/useIsScrolled'
 import { useLanguage } from './i18n'
 
 /**
- * Application shell: header with logo and primary navigation, the routed
- * page content, and a footer with company details, the cafe tagline,
- * copyright, and the language/theme controls.
+ * Application shell: header with the company name and primary navigation,
+ * the routed page content, and a footer with company details, the cafe
+ * tagline, copyright, and the language/theme controls.
+ *
+ * The header's company name stays hidden while the page is at the top and
+ * slides down into view once the user scrolls, in sync with the homepage
+ * hero animating out of view.
  */
 function App() {
   const { t } = useLanguage()
+  const isScrolled = useIsScrolled()
 
   return (
     <div className="app">
-      <header className="app__header">
+      <header className={`app__header${isScrolled ? ' app__header--scrolled' : ''}`}>
         <Link to="/" className="app__logo">
-          <img src={logoMark} alt="" className="app__logo-mark" />
           <span className="app__logo-text">Wraps & Coffee</span>
         </Link>
         <nav className="app__nav">
