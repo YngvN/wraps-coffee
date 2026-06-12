@@ -158,6 +158,16 @@
   display: flex;
   align-items: center;
   gap: $spacing-unit * 1.5;
+  width: max-content;
+
+  // On the wider desktop hero, the delivery links sit above the "Bestill og
+  // hent selv" button, both centered, and the delivery buttons render larger
+  // than the shared hero button height.
+  @media (min-width: 769px) {
+    margin-bottom: 100px;
+    flex-direction: column;
+    --delivery-button-size: 72px;
+  }
 }
 
 .home__cta {
@@ -273,15 +283,25 @@
     flex-direction: column;
     align-items: stretch;
     justify-content: center;
+    gap: $spacing-unit * 2;
     padding: $spacing-unit * 3;
+    --hero-action-size: 48px;
   }
 
   .home__hero-event {
     max-width: none;
   }
 
+  // The bottom-pinned overlay only fits cleanly on the wide desktop hero;
+  // on narrow screens it joins the normal stacked flow, centered below the
+  // event card, and wraps onto a second line if it doesn't fit.
   .home__hero-secondary-actions {
-    bottom: $spacing-unit * 3;
+    position: static;
+    transform: none;
+    align-self: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 100%;
   }
 }
 

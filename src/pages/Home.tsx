@@ -75,10 +75,10 @@ export function Home() {
             </div>
           </Link>
           <div className="home__hero-secondary-actions">
+            <DeliveryLinks />
             <Link className="home__cta" to="/menu">
               <span className="home__cta-label">{t('home.hero.ctaPickup')}</span>
             </Link>
-            <DeliveryLinks />
           </div>
         </section>
       </div>
