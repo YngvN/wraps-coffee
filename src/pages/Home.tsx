@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import heroBackground from '../assets/images/hero/hero-background.jpg'
 import coffeeTastingImage from '../assets/images/events/coffee-tasting.svg'
@@ -51,27 +50,11 @@ export function Home() {
   const { t } = useLanguage()
   const nextEvent = getNextEvent()
   const isScrolled = useIsScrolled()
-  const heroRef = useRef<HTMLElement>(null)
-  const [heroHeight, setHeroHeight] = useState<number | null>(null)
-
-  // Measure the hero's natural height so the wrapper can be collapsed to 0
-  // smoothly once the user scrolls, letting the rest of the page slide up
-  // into the space it leaves behind.
-  useEffect(() => {
-    const updateHeroHeight = () => setHeroHeight(heroRef.current?.offsetHeight ?? null)
-    updateHeroHeight()
-    window.addEventListener('resize', updateHeroHeight)
-    return () => window.removeEventListener('resize', updateHeroHeight)
-  }, [])
 
   return (
     <div className="home">
-      <div
-        className={`home__hero-wrapper${isScrolled ? ' home__hero-wrapper--scrolled' : ''}`}
-        style={heroHeight !== null ? { height: isScrolled ? 0 : heroHeight } : undefined}
-      >
+      <div className={`home__hero-wrapper${isScrolled ? ' home__hero-wrapper--scrolled' : ''}`}>
         <section
-          ref={heroRef}
           className={`home__hero${isScrolled ? ' home__hero--scrolled' : ''}`}
           style={{ backgroundImage: `url(${heroBackground})` }}
         >

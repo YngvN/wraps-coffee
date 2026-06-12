@@ -8,20 +8,24 @@
 
 // Hero
 // Wrapper collapses smoothly to 0 height once the user scrolls, so the
-// rest of the page slides up into the space the hero leaves behind. The
-// negative horizontal margins cancel out `.app__content`'s padding so the
-// hero spans the full viewport width, and the negative top margin pulls it
-// up behind the transparent sticky header so it touches the top edge too.
-// Once collapsed, the top margin is reset so the next section sits in its
-// normal place below the header instead of underneath it.
+// rest of the page slides up into the space the hero leaves behind. Capping
+// `max-height` at the hero's own `100vh` height (rather than measuring it in
+// JS) keeps it in sync with the live viewport size, so it never clips or
+// leaves a gap. The negative horizontal margins cancel out `.app__content`'s
+// padding so the hero spans the full viewport width, and the negative top
+// margin pulls it up behind the transparent sticky header so it touches the
+// top edge too. Once collapsed, the top margin is reset so the next section
+// sits in its normal place below the header instead of underneath it.
 .home__hero-wrapper {
   overflow: hidden;
+  max-height: 100vh;
   margin: calc(-1 * (var(--header-height, 0px) + $spacing-unit * 3)) calc($spacing-unit * -3) 0;
   transition:
-    height 0.4s ease,
+    max-height 0.4s ease,
     margin-top 0.4s ease;
 
   &--scrolled {
+    max-height: 0;
     margin-top: 0;
   }
 }
@@ -32,7 +36,7 @@
   align-items: center;
   justify-content: space-between;
   gap: $spacing-unit * 3;
-  min-height: 420px;
+  min-height: 100vh;
   padding: $spacing-unit * 4;
   background-size: cover;
   background-position: center;
@@ -244,7 +248,6 @@
     flex-direction: column;
     align-items: stretch;
     justify-content: flex-end;
-    min-height: 360px;
     padding: $spacing-unit * 3;
   }
 
