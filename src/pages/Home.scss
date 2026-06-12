@@ -72,8 +72,9 @@
   gap: $spacing-unit * 1.5;
   max-width: 560px;
   color: #ffffff;
-  // Leave room for the delivery buttons overlaid in the top-left corner.
-  padding-top: $spacing-unit * 9;
+  // Shared with .home__hero-actions and DeliveryLinks.scss so every
+  // hero button renders at the same height.
+  --hero-action-size: 48px;
 
   h1 {
     margin: 0;
@@ -146,9 +147,29 @@
   font-weight: 600;
 }
 
-.home__cta {
-  display: inline-block;
+// Wraps the hero buttons so they're sized to their own content rather than
+// the wider hero text column. `align-items: stretch` (the flex default)
+// makes the full-width "Bestill og hent selv" button match the width of the
+// "Se menyen" + delivery links row above it.
+.home__hero-buttons {
+  display: inline-flex;
+  flex-direction: column;
+  gap: $spacing-unit * 1.5;
   margin-top: $spacing-unit;
+}
+
+// Container holding the "Se menyen" button alongside the delivery links.
+.home__hero-actions {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit * 1.5;
+}
+
+.home__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--hero-action-size);
   padding: $spacing-unit calc($spacing-unit * 3);
   border-radius: 999px;
   border: 2px solid $color-mustard;
@@ -158,15 +179,15 @@
   text-decoration: none;
   box-shadow: 0 2px 8px $color-shadow;
   transition:
-    opacity 0.15s ease,
     background-color 0.15s ease,
     color 0.15s ease,
-    box-shadow 0.15s ease;
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 
   &:hover,
   &:focus-visible {
-    opacity: 0.85;
     box-shadow: 0 4px 12px $color-shadow;
+    transform: scale(1.15);
   }
 
   &--secondary {
@@ -178,8 +199,17 @@
     &:focus-visible {
       background: $color-burgundy;
       color: #ffffff;
-      opacity: 1;
     }
+  }
+}
+
+.home__cta-label {
+  display: inline-block;
+  transition: transform 0.2s ease;
+
+  .home__cta:hover &,
+  .home__cta:focus-visible & {
+    transform: scale(1.15);
   }
 }
 

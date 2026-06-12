@@ -1,10 +1,6 @@
 @use '../styles/variables' as *;
 
 .delivery-links {
-  position: absolute;
-  top: $spacing-unit * 2;
-  left: $spacing-unit * 2;
-  z-index: 20;
   display: flex;
   gap: $spacing-unit * 1.5;
 }
@@ -13,8 +9,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  height: 64px;
+  width: var(--hero-action-size, 48px);
+  height: var(--hero-action-size, 48px);
   border-radius: 50%;
   overflow: hidden;
   background: $color-surface;
@@ -37,12 +33,5 @@
   .delivery-links__button:hover &,
   .delivery-links__button:focus-visible & {
     transform: scale(1.15);
-  }
-}
-
-@media (max-width: 768px) {
-  .delivery-links__button {
-    width: 52px;
-    height: 52px;
   }
 }

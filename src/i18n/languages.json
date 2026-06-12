@@ -30,6 +30,7 @@
           "slogan": "We offer fresh salads, tasty wraps, baguettes and a varied selection of drinks.",
           "description": "Quality ingredients, prepared fresh every day in a cozy spot to slow down, meet friends or grab something good on the go.",
           "cta": "See the menu",
+          "ctaPickup": "Order and pick up yourself",
           "upcomingEvent": "Upcoming event"
         },
         "menu": {
@@ -431,6 +432,7 @@
           "slogan": "Vi tilbyr friske salater, smakfulle wraps, baguetter og et variert utvalg drikke.",
           "description": "Kvalitetsråvarer, tilberedt ferskt hver dag, i et koselig lokale hvor du kan slappe av, møte venner eller ta med deg noe godt på farten.",
           "cta": "Se menyen",
+          "ctaPickup": "Bestill og hent selv",
           "upcomingEvent": "Kommende arrangement"
         },
         "menu": {
