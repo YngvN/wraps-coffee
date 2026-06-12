@@ -44,6 +44,9 @@
   transition:
     transform 0.4s ease,
     opacity 0.4s ease;
+  // Shared with .home__hero-secondary-actions and DeliveryLinks.scss so the
+  // "Bestill og hent selv" button and delivery links render at the same height.
+  --hero-action-size: 56px;
 
   // Darken the background photo so the overlaid text stays readable in
   // both light and dark mode.
@@ -72,9 +75,6 @@
   gap: $spacing-unit * 1.5;
   max-width: 560px;
   color: #ffffff;
-  // Shared with .home__hero-actions and DeliveryLinks.scss so every
-  // hero button renders at the same height.
-  --hero-action-size: 48px;
 
   h1 {
     margin: 0;
@@ -147,19 +147,14 @@
   font-weight: 600;
 }
 
-// Wraps the hero buttons so they're sized to their own content rather than
-// the wider hero text column. `align-items: stretch` (the flex default)
-// makes the full-width "Bestill og hent selv" button match the width of the
-// "Se menyen" + delivery links row above it.
-.home__hero-buttons {
-  display: inline-flex;
-  flex-direction: column;
-  gap: $spacing-unit * 1.5;
-  margin-top: $spacing-unit;
-}
-
-// Container holding the "Se menyen" button alongside the delivery links.
-.home__hero-actions {
+// "Bestill og hent selv" and the delivery links, pinned to the bottom
+// center of the hero, separate from the "Se menyen" button.
+.home__hero-secondary-actions {
+  position: absolute;
+  z-index: 2;
+  bottom: $spacing-unit * 4;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: $spacing-unit * 1.5;
@@ -277,12 +272,16 @@
   .home__hero {
     flex-direction: column;
     align-items: stretch;
-    justify-content: flex-end;
+    justify-content: center;
     padding: $spacing-unit * 3;
   }
 
   .home__hero-event {
     max-width: none;
+  }
+
+  .home__hero-secondary-actions {
+    bottom: $spacing-unit * 3;
   }
 }
 

@@ -62,17 +62,9 @@ export function Home() {
             <TranslatedText as="h1" id="home.hero.title" />
             <TranslatedText as="p" className="home__slogan" id="home.hero.slogan" />
             <TranslatedText as="p" id="home.hero.description" />
-            <div className="home__hero-buttons">
-              <div className="home__hero-actions">
-                <Link className="home__cta" to="/menu">
-                  <span className="home__cta-label">{t('home.hero.cta')}</span>
-                </Link>
-                <DeliveryLinks />
-              </div>
-              <Link className="home__cta" to="/menu">
-                <span className="home__cta-label">{t('home.hero.ctaPickup')}</span>
-              </Link>
-            </div>
+            <Link className="home__cta" to="/menu">
+              <span className="home__cta-label">{t('home.hero.cta')}</span>
+            </Link>
           </div>
           <Link className="home__hero-event" to="/events">
             <img className="home__hero-event-image" src={nextEvent.image} alt="" />
@@ -82,6 +74,12 @@ export function Home() {
               <p className="home__hero-event-date">{t(`events.items.${nextEvent.key}.date`)}</p>
             </div>
           </Link>
+          <div className="home__hero-secondary-actions">
+            <Link className="home__cta" to="/menu">
+              <span className="home__cta-label">{t('home.hero.ctaPickup')}</span>
+            </Link>
+            <DeliveryLinks />
+          </div>
         </section>
       </div>
 
