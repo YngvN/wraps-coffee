@@ -23,16 +23,20 @@ const DELIVERY_LINKS: DeliveryLink[] = [
   },
 ]
 
+interface DeliveryLinksProps {
+  className?: string
+}
+
 /**
  * Round buttons linking to Wraps & Coffee's order pages on third-party
  * delivery platforms (Foodora, Wolt). Each button shows the platform's logo
  * and zooms in slightly on hover/focus.
  */
-export function DeliveryLinks() {
+export function DeliveryLinks({ className }: DeliveryLinksProps) {
   const { t } = useLanguage()
 
   return (
-    <div className="delivery-links">
+    <div className={['delivery-links', className].filter(Boolean).join(' ')}>
       {DELIVERY_LINKS.map(({ href, logo, labelKey }) => (
         <a
           key={labelKey}

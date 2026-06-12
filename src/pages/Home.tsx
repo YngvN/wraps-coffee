@@ -1,29 +1,13 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import heroBackground from '../assets/images/hero/hero-background.jpg'
-import drinksImage from '../assets/images/menu/drinks.svg'
-import nachosImage from '../assets/images/menu/nachos.svg'
-import pizzaImage from '../assets/images/menu/pizza.svg'
-import saladsImage from '../assets/images/menu/salads.svg'
-import smoothieImage from '../assets/images/menu/smoothie.svg'
-import wrapsBaguettesImage from '../assets/images/menu/wraps-baguettes.svg'
-import { Card, DeliveryLinks, EventDetailsModal, LocationMap, TranslatedText } from '../components'
+import { DeliveryLinks, EventDetailsModal, LocationMap, ReviewCarousel, TranslatedText } from '../components'
 import eventsData from '../data/events.json'
+import reviewsData from '../data/reviews.json'
 import { useIsScrolled } from '../hooks/useIsScrolled'
 import { useLanguage } from '../i18n'
 import { formatEventDate, getUpcomingEvents, type EventRecord } from '../utils/events'
 import './Home.scss'
-
-/** Menu offerings shown in the "What's on the menu" section, each linking to its section on the full menu page. */
-const menuItems = [
-  { key: 'salads', image: saladsImage },
-  { key: 'wraps', image: wrapsBaguettesImage },
-  { key: 'baguettes', image: wrapsBaguettesImage },
-  { key: 'pizza', image: pizzaImage },
-  { key: 'nachos', image: nachosImage },
-  { key: 'drinks', image: drinksImage },
-  { key: 'smoothies', image: smoothieImage },
-] as const
 
 /**
  * Homepage for Wraps & Coffee: a hero introduction with a preview of the next
@@ -89,18 +73,21 @@ export function Home() {
 
       <section className="home__menu">
         <TranslatedText as="h2" id="home.menu.title" />
-        <TranslatedText as="p" id="home.menu.intro" />
-        <div className="home__menu-grid">
-          {menuItems.map(({ key, image }) => (
-            <Link key={key} className="home__menu-card-link" to={`/menu#${key}`}>
-              <Card className="home__menu-card">
-                <img className="home__menu-image" src={image} alt="" />
-                <h3>{t(`home.menu.items.${key}.title`)}</h3>
-                <p>{t(`home.menu.items.${key}.description`)}</p>
-              </Card>
-            </Link>
-          ))}
+        <div className="home__menu-content">
+          <ReviewCarousel className="home__menu-reviews" reviews={reviewsData} />
+          <div className="home__menu-text">
+            <TranslatedText as="p" id="home.menu.summary" />
+            <div className="home__menu-actions">
+              <Link className="home__cta" to="/menu">
+                <span className="home__cta-label">{t('home.menu.cta')}</span>
+              </Link>
+              <Link className="home__cta home__cta--secondary" to="/menu">
+                <span className="home__cta-label">{t('home.hero.cta')}</span>
+              </Link>
+            </div>
+          </div>
         </div>
+        <DeliveryLinks className="home__menu-delivery" />
       </section>
 
       <section className="home__location">

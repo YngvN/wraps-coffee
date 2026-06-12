@@ -10,10 +10,12 @@ import {
   LanguageSwitcher,
   LocationMap,
   Modal,
+  ReviewCarousel,
   Spinner,
   ThemeToggle,
   TranslatedText,
 } from '../components'
+import reviewsData from '../data/reviews.json'
 import './Components.scss'
 
 export function Components() {
@@ -124,6 +126,14 @@ export function Components() {
         <p>An OpenStreetMap embed with a marker, used to show the cafe's location.</p>
         <div className="components-page__preview">
           <LocationMap popupText="Wraps & Coffee – Ulvenveien 82 E, 0581 Oslo" />
+        </div>
+      </section>
+
+      <section>
+        <h2>Review Carousel</h2>
+        <p>Cross-fades through customer reviews one at a time, with dots to jump to a specific review.</p>
+        <div className="components-page__preview">
+          <ReviewCarousel reviews={reviewsData} />
         </div>
       </section>
 

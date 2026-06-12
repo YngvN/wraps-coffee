@@ -34,38 +34,9 @@
           "upcomingEvent": "Upcoming event"
         },
         "menu": {
-          "title": "What's on the menu",
-          "intro": "A little bit of everything, made fresh to order.",
-          "items": {
-            "salads": {
-              "title": "Salads",
-              "description": "Crisp, colourful salads tossed with fresh greens, seasonal veg and your choice of toppings."
-            },
-            "wraps": {
-              "title": "Wraps",
-              "description": "Soft wraps rolled with rice, fresh vegetables and your choice of filling."
-            },
-            "baguettes": {
-              "title": "Baguettes",
-              "description": "Crusty baguettes with fresh salad and your choice of filling."
-            },
-            "pizza": {
-              "title": "Pizza",
-              "description": "Stone-baked pizza slices with classic and seasonal toppings."
-            },
-            "nachos": {
-              "title": "Nacho Plates",
-              "description": "Crunchy nachos loaded with cheese, salsa and guacamole, perfect for sharing."
-            },
-            "drinks": {
-              "title": "Coffee & Drinks",
-              "description": "Espresso-based coffee, tea and other drinks to go with your meal."
-            },
-            "smoothies": {
-              "title": "Smoothies",
-              "description": "Fresh fruit smoothies, blended to order."
-            }
-          }
+          "title": "Good food that fills you up",
+          "summary": "Our guests keep coming back for the friendly service, generous portions and food made fresh every day — and they're happy to say so on Facebook.",
+          "cta": "Order now"
         },
         "location": {
           "title": "Find us",
@@ -450,38 +421,9 @@
           "upcomingEvent": "Kommende arrangement"
         },
         "menu": {
-          "title": "Dette finner du på menyen",
-          "intro": "Litt av hvert, laget ferskt når du bestiller.",
-          "items": {
-            "salads": {
-              "title": "Salater",
-              "description": "Sprø og fargerike salater med ferske grønnsaker, sesongråvarer og valgfrie tilbehør."
-            },
-            "wraps": {
-              "title": "Wraps",
-              "description": "Myke wraps rullet med ris, ferske grønnsaker og ditt valg av fyll."
-            },
-            "baguettes": {
-              "title": "Baguetter",
-              "description": "Sprø baguetter med fersk salat og ditt valg av fyll."
-            },
-            "pizza": {
-              "title": "Pizza",
-              "description": "Steinovnsbakte pizzastykker med klassiske og sesongbaserte topping."
-            },
-            "nachos": {
-              "title": "Nachoplater",
-              "description": "Sprø nachos med ost, salsa og guacamole — perfekt å dele."
-            },
-            "drinks": {
-              "title": "Kaffe & Drikke",
-              "description": "Espressobasert kaffe, te og andre drikker som passer til måltidet."
-            },
-            "smoothies": {
-              "title": "Smoothies",
-              "description": "Friske fruktsmoothies, blandet ferskt til deg."
-            }
-          }
+          "title": "God mat som metter",
+          "summary": "Gjestene våre kommer tilbake for den vennlige servicen, de store porsjonene og maten som lages ferskt hver dag — og det er de ikke vonde å si på Facebook.",
+          "cta": "Bestill"
         },
         "location": {
           "title": "Finn oss",
