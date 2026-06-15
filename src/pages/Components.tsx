@@ -6,16 +6,21 @@ import {
   Card,
   Checkbox,
   DeliveryLinks,
+  EventGallery,
   Input,
   LanguageSwitcher,
   LocationMap,
   Modal,
+  RatingBadges,
   ReviewCarousel,
   Spinner,
   ThemeToggle,
   TranslatedText,
 } from '../components'
+import eventsData from '../data/events.json'
+import ratingsData from '../data/ratings.json'
 import reviewsData from '../data/reviews.json'
+import { getUpcomingEvents } from '../utils/events'
 import './Components.scss'
 
 export function Components() {
@@ -130,10 +135,29 @@ export function Components() {
       </section>
 
       <section>
+        <h2>Rating Badges</h2>
+        <p>Shows the cafe's average rating on third-party review platforms, two badges per row.</p>
+        <div className="components-page__preview">
+          <RatingBadges ratings={ratingsData} />
+        </div>
+      </section>
+
+      <section>
         <h2>Review Carousel</h2>
-        <p>Cross-fades through customer reviews one at a time, with dots to jump to a specific review.</p>
+        <p>Cross-fades through customer reviews one at a time.</p>
         <div className="components-page__preview">
           <ReviewCarousel reviews={reviewsData} />
+        </div>
+      </section>
+
+      <section>
+        <h2>Event Gallery</h2>
+        <p>
+          Preview of upcoming events: a compact card on narrow screens, or a gallery with a large picture that swaps to match the hovered/focused event on
+          wide screens.
+        </p>
+        <div className="components-page__preview">
+          <EventGallery events={getUpcomingEvents(eventsData, 3)} onSelectEvent={() => {}} />
         </div>
       </section>
 

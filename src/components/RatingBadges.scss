@@ -1,0 +1,50 @@
+@use '../styles/variables' as *;
+
+// Two columns so badges line up in pairs, with at most two side by side.
+.rating-badges {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, max-content));
+  justify-content: center;
+  gap: $spacing-unit calc($spacing-unit * 3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rating-badges__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+}
+
+.rating-badges__stars {
+  display: flex;
+}
+
+.rating-badges__star {
+  position: relative;
+  width: 28px;
+  height: 28px;
+}
+
+.rating-badges__star-icon {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+
+  &--empty {
+    fill: $color-border;
+  }
+
+  &--filled {
+    fill: $color-gold;
+  }
+}
+
+.rating-badges__platform {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: $color-text-muted;
+}

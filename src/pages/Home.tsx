@@ -1,12 +1,15 @@
+import { motion } from 'framer-motion'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import heroBackground from '../assets/images/hero/hero-background.jpg'
-import { DeliveryLinks, EventDetailsModal, LocationMap, ReviewCarousel, TranslatedText } from '../components'
+import { DeliveryLinks, EventDetailsModal, EventGallery, LocationMap, RatingBadges, ReviewCarousel, TranslatedText } from '../components'
 import eventsData from '../data/events.json'
+import ratingsData from '../data/ratings.json'
 import reviewsData from '../data/reviews.json'
 import { useIsScrolled } from '../hooks/useIsScrolled'
+import { useReveal } from '../hooks/useReveal'
 import { useLanguage } from '../i18n'
-import { formatEventDate, getUpcomingEvents, type EventRecord } from '../utils/events'
+import { getUpcomingEvents, type EventRecord } from '../utils/events'
 import './Home.scss'
 
 /**
@@ -14,12 +17,11 @@ import './Home.scss'
  * upcoming events, and the menu offerings.
  */
 export function Home() {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
   const upcomingEvents = getUpcomingEvents(eventsData, 3)
   const isScrolled = useIsScrolled()
-  const [hoveredEventId, setHoveredEventId] = useState<string | null>(null)
+  const reveal = useReveal()
   const [selectedEvent, setSelectedEvent] = useState<EventRecord | null>(null)
-  const galleryEvent = upcomingEvents.find(({ event }) => event.eventID === hoveredEventId) ?? upcomingEvents[0]
 
   return (
     <div className="home">
@@ -28,54 +30,36 @@ export function Home() {
           className={`home__hero${isScrolled ? ' home__hero--scrolled' : ''}`}
           style={{ backgroundImage: `url(${heroBackground})` }}
         >
-          <div className="home__hero-content">
-            <TranslatedText as="h1" id="home.hero.title" />
-            <TranslatedText as="p" className="home__slogan" id="home.hero.slogan" />
-            <TranslatedText as="p" id="home.hero.description" />
-            <Link className="home__cta" to="/menu">
-              <span className="home__cta-label">{t('home.hero.cta')}</span>
-            </Link>
-          </div>
-          <div className="home__hero-event">
-            <img className="home__hero-event-image" src={upcomingEvents[0].event.imageUrl} alt="" />
-            <img className="home__hero-event-gallery-image" src={galleryEvent.event.imageUrl} alt="" />
-            <div className="home__hero-event-list">
-              {upcomingEvents.map(({ event, occursAt }, index) => (
-                <button
-                  key={event.eventID}
-                  type="button"
-                  className={`home__hero-event-item${index === 0 ? ' home__hero-event-item--featured' : ' home__hero-event-item--upcoming'}`}
-                  onClick={() => setSelectedEvent(event)}
-                  onMouseEnter={() => setHoveredEventId(event.eventID)}
-                  onMouseLeave={() => setHoveredEventId(null)}
-                  onFocus={() => setHoveredEventId(event.eventID)}
-                  onBlur={() => setHoveredEventId(null)}
-                >
-                  <div className="home__hero-event-details">
-                    {index === 0 && <span className="home__hero-event-label">{t('home.hero.upcomingEvent')}</span>}
-                    <h3>{event.title}</h3>
-                    <p className="home__hero-event-date">
-                      {formatEventDate(occursAt, language, { weekday: 'short', day: 'numeric', month: 'short' })}, {event.time}
-                    </p>
-                  </div>
-                </button>
-              ))}
+          <div className="home__hero-inner">
+            <div className="home__hero-content">
+              <TranslatedText as="h1" id="home.hero.title" />
+              <TranslatedText as="p" className="home__slogan" id="home.hero.slogan" />
+              <TranslatedText as="p" id="home.hero.description" />
+              <Link className="home__cta" to="/menu">
+                <span className="home__cta-label">{t('home.hero.cta')}</span>
+              </Link>
             </div>
-          </div>
-          <div className="home__hero-secondary-actions">
-            <DeliveryLinks />
-            <Link className="home__cta" to="/menu">
-              <span className="home__cta-label">{t('home.hero.ctaPickup')}</span>
-            </Link>
+            <EventGallery className="home__hero-event" events={upcomingEvents} onSelectEvent={setSelectedEvent} />
+            <div className="home__hero-secondary-actions">
+              <DeliveryLinks />
+              <Link className="home__cta" to="/menu">
+                <span className="home__cta-label">{t('home.hero.ctaPickup')}</span>
+              </Link>
+            </div>
           </div>
         </section>
       </div>
 
       <section className="home__menu">
-        <TranslatedText as="h2" id="home.menu.title" />
+        <motion.div {...reveal('up')}>
+          <TranslatedText as="h2" id="home.menu.title" />
+          <RatingBadges className="home__menu-ratings" ratings={ratingsData} />
+        </motion.div>
         <div className="home__menu-content">
-          <ReviewCarousel className="home__menu-reviews" reviews={reviewsData} />
-          <div className="home__menu-text">
+          <motion.div className="home__menu-reviews" {...reveal('left')}>
+            <ReviewCarousel reviews={reviewsData} />
+          </motion.div>
+          <motion.div className="home__menu-text" {...reveal('right', 0.1)}>
             <TranslatedText as="p" id="home.menu.summary" />
             <div className="home__menu-actions">
               <Link className="home__cta" to="/menu">
@@ -85,15 +69,38 @@ export function Home() {
                 <span className="home__cta-label">{t('home.hero.cta')}</span>
               </Link>
             </div>
-          </div>
+          </motion.div>
         </div>
         <DeliveryLinks className="home__menu-delivery" />
       </section>
 
+      <section className="home__events">
+        <motion.div {...reveal('up')}>
+          <TranslatedText as="h2" id="home.events.title" />
+        </motion.div>
+        <div className="home__events-content">
+          <motion.div className="home__events-text" {...reveal('left')}>
+            <TranslatedText as="p" id="home.events.summary" />
+            <Link className="home__cta" to="/events">
+              <span className="home__cta-label">{t('home.events.cta')}</span>
+            </Link>
+          </motion.div>
+          <motion.div className="home__events-gallery" {...reveal('right', 0.1)}>
+            <EventGallery events={upcomingEvents} onSelectEvent={setSelectedEvent} />
+          </motion.div>
+        </div>
+      </section>
+
       <section className="home__location">
-        <TranslatedText as="h2" id="home.location.title" />
-        <TranslatedText as="p" id="home.location.intro" />
-        <LocationMap popupText={`${t('footer.company')} – ${t('footer.address')}`} />
+        <motion.div {...reveal('up')}>
+          <TranslatedText as="h2" id="home.location.title" />
+        </motion.div>
+        <motion.div {...reveal('up', 0.1)}>
+          <TranslatedText as="p" id="home.location.intro" />
+        </motion.div>
+        <motion.div {...reveal('up', 0.2)}>
+          <LocationMap popupText={`${t('footer.company')} – ${t('footer.address')}`} />
+        </motion.div>
       </section>
 
       <EventDetailsModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />

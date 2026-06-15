@@ -7,26 +7,26 @@
 }
 
 // Hero
-// Wrapper collapses smoothly to 0 height once the user scrolls, so the
+// `.app__content--home` removes the top padding that would normally reserve
+// space for the fixed header, so this wrapper (and the hero inside it) sits
+// flush with the top edge of the viewport, behind the transparent header.
+// The wrapper collapses smoothly to 0 height once the user scrolls, so the
 // rest of the page slides up into the space the hero leaves behind. Capping
 // `max-height` at the hero's own `100vh` height (rather than measuring it in
 // JS) keeps it in sync with the live viewport size, so it never clips or
-// leaves a gap. The negative horizontal margins cancel out `.app__content`'s
-// padding so the hero spans the full viewport width, and the negative top
-// margin pulls it up behind the transparent sticky header so it touches the
-// top edge too. Once collapsed, the top margin is reset so the next section
-// sits in its normal place below the header instead of underneath it.
+// leaves a gap. Once collapsed, a top margin reappears to reserve the same
+// space `.app__content`'s padding would on other pages, so `.home__menu`
+// doesn't end up underneath the fixed header.
 .home__hero-wrapper {
   overflow: hidden;
   max-height: 100vh;
-  margin: calc(-1 * (var(--header-height, 0px) + $spacing-unit * 3)) calc($spacing-unit * -3) 0;
   transition:
     max-height 0.4s ease,
     margin-top 0.4s ease;
 
   &--scrolled {
     max-height: 0;
-    margin-top: 0;
+    margin-top: calc(var(--header-height, 0px) + $spacing-unit * 3);
   }
 }
 
@@ -34,8 +34,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: $spacing-unit * 3;
+  justify-content: center;
   min-height: 100vh;
   padding: $spacing-unit * 4;
   background-size: cover;
@@ -66,6 +65,17 @@
   }
 }
 
+// Arranges the hero's content (text, event gallery, secondary actions)
+// across the width of the hero.
+.home__hero-inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit * 3;
+}
+
 .home__hero-content {
   position: relative;
   z-index: 2;
@@ -80,6 +90,40 @@
     margin: 0;
     font-size: clamp(2rem, 5vw, 3rem);
   }
+
+  // Each direct child "rains in" on initial page load: fading in while
+  // sliding up from below, staggered so they arrive one after another.
+  > * {
+    animation: home-hero-rain-in 0.6s ease-out backwards;
+  }
+
+  @for $i from 1 through 4 {
+    > *:nth-child(#{$i}) {
+      animation-delay: ($i - 1) * 0.12s;
+    }
+  }
+}
+
+// Fall-and-settle entrance used by the hero content items, the event
+// gallery preview, and the secondary actions on first load.
+@keyframes home-hero-rain-in {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home__hero-content > *,
+  .home__hero-event,
+  .home__hero-secondary-actions > * {
+    animation: none;
+  }
 }
 
 .home__slogan {
@@ -89,127 +133,18 @@
   color: $color-mustard;
 }
 
-// Upcoming events preview, shown on the right side of the hero. By default
-// it's a small card for the soonest event only; on wide screens it becomes a
-// gallery with a large picture on one side and the next three events listed
-// on the other, the picture swapping to match whichever event is hovered.
+// Positions the upcoming-events gallery (EventGallery component) on the
+// right side of the hero, capping its width to leave room for the hero text.
 .home__hero-event {
   position: relative;
   z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: $spacing-unit * 1.5;
   flex-shrink: 0;
   max-width: 320px;
-  padding: $spacing-unit * 1.5;
-  border-radius: 16px;
-  background: $color-surface;
-  box-shadow: 0 4px 16px $color-shadow;
+  animation: home-hero-rain-in 0.6s ease-out 0.48s backwards;
 
   @media (min-width: 900px) {
-    align-items: stretch;
     max-width: 480px;
   }
-}
-
-// Small image used for the compact, single-event card below the gallery breakpoint.
-.home__hero-event-image {
-  width: 64px;
-  height: 64px;
-  flex-shrink: 0;
-  border-radius: 12px;
-  object-fit: cover;
-
-  @media (min-width: 900px) {
-    display: none;
-  }
-}
-
-// Large picture shown only in the wide-screen gallery, updated to match the
-// hovered (or, by default, soonest) event.
-.home__hero-event-gallery-image {
-  display: none;
-
-  @media (min-width: 900px) {
-    display: block;
-    width: 180px;
-    height: 100%;
-    flex-shrink: 0;
-    border-radius: 12px;
-    object-fit: cover;
-    transition: opacity 0.15s ease;
-  }
-}
-
-.home__hero-event-list {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: calc($spacing-unit / 4);
-
-  @media (min-width: 900px) {
-    justify-content: center;
-    gap: $spacing-unit;
-  }
-}
-
-.home__hero-event-item {
-  display: block;
-  width: 100%;
-  border: none;
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  font: inherit;
-  text-align: left;
-  color: inherit;
-  text-decoration: none;
-  cursor: pointer;
-  transition: transform 0.15s ease;
-
-  &:hover,
-  &:focus-visible {
-    transform: translateY(-2px);
-  }
-
-  // Hidden by default so only the soonest event (the featured item) shows;
-  // the wide-screen gallery reveals these as additional rows.
-  &--upcoming {
-    display: none;
-
-    @media (min-width: 900px) {
-      display: block;
-      padding-top: $spacing-unit;
-      border-top: 1px solid $color-border;
-    }
-  }
-}
-
-.home__hero-event-details {
-  display: flex;
-  flex-direction: column;
-  gap: calc($spacing-unit / 4);
-  min-width: 0;
-
-  h3 {
-    margin: 0;
-    font-size: 1rem;
-  }
-}
-
-.home__hero-event-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: $color-mustard;
-}
-
-.home__hero-event-date {
-  margin: 0;
-  font-size: 0.875rem;
-  color: $color-lime;
-  font-weight: 600;
 }
 
 // "Bestill og hent selv" and the delivery links, pinned to the bottom
@@ -224,6 +159,12 @@
   align-items: center;
   gap: $spacing-unit * 1.5;
   width: max-content;
+
+  // Animated on the children rather than this element, since this
+  // element's own `transform` is used for centering (translateX(-50%)).
+  > * {
+    animation: home-hero-rain-in 0.6s ease-out 0.6s backwards;
+  }
 
   // On the wider desktop hero, the delivery links sit above the "Bestill og
   // hent selv" button, both centered, and the delivery buttons render larger
@@ -283,6 +224,56 @@
   }
 }
 
+// Hero CTAs ("See the menu", "Order and pick up yourself") and the "Good
+// food" section CTAs get an outlined look whose accent fill slides in from
+// the center on hover/focus, instead of the filled/zoom style used
+// elsewhere.
+// Source: "Popular Termite" button by adamgiebl on Uiverse.io
+// (https://uiverse.io/adamgiebl/popular-termite-0).
+.home__hero .home__cta,
+.home__menu-actions .home__cta {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  color: $color-button;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    left: 50%;
+    right: 50%;
+    z-index: -1;
+    border-radius: inherit;
+    background-color: $color-button;
+    opacity: 0;
+    transition: 0.5s ease all;
+  }
+
+  @media (hover: hover) {
+    &:hover,
+    &:focus-visible {
+      background: transparent;
+      color: $color-button-contrast;
+      transform: none;
+
+      &::before {
+        left: 0;
+        right: 0;
+        opacity: 1;
+      }
+    }
+
+    &:hover .home__cta-label,
+    &:focus-visible .home__cta-label {
+      transform: none;
+    }
+  }
+}
+
 .home__cta-label {
   display: inline-block;
   transition: transform 0.2s ease;
@@ -297,6 +288,7 @@
 
 // Shared section heading spacing
 .home__menu,
+.home__events,
 .home__location {
   display: flex;
   flex-direction: column;
@@ -304,21 +296,31 @@
 
   h2 {
     margin: 0;
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    text-align: center;
   }
 }
 
-.home__location > p {
+// Sits below the menu heading, centered, as social proof for the section above.
+.home__menu-ratings {
+  margin-top: $spacing-unit;
+}
+
+.home__location p {
   margin: 0 0 $spacing-unit;
   color: $color-text-muted;
 }
 
-// Fills the viewport like .home__hero, with its content centered in the
-// space below the title.
+// Shorter than the full-viewport .home__hero, with its content centered in
+// the space below the title. `overflow-x: hidden` contains the
+// reveal('left')/reveal('right') children, which sit translated off their
+// grid cell (x: ±60px) before scrolling into view and would otherwise cause
+// horizontal page overflow on initial load.
 .home__menu {
-  position: relative;
-  min-height: 100vh;
+  min-height: 60vh;
   justify-content: center;
   gap: $spacing-unit * 3;
+  overflow-x: hidden;
 }
 
 // Menu: customer reviews on the left, a short summary and CTA on the right.
@@ -331,12 +333,56 @@
 
 .home__menu-reviews {
   padding: $spacing-unit * 3;
-  border: 1px solid $color-border;
   border-radius: 12px;
-  background: $color-surface;
 }
 
 .home__menu-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-unit * 2;
+
+  // The summary uses \n\n for paragraph breaks within a single translation string.
+  p {
+    margin: 0;
+    color: $color-text-muted;
+    white-space: pre-line;
+  }
+}
+
+.home__menu-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-unit * 1.5;
+}
+
+// Sits below the menu content, centered, larger than usual to stand out as
+// a second, prominent way to order via delivery apps.
+.home__menu-delivery {
+  align-self: center;
+  --delivery-button-size: 96px;
+}
+
+// Shorter than the full-viewport .home__hero, like .home__menu, with a
+// short summary and CTA on one side and a copy of the hero's
+// upcoming-events gallery on the other. `overflow-x: hidden` contains the
+// reveal('left')/reveal('right') children before they scroll into view —
+// see .home__menu above.
+.home__events {
+  min-height: 60vh;
+  justify-content: center;
+  gap: $spacing-unit * 3;
+  overflow-x: hidden;
+}
+
+.home__events-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: $spacing-unit * 4;
+  align-items: center;
+}
+
+.home__events-text {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -348,32 +394,17 @@
   }
 }
 
-.home__menu-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: $spacing-unit * 1.5;
-}
-
-// Pinned to the bottom center of the section, like
-// .home__hero-secondary-actions, but larger to stand out as a second,
-// prominent way to order via delivery apps.
-.home__menu-delivery {
-  position: absolute;
-  z-index: 2;
-  bottom: $spacing-unit * 4;
-  left: 50%;
-  transform: translateX(-50%);
-  --delivery-button-size: 96px;
-}
-
 @media (max-width: 768px) {
   .home__hero {
+    padding: $spacing-unit * 3;
+    --hero-action-size: 40px;
+  }
+
+  .home__hero-inner {
     flex-direction: column;
     align-items: stretch;
     justify-content: center;
     gap: $spacing-unit * 2;
-    padding: $spacing-unit * 3;
-    --hero-action-size: 40px;
   }
 
   .home__hero-event {
@@ -382,36 +413,30 @@
 
   // The bottom-pinned overlay only fits cleanly on the wide desktop hero;
   // on narrow screens it joins the normal stacked flow, centered below the
-  // event card, and wraps onto a second line if it doesn't fit.
+  // event card, with the delivery links shown larger underneath the
+  // "Bestill og hent selv" button.
   .home__hero-secondary-actions {
     position: static;
     transform: none;
     align-self: center;
-    flex-wrap: wrap;
-    justify-content: center;
+    flex-direction: column-reverse;
+    align-items: center;
     max-width: 100%;
+    --delivery-button-size: 64px;
   }
 
-  .home__menu-content {
+  .home__menu-content,
+  .home__events-content {
     grid-template-columns: 1fr;
   }
 
-  // The bottom-pinned delivery buttons only fit cleanly on the wide
-  // section; on narrow screens they join the normal stacked flow.
   .home__menu-delivery {
-    position: static;
-    transform: none;
-    align-self: center;
     --delivery-button-size: 64px;
   }
 }
 
 @media (max-width: 640px) {
-  .home__hero-wrapper {
-    margin: calc(-1 * (var(--header-height, 0px) + $spacing-unit * 2)) calc($spacing-unit * -2) 0;
-
-    &--scrolled {
-      margin-top: 0;
-    }
+  .home__hero-wrapper--scrolled {
+    margin-top: calc(var(--header-height, 0px) + $spacing-unit * 2);
   }
 }

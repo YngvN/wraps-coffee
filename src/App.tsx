@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { Link, NavLink, Outlet } from 'react-router-dom'
-import { LanguageSwitcher, ThemeToggle, TranslatedText } from './components'
+import { Link, NavLink, useLocation } from 'react-router-dom'
+import { LanguageSwitcher, PageTransition, ThemeToggle, TranslatedText } from './components'
 import { useIsScrolled } from './hooks/useIsScrolled'
 import { useLanguage } from './i18n'
 
@@ -10,15 +10,19 @@ import { useLanguage } from './i18n'
  * the routed page content, and a footer with company details, the cafe
  * tagline, copyright, and the language/theme controls.
  *
- * The header is transparent and sticky to the top, with only the nav links
- * sitting on their own background. Its measured height is exposed as the
- * `--header-height` CSS variable so the homepage hero can extend up behind
- * it to the top edge of the viewport. The header's company name stays
- * hidden while the page is at the top and slides down into view once the
- * user scrolls, in sync with the homepage hero animating out of view.
+ * The header is transparent and fixed to the top (out of the normal page
+ * flow), with only the nav links sitting on their own background. Its
+ * measured height is exposed as the `--header-height` CSS variable so
+ * `.app__content` can reserve space for it on every page except the
+ * homepage, where the hero sits flush with the top edge of the viewport,
+ * behind the transparent header. The header's company name stays hidden
+ * while the page is at the top and slides down into view once the user
+ * scrolls, in sync with the homepage hero animating out of view.
  */
 function App() {
   const { t } = useLanguage()
+  const location = useLocation()
+  const isHome = location.pathname === '/'
   const isScrolled = useIsScrolled()
   const headerRef = useRef<HTMLElement>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
@@ -48,8 +52,8 @@ function App() {
           </NavLink>
         </nav>
       </header>
-      <main className="app__content">
-        <Outlet />
+      <main className={`app__content${isHome ? ' app__content--home' : ''}`}>
+        <PageTransition />
       </main>
       <footer className="app__footer">
         <div className="app__footer-section">

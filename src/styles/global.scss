@@ -110,14 +110,22 @@ h2 {
   min-height: 100vh;
 }
 
+// Fixed (out of flow) rather than sticky so it never pushes `.app__content`
+// down: on the homepage, `.app__content--home` removes the top padding that
+// would otherwise reserve space for it, letting the hero sit flush with the
+// top of the viewport, transparently behind this header.
 .app__header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 50%;
   z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: $spacing-unit * 2;
+  width: 100%;
+  max-width: 1600px;
+  transform: translateX(-50%);
   padding: $spacing-unit * 2 $spacing-unit * 3;
 }
 
@@ -164,8 +172,30 @@ h2 {
 }
 
 .app__content {
+  position: relative;
   flex: 1;
+  display: grid;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
   padding: $spacing-unit * 3;
+  // Reserve space for the fixed header so content isn't rendered underneath
+  // it. Removed entirely on the homepage (see `&--home`) so the hero can
+  // sit flush with the top of the viewport, behind the transparent header.
+  padding-top: calc(var(--header-height, 0px) + $spacing-unit * 3);
+  overflow-x: hidden;
+
+  &--home {
+    padding-top: 0;
+  }
+}
+
+// Both the incoming and outgoing page occupy the same grid cell while a
+// page transition is in flight, so the incoming page can slide in over the
+// outgoing one without affecting layout.
+.page-transition {
+  grid-area: 1 / 1;
+  min-width: 0;
 }
 
 .app__footer {
@@ -174,6 +204,9 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: $spacing-unit * 3;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
   border-top: 1px solid $color-border;
   padding: $spacing-unit * 2 $spacing-unit * 3;
   color: $color-text-muted;
@@ -218,6 +251,11 @@ h2 {
 
   .app__content {
     padding: $spacing-unit * 2;
+    padding-top: calc(var(--header-height, 0px) + $spacing-unit * 2);
+
+    &--home {
+      padding-top: 0;
+    }
   }
 
   .app__footer {

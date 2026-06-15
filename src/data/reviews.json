@@ -66,5 +66,289 @@
   {
     "name": "Katrine",
     "review": "Gode wraps! Burritos del cielo!"
+  },
+  {
+    "name": "Monica",
+    "review": "God kaffe, og helt fantastisk service. En hyggelig start på dagen før jeg skulle på kurs. Anbefales!"
+  },
+  {
+    "name": "Johnny",
+    "review": "Nylig oppdaget dette stedet. Alt vi har prøvd til lunsj har vært topp. Hadde med en italiensk kunde, og til og med han skrøt av pizzaen. Wraps og tunfisksalaten anbefales også."
+  },
+  {
+    "name": "Håvard",
+    "review": "Stoppet her på trilleturen da minstemann sovnet. Nydelig fersk wrap laget ved bestilling, og god smoothie. Plass både i sol og skygge, og en liten lekeplass like ved for barna."
+  },
+  {
+    "name": "Solmaz",
+    "review": "Jeg hadde en fantastisk opplevelse med en veldig god burger og utmerket service! Burgeren var saftig, smakfull og perfekt stekt, og personalet var vennlig, oppmerksomt og imøtekommende. Anbefales!"
+  },
+  {
+    "name": "Nora",
+    "review": "Vi nyter en veldig god drink etter å ha spist en veldig god pizza her. Maten, servicen og stemningen er virkelig på topp – et rolig sted med serviceinnstilt personale som har kunden i fokus."
+  },
+  {
+    "name": "Sima",
+    "review": "Fantastisk mat og utmerket service! 🌟 Maten var helt nydelig – smakfull, fersk og perfekt tilberedt, og personalet var vennlig, hjelpsomt og fikk oss til å føle oss velkomne. Anbefales på det sterkeste! 🍽️✨"
+  },
+  {
+    "name": "Lil P",
+    "review": "Jobber rett ved siden av, og kommer hit når jeg vil ha en digg lunsj 😋 Veldig gode burritos og baguetter – favoritten må være Tandoori-fyllet🌯 Alltid blid og hyggelig betjening. Kan anbefales👍"
+  },
+  {
+    "name": "Gunhild",
+    "review": "Kommer tilbake hit! Hyggelig atmosfære."
+  },
+  {
+    "name": "Erika",
+    "review": "Fint lunsjsted, god mat, alltid hyggelig betjening."
+  },
+  {
+    "name": "Anders Lindsetmo",
+    "review": "Utrolig bra baguetter og ufattelig hyggelig personale."
+  },
+  {
+    "name": "Hege",
+    "review": "Fantastisk hyggelig sted med Soheila i spissen. Finner ikke en mer serviceinnstilt og hyggelig dame. Alt på menyen er godt, så det er bare å prøve seg fram :-)"
+  },
+  {
+    "name": "Alexander De Luca",
+    "review": "Veldig bra mat, store porsjoner, kjapp og god service."
+  },
+  {
+    "name": "Emma",
+    "review": "Helt fantastisk service – stedet var egentlig stengt, men den hyggelige eieren åpnet opp og lagde wraps til oss likevel. Reddet kvelden vår! Tusen takk for fantastisk service."
+  },
+  {
+    "name": "Roya",
+    "review": "Veldig fint og behagelig sted. Fantastisk god service, bedre kunne det ikke bli."
+  },
+  {
+    "name": "Selda",
+    "review": "Vært her to ganger: bestilte en kyllingwrap og senere en kyllingsalat. Så godt, og utrolig koselige folk som jobber her. Gleder meg til neste lunsjpause!"
+  },
+  {
+    "name": "Julia",
+    "review": "Tasty food, fair price, really nice and helpful staff. Would recommend :)"
+  },
+  {
+    "name": "Ingvil",
+    "review": "Jeg og kjæresten min likte Tuna-wrapsene veldig godt ❣️ Vi kommer til å kjøpe den igjen 👍 Han er vanligvis kritisk til mat, men likte virkelig denne 💖"
+  },
+  {
+    "name": "Trine",
+    "review": "Her likte jeg meg veldig godt. Jeg spiste en nydelig varm baguette med tunfisk. Hyggelig betjening og god atmosfære. Kommer gjerne igjen."
+  },
+  {
+    "name": "Anna H",
+    "review": "Jeg fikk den beste behandlingen på alle måter! Maten ble servert veldig raskt, og det var en veldig hyggelig atmosfære på stedet."
+  },
+  {
+    "name": "Maja",
+    "review": "Staff is really friendly and helpful and food is good."
+  },
+  {
+    "name": "Morten",
+    "review": "God mat og kaffe, hyggelig betjening."
+  },
+  {
+    "name": "Elida",
+    "review": "Nydelig mat og kjempegod service! Kjøpte min første burrito her i dag, og kommer til å fortsette å kjøpe lunsj her fremover. Veldig fint interiør også :D"
+  },
+  {
+    "name": "Inger-Marie",
+    "review": "Det var hyggelige ansatte som hilste på alle som kom inn døra. Maten var også veldig god."
+  },
+  {
+    "name": "Anna",
+    "review": "Bestilte en mexicansk burrito, det var en god lunsj. Men det beste var den ekstremt søte og snille damen bak disken :) Og vennen min fikk bursdagsmuffins!"
+  },
+  {
+    "name": "Anders H",
+    "review": "Super liten lokal café. God og skikkelig mat, god kaffe, alle rettigheter. Svært hyggelig betjening og flott service."
+  },
+  {
+    "name": "Øyvind",
+    "review": "Et hyggelig sted for lokalmiljøet! Betjeningen er svært hyggelig og gode omgivelser :)"
+  },
+  {
+    "name": "Kosa",
+    "review": "Lovely place, the staff are some of the most helpful and positive people here! Really delicious food and big portions for a good price! Recommend trying it yourself."
+  },
+  {
+    "name": "Bjarki",
+    "review": "Alltid utrolig hyggelig betjening og fantastisk god mat! Anbefales på det sterkeste!"
+  },
+  {
+    "name": "Teodor",
+    "review": "Hyggelig og behjelpelig betjening, rask servering og kjempegod burrito. Spiste en takeaway Chicken Tandoori Burrito til lunsj :)"
+  },
+  {
+    "name": "Jonny",
+    "review": "Alltid god kaffe, latte med godt og tykt melkeskum på toppen🤗 Hyggelig dame som driver stedet 👍"
+  },
+  {
+    "name": "Hans-Kristian",
+    "review": "Super nice place. Great food, and atmosphere. The owner is very chatty, and always makes me feel like a special guest. Would highly recommend. Easy 5 star :)"
+  },
+  {
+    "name": "Zosia",
+    "review": "Super hyggelige ansatte, bra mat og god atmosfære :)"
+  },
+  {
+    "name": "Stian",
+    "review": "Absolutely the best wrap in Oslo. Super tasty. The owner is really nice and friendly. Really a nice lunch place."
+  },
+  {
+    "name": "Mehmet",
+    "review": "Kjempe god mat, koselig og veldig hyggelige. Må prøves!"
+  },
+  {
+    "name": "Marie",
+    "review": "Kjempe bra kundeservice, veldig hyggelig å snakke med. Lager så god mat! Anbefaler dette stedet!"
+  },
+  {
+    "name": "Filip",
+    "review": "Utrolig god mat og en kundeservice uten like! Soheila er en fantastisk dame som kan mat."
+  },
+  {
+    "name": "Hans Petter",
+    "review": "Hyggelig sted og meget hyggelig betjening og god mat og godt drikke. Anbefales 😛"
+  },
+  {
+    "name": "Ole",
+    "review": "Flott plass, god mat og hyggelig betjening!😊 Anbefales"
+  },
+  {
+    "name": "Inger H.",
+    "review": "Fantastisk sted! Nydelig mat og super service."
+  },
+  {
+    "name": "Valentina",
+    "review": "Sebastian er den beste! Han lager fantastisk mat. Anbefaler!"
+  },
+  {
+    "name": "Carine",
+    "review": "Kjempe god mat, trivelig lokale og eieren er utrolig hyggelig! 😊"
+  },
+  {
+    "name": "Nicolai",
+    "review": "Meget gode burritoer til en rimelig penge!🤩 Perfekt lunsj!"
+  },
+  {
+    "name": "Dominika",
+    "review": "Godt mat! Veldig hyggelig betjening! Anbefales ❤️"
+  },
+  {
+    "name": "Shamy",
+    "review": "Nydelig mat, absolutt å anbefale!! Og veldig hyggelig betjening"
+  },
+  {
+    "name": "Mateusz",
+    "review": "Julia makes the best Mexican burrito, 11/10!"
+  },
+  {
+    "name": "Дмитрий",
+    "review": "Nice staff, cozy atmosphere, quiet and peaceful – a good place to meet a friend for coffee and relax. Good coffee and food. Recommended!"
+  },
+  {
+    "name": "Farshad",
+    "review": "Smaksfulle mat og hyggelige folk, anbefales sterkt 😉👍🏼😋👌"
+  },
+  {
+    "name": "Eva",
+    "review": "Fikk servert nydelig nystekt baguette. Tar en tur snart igjen. 😄"
+  },
+  {
+    "name": "Huan",
+    "review": "Veldig god burritos og baguetter. Rimelig pris. Anbefales :)"
+  },
+  {
+    "name": "A.S.",
+    "review": "Veldig gode og ferske wraps, hyggelig betjening. Anbefales!!"
+  },
+  {
+    "name": "Jørund",
+    "review": "Gode wraps. Hyggelig betjening. Fin plass."
+  },
+  {
+    "name": "Marcin",
+    "review": "The best wrap in the city... it tastes very good, nice atmosphere, great service – Kasia makes a great Mexican burrito."
+  },
+  {
+    "name": "Kevin",
+    "review": "Best wraps around and nicest owner! Must-try place – had lunch for two weeks straight, always something new to try!"
+  },
+  {
+    "name": "Alice",
+    "review": "Delicious food, good cold beer, friendly staff, short waiting times! Highly recommended!"
+  },
+  {
+    "name": "Steinar",
+    "review": "Meget hyggelig og moderne café. Hyggelig betjening, gode baguetter."
+  },
+  {
+    "name": "N.G.",
+    "review": "Hyggelig personal og koselig café."
+  },
+  {
+    "name": "Pentograham",
+    "review": "Fantastic pizza! Sebastian is the best"
+  },
+  {
+    "name": "Maksym",
+    "review": "One of the best burritos in Oslo"
+  },
+  {
+    "name": "Kristian",
+    "review": "Nydelig mat og service 😁"
+  },
+  {
+    "name": "Peter",
+    "review": "Kjempe god mat og kaffe"
+  },
+  {
+    "name": "Gina",
+    "review": "Best service, good coffee and good wine and drinks. ♥️👍"
+  },
+  {
+    "name": "Telewizor",
+    "review": "The best service ever 😊 staff very friendly!!"
+  },
+  {
+    "name": "Soheila Bakhtyari",
+    "review": "Great food and service, would highly recommend..."
+  },
+  {
+    "name": "Vetle",
+    "review": "God mat👌🏻"
+  },
+  {
+    "name": "Mathieu",
+    "review": "Cool place, really good wraps."
+  },
+  {
+    "name": "Marius",
+    "review": "Fantastisk mat 😁👍"
+  },
+  {
+    "name": "Kai-Roger",
+    "review": "Sinnsykt gode burritos"
+  },
+  {
+    "name": "Jan Helge",
+    "review": "God kaffe."
+  },
+  {
+    "name": "C.J.",
+    "review": "Fantastisk place and good drinks, same as the food. For sure coming back for espresso martini!"
+  },
+  {
+    "name": "Mia",
+    "review": "Perfekt for å slappe av og plukke med seg piknik-smørbrød!"
+  },
+  {
+    "name": "Chantal",
+    "review": "Veldig god espresso. Fint sted."
   }
 ]

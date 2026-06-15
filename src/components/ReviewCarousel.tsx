@@ -21,8 +21,7 @@ interface ReviewCarouselProps {
 /**
  * Cycles through `reviews`, cross-fading in one customer review (with the
  * reviewer's first name) at a time and advancing automatically every
- * `interval` milliseconds. Dots below let visitors jump to a specific
- * review directly.
+ * `interval` milliseconds.
  */
 export function ReviewCarousel({ reviews, interval = 6000, className }: ReviewCarouselProps) {
   const [index, setIndex] = useState(0)
@@ -58,19 +57,6 @@ export function ReviewCarousel({ reviews, interval = 6000, className }: ReviewCa
             <figcaption className="review-carousel__name">— {current.name}</figcaption>
           </motion.figure>
         </AnimatePresence>
-      </div>
-
-      <div className="review-carousel__dots">
-        {reviews.map((review, dotIndex) => (
-          <button
-            key={review.name + dotIndex}
-            type="button"
-            className={`review-carousel__dot${dotIndex === index ? ' review-carousel__dot--active' : ''}`}
-            aria-label={`Show review ${dotIndex + 1} of ${reviews.length}`}
-            aria-current={dotIndex === index}
-            onClick={() => setIndex(dotIndex)}
-          />
-        ))}
       </div>
     </div>
   )

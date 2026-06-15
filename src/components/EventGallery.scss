@@ -1,0 +1,119 @@
+@use '../styles/variables' as *;
+
+// By default a small card for the soonest event only; on wide screens it
+// becomes a gallery with a large picture on one side and the upcoming
+// events listed on the other, the picture swapping to match whichever
+// event is hovered or focused.
+.event-gallery {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit * 1.5;
+  padding: $spacing-unit * 1.5;
+  border-radius: 16px;
+  background: $color-surface;
+  box-shadow: 0 4px 16px $color-shadow;
+
+  @media (min-width: 900px) {
+    align-items: stretch;
+  }
+}
+
+// Small image used for the compact, single-event card below the gallery breakpoint.
+.event-gallery__image {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  object-fit: cover;
+
+  @media (min-width: 900px) {
+    display: none;
+  }
+}
+
+// Large picture shown only in the wide-screen gallery, updated to match the
+// hovered (or, by default, soonest) event.
+.event-gallery__gallery-image {
+  display: none;
+
+  @media (min-width: 900px) {
+    display: block;
+    width: 180px;
+    height: 100%;
+    flex-shrink: 0;
+    border-radius: 12px;
+    object-fit: cover;
+    transition: opacity 0.15s ease;
+  }
+}
+
+.event-gallery__list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: calc($spacing-unit / 4);
+
+  @media (min-width: 900px) {
+    justify-content: center;
+    gap: $spacing-unit;
+  }
+}
+
+.event-gallery__item {
+  display: block;
+  width: 100%;
+  border: none;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    transform: translateY(-2px);
+  }
+
+  // Hidden by default so only the soonest event (the featured item) shows;
+  // the wide-screen gallery reveals these as additional rows.
+  &--upcoming {
+    display: none;
+
+    @media (min-width: 900px) {
+      display: block;
+      padding-top: $spacing-unit;
+      border-top: 1px solid $color-border;
+    }
+  }
+}
+
+.event-gallery__details {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+  min-width: 0;
+
+  h3 {
+    margin: 0;
+    font-size: 1rem;
+  }
+}
+
+.event-gallery__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: $color-mustard;
+}
+
+.event-gallery__date {
+  margin: 0;
+  font-size: 0.875rem;
+  color: $color-lime;
+  font-weight: 600;
+}

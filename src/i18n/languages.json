@@ -35,8 +35,16 @@
         },
         "menu": {
           "title": "Good food that fills you up",
-          "summary": "Our guests keep coming back for the friendly service, generous portions and food made fresh every day — and they're happy to say so on Facebook.",
-          "cta": "Order now"
+          "summary": "You'll find fresh and satisfying salads loaded with crisp greens and your choice of topping such as shrimp salad, tuna salad or classic Caesar salad. Wraps provide another option for those looking to dine on the go; filled with rice and veggies, wraps feature various choices including chicken and feta, tandoori chicken, and vegetarian selections. Additionally, there are tasty baguettes like the chicken one with garlic, tomato and cucumber or mozzarella baguette that are perfect for a fulfilling meal.\n\nMoreover, if you're craving something heartier but still want to maintain your dietary choices, nachos served with rice, cheese, vegetables, and an assortment of meat-flavored options can be shared among friends – they make for hearty portions without feeling overly heavy.\n\nAll these meals offer balanced nutrition while being delicious, making it easy to leave the café satisfied yet healthy. The cafe menu ensures that there's something suitable for everyone's preference or dietary needs, maintaining a balance between taste and health consciousness.",
+          "cta": "Order now",
+          "ratings": {
+            "score": "Rated {{rating}} out of 5 on {{platform}}"
+          }
+        },
+        "events": {
+          "title": "Not only eating",
+          "summary": "Wraps & Coffee is more than a place to eat — book the venue for your own private event, or join us for our weekly quiz night.",
+          "cta": "See our events"
         },
         "location": {
           "title": "Find us",
@@ -366,6 +374,7 @@
           "spotsFilled": "{{count}} of {{capacity}} spots filled",
           "registrationRequired": "Registration required",
           "signUp": "Sign up",
+          "back": "Back",
           "nameLabel": "Name",
           "emailLabel": "Email",
           "submit": "Submit",
@@ -422,8 +431,16 @@
         },
         "menu": {
           "title": "God mat som metter",
-          "summary": "Gjestene våre kommer tilbake for den vennlige servicen, de store porsjonene og maten som lages ferskt hver dag — og det er de ikke vonde å si på Facebook.",
-          "cta": "Bestill"
+          "summary": "Hos oss finner du ferske og mettende salater med sprø salat og ditt valg av topping, som reke-, tunfisk- eller klassisk cæsarsalat. Wraps er et annet alternativ for de som vil ha noe å spise på farten; fylt med ris og grønnsaker, med varianter som kylling og fetaost, tandoorikylling og vegetariske valg. I tillegg har vi smakfulle baguetter, som kyllingbaguetten med hvitløk, tomat og agurk eller mozzarellabaguetten – perfekte for et mettende måltid.\n\nHvis du har lyst på noe enda mer matfylt, men fortsatt vil ta hensyn til kostholdet ditt, kan nachos servert med ris, ost, grønnsaker og et utvalg kjøttvarianter deles mellom venner – de gir store porsjoner uten å bli for tungt.\n\nAlle disse rettene gir balansert ernæring samtidig som de er deilige, slik at du kan gå mett, men sunn ut av kafeen. Menyen sørger for at det er noe for alle preferanser og kostholdsbehov, med en god balanse mellom smak og helsebevissthet.",
+          "cta": "Bestill",
+          "ratings": {
+            "score": "Vurdert {{rating}} av 5 på {{platform}}"
+          }
+        },
+        "events": {
+          "title": "Ikke bare mat",
+          "summary": "Wraps & Coffee er mer enn et sted å spise — book lokalet til ditt eget arrangement, eller bli med på quizkvelden vår hver uke.",
+          "cta": "Se arrangementene våre"
         },
         "location": {
           "title": "Finn oss",
@@ -753,6 +770,7 @@
           "spotsFilled": "{{count}} av {{capacity}} plasser fylt",
           "registrationRequired": "Påmelding kreves",
           "signUp": "Meld deg på",
+          "back": "Tilbake",
           "nameLabel": "Navn",
           "emailLabel": "E-post",
           "submit": "Send",
