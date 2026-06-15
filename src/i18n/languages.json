@@ -7,7 +7,9 @@
         "menu": "Menu",
         "events": "Events",
         "profile": "Profile",
-        "components": "Components"
+        "components": "Components",
+        "openMenu": "Open menu",
+        "closeMenu": "Close menu"
       },
       "footer": {
         "tagline": "Fresh wraps, salads and good coffee, made with care.",
@@ -403,7 +405,9 @@
         "menu": "Meny",
         "events": "Arrangementer",
         "profile": "Profil",
-        "components": "Komponenter"
+        "components": "Komponenter",
+        "openMenu": "Åpne meny",
+        "closeMenu": "Lukk meny"
       },
       "footer": {
         "tagline": "Ferske wraps, salater og god kaffe, laget med omtanke.",

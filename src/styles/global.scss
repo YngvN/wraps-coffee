@@ -114,10 +114,14 @@ h2 {
 // down: on the homepage, `.app__content--home` removes the top padding that
 // would otherwise reserve space for it, letting the hero sit flush with the
 // top of the viewport, transparently behind this header.
+// Centered via auto margins (rather than `left: 50%` + `transform`) so it
+// doesn't become the containing block for fixed-position descendants —
+// `.app__nav-overlay` relies on positioning itself relative to the viewport.
 .app__header {
   position: fixed;
   top: 0;
-  left: 50%;
+  left: 0;
+  right: 0;
   z-index: 10;
   display: flex;
   align-items: center;
@@ -125,7 +129,7 @@ h2 {
   gap: $spacing-unit * 2;
   width: 100%;
   max-width: 1600px;
-  transform: translateX(-50%);
+  margin: 0 auto;
   padding: $spacing-unit * 2 $spacing-unit * 3;
 }
 
@@ -153,6 +157,13 @@ h2 {
   opacity: 1;
 }
 
+// On larger viewports this wrapper is transparent to layout, so `.app__nav`
+// sits inline in the header as usual. On small screens it becomes the
+// fullscreen container for the nav (see the media query below).
+.app__nav-overlay {
+  display: contents;
+}
+
 .app__nav {
   display: flex;
   gap: $spacing-unit * 3;
@@ -171,6 +182,52 @@ h2 {
   }
 }
 
+// Hamburger button that reveals `.app__nav` on small screens. Hidden on
+// larger viewports, where the nav is always visible inline.
+.app__nav-toggle {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid $color-border;
+  background: $color-bg;
+  color: $color-text;
+  cursor: pointer;
+
+  &:hover {
+    background: $color-surface-hover;
+  }
+}
+
+.app__nav-toggle-bar {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.app__nav-toggle--open .app__nav-toggle-bar {
+  &:nth-child(1) {
+    transform: translateY(6px) rotate(45deg);
+  }
+
+  &:nth-child(2) {
+    opacity: 0;
+  }
+
+  &:nth-child(3) {
+    transform: translateY(-6px) rotate(-45deg);
+  }
+}
+
 .app__content {
   position: relative;
   flex: 1;
@@ -185,8 +242,14 @@ h2 {
   padding-top: calc(var(--header-height, 0px) + $spacing-unit * 3);
   overflow-x: hidden;
 
+  // On the homepage, drop the centered max-width and padding entirely so
+  // the hero (a direct child of `.home`) can span the full viewport width.
+  // The other homepage sections re-apply this same centered max-width via
+  // `.home__container` (see Home.scss), which doesn't wrap the hero.
   &--home {
-    padding-top: 0;
+    max-width: none;
+    margin: 0;
+    padding: 0;
   }
 }
 
@@ -242,11 +305,43 @@ h2 {
     padding: $spacing-unit * 1.5 $spacing-unit * 2;
   }
 
+  .app__nav-toggle {
+    display: flex;
+  }
+
+  // Fullscreen container revealed by animating `max-height` from 0 up to
+  // the viewport height. Sits below the header's logo and toggle button
+  // (negative z-index within the header's stacking context) so they stay
+  // visible and clickable while the menu is open.
+  .app__nav-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    max-height: 0;
+    overflow: hidden;
+    background: $color-bg;
+    transition: max-height 0.3s ease;
+
+    &--open {
+      max-height: 100vh;
+    }
+  }
+
   .app__nav {
-    order: 3;
-    width: 100%;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
-    gap: $spacing-unit * 2;
+    width: 100%;
+    height: 100%;
+    gap: $spacing-unit * 4;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+
+    a {
+      font-size: 1.25rem;
+    }
   }
 
   .app__content {
@@ -254,7 +349,7 @@ h2 {
     padding-top: calc(var(--header-height, 0px) + $spacing-unit * 2);
 
     &--home {
-      padding-top: 0;
+      padding: 0;
     }
   }
 

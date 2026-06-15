@@ -6,6 +6,24 @@
   gap: $spacing-unit * 6;
 }
 
+// `.app__content--home` drops its usual centered max-width and padding so
+// the hero (a direct child of `.home`) can span the full viewport width.
+// Every other homepage section is wrapped in this container, which
+// reapplies that same centering/padding on its own.
+.home__container {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 6;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 $spacing-unit * 3 $spacing-unit * 3;
+
+  @media (max-width: 640px) {
+    padding: 0 $spacing-unit * 2 $spacing-unit * 2;
+  }
+}
+
 // Hero
 // `.app__content--home` removes the top padding that would normally reserve
 // space for the fixed header, so this wrapper (and the hero inside it) sits

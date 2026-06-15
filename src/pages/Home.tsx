@@ -50,58 +50,60 @@ export function Home() {
         </section>
       </div>
 
-      <section className="home__menu">
-        <motion.div {...reveal('up')}>
-          <TranslatedText as="h2" id="home.menu.title" />
-          <RatingBadges className="home__menu-ratings" ratings={ratingsData} />
-        </motion.div>
-        <div className="home__menu-content">
-          <motion.div className="home__menu-reviews" {...reveal('left')}>
-            <ReviewCarousel reviews={reviewsData} />
+      <div className="home__container">
+        <section className="home__menu">
+          <motion.div {...reveal('up')}>
+            <TranslatedText as="h2" id="home.menu.title" />
+            <RatingBadges className="home__menu-ratings" ratings={ratingsData} />
           </motion.div>
-          <motion.div className="home__menu-text" {...reveal('right', 0.1)}>
-            <TranslatedText as="p" id="home.menu.summary" />
-            <div className="home__menu-actions">
-              <Link className="home__cta" to="/menu">
-                <span className="home__cta-label">{t('home.menu.cta')}</span>
-              </Link>
-              <Link className="home__cta home__cta--secondary" to="/menu">
-                <span className="home__cta-label">{t('home.hero.cta')}</span>
-              </Link>
-            </div>
-          </motion.div>
-        </div>
-        <DeliveryLinks className="home__menu-delivery" />
-      </section>
+          <div className="home__menu-content">
+            <motion.div className="home__menu-reviews" {...reveal('left')}>
+              <ReviewCarousel reviews={reviewsData} />
+            </motion.div>
+            <motion.div className="home__menu-text" {...reveal('right', 0.1)}>
+              <TranslatedText as="p" id="home.menu.summary" />
+              <div className="home__menu-actions">
+                <Link className="home__cta" to="/menu">
+                  <span className="home__cta-label">{t('home.menu.cta')}</span>
+                </Link>
+                <Link className="home__cta home__cta--secondary" to="/menu">
+                  <span className="home__cta-label">{t('home.hero.cta')}</span>
+                </Link>
+              </div>
+            </motion.div>
+          </div>
+          <DeliveryLinks className="home__menu-delivery" />
+        </section>
 
-      <section className="home__events">
-        <motion.div {...reveal('up')}>
-          <TranslatedText as="h2" id="home.events.title" />
-        </motion.div>
-        <div className="home__events-content">
-          <motion.div className="home__events-text" {...reveal('left')}>
-            <TranslatedText as="p" id="home.events.summary" />
-            <Link className="home__cta" to="/events">
-              <span className="home__cta-label">{t('home.events.cta')}</span>
-            </Link>
+        <section className="home__events">
+          <motion.div {...reveal('up')}>
+            <TranslatedText as="h2" id="home.events.title" />
           </motion.div>
-          <motion.div className="home__events-gallery" {...reveal('right', 0.1)}>
-            <EventGallery events={upcomingEvents} onSelectEvent={setSelectedEvent} />
-          </motion.div>
-        </div>
-      </section>
+          <div className="home__events-content">
+            <motion.div className="home__events-text" {...reveal('left')}>
+              <TranslatedText as="p" id="home.events.summary" />
+              <Link className="home__cta" to="/events">
+                <span className="home__cta-label">{t('home.events.cta')}</span>
+              </Link>
+            </motion.div>
+            <motion.div className="home__events-gallery" {...reveal('right', 0.1)}>
+              <EventGallery events={upcomingEvents} onSelectEvent={setSelectedEvent} />
+            </motion.div>
+          </div>
+        </section>
 
-      <section className="home__location">
-        <motion.div {...reveal('up')}>
-          <TranslatedText as="h2" id="home.location.title" />
-        </motion.div>
-        <motion.div {...reveal('up', 0.1)}>
-          <TranslatedText as="p" id="home.location.intro" />
-        </motion.div>
-        <motion.div {...reveal('up', 0.2)}>
-          <LocationMap popupText={`${t('footer.company')} – ${t('footer.address')}`} />
-        </motion.div>
-      </section>
+        <section className="home__location">
+          <motion.div {...reveal('up')}>
+            <TranslatedText as="h2" id="home.location.title" />
+          </motion.div>
+          <motion.div {...reveal('up', 0.1)}>
+            <TranslatedText as="p" id="home.location.intro" />
+          </motion.div>
+          <motion.div {...reveal('up', 0.2)}>
+            <LocationMap popupText={`${t('footer.company')} – ${t('footer.address')}`} />
+          </motion.div>
+        </section>
+      </div>
 
       <EventDetailsModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
     </div>
