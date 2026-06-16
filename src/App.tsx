@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { Link, NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { LanguageSwitcher, PageTransition, ThemeToggle, TranslatedText } from './components'
 import { useIsScrolled } from './hooks/useIsScrolled'
 import { useLanguage } from './i18n'
@@ -44,9 +44,6 @@ function App() {
   return (
     <div className="app" style={{ '--header-height': `${headerHeight}px` } as CSSProperties}>
       <header ref={headerRef} className={`app__header${isScrolled ? ' app__header--scrolled' : ''}`}>
-        <Link to="/" className="app__logo">
-          <span className="app__logo-text">Wraps & Coffee</span>
-        </Link>
         <div className={`app__nav-overlay${isNavOpen ? ' app__nav-overlay--open' : ''}`}>
           <nav id="primary-navigation" className="app__nav">
             <NavLink to="/" end onClick={closeNav}>

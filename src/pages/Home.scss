@@ -61,8 +61,6 @@
   transition:
     transform 0.4s ease,
     opacity 0.4s ease;
-  // Shared with .home__hero-secondary-actions and DeliveryLinks.scss so the
-  // "Bestill og hent selv" button and delivery links render at the same height.
   --hero-action-size: 48px;
 
   // Darken the background photo so the overlaid text stays readable in
@@ -83,7 +81,7 @@
   }
 }
 
-// Arranges the hero's content (text, event gallery, secondary actions)
+// Arranges the hero's content (text on the left, delivery links on the right)
 // across the width of the hero.
 .home__hero-inner {
   position: relative;
@@ -138,8 +136,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .home__hero-content > *,
-  .home__hero-event,
-  .home__hero-secondary-actions > * {
+  .home__hero-delivery {
     animation: none;
   }
 }
@@ -151,47 +148,24 @@
   color: $color-mustard;
 }
 
-// Positions the upcoming-events gallery (EventGallery component) on the
-// right side of the hero, capping its width to leave room for the hero text.
-.home__hero-event {
+// Delivery platform buttons (Foodora, Wolt) shown on the right side of the
+// hero, sized to match the prominent delivery links in the menu section below.
+.home__hero-delivery {
   position: relative;
   z-index: 2;
   flex-shrink: 0;
-  max-width: 320px;
-  animation: home-hero-rain-in 0.6s ease-out 0.48s backwards;
-
-  @media (min-width: 900px) {
-    max-width: 480px;
-  }
-}
-
-// "Bestill og hent selv" and the delivery links, pinned to the bottom
-// center of the hero, separate from the "Se menyen" button.
-.home__hero-secondary-actions {
-  position: absolute;
-  z-index: 2;
-  bottom: $spacing-unit * 4;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
+  justify-content: center;
+  --delivery-button-size: 96px;
+  animation: home-hero-rain-in 0.6s ease-out 0.48s backwards;
+}
+
+// "See the menu" and "Order and pick up yourself" buttons side by side.
+.home__hero-cta-group {
+  display: flex;
+  flex-wrap: wrap;
   gap: $spacing-unit * 1.5;
-  width: max-content;
-
-  // Animated on the children rather than this element, since this
-  // element's own `transform` is used for centering (translateX(-50%)).
-  > * {
-    animation: home-hero-rain-in 0.6s ease-out 0.6s backwards;
-  }
-
-  // On the wider desktop hero, the delivery links sit above the "Bestill og
-  // hent selv" button, both centered, and the delivery buttons render larger
-  // than the shared hero button height.
-  @media (min-width: 900px) {
-    margin-bottom: 100px;
-    flex-direction: column;
-    --delivery-button-size: 64px;
-  }
 }
 
 .home__cta {
@@ -425,21 +399,8 @@
     gap: $spacing-unit * 2;
   }
 
-  .home__hero-event {
-    max-width: none;
-  }
-
-  // The bottom-pinned overlay only fits cleanly on the wide desktop hero;
-  // on narrow screens it joins the normal stacked flow, centered below the
-  // event card, with the delivery links shown larger underneath the
-  // "Bestill og hent selv" button.
-  .home__hero-secondary-actions {
-    position: static;
-    transform: none;
+  .home__hero-delivery {
     align-self: center;
-    flex-direction: column-reverse;
-    align-items: center;
-    max-width: 100%;
     --delivery-button-size: 64px;
   }
 

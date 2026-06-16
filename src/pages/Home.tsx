@@ -35,16 +35,17 @@ export function Home() {
               <TranslatedText as="h1" id="home.hero.title" />
               <TranslatedText as="p" className="home__slogan" id="home.hero.slogan" />
               <TranslatedText as="p" id="home.hero.description" />
-              <Link className="home__cta" to="/menu">
-                <span className="home__cta-label">{t('home.hero.cta')}</span>
-              </Link>
+              <div className="home__hero-cta-group">
+                <Link className="home__cta" to="/menu">
+                  <span className="home__cta-label">{t('home.hero.cta')}</span>
+                </Link>
+                <Link className="home__cta" to="/menu">
+                  <span className="home__cta-label">{t('home.menu.cta')}</span>
+                </Link>
+              </div>
             </div>
-            <EventGallery className="home__hero-event" events={upcomingEvents} onSelectEvent={setSelectedEvent} />
-            <div className="home__hero-secondary-actions">
+            <div className="home__hero-delivery">
               <DeliveryLinks />
-              <Link className="home__cta" to="/menu">
-                <span className="home__cta-label">{t('home.hero.ctaPickup')}</span>
-              </Link>
             </div>
           </div>
         </section>
