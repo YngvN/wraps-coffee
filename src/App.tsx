@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, ScrollRestoration, useLocation } from 'react-router-dom'
 import { LanguageSwitcher, PageTransition, ThemeToggle, TranslatedText } from './components'
 import { useIsScrolled } from './hooks/useIsScrolled'
 import { useLanguage } from './i18n'
@@ -92,6 +92,7 @@ function App() {
           <ThemeToggle />
         </div>
       </footer>
+      <ScrollRestoration />
     </div>
   )
 }

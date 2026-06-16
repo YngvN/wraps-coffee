@@ -48,34 +48,26 @@ export function Home() {
               <DeliveryLinks />
             </div>
           </div>
+          <button
+            type="button"
+            className="home__hero-scroll"
+            aria-label={t('home.hero.scrollDown')}
+            onClick={() => window.scrollTo({ top: 20, behavior: 'smooth' })}
+          >
+            <svg width="64" height="32" viewBox="0 0 64 32" fill="none" aria-hidden="true">
+              <polyline
+                points="4,6 32,26 60,6"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
         </section>
       </div>
 
       <div className="home__container">
-        <section className="home__menu">
-          <motion.div {...reveal('up')}>
-            <TranslatedText as="h2" id="home.menu.title" />
-            <RatingBadges className="home__menu-ratings" ratings={ratingsData} />
-          </motion.div>
-          <div className="home__menu-content">
-            <motion.div className="home__menu-reviews" {...reveal('left')}>
-              <ReviewCarousel reviews={reviewsData} />
-            </motion.div>
-            <motion.div className="home__menu-text" {...reveal('right', 0.1)}>
-              <TranslatedText as="p" id="home.menu.summary" />
-              <div className="home__menu-actions">
-                <Link className="home__cta" to="/menu">
-                  <span className="home__cta-label">{t('home.menu.cta')}</span>
-                </Link>
-                <Link className="home__cta home__cta--secondary" to="/menu">
-                  <span className="home__cta-label">{t('home.hero.cta')}</span>
-                </Link>
-              </div>
-            </motion.div>
-          </div>
-          <DeliveryLinks className="home__menu-delivery" />
-        </section>
-
         <section className="home__events">
           <motion.div {...reveal('up')}>
             <TranslatedText as="h2" id="home.events.title" />
@@ -91,6 +83,14 @@ export function Home() {
               <EventGallery events={upcomingEvents} onSelectEvent={setSelectedEvent} />
             </motion.div>
           </div>
+        </section>
+
+        <section className="home__menu">
+          <motion.div className="home__menu-reviews" {...reveal('up')}>
+            <ReviewCarousel reviews={reviewsData} />
+            <RatingBadges className="home__menu-ratings" ratings={ratingsData} />
+          </motion.div>
+          <DeliveryLinks className="home__menu-delivery" />
         </section>
 
         <section className="home__location">

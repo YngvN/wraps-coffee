@@ -33,7 +33,8 @@
           "description": "Quality ingredients, prepared fresh every day in a cozy spot to slow down, meet friends or grab something good on the go.",
           "cta": "See the menu",
           "ctaPickup": "Order and pick up yourself",
-          "upcomingEvent": "Upcoming event"
+          "upcomingEvent": "Upcoming event",
+          "scrollDown": "Scroll down"
         },
         "menu": {
           "title": "Good food that fills you up",
@@ -431,7 +432,8 @@
           "description": "Kvalitetsråvarer, tilberedt ferskt hver dag, i et koselig lokale hvor du kan slappe av, møte venner eller ta med deg noe godt på farten.",
           "cta": "Se menyen",
           "ctaPickup": "Bestill og hent selv",
-          "upcomingEvent": "Kommende arrangement"
+          "upcomingEvent": "Kommende arrangement",
+          "scrollDown": "Bla ned"
         },
         "menu": {
           "title": "God mat som metter",

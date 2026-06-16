@@ -81,6 +81,56 @@
   }
 }
 
+// Chevron button at the bottom of the hero. Clicking it scrolls just past
+// the `useIsScrolled` threshold, collapsing the hero the same way scrolling does.
+// Fades out automatically with the rest of the hero when `.home__hero--scrolled`.
+.home__hero-scroll {
+  position: absolute;
+  bottom: $spacing-unit * 2.5;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+  background: none;
+  border: none;
+  padding: $spacing-unit;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.45);
+  animation:
+    home-hero-rain-in 0.6s ease-out 0.6s backwards,
+    home-hero-scroll-bounce 2.4s ease-in-out 1.4s infinite;
+
+  @media (hover: hover) {
+    &:hover,
+    &:focus-visible {
+      color: rgba(255, 255, 255, 0.8);
+    }
+  }
+
+  &:active {
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  svg {
+    display: block;
+  }
+}
+
+@keyframes home-hero-scroll-bounce {
+  0%, 100% {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  50% {
+    transform: translateX(-50%) translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home__hero-scroll {
+    animation: none;
+  }
+}
+
 // Arranges the hero's content (text on the left, delivery links on the right)
 // across the width of the hero.
 .home__hero-inner {
@@ -161,10 +211,10 @@
   animation: home-hero-rain-in 0.6s ease-out 0.48s backwards;
 }
 
-// "See the menu" and "Order and pick up yourself" buttons side by side.
+// "See the menu" and "Order now" buttons side by side; never wrap.
 .home__hero-cta-group {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: $spacing-unit * 1.5;
 }
 
@@ -216,14 +266,12 @@
   }
 }
 
-// Hero CTAs ("See the menu", "Order and pick up yourself") and the "Good
-// food" section CTAs get an outlined look whose accent fill slides in from
-// the center on hover/focus, instead of the filled/zoom style used
-// elsewhere.
+// Hero CTAs ("See the menu", "Order and pick up yourself") get an outlined
+// look whose accent fill slides in from the center on hover/focus, instead
+// of the filled/zoom style used elsewhere.
 // Source: "Popular Termite" button by adamgiebl on Uiverse.io
 // (https://uiverse.io/adamgiebl/popular-termite-0).
-.home__hero .home__cta,
-.home__menu-actions .home__cta {
+.home__hero .home__cta {
   position: relative;
   z-index: 1;
   background: transparent;
@@ -293,9 +341,13 @@
   }
 }
 
-// Sits below the menu heading, centered, as social proof for the section above.
+// Rating badges in a single wrapping row beneath the carousel.
 .home__menu-ratings {
-  margin-top: $spacing-unit;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: $spacing-unit calc($spacing-unit * 3);
+  margin-top: $spacing-unit * 2;
 }
 
 .home__location p {
@@ -315,37 +367,15 @@
   overflow-x: hidden;
 }
 
-// Menu: customer reviews on the left, a short summary and CTA on the right.
-.home__menu-content {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: $spacing-unit * 4;
-  align-items: center;
-}
-
+// Carousel centered in the section, with rating badges stacked below it.
+// No align-items here — the viewport's only child is position:absolute, so
+// shrink-wrapping collapses it to zero width and hides the quote text.
 .home__menu-reviews {
-  padding: $spacing-unit * 3;
-  border-radius: 12px;
-}
-
-.home__menu-text {
+  align-self: center;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: $spacing-unit * 2;
-
-  // The summary uses \n\n for paragraph breaks within a single translation string.
-  p {
-    margin: 0;
-    color: $color-text-muted;
-    white-space: pre-line;
-  }
-}
-
-.home__menu-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: $spacing-unit * 1.5;
+  width: 100%;
+  max-width: 640px;
 }
 
 // Sits below the menu content, centered, larger than usual to stand out as
@@ -401,21 +431,30 @@
 
   .home__hero-delivery {
     align-self: center;
-    --delivery-button-size: 64px;
   }
 
-  .home__menu-content,
   .home__events-content {
     grid-template-columns: 1fr;
-  }
-
-  .home__menu-delivery {
-    --delivery-button-size: 64px;
   }
 }
 
 @media (max-width: 640px) {
   .home__hero-wrapper--scrolled {
     margin-top: calc(var(--header-height, 0px) + $spacing-unit * 2);
+  }
+}
+
+// On narrow phones, tighten the hero CTA buttons so they stay on one row
+// without wrapping. Reduced letter-spacing (the biggest width driver for
+// uppercase text) and horizontal padding keep both buttons comfortably in
+// the available space.
+@media (max-width: 480px) {
+  .home__hero-cta-group {
+    gap: $spacing-unit;
+  }
+
+  .home__hero .home__cta {
+    padding: $spacing-unit * 0.75 $spacing-unit * 1.5;
+    letter-spacing: 0.5px;
   }
 }
