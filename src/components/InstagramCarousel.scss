@@ -76,10 +76,33 @@ $instagram-gradient: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, 
 }
 
 // Wraps the track and positions the prev/next arrows flush with its sides.
+// The ::before / ::after overlays fade the track edges to $color-bg so images
+// appear to slide underneath a frame rather than cutting off abruptly.
 .instagram-carousel__stage {
   position: relative;
   display: flex;
   align-items: center;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 60px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  &::before {
+    left: 0;
+    background: linear-gradient(to right, $color-bg 30%, transparent 100%);
+  }
+
+  &::after {
+    right: 0;
+    background: linear-gradient(to left, $color-bg 30%, transparent 100%);
+  }
 }
 
 .instagram-carousel__arrow {
@@ -92,7 +115,8 @@ $instagram-gradient: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, 
   padding: $spacing-unit;
   color: $color-text-muted;
   cursor: pointer;
-  z-index: 1;
+  position: relative;
+  z-index: 2;
   transition: color 0.15s ease;
 
   &:active {
