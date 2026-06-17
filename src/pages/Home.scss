@@ -355,6 +355,19 @@
   color: $color-text-muted;
 }
 
+.home__location-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+
+  @media (hover: hover) {
+    &:hover p {
+      text-decoration: underline;
+      color: $color-text;
+    }
+  }
+}
+
 // Shorter than the full-viewport .home__hero, with its content centered in
 // the space below the title. `overflow-x: hidden` contains the
 // reveal('left')/reveal('right') children, which sit translated off their
@@ -396,9 +409,6 @@
   justify-content: center;
 }
 
-.home__instagram {
-  padding: $spacing-unit * 6 0;
-}
 
 @media (max-width: 768px) {
   .home__hero {

@@ -279,7 +279,7 @@ h2 {
 .app__footer-section {
   display: flex;
   flex-direction: column;
-  gap: calc($spacing-unit / 2);
+  gap: $spacing-unit * 1.5;
   margin: 0;
 
   p {
@@ -291,6 +291,19 @@ h2 {
   font-family: $font-subheading;
   font-size: 1.125rem;
   color: $color-text;
+}
+
+.app__footer-item {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit * 0.875);
+
+  svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    opacity: 0.6;
+  }
 }
 
 .app__footer-hours {

@@ -25,6 +25,9 @@ const ITEM_GAP = 12
 /** Milliseconds between automatic scroll steps. */
 const AUTO_SCROLL_INTERVAL = 2500
 
+/** Milliseconds of inactivity before auto-scroll resumes. */
+const RESUME_DELAY = 5000
+
 /** Instagram camera icon (inline SVG). */
 function InstagramIcon() {
   return (
@@ -43,10 +46,10 @@ function InstagramIcon() {
 }
 
 /**
- * Infinitely scrollable strip of Instagram post thumbnails. Posts are rendered
- * three times and the track is initialised at the middle copy; a scroll listener
- * silently teleports to the middle copy whenever the user scrolls near either
- * edge, giving the appearance of endless scrolling in both directions.
+ * Infinitely scrollable strip of Instagram post thumbnails with prev/next arrow
+ * buttons. Posts are rendered three times and the track is initialised at the
+ * middle copy; a scroll listener silently teleports to the middle copy whenever
+ * the user scrolls near either edge, giving the appearance of endless scrolling.
  *
  * Auto-scrolls every {@link AUTO_SCROLL_INTERVAL} ms until the user interacts
  * (mouse hover or touch), after which it stops permanently.
@@ -55,6 +58,17 @@ export function InstagramCarousel() {
   const { t } = useLanguage()
   const trackRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const getStep = () => {
+    const item = trackRef.current?.firstElementChild as HTMLElement | null
+    return item ? item.offsetWidth + ITEM_GAP : 412
+  }
+
+  const scrollTo = useCallback((direction: 'prev' | 'next') => {
+    const step = getStep()
+    trackRef.current?.scrollBy({ left: direction === 'next' ? step : -step, behavior: 'smooth' })
+  }, [])
 
   const stopAutoScroll = useCallback(() => {
     if (timerRef.current !== null) {
@@ -66,12 +80,21 @@ export function InstagramCarousel() {
   const startAutoScroll = useCallback(() => {
     stopAutoScroll()
     timerRef.current = setInterval(() => {
-      const track = trackRef.current
-      if (!track) return
-      const item = track.firstElementChild as HTMLElement | null
-      const step = item ? item.offsetWidth + ITEM_GAP : 412
-      track.scrollBy({ left: step, behavior: 'smooth' })
+      trackRef.current?.scrollBy({ left: getStep(), behavior: 'smooth' })
     }, AUTO_SCROLL_INTERVAL)
+  }, [stopAutoScroll])
+
+  const scheduleResume = useCallback(() => {
+    if (resumeTimerRef.current !== null) clearTimeout(resumeTimerRef.current)
+    resumeTimerRef.current = setTimeout(startAutoScroll, RESUME_DELAY)
+  }, [startAutoScroll])
+
+  const pauseAutoScroll = useCallback(() => {
+    if (resumeTimerRef.current !== null) {
+      clearTimeout(resumeTimerRef.current)
+      resumeTimerRef.current = null
+    }
+    stopAutoScroll()
   }, [stopAutoScroll])
 
   // Silently jump to the equivalent position in the middle copy when the user
@@ -91,7 +114,6 @@ export function InstagramCarousel() {
     const track = trackRef.current
     if (!track) return
 
-    // Initialise at the start of the middle copy.
     track.scrollLeft = track.scrollWidth / 3
 
     track.addEventListener('scroll', handleScroll, { passive: true })
@@ -100,6 +122,7 @@ export function InstagramCarousel() {
     return () => {
       track.removeEventListener('scroll', handleScroll)
       stopAutoScroll()
+      if (resumeTimerRef.current !== null) clearTimeout(resumeTimerRef.current)
     }
   }, [handleScroll, startAutoScroll, stopAutoScroll])
 
@@ -116,26 +139,56 @@ export function InstagramCarousel() {
         <span className="instagram-carousel__handle">{t('home.instagram.handle')}</span>
         <span className="instagram-carousel__follow">{t('home.instagram.follow')}</span>
       </a>
-      <div
-        ref={trackRef}
-        className="instagram-carousel__track"
-        role="list"
-        aria-label={t('home.instagram.follow')}
-        onMouseEnter={stopAutoScroll}
-        onTouchStart={stopAutoScroll}
-      >
-        {tripledPosts.map((post, index) => (
-          <a
-            key={`${post.id}-${index}`}
-            className="instagram-carousel__item"
-            href={post.postUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            role="listitem"
-          >
-            <img src={post.imageUrl} alt={post.alt} loading="lazy" />
-          </a>
-        ))}
+
+      <div className="instagram-carousel__stage">
+        <button
+          type="button"
+          className="instagram-carousel__arrow instagram-carousel__arrow--prev"
+          aria-label={t('home.instagram.prev')}
+          onClick={() => { scrollTo('prev'); scheduleResume() }}
+        >
+          <svg width="32" height="64" viewBox="0 0 32 64" fill="none" aria-hidden="true">
+            <polyline points="26,4 6,32 26,60" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+
+        <div
+          ref={trackRef}
+          className="instagram-carousel__track"
+          role="list"
+          aria-label={t('home.instagram.follow')}
+          onMouseEnter={pauseAutoScroll}
+          onMouseLeave={scheduleResume}
+          onTouchStart={pauseAutoScroll}
+          onTouchEnd={scheduleResume}
+          onTouchCancel={scheduleResume}
+        >
+          {tripledPosts.map((post, index) => (
+            <a
+              key={`${post.id}-${index}`}
+              className="instagram-carousel__item"
+              href={post.postUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              role="listitem"
+              draggable={false}
+              onDragStart={(e) => e.preventDefault()}
+            >
+              <img src={post.imageUrl} alt={post.alt} loading="lazy" draggable={false} />
+            </a>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          className="instagram-carousel__arrow instagram-carousel__arrow--next"
+          aria-label={t('home.instagram.next')}
+          onClick={() => { scrollTo('next'); scheduleResume() }}
+        >
+          <svg width="32" height="64" viewBox="0 0 32 64" fill="none" aria-hidden="true">
+            <polyline points="6,4 26,32 6,60" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
       </div>
     </div>
   )

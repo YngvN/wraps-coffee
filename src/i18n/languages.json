@@ -13,8 +13,9 @@
       },
       "footer": {
         "tagline": "Fresh wraps, salads and good coffee, made with care.",
-        "rights": "© {{year}} Wraps & Coffee. All rights reserved.",
+        "rights": "© {{year}} Wraps AS. All rights reserved.",
         "company": "Wraps AS",
+        "contact": "Contact",
         "orgNumberLabel": "Org. no.",
         "orgNumber": "922 084 467",
         "addressLabel": "Address",
@@ -66,7 +67,9 @@
         },
         "instagram": {
           "follow": "Follow us on Instagram",
-          "handle": "@wraps.coffee"
+          "handle": "@wraps.coffee",
+          "prev": "Previous photo",
+          "next": "Next photo"
         }
       },
       "menu": {
@@ -427,8 +430,9 @@
       },
       "footer": {
         "tagline": "Ferske wraps, salater og god kaffe, laget med omtanke.",
-        "rights": "© {{year}} Wraps & Coffee. Alle rettigheter reservert.",
+        "rights": "© {{year}} Wraps AS. Alle rettigheter reservert.",
         "company": "Wraps AS",
+        "contact": "Kontakt",
         "orgNumberLabel": "Org.nr.",
         "orgNumber": "922 084 467",
         "addressLabel": "Adresse",
@@ -480,7 +484,9 @@
         },
         "instagram": {
           "follow": "Følg oss på Instagram",
-          "handle": "@wraps.coffee"
+          "handle": "@wraps.coffee",
+          "prev": "Forrige bilde",
+          "next": "Neste bilde"
         }
       },
       "menu": {

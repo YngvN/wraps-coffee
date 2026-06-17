@@ -4,6 +4,7 @@ import { NavLink, ScrollRestoration, useLocation } from 'react-router-dom'
 import { LanguageSwitcher, PageTransition, ThemeToggle, TranslatedText } from './components'
 import { useIsScrolled } from './hooks/useIsScrolled'
 import { useLanguage } from './i18n'
+import { MAPS_URL } from './utils/location'
 
 /**
  * Application shell: header with the company name and primary navigation,
@@ -77,12 +78,18 @@ function App() {
       </main>
       <footer className="app__footer">
         <div className="app__footer-section">
-          <TranslatedText as="p" className="app__footer-company" id="footer.company" />
-          <p>
-            {t('footer.orgNumberLabel')} {t('footer.orgNumber')}
+          <TranslatedText as="p" className="app__footer-company" id="footer.contact" />
+          <p className="app__footer-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <a href={MAPS_URL} target="_blank" rel="noopener noreferrer">{t('footer.address')}</a>
           </p>
-          <p>
-            {t('footer.addressLabel')}: {t('footer.address')}
+          <p className="app__footer-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.99 12 19.79 19.79 0 0 1 1.95 3.37 2 2 0 0 1 3.92 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            <a href="tel:+4798137640">+47 98 13 76 40</a>
+          </p>
+          <p className="app__footer-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <a href="mailto:Wrapsulven@gmail.com">Wrapsulven@gmail.com</a>
           </p>
         </div>
         <div className="app__footer-section">
@@ -107,6 +114,8 @@ function App() {
         <div className="app__footer-section">
           <TranslatedText as="p" id="footer.tagline" />
           <TranslatedText as="p" id="footer.rights" vars={{ year: new Date().getFullYear() }} />
+          <p>{t('footer.orgNumberLabel')} {t('footer.orgNumber')}</p>
+          <p>Design: <a href="https://yngvn.github.io/" target="_blank" rel="noopener noreferrer">@NYKÅS</a></p>
         </div>
         <div className="app__footer-actions">
           <ThemeToggle />

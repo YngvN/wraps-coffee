@@ -75,6 +75,42 @@ $instagram-gradient: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, 
   color: $color-text-muted;
 }
 
+// Wraps the track and positions the prev/next arrows flush with its sides.
+.instagram-carousel__stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.instagram-carousel__arrow {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: $spacing-unit;
+  color: $color-text-muted;
+  cursor: pointer;
+  z-index: 1;
+  transition: color 0.15s ease;
+
+  &:active {
+    box-shadow: none;
+    color: $color-text;
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      color: $color-text;
+    }
+  }
+
+  svg {
+    display: block;
+  }
+}
+
 // Horizontally scrollable strip with scroll-snap for one-post-at-a-time feel
 // on mobile. Hides the scrollbar visually while still scrollable.
 .instagram-carousel__track {
@@ -84,6 +120,7 @@ $instagram-gradient: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, 
   scroll-snap-type: x mandatory;
   padding-bottom: $spacing-unit; // room for scrollbar on Windows
   cursor: grab;
+  user-select: none;
 
   &:active {
     cursor: grabbing;
@@ -103,7 +140,6 @@ $gap: $spacing-unit * 1.5; // 12px — must match the track's gap
   flex: 0 0 calc(100% / 3 - #{$gap * 2 / 3});
   aspect-ratio: 1;
   scroll-snap-align: start;
-  scroll-snap-stop: always;
   border-radius: 12px;
   overflow: hidden;
   display: block;
@@ -135,16 +171,14 @@ $gap: $spacing-unit * 1.5; // 12px — must match the track's gap
     }
   }
 
-  &:active {
-    box-shadow: inset 0 2px 4px $color-shadow;
-  }
-
   img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
     transition: transform 0.3s ease;
+    -webkit-user-drag: none;
+    pointer-events: none;
   }
 }
 

@@ -19,6 +19,7 @@
   margin: 0;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   gap: $spacing-unit;
 }
 
@@ -35,7 +36,7 @@
 }
 
 .review-carousel__name {
-  margin: auto 0 0;
+  margin: 0;
   font-weight: 600;
   color: $color-text-muted;
 }

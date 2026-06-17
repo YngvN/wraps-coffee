@@ -10,6 +10,7 @@ import { useIsScrolled } from '../hooks/useIsScrolled'
 import { useReveal } from '../hooks/useReveal'
 import { useLanguage } from '../i18n'
 import { getUpcomingEvents, type EventRecord } from '../utils/events'
+import { MAPS_URL } from '../utils/location'
 import './Home.scss'
 
 /**
@@ -88,7 +89,9 @@ export function Home() {
 
         <section className="home__location">
           <motion.div {...reveal('up')}>
-            <TranslatedText as="p" id="home.location.intro" />
+            <a className="home__location-link" href={MAPS_URL} target="_blank" rel="noopener noreferrer">
+              <TranslatedText as="p" id="home.location.intro" />
+            </a>
           </motion.div>
           <motion.div {...reveal('up', 0.1)}>
             <LocationMap popupText={`${t('footer.company')} – ${t('footer.address')}`} />
