@@ -152,9 +152,11 @@
   max-width: 560px;
   color: #ffffff;
 
-  h1 {
-    margin: 0;
-    font-size: clamp(2rem, 5vw, 3rem);
+  .home__hero-logo {
+    width: 100%;
+    max-width: 360px;
+    height: auto;
+    display: block;
   }
 
   // Each direct child "rains in" on initial page load: fading in while

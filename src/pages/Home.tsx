@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import heroBackground from '../assets/images/hero/hero-background.jpg'
+import logoTemp from '../assets/images/logo/logo-temp.png'
 import { DeliveryLinks, EventDetailsModal, EventGallery, InstagramCarousel, LocationMap, RatingBadges, ReviewCarousel, TranslatedText } from '../components'
 import eventsData from '../data/events.json'
 import ratingsData from '../data/ratings.json'
@@ -33,7 +34,7 @@ export function Home() {
         >
           <div className="home__hero-inner">
             <div className="home__hero-content">
-              <TranslatedText as="h1" id="home.hero.title" />
+              <img src={logoTemp} alt={t('home.hero.title')} className="home__hero-logo" />
               <TranslatedText as="p" className="home__slogan" id="home.hero.slogan" />
               <TranslatedText as="p" id="home.hero.description" />
               <div className="home__hero-cta-group">
