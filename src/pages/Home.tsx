@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import heroBackground from '../assets/images/hero/hero-background.jpg'
 import logoTemp from '../assets/images/logo/logo-temp.png'
 import { DeliveryLinks, EventDetailsModal, EventGallery, InstagramCarousel, LocationMap, RatingBadges, ReviewCarousel, TranslatedText } from '../components'
 import eventsData from '../data/events.json'
@@ -30,7 +29,6 @@ export function Home() {
       <div className={`home__hero-wrapper${isScrolled ? ' home__hero-wrapper--scrolled' : ''}`}>
         <section
           className={`home__hero${isScrolled ? ' home__hero--scrolled' : ''}`}
-          style={{ backgroundImage: `url(${heroBackground})` }}
         >
           <div className="home__hero-inner">
             <div className="home__hero-content">
@@ -81,7 +79,6 @@ export function Home() {
             <ReviewCarousel reviews={reviewsData[language] ?? reviewsData.en} />
             <RatingBadges className="home__menu-ratings" ratings={ratingsData} />
           </motion.div>
-          <DeliveryLinks className="home__menu-delivery" />
         </section>
 
         <motion.div className="home__instagram" {...reveal('up')}>

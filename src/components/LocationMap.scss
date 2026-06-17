@@ -1,8 +1,6 @@
 @use '../styles/variables' as *;
 
 .location-map {
-  border: 1px solid $color-border;
-  border-radius: 16px;
   overflow: hidden;
 }
 

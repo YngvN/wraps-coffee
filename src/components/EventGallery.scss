@@ -9,11 +9,10 @@
   align-items: center;
   gap: $spacing-unit * 2;
   padding: $spacing-unit * 2;
-  border-radius: 20px;
   background: $color-surface;
   box-shadow: 0 4px 24px $color-shadow;
   width: 100%;
-  max-width: 760px;
+  overflow: hidden;
 
   @media (min-width: 900px) {
     align-items: stretch;
@@ -42,10 +41,14 @@
 
   @media (min-width: 900px) {
     display: block;
-    width: 300px;
-    min-height: 220px;
+    width: 50%;
     flex-shrink: 0;
-    border-radius: 14px;
+    // Pull image flush with the card's left, top, and bottom edges.
+    // overflow: hidden on the parent clips it to the card's border-radius.
+    margin-left: -$spacing-unit * 3;
+    margin-top: -$spacing-unit * 3;
+    margin-bottom: -$spacing-unit * 3;
+    border-radius: 0 14px 14px 0;
     object-fit: cover;
     transition: opacity 0.15s ease;
   }
@@ -59,7 +62,9 @@
 
   @media (min-width: 900px) {
     justify-content: center;
+    align-items: center;
     gap: $spacing-unit;
+    text-align: center;
   }
 }
 

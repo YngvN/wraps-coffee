@@ -89,19 +89,22 @@ $instagram-gradient: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, 
     position: absolute;
     top: 0;
     bottom: 0;
-    width: 60px;
+    width: 48px;
     pointer-events: none;
     z-index: 1;
+    background: $color-bg;
   }
 
   &::before {
     left: 0;
-    background: linear-gradient(to right, $color-bg 30%, transparent 100%);
+    border-right: 2px solid $color-border;
+    box-shadow: 6px 0 20px rgba(0, 0, 0, 0.5);
   }
 
   &::after {
     right: 0;
-    background: linear-gradient(to left, $color-bg 30%, transparent 100%);
+    border-left: 2px solid $color-border;
+    box-shadow: -6px 0 20px rgba(0, 0, 0, 0.5);
   }
 }
 

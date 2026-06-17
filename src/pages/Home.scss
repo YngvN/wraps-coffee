@@ -17,7 +17,7 @@
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
-  padding: 0 $spacing-unit * 3 $spacing-unit * 3;
+  // padding: 0 $spacing-unit * 3 $spacing-unit * 3;
 
   @media (max-width: 640px) {
     padding: 0 $spacing-unit * 2 $spacing-unit * 2;
@@ -55,23 +55,12 @@
   justify-content: center;
   min-height: 100vh;
   padding: $spacing-unit * 4;
-  background-size: cover;
-  background-position: center;
+  background: $color-accent;
   overflow: hidden;
   transition:
     transform 0.4s ease,
     opacity 0.4s ease;
   --hero-action-size: 48px;
-
-  // Darken the background photo so the overlaid text stays readable in
-  // both light and dark mode.
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: $color-overlay;
-    z-index: 1;
-  }
 
   // Slides out of view and fades when the user scrolls down, in sync with
   // the header's company name revealing in the opposite direction.
@@ -94,20 +83,22 @@
   border: none;
   padding: $spacing-unit;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.45);
+  color: $color-accent-contrast;
+  opacity: 0.5;
   animation:
     home-hero-rain-in 0.6s ease-out 0.6s backwards,
     home-hero-scroll-bounce 2.4s ease-in-out 1.4s infinite;
 
   @media (hover: hover) {
+
     &:hover,
     &:focus-visible {
-      color: rgba(255, 255, 255, 0.8);
+      opacity: 1;
     }
   }
 
   &:active {
-    color: rgba(255, 255, 255, 0.6);
+    opacity: 0.7;
   }
 
   svg {
@@ -116,7 +107,9 @@
 }
 
 @keyframes home-hero-scroll-bounce {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateX(-50%) translateY(0);
   }
 
@@ -150,7 +143,7 @@
   align-items: flex-start;
   gap: $spacing-unit * 1.5;
   max-width: 560px;
-  color: #ffffff;
+  color: $color-accent-contrast;
 
   .home__hero-logo {
     width: 100%;
@@ -161,12 +154,12 @@
 
   // Each direct child "rains in" on initial page load: fading in while
   // sliding up from below, staggered so they arrive one after another.
-  > * {
+  >* {
     animation: home-hero-rain-in 0.6s ease-out backwards;
   }
 
   @for $i from 1 through 4 {
-    > *:nth-child(#{$i}) {
+    >*:nth-child(#{$i}) {
       animation-delay: ($i - 1) * 0.12s;
     }
   }
@@ -187,7 +180,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .home__hero-content > *,
+
+  .home__hero-content>*,
   .home__hero-delivery {
     animation: none;
   }
@@ -240,6 +234,7 @@
     transform 0.15s ease;
 
   @media (hover: hover) {
+
     &:hover,
     &:focus-visible {
       box-shadow: 0 4px 12px $color-shadow;
@@ -259,6 +254,7 @@
     color: $color-button;
 
     @media (hover: hover) {
+
       &:hover,
       &:focus-visible {
         background: $color-button;
@@ -296,6 +292,7 @@
   }
 
   @media (hover: hover) {
+
     &:hover,
     &:focus-visible {
       background: transparent;
@@ -321,6 +318,7 @@
   transition: transform 0.2s ease;
 
   @media (hover: hover) {
+
     .home__cta:hover &,
     .home__cta:focus-visible & {
       transform: scale(1.15);
@@ -335,6 +333,7 @@
   display: flex;
   flex-direction: column;
   gap: $spacing-unit;
+  border-radius: 20px;
 
   h2 {
     margin: 0;
@@ -361,6 +360,8 @@
   display: block;
   text-decoration: none;
   color: inherit;
+  padding-left: $spacing-unit * 4;
+  padding-right: $spacing-unit * 4;
 
   @media (hover: hover) {
     &:hover p {
@@ -380,6 +381,7 @@
   justify-content: center;
   gap: $spacing-unit * 3;
   overflow-x: hidden;
+  background: $color-surface;
 }
 
 // Carousel centered in the section, with rating badges stacked below it.
@@ -401,14 +403,23 @@
 }
 
 .home__events {
+  align-items: center;
   justify-content: center;
   gap: $spacing-unit * 3;
+  background: $color-bg;
+}
+
+.home__instagram {
+  background: $color-surface;
+}
+
+.home__location {
+  background: $color-bg;
 }
 
 .home__events-gallery {
   width: 100%;
-  display: flex;
-  justify-content: center;
+  padding-top: $spacing-unit * 6;
 }
 
 

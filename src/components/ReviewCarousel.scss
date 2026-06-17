@@ -33,10 +33,12 @@
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  padding: $spacing-unit * 4;
 }
 
 .review-carousel__name {
   margin: 0;
   font-weight: 600;
   color: $color-text-muted;
+  padding: $spacing-unit * 4;
 }
