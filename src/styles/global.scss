@@ -264,14 +264,14 @@ h2 {
 .app__footer {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: $spacing-unit * 3;
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
   border-top: 1px solid $color-border;
-  padding: $spacing-unit * 2 $spacing-unit * 3;
+  padding: $spacing-unit * 5 $spacing-unit * 3;
   color: $color-text-muted;
   font-size: 0.875rem;
 }
@@ -291,6 +291,19 @@ h2 {
   font-family: $font-subheading;
   font-size: 1.125rem;
   color: $color-text;
+}
+
+.app__footer-hours {
+  border-collapse: collapse;
+
+  td {
+    padding: 0;
+    vertical-align: top;
+
+    &:first-child {
+      padding-right: $spacing-unit * 2;
+    }
+  }
 }
 
 .app__footer-actions {
@@ -340,6 +353,10 @@ h2 {
     background: transparent;
 
     a {
+      font-size: 1.25rem;
+    }
+
+    .language-switcher {
       font-size: 1.25rem;
     }
   }

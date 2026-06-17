@@ -2,7 +2,7 @@ import { motion } from 'framer-motion'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import heroBackground from '../assets/images/hero/hero-background.jpg'
-import { DeliveryLinks, EventDetailsModal, EventGallery, LocationMap, RatingBadges, ReviewCarousel, TranslatedText } from '../components'
+import { DeliveryLinks, EventDetailsModal, EventGallery, InstagramCarousel, LocationMap, RatingBadges, ReviewCarousel, TranslatedText } from '../components'
 import eventsData from '../data/events.json'
 import ratingsData from '../data/ratings.json'
 import reviewsData from '../data/reviews.json'
@@ -17,7 +17,7 @@ import './Home.scss'
  * upcoming events, and the menu offerings.
  */
 export function Home() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const upcomingEvents = getUpcomingEvents(eventsData, 3)
   const isScrolled = useIsScrolled()
   const reveal = useReveal()
@@ -69,38 +69,28 @@ export function Home() {
 
       <div className="home__container">
         <section className="home__events">
-          <motion.div {...reveal('up')}>
-            <TranslatedText as="h2" id="home.events.title" />
+          <motion.div className="home__events-gallery" {...reveal('up')}>
+            <EventGallery events={upcomingEvents} onSelectEvent={setSelectedEvent} />
           </motion.div>
-          <div className="home__events-content">
-            <motion.div className="home__events-text" {...reveal('left')}>
-              <TranslatedText as="p" id="home.events.summary" />
-              <Link className="home__cta" to="/events">
-                <span className="home__cta-label">{t('home.events.cta')}</span>
-              </Link>
-            </motion.div>
-            <motion.div className="home__events-gallery" {...reveal('right', 0.1)}>
-              <EventGallery events={upcomingEvents} onSelectEvent={setSelectedEvent} />
-            </motion.div>
-          </div>
         </section>
 
         <section className="home__menu">
           <motion.div className="home__menu-reviews" {...reveal('up')}>
-            <ReviewCarousel reviews={reviewsData} />
+            <ReviewCarousel reviews={reviewsData[language] ?? reviewsData.en} />
             <RatingBadges className="home__menu-ratings" ratings={ratingsData} />
           </motion.div>
           <DeliveryLinks className="home__menu-delivery" />
         </section>
 
+        <motion.div className="home__instagram" {...reveal('up')}>
+          <InstagramCarousel />
+        </motion.div>
+
         <section className="home__location">
           <motion.div {...reveal('up')}>
-            <TranslatedText as="h2" id="home.location.title" />
-          </motion.div>
-          <motion.div {...reveal('up', 0.1)}>
             <TranslatedText as="p" id="home.location.intro" />
           </motion.div>
-          <motion.div {...reveal('up', 0.2)}>
+          <motion.div {...reveal('up', 0.1)}>
             <LocationMap popupText={`${t('footer.company')} – ${t('footer.address')}`} />
           </motion.div>
         </section>

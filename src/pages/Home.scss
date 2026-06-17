@@ -385,35 +385,19 @@
   --delivery-button-size: 96px;
 }
 
-// Shorter than the full-viewport .home__hero, like .home__menu, with a
-// short summary and CTA on one side and a copy of the hero's
-// upcoming-events gallery on the other. `overflow-x: hidden` contains the
-// reveal('left')/reveal('right') children before they scroll into view —
-// see .home__menu above.
 .home__events {
-  min-height: 60vh;
   justify-content: center;
   gap: $spacing-unit * 3;
-  overflow-x: hidden;
 }
 
-.home__events-content {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: $spacing-unit * 4;
-  align-items: center;
-}
-
-.home__events-text {
+.home__events-gallery {
+  width: 100%;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: $spacing-unit * 2;
+  justify-content: center;
+}
 
-  p {
-    margin: 0;
-    color: $color-text-muted;
-  }
+.home__instagram {
+  padding: $spacing-unit * 6 0;
 }
 
 @media (max-width: 768px) {
@@ -433,9 +417,7 @@
     align-self: center;
   }
 
-  .home__events-content {
-    grid-template-columns: 1fr;
-  }
+
 }
 
 @media (max-width: 640px) {

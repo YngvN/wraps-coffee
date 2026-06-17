@@ -18,7 +18,18 @@
         "orgNumberLabel": "Org. no.",
         "orgNumber": "922 084 467",
         "addressLabel": "Address",
-        "address": "Ulvenveien 82 E, 0581 Oslo"
+        "address": "Ulvenveien 82 E, 0581 Oslo",
+        "openingHours": "Opening hours",
+        "hours": {
+          "monday": "Mon",
+          "tuesday": "Tue",
+          "wednesday": "Wed",
+          "thursday": "Thu",
+          "friday": "Fri",
+          "saturday": "Sat",
+          "sunday": "Sun",
+          "closed": "Closed"
+        }
       },
       "delivery": {
         "foodora": "Order on Foodora",
@@ -52,6 +63,10 @@
         "location": {
           "title": "Find us",
           "intro": "Stop by our cafe in Oslo — see the map below for directions."
+        },
+        "instagram": {
+          "follow": "Follow us on Instagram",
+          "handle": "@wraps.coffee"
         }
       },
       "menu": {
@@ -417,7 +432,18 @@
         "orgNumberLabel": "Org.nr.",
         "orgNumber": "922 084 467",
         "addressLabel": "Adresse",
-        "address": "Ulvenveien 82 E, 0581 Oslo"
+        "address": "Ulvenveien 82 E, 0581 Oslo",
+        "openingHours": "Åpningstider",
+        "hours": {
+          "monday": "Man",
+          "tuesday": "Tir",
+          "wednesday": "Ons",
+          "thursday": "Tor",
+          "friday": "Fre",
+          "saturday": "Lør",
+          "sunday": "Søn",
+          "closed": "Stengt"
+        }
       },
       "delivery": {
         "foodora": "Bestill på Foodora",
@@ -451,6 +477,10 @@
         "location": {
           "title": "Finn oss",
           "intro": "Stikk innom kafeen vår i Oslo — se kartet under for veibeskrivelse."
+        },
+        "instagram": {
+          "follow": "Følg oss på Instagram",
+          "handle": "@wraps.coffee"
         }
       },
       "menu": {

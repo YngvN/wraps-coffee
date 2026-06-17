@@ -8,7 +8,8 @@ import { useLanguage } from './i18n'
 /**
  * Application shell: header with the company name and primary navigation,
  * the routed page content, and a footer with company details, the cafe
- * tagline, copyright, and the language/theme controls.
+ * tagline, copyright, and the theme toggle. The language switcher lives in
+ * the nav bar.
  *
  * The header is transparent and fixed to the top (out of the normal page
  * flow), with only the nav links sitting on their own background. Its
@@ -55,6 +56,7 @@ function App() {
             <NavLink to="/events" onClick={closeNav}>
               <TranslatedText id="nav.events" />
             </NavLink>
+            <LanguageSwitcher />
           </nav>
         </div>
         <button
@@ -84,11 +86,29 @@ function App() {
           </p>
         </div>
         <div className="app__footer-section">
+          <p className="app__footer-company">{t('footer.openingHours')}</p>
+          <table className="app__footer-hours">
+            <tbody>
+              <tr>
+                <td>{t('footer.hours.monday')}–{t('footer.hours.friday')}</td>
+                <td>08–18</td>
+              </tr>
+              <tr>
+                <td>{t('footer.hours.saturday')}</td>
+                <td>{t('footer.hours.closed')}</td>
+              </tr>
+              <tr>
+                <td>{t('footer.hours.sunday')}</td>
+                <td>{t('footer.hours.closed')}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="app__footer-section">
           <TranslatedText as="p" id="footer.tagline" />
           <TranslatedText as="p" id="footer.rights" vars={{ year: new Date().getFullYear() }} />
         </div>
         <div className="app__footer-actions">
-          <LanguageSwitcher />
           <ThemeToggle />
         </div>
       </footer>

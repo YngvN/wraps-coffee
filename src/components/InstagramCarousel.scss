@@ -1,0 +1,164 @@
+@use '../styles/variables' as *;
+
+// Instagram brand gradient (orange → magenta → purple)
+$instagram-gradient: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+
+.instagram-carousel {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+  width: 100%;
+}
+
+.instagram-carousel__header {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit * 1.5;
+  text-decoration: none;
+  color: $color-text;
+  align-self: flex-start;
+
+  @media (hover: hover) {
+    &:hover .instagram-carousel__handle {
+      text-decoration: underline;
+    }
+  }
+}
+
+.instagram-carousel__icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  // Gradient fill via a mask — the SVG strokes are rendered in a transparent
+  // layer and the gradient shows through.
+  background: $instagram-gradient;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  // Gradient also colours the SVG strokes/fills via currentColor — but since
+  // currentColor is transparent here we re-draw the icon paths in the gradient
+  // using a filter + blend-mode workaround: simpler to just paint a gradient
+  // div behind an icon mask below.
+}
+
+// Repaint the icon on top of the gradient using a mask so all strokes
+// and the dot pick up the same gradient.
+.instagram-carousel__icon {
+  background: none;
+  color: transparent;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: $instagram-gradient;
+    border-radius: 3px;
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='2' y='2' width='20' height='20' rx='5' ry='5' stroke='black' stroke-width='2'/%3E%3Ccircle cx='12' cy='12' r='4.5' stroke='black' stroke-width='2'/%3E%3Ccircle cx='17.5' cy='6.5' r='1.5' fill='black'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='2' y='2' width='20' height='20' rx='5' ry='5' stroke='black' stroke-width='2'/%3E%3Ccircle cx='12' cy='12' r='4.5' stroke='black' stroke-width='2'/%3E%3Ccircle cx='17.5' cy='6.5' r='1.5' fill='black'/%3E%3C/svg%3E");
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
+}
+
+.instagram-carousel__handle {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.instagram-carousel__follow {
+  font-size: 0.875rem;
+  color: $color-text-muted;
+}
+
+// Horizontally scrollable strip with scroll-snap for one-post-at-a-time feel
+// on mobile. Hides the scrollbar visually while still scrollable.
+.instagram-carousel__track {
+  display: flex;
+  gap: $spacing-unit * 1.5;
+  overflow-x: auto;
+  padding-bottom: $spacing-unit; // room for scrollbar on Windows
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  // Hide scrollbar cross-browser but keep scrollability
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+$gap: $spacing-unit * 1.5; // 12px — must match the track's gap
+
+.instagram-carousel__item {
+  // Desktop: 3 images visible — (100% − 2 gaps) / 3
+  flex: 0 0 calc(100% / 3 - #{$gap * 2 / 3});
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  display: block;
+  position: relative;
+
+  // Instagram-gradient border on hover
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    border: 3px solid transparent;
+    background: $instagram-gradient border-box;
+    -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: destination-out;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  @media (hover: hover) {
+    &:hover::after {
+      opacity: 1;
+    }
+
+    &:hover img {
+      transform: scale(1.05);
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.3s ease;
+  }
+}
+
+@media (max-width: 1024px) {
+  .instagram-carousel__item {
+    // Tablet: 2 images visible — (100% − 1 gap) / 2
+    flex: 0 0 calc(50% - #{$gap / 2});
+  }
+}
+
+@media (max-width: 640px) {
+  .instagram-carousel__item {
+    // Mobile: 1 image, full width
+    flex: 0 0 100%;
+  }
+
+  .instagram-carousel__follow {
+    display: none;
+  }
+}

@@ -7,14 +7,18 @@
 .event-gallery {
   display: flex;
   align-items: center;
-  gap: $spacing-unit * 1.5;
-  padding: $spacing-unit * 1.5;
-  border-radius: 16px;
+  gap: $spacing-unit * 2;
+  padding: $spacing-unit * 2;
+  border-radius: 20px;
   background: $color-surface;
-  box-shadow: 0 4px 16px $color-shadow;
+  box-shadow: 0 4px 24px $color-shadow;
+  width: 100%;
+  max-width: 760px;
 
   @media (min-width: 900px) {
     align-items: stretch;
+    padding: $spacing-unit * 3;
+    gap: $spacing-unit * 3;
   }
 }
 
@@ -38,10 +42,10 @@
 
   @media (min-width: 900px) {
     display: block;
-    width: 180px;
-    height: 100%;
+    width: 300px;
+    min-height: 220px;
     flex-shrink: 0;
-    border-radius: 12px;
+    border-radius: 14px;
     object-fit: cover;
     transition: opacity 0.15s ease;
   }
@@ -99,7 +103,7 @@
 
   h3 {
     margin: 0;
-    font-size: 1rem;
+    font-size: 1.125rem;
   }
 }
 
