@@ -81,6 +81,7 @@ $instagram-gradient: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, 
   display: flex;
   gap: $spacing-unit * 1.5;
   overflow-x: auto;
+  scroll-snap-type: x mandatory;
   padding-bottom: $spacing-unit; // room for scrollbar on Windows
   cursor: grab;
 
@@ -101,6 +102,8 @@ $gap: $spacing-unit * 1.5; // 12px — must match the track's gap
   // Desktop: 3 images visible — (100% − 2 gaps) / 3
   flex: 0 0 calc(100% / 3 - #{$gap * 2 / 3});
   aspect-ratio: 1;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
   border-radius: 12px;
   overflow: hidden;
   display: block;
