@@ -1,0 +1,71 @@
+@use '../../styles/variables' as *;
+
+.category-slide {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 4;
+  height: 100%;
+  padding: $spacing-unit * 6;
+  overflow-y: auto;
+}
+
+.category-slide__header {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit * 3;
+
+  h1 {
+    font-family: $font-heading;
+    font-size: 3.5rem;
+    margin: 0;
+  }
+}
+
+.category-slide__image {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+}
+
+.category-slide__price {
+  margin-left: auto;
+  font-size: 2rem;
+  font-weight: 600;
+  color: $color-accent;
+}
+
+.category-slide__items {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: $spacing-unit * 3;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.category-slide__item {
+  h2 {
+    margin: 0;
+    font-size: 1.75rem;
+  }
+
+  p {
+    margin: calc($spacing-unit / 2) 0 0;
+    color: $color-text-muted;
+    font-size: 1.25rem;
+  }
+}
+
+.category-slide__item-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: $spacing-unit * 2;
+}
+
+.category-slide__item-price {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: $color-accent;
+  white-space: nowrap;
+}

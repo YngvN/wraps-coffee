@@ -1,0 +1,32 @@
+@use '../../styles/variables' as *;
+
+.fullscreen-toggle {
+  position: fixed;
+  bottom: $spacing-unit * 2;
+  right: $spacing-unit * 2;
+  z-index: 10;
+  padding: calc($spacing-unit / 2) $spacing-unit * 1.5;
+  border: 1px solid $color-border;
+  border-radius: 999px;
+  background: $color-surface;
+  color: $color-text;
+  font-size: 0.75rem;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.3s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+
+  &--hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+}

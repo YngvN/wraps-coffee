@@ -5,7 +5,8 @@ import { CATEGORY_META, CATEGORY_ORDER } from '../features/admin/products/catego
 import { useCategoryPrices } from '../hooks/useCategoryPrices'
 import { useProducts } from '../hooks/useProducts'
 import { useLanguage } from '../i18n'
-import type { AllergenCode, Price, ProductCategory } from '../types/product'
+import type { AllergenCode, ProductCategory } from '../types/product'
+import { formatPrice } from '../utils/price'
 import './Menu.scss'
 
 /** Allergen entries shown in the legend at the end of the menu, in the order their codes are introduced. */
@@ -40,10 +41,6 @@ export function Menu() {
     target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [hash])
 
-  /** Formats a `Price` as a single "X kr" or dual "X / Y kr" string. */
-  const formatPrice = (price: Price) =>
-    typeof price === 'number' ? t('menu.price', { price }) : t('menu.priceDual', { takeaway: price.takeaway, eatIn: price.eatIn })
-
   return (
     <div className="menu">
       <TranslatedText as="h1" id="menu.title" />
@@ -60,7 +57,7 @@ export function Menu() {
               <img className="menu__category-image" src={meta.image} alt="" />
               <h2>{t(`menu.categories.${categoryKey}.title`)}</h2>
               <p>{t(`menu.categories.${categoryKey}.description`)}</p>
-              {defaultPrice !== undefined && <span className="menu__category-price">{formatPrice(defaultPrice)}</span>}
+              {defaultPrice !== undefined && <span className="menu__category-price">{formatPrice(defaultPrice, t)}</span>}
             </div>
             <ul className="menu__items">
               {items.map((item) => (
@@ -70,7 +67,7 @@ export function Menu() {
                     {item.price !== undefined && (
                       <>
                         <span className="menu__item-leader" />
-                        <span className="menu__item-price">{formatPrice(item.price)}</span>
+                        <span className="menu__item-price">{formatPrice(item.price, t)}</span>
                       </>
                     )}
                   </div>

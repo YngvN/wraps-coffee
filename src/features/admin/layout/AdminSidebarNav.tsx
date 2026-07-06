@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: 'instagram', id: 'admin.nav.instagram' },
   { to: 'contact', id: 'admin.nav.contact' },
   { to: 'orders', id: 'admin.nav.orders' },
+  { to: 'screens', id: 'admin.nav.screens' },
 ] as const
 
 interface AdminSidebarNavProps {

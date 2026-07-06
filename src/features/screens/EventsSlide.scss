@@ -1,0 +1,52 @@
+@use '../../styles/variables' as *;
+
+.events-slide {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 4;
+  height: 100%;
+  padding: $spacing-unit * 6;
+  overflow-y: auto;
+
+  > h1 {
+    margin: 0;
+    font-family: $font-heading;
+    font-size: 3.5rem;
+  }
+}
+
+.events-slide__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: $spacing-unit * 3;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.events-slide__item {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit * 2;
+}
+
+.events-slide__image {
+  width: 140px;
+  height: 140px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.events-slide__body {
+  h2 {
+    margin: 0;
+    font-size: 1.75rem;
+  }
+}
+
+.events-slide__date {
+  margin: calc($spacing-unit / 2) 0 0;
+  color: $color-text-muted;
+  font-size: 1.25rem;
+}

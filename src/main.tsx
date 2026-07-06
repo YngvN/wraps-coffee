@@ -15,12 +15,14 @@ import { ReviewsView } from './features/admin/reviews/ReviewsView'
 import { InstagramView } from './features/admin/instagram/InstagramView'
 import { ContactInfoView } from './features/admin/contact/ContactInfoView'
 import { OrdersView } from './features/admin/orders/OrdersView'
+import { ScreensView } from './features/admin/screens/ScreensView'
 import { LanguageProvider } from './i18n'
 import { Components } from './pages/Components'
 import { Events } from './pages/Events'
 import { Home } from './pages/Home'
 import { Menu } from './pages/Menu'
 import { Profile } from './pages/Profile'
+import { ScreenDisplay } from './pages/ScreenDisplay'
 import './styles/global.scss'
 
 const router = createBrowserRouter([
@@ -53,10 +55,12 @@ const router = createBrowserRouter([
           { path: 'instagram', element: <InstagramView /> },
           { path: 'contact', element: <ContactInfoView /> },
           { path: 'orders', element: <OrdersView /> },
+          { path: 'screens', element: <ScreensView /> },
         ],
       },
     ],
   },
+  { path: '/screens/:screenId', element: <ScreenDisplay /> },
 ])
 
 createRoot(document.getElementById('root')!).render(

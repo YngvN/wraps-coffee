@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export function useLocalStorage<T>(key: string, initialValue: T) {
   const [value, setValue] = useState<T>(() => {
@@ -9,6 +9,23 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
       return initialValue
     }
   })
+
+  // Keeps other same-origin tabs/windows in sync: the `storage` event fires
+  // only in tabs *other* than the one that wrote the change, so this can't
+  // loop with `setStoredValue` below.
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== key) return
+      try {
+        setValue(event.newValue ? (JSON.parse(event.newValue) as T) : initialValue)
+      } catch {
+        // Ignore malformed external writes
+      }
+    }
+
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [key, initialValue])
 
   const setStoredValue = (newValue: T) => {
     setValue(newValue)

@@ -1,0 +1,37 @@
+@use '../../../styles/variables' as *;
+
+.screen-form {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+}
+
+.screen-form__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: $spacing-unit * 2;
+}
+
+.screen-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  font-size: 0.875rem;
+  font-weight: 600;
+
+  select {
+    padding: $spacing-unit calc($spacing-unit * 1.5);
+    border: 1px solid $color-border;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-family: inherit;
+    background: $color-bg;
+    color: $color-text;
+  }
+}
+
+.screen-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-unit;
+}
