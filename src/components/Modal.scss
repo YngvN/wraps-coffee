@@ -14,6 +14,11 @@
   position: relative;
   overflow: hidden;
   background: $color-bg;
+  // Explicit (not inherited) so the modal always follows the site's own
+  // light/dark theme, even when it's nested inside a screen display whose
+  // `.screen-display` ancestor sets a fixed, theme-independent `color` for
+  // its own content (see src/utils/screenColors.ts).
+  color: $color-text;
   border-radius: 8px;
   padding: $spacing-unit * 3;
   max-width: 480px;

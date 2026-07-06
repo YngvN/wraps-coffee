@@ -2,21 +2,89 @@
 
 .split-layout {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   width: 100%;
   height: 100%;
 
+  &--row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  &--column {
+    grid-template-rows: 1fr 1fr;
+  }
+
   &--single {
     grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+  }
+
+  &--quad {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+
+  &--triple-row-first {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    grid-template-areas:
+      'big big'
+      'small1 small2';
+  }
+
+  &--triple-row-second {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    grid-template-areas:
+      'small1 small2'
+      'big big';
+  }
+
+  &--triple-column-first {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    grid-template-areas:
+      'big small1'
+      'big small2';
+  }
+
+  &--triple-column-second {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    grid-template-areas:
+      'small1 big'
+      'small2 big';
+  }
+
+  &--empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--screen-text-muted);
+    font-size: 1.5rem;
   }
 }
 
 .split-layout__pane {
+  position: relative;
   height: 100%;
   overflow: hidden;
-  border-right: 1px solid $color-border;
+  border: 1px solid var(--screen-border);
 
-  &:last-child {
-    border-right: none;
+  @media (hover: hover) {
+    &:hover .slot-edit-button {
+      opacity: 1;
+    }
+  }
+
+  &--big {
+    grid-area: big;
+  }
+
+  &--small1 {
+    grid-area: small1;
+  }
+
+  &--small2 {
+    grid-area: small2;
   }
 }

@@ -1,10 +1,13 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { Badge, Button, Modal, TranslatedText } from '../../../components'
 import { useScreens } from '../../../hooks/useScreens'
 import { useLanguage } from '../../../i18n'
-import type { ScreenConfig, ScreenSlotContent } from '../../../types/screen'
+import { DEFAULT_SCREEN_BACKGROUND_COLOR, type ScreenConfig, type ScreenSlotContent } from '../../../types/screen'
+import { getScreenColorVars } from '../../../utils/screenColors'
+import { LayoutIcon } from './LayoutIcon'
 import { ScreenForm } from './ScreenForm'
+import { getScreenPreviewPattern } from './screenPreviewPattern'
 import './ScreensView.scss'
 
 /** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link. */
@@ -64,29 +67,41 @@ export function ScreensView() {
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.15 }}
                 >
-                  <div className="screens-view__item-info">
-                    <span className="screens-view__item-name">{screen.name}</span>
-                    <Badge variant="info">{t(`admin.screens.layout${screen.layout === 'slideshow' ? 'Slideshow' : 'Split'}Label`)}</Badge>
-                    <span className="screens-view__item-slots">
-                      {slotLabel(screen.slots[0])} · {slotLabel(screen.slots[1])}
-                    </span>
+                  <div
+                    className="screens-view__item-preview"
+                    style={getScreenColorVars(screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR) as CSSProperties}
+                    title={t(`admin.screens.layout${screen.layout === 'slideshow' ? 'Slideshow' : 'Split'}Label`)}
+                  >
+                    <LayoutIcon pattern={getScreenPreviewPattern(screen)} width={56} height={42} />
                   </div>
-                  <div className="screens-view__item-url">
-                    <code>{url}</code>
-                    <Button variant="secondary" onClick={() => handleCopy(screen, url)}>
-                      {copiedID === screen.screenID ? t('admin.screens.urlCopied') : t('admin.screens.copyUrl')}
-                    </Button>
-                    <a href={url} target="_blank" rel="noopener noreferrer">
-                      {t('admin.screens.openInNewTab')}
-                    </a>
-                  </div>
-                  <div className="screens-view__item-actions">
-                    <Button variant="secondary" onClick={() => setEditingScreen(screen)}>
-                      {t('admin.common.edit')}
-                    </Button>
-                    <Button variant="secondary" onClick={() => handleDelete(screen)}>
-                      {t('admin.common.delete')}
-                    </Button>
+                  <div className="screens-view__item-body">
+                    <div className="screens-view__item-info">
+                      <span className="screens-view__item-name">{screen.name}</span>
+                      <Badge variant="info">{t(`admin.screens.layout${screen.layout === 'slideshow' ? 'Slideshow' : 'Split'}Label`)}</Badge>
+                      <span className="screens-view__item-slots">
+                        {screen.slots
+                          .filter((slot) => slot.kind !== 'none')
+                          .map(slotLabel)
+                          .join(' · ')}
+                      </span>
+                    </div>
+                    <div className="screens-view__item-url">
+                      <code>{url}</code>
+                      <Button variant="secondary" onClick={() => handleCopy(screen, url)}>
+                        {copiedID === screen.screenID ? t('admin.screens.urlCopied') : t('admin.screens.copyUrl')}
+                      </Button>
+                      <a href={url} target="_blank" rel="noopener noreferrer">
+                        {t('admin.screens.openInNewTab')}
+                      </a>
+                    </div>
+                    <div className="screens-view__item-actions">
+                      <Button variant="secondary" onClick={() => setEditingScreen(screen)}>
+                        {t('admin.common.edit')}
+                      </Button>
+                      <Button variant="secondary" onClick={() => handleDelete(screen)}>
+                        {t('admin.common.delete')}
+                      </Button>
+                    </div>
                   </div>
                 </motion.li>
               )

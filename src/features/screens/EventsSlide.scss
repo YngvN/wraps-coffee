@@ -11,13 +11,20 @@
   > h1 {
     margin: 0;
     font-family: $font-heading;
-    font-size: 3.5rem;
+    font-size: var(--slide-heading-size, 3.5rem);
+    overflow-wrap: break-word;
   }
 }
 
 .events-slide__list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  // `font-size` here (not inherited by children — they set their own via
+  // the same var) makes `ch` below resolve relative to the item-title size,
+  // so the minimum column width scales with it live without reserving far
+  // more space than the text actually needs. The flat +164px accounts for
+  // the item's fixed-width image + gap alongside the text.
+  font-size: var(--slide-item-title-size, 1.75rem);
+  grid-template-columns: repeat(auto-fit, minmax(max(300px, calc(14ch + 164px)), 1fr));
   gap: $spacing-unit * 3;
   margin: 0;
   padding: 0;
@@ -39,14 +46,18 @@
 }
 
 .events-slide__body {
+  min-width: 0;
+
   h2 {
     margin: 0;
-    font-size: 1.75rem;
+    font-size: var(--slide-item-title-size, 1.75rem);
+    overflow-wrap: break-word;
   }
 }
 
 .events-slide__date {
   margin: calc($spacing-unit / 2) 0 0;
-  color: $color-text-muted;
-  font-size: 1.25rem;
+  color: var(--screen-text-muted);
+  font-size: var(--slide-description-size, 1.25rem);
+  overflow-wrap: break-word;
 }

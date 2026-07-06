@@ -1,13 +1,16 @@
 @use '../styles/variables' as *;
 
+// Background/text colors come from --screen-* custom properties (see
+// getScreenColorVars), driven by each screen's own chosen background color —
+// deliberately independent of the site's light/dark theme.
 .screen-display {
   position: fixed;
   inset: 0;
   width: 100vw;
   height: 100dvh;
   overflow: hidden;
-  background: $color-bg;
-  color: $color-text;
+  background: var(--screen-bg);
+  color: var(--screen-text);
 }
 
 .screen-display--not-found {
@@ -24,7 +27,7 @@
   }
 
   p {
-    color: $color-text-muted;
+    color: var(--screen-text-muted);
     max-width: 480px;
   }
 }

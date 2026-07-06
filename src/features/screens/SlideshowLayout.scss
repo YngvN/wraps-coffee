@@ -9,6 +9,12 @@
 .slideshow-layout__slide {
   position: absolute;
   inset: 0;
+
+  @media (hover: hover) {
+    &:hover .slot-edit-button {
+      opacity: 1;
+    }
+  }
 }
 
 .slideshow-layout--empty {
@@ -16,6 +22,6 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: $color-text-muted;
+  color: var(--screen-text-muted);
   font-size: 1.5rem;
 }

@@ -1,0 +1,25 @@
+@use '../../styles/variables' as *;
+
+.slot-edit-button {
+  position: absolute;
+  top: $spacing-unit;
+  right: $spacing-unit;
+  z-index: 5;
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  border: none;
+  border-radius: 999px;
+  // Inverted relative to the slide's own contrast-computed colors, so this
+  // chip stays readable regardless of which background color the screen
+  // uses (see src/utils/screenColors.ts).
+  background: var(--screen-text);
+  color: var(--screen-bg);
+  font-size: 0.75rem;
+  font-family: inherit;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+
+  &:active {
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+}

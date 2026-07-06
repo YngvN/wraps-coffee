@@ -29,11 +29,35 @@
 
 .screens-view__item {
   display: flex;
-  flex-direction: column;
-  gap: $spacing-unit;
+  align-items: flex-start;
+  gap: $spacing-unit * 1.5;
   padding: $spacing-unit calc($spacing-unit * 1.5);
   border: 1px solid $color-border;
   border-radius: 8px;
+}
+
+// Background/text come from --screen-* custom properties (see
+// getScreenColorVars), reflecting each screen's own chosen color so the
+// preview matches what the display actually looks like.
+.screens-view__item-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 72px;
+  height: 54px;
+  border: 1px solid $color-border;
+  border-radius: 6px;
+  background: var(--screen-bg);
+  color: var(--screen-text);
+}
+
+.screens-view__item-body {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  min-width: 0;
+  flex: 1;
 }
 
 .screens-view__item-info {
