@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Badge, EventCalendar, EventDetailsModal, TranslatedText } from '../components'
-import eventsData from '../data/events.json'
+import { useEvents } from '../hooks/useEvents'
 import { useLanguage } from '../i18n'
 import { formatEventDate, getUpcomingEvents, type EventRecord } from '../utils/events'
 import './Events.scss'
@@ -15,15 +15,16 @@ const UPCOMING_TILE_COUNT = 8
  */
 export function Events() {
   const { t, language } = useLanguage()
+  const [events] = useEvents()
   const [selectedEvent, setSelectedEvent] = useState<EventRecord | null>(null)
-  const upcomingEvents = getUpcomingEvents(eventsData, UPCOMING_TILE_COUNT)
+  const upcomingEvents = getUpcomingEvents(events, UPCOMING_TILE_COUNT)
 
   return (
     <div className="events">
       <TranslatedText as="h1" id="events.title" />
       <TranslatedText as="p" id="events.intro" />
 
-      <EventCalendar events={eventsData} onSelectEvent={setSelectedEvent} className="events__calendar" />
+      <EventCalendar events={events} onSelectEvent={setSelectedEvent} className="events__calendar" />
 
       <h2 className="events__upcoming-heading">{t('events.upcomingHeading')}</h2>
       <ul className="events__list">
@@ -36,11 +37,11 @@ export function Events() {
                   <span className="events__tile-category">{event.category}</span>
                   {event.status === 'postponed' && <Badge variant="warning">{t('events.modal.postponed')}</Badge>}
                 </div>
-                <h3>{event.title}</h3>
+                <h3>{event.title[language]}</h3>
                 <p className="events__tile-date">
                   {formatEventDate(occursAt, language, { weekday: 'short', day: 'numeric', month: 'short' })} · {event.time}
                 </p>
-                <p className="events__tile-description">{event.description}</p>
+                <p className="events__tile-description">{event.description[language]}</p>
                 <p className="events__tile-meta">
                   {event.price === 0 ? t('events.modal.free') : t('menu.price', { price: event.price })} ·{' '}
                   {t('events.modal.spotsFilled', { count: event.attendeesCount, capacity: event.capacity })}

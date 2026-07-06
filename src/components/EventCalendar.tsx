@@ -139,7 +139,7 @@ export function EventCalendar({ events, onSelectEvent, className }: EventCalenda
                     onClick={() => onSelectEvent(event)}
                   >
                     {view === 'week' && <span className="event-calendar__event-time">{event.time}</span>}
-                    <span className="event-calendar__event-title">{event.title}</span>
+                    <span className="event-calendar__event-title">{event.title[language]}</span>
                   </button>
                 ))}
                 {overflowCount > 0 && <span className="event-calendar__more">{t('events.calendar.more', { count: overflowCount })}</span>}

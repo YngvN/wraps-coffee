@@ -1,0 +1,8 @@
+@use '../../../styles/variables' as *;
+
+.orders-view {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+  max-width: 700px;
+}

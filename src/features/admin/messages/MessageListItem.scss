@@ -1,0 +1,58 @@
+@use '../../../styles/variables' as *;
+
+.message-list-item {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  width: 100%;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+
+  &--active {
+    background: $color-surface;
+  }
+}
+
+.message-list-item__dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: $color-accent;
+}
+
+.message-list-item__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.message-list-item__name {
+  font-weight: 600;
+}
+
+.message-list-item--unread .message-list-item__name {
+  font-weight: 700;
+}
+
+.message-list-item__subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: $color-text-muted;
+  font-size: 0.875rem;
+}

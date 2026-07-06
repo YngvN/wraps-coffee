@@ -1,0 +1,56 @@
+@use '../../../styles/variables' as *;
+
+.events-view {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 3;
+  max-width: 900px;
+}
+
+.events-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit * 2;
+}
+
+.events-view__list {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.events-view__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: $spacing-unit;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: 1px solid $color-border;
+  border-radius: 8px;
+}
+
+.events-view__item-info {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit * 0.75);
+  flex-wrap: wrap;
+}
+
+.events-view__item-title {
+  font-weight: 600;
+}
+
+.events-view__item-date {
+  color: $color-text-muted;
+  font-size: 0.875rem;
+}
+
+.events-view__item-actions {
+  display: flex;
+  gap: calc($spacing-unit / 2);
+}

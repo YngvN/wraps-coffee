@@ -1,0 +1,25 @@
+@use '../../../styles/variables' as *;
+
+.admin-login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: $spacing-unit * 3;
+}
+
+.admin-login__card {
+  width: 100%;
+  max-width: 360px;
+}
+
+.admin-login__form {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+
+  h1 {
+    margin: 0 0 $spacing-unit;
+    font-family: $font-subheading;
+  }
+}

@@ -48,7 +48,7 @@ export function EventDetailsModal({ event, onClose }: EventDetailsModalProps) {
   }
 
   return (
-    <Modal open={event !== null} onClose={onClose} title={event?.title}>
+    <Modal open={event !== null} onClose={onClose} title={event?.title[language]}>
       {event && (
         <div className="event-details">
           <img className="event-details__image" src={event.imageUrl} alt="" />
@@ -60,7 +60,7 @@ export function EventDetailsModal({ event, onClose }: EventDetailsModalProps) {
             </p>
           )}
 
-          <p className="event-details__description">{event.description}</p>
+          <p className="event-details__description">{event.description[language]}</p>
 
           {/* Both steps stay mounted and share a CSS grid cell (see
               .event-details__steps), so the container's height is always the

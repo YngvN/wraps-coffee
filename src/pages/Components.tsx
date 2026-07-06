@@ -15,17 +15,23 @@ import {
   RatingBadges,
   ReviewCarousel,
   Spinner,
+  Textarea,
   ThemeToggle,
   TranslatedText,
 } from '../components'
-import eventsData from '../data/events.json'
-import ratingsData from '../data/ratings.json'
-import reviewsData from '../data/reviews.json'
+import { useEvents } from '../hooks/useEvents'
+import { useRatings } from '../hooks/useRatings'
+import { useReviews } from '../hooks/useReviews'
+import { useLanguage } from '../i18n'
 import { getUpcomingEvents } from '../utils/events'
 import './Components.scss'
 
 export function Components() {
+  const { language } = useLanguage()
   const [modalOpen, setModalOpen] = useState(false)
+  const [eventsData] = useEvents()
+  const [ratingsData] = useRatings()
+  const [reviewsData] = useReviews()
 
   return (
     <div className="components-page">
@@ -70,6 +76,13 @@ export function Components() {
         <div className="components-page__row">
           <Input label="Email" placeholder="you@example.com" />
           <Input label="Password" type="password" error="Password is required" />
+        </div>
+      </section>
+
+      <section>
+        <h2>Textarea</h2>
+        <div className="components-page__row">
+          <Textarea label="Description" placeholder="Write a longer description..." />
         </div>
       </section>
 
@@ -147,7 +160,7 @@ export function Components() {
         <h2>Review Carousel</h2>
         <p>Cross-fades through customer reviews one at a time.</p>
         <div className="components-page__preview">
-          <ReviewCarousel reviews={reviewsData} />
+          <ReviewCarousel reviews={reviewsData[language]} />
         </div>
       </section>
 

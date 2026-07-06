@@ -327,6 +327,34 @@ h2 {
   gap: $spacing-unit;
 }
 
+.app__footer-admin-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  color: $color-text-muted;
+  opacity: 0.5;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+
+  svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      opacity: 1;
+      background: $color-surface-hover;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
 @media (max-width: 640px) {
   .app__header {
     flex-wrap: wrap;

@@ -1,0 +1,51 @@
+@use '../../../styles/variables' as *;
+
+.contact-info-view {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+  max-width: 700px;
+}
+
+.contact-info-view__fields {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+}
+
+.contact-info-view__hours {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: $spacing-unit * 2;
+    flex-wrap: wrap;
+    padding: $spacing-unit 0;
+    border-bottom: 1px solid $color-border;
+  }
+}
+
+.contact-info-view__day-label {
+  width: 3rem;
+  font-weight: 600;
+}
+
+.contact-info-view__time {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  font-size: 0.875rem;
+
+  input {
+    padding: calc($spacing-unit / 2) $spacing-unit;
+    border: 1px solid $color-border;
+    border-radius: 6px;
+    font-family: inherit;
+  }
+}

@@ -1,0 +1,56 @@
+[
+  {
+    "id": "1",
+    "name": "Kristin Amundsen",
+    "email": "kristin.amundsen@example.com",
+    "subject": "Private event booking",
+    "message": "Hi! We're looking to book the café for a birthday gathering of about 20 people on a Saturday evening in September. Is that something you can host, and what would it cost?",
+    "receivedAt": "2026-07-01T09:14:00",
+    "read": false
+  },
+  {
+    "id": "2",
+    "name": "Oskar Trane",
+    "email": "oskar.trane@example.com",
+    "subject": "Allergy question",
+    "message": "Do any of your smoothies contain nuts? My daughter has a cashew allergy and I want to make sure before we order.",
+    "receivedAt": "2026-06-29T14:02:00",
+    "read": true
+  },
+  {
+    "id": "3",
+    "name": "Frida Nystrøm",
+    "email": "frida.nystrom@example.com",
+    "subject": "Loved the jazz evening!",
+    "message": "Just wanted to say the live jazz night last week was fantastic — please keep doing these! Will you be announcing the next one soon?",
+    "receivedAt": "2026-06-27T20:45:00",
+    "read": true
+  },
+  {
+    "id": "4",
+    "name": "Magnus Ellingsen",
+    "email": "magnus.ellingsen@example.com",
+    "subject": "Wholesale coffee beans",
+    "message": "I run a small office nearby and I'm curious whether you sell your coffee beans wholesale or in bulk bags. Let me know who I should talk to.",
+    "receivedAt": "2026-06-25T11:30:00",
+    "read": false
+  },
+  {
+    "id": "5",
+    "name": "Ingeborg Sæther",
+    "email": "ingeborg.saether@example.com",
+    "subject": "Gluten-free options",
+    "message": "Are any of your wraps or baguettes available with a gluten-free base? Happy to pay extra if it's an option.",
+    "receivedAt": "2026-06-22T16:18:00",
+    "read": false
+  },
+  {
+    "id": "6",
+    "name": "Theodor Isaksen",
+    "email": "theodor.isaksen@example.com",
+    "subject": "Job application",
+    "message": "Hello, I saw you might be hiring baristas for the summer. I have two years of café experience and would love to send over my CV — who should I address it to?",
+    "receivedAt": "2026-06-19T08:55:00",
+    "read": true
+  }
+]

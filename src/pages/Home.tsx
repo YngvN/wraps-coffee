@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import logoTemp from '../assets/images/logo/logo-temp.png'
 import { DeliveryLinks, EventDetailsModal, EventGallery, InstagramCarousel, LocationMap, RatingBadges, ReviewCarousel, TranslatedText } from '../components'
-import eventsData from '../data/events.json'
-import ratingsData from '../data/ratings.json'
-import reviewsData from '../data/reviews.json'
+import { useEvents } from '../hooks/useEvents'
+import { useRatings } from '../hooks/useRatings'
+import { useReviews } from '../hooks/useReviews'
 import { useLanguage } from '../i18n'
 import { getUpcomingEvents, type EventRecord } from '../utils/events'
 import { MAPS_URL } from '../utils/location'
@@ -16,7 +16,10 @@ import './Home.scss'
  */
 export function Home() {
   const { t, language } = useLanguage()
-  const upcomingEvents = getUpcomingEvents(eventsData, 5)
+  const [events] = useEvents()
+  const [reviewsData] = useReviews()
+  const [ratingsData] = useRatings()
+  const upcomingEvents = getUpcomingEvents(events, 5)
   const [selectedEvent, setSelectedEvent] = useState<EventRecord | null>(null)
 
   return (

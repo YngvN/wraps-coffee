@@ -33,3 +33,8 @@
     border-color: $color-error;
   }
 }
+
+.textarea {
+  resize: vertical;
+  min-height: 5rem;
+}

@@ -1,0 +1,75 @@
+@use '../../../styles/variables' as *;
+
+.products-view {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 3;
+  max-width: 900px;
+}
+
+.products-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit * 2;
+}
+
+.products-view__category {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  padding-top: $spacing-unit * 2;
+  border-top: 1px solid $color-border;
+}
+
+.products-view__empty {
+  color: $color-text-muted;
+}
+
+.products-view__list {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.products-view__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: $spacing-unit;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: 1px solid $color-border;
+  border-radius: 8px;
+}
+
+.products-view__item-info {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit * 0.75);
+  flex-wrap: wrap;
+}
+
+.products-view__item-name {
+  font-weight: 600;
+}
+
+.products-view__allergen {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: $color-surface-hover;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.products-view__item-actions {
+  display: flex;
+  gap: calc($spacing-unit / 2);
+}

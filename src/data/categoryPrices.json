@@ -1,0 +1,8 @@
+{
+  "salads": 189,
+  "wraps": { "takeaway": 149, "eatIn": 159 },
+  "baguettes": 119,
+  "pizza": { "takeaway": 179, "eatIn": 192 },
+  "nachos": { "takeaway": 189, "eatIn": 199 },
+  "smoothies": { "takeaway": 89, "eatIn": 99 }
+}

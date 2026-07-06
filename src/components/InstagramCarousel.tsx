@@ -1,23 +1,15 @@
 import { useCallback, useEffect, useRef } from 'react'
-import postsData from '../data/instagram.json'
+import { useInstagramPosts } from '../hooks/useInstagramPosts'
 import { useLanguage } from '../i18n'
 import './InstagramCarousel.scss'
 
-/** A single Instagram post entry from instagram.json. */
-interface InstagramPost {
+/** A single Instagram post entry, as stored in `src/data/instagram.json`. */
+export interface InstagramPost {
   id: string
   imageUrl: string
   postUrl: string
   alt: string
 }
-
-const posts = postsData as InstagramPost[]
-
-// Render three copies so the user can scroll infinitely in both directions.
-// The track starts scrolled to the middle copy; whenever scrollLeft drifts into
-// the first or third copy the scroll handler silently jumps back to the
-// identical position in the middle copy.
-const tripledPosts = [...posts, ...posts, ...posts]
 
 /** Gap between items in pixels — must match the CSS gap on .instagram-carousel__track. */
 const ITEM_GAP = 12
@@ -56,6 +48,12 @@ function InstagramIcon() {
  */
 export function InstagramCarousel() {
   const { t } = useLanguage()
+  const [posts] = useInstagramPosts()
+  // Render three copies so the user can scroll infinitely in both directions.
+  // The track starts scrolled to the middle copy; whenever scrollLeft drifts into
+  // the first or third copy the scroll handler silently jumps back to the
+  // identical position in the middle copy.
+  const tripledPosts = [...posts, ...posts, ...posts]
   const trackRef = useRef<HTMLDivElement>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)

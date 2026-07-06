@@ -1,0 +1,14 @@
+{
+  "phone": "+4798137640",
+  "email": "Wrapsulven@gmail.com",
+  "address": "Ulvenveien 82 E, 0581 Oslo",
+  "hours": {
+    "monday": { "closed": false, "open": "08:00", "close": "18:00" },
+    "tuesday": { "closed": false, "open": "08:00", "close": "18:00" },
+    "wednesday": { "closed": false, "open": "08:00", "close": "18:00" },
+    "thursday": { "closed": false, "open": "08:00", "close": "18:00" },
+    "friday": { "closed": false, "open": "08:00", "close": "18:00" },
+    "saturday": { "closed": true },
+    "sunday": { "closed": true }
+  }
+}

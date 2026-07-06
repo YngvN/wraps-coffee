@@ -1,0 +1,110 @@
+@use '../../../styles/variables' as *;
+
+.admin-dashboard {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-height: 100vh;
+}
+
+.admin-dashboard__sidebar {
+  flex-shrink: 0;
+  width: 240px;
+  border-right: 1px solid $color-border;
+  background: $color-surface;
+}
+
+.admin-dashboard__sidebar--desktop {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.admin-dashboard__sidebar--mobile {
+  display: none;
+}
+
+.admin-dashboard__content {
+  flex: 1;
+  padding: $spacing-unit * 4;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.admin-dashboard__toggle {
+  display: none;
+}
+
+@media (max-width: 800px) {
+  .admin-dashboard__sidebar--desktop {
+    display: none;
+  }
+
+  .admin-dashboard__content {
+    padding: $spacing-unit * 3 $spacing-unit * 2 $spacing-unit * 2;
+    padding-top: $spacing-unit * 8;
+  }
+
+  .admin-dashboard__toggle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    position: fixed;
+    top: $spacing-unit * 2;
+    left: $spacing-unit * 2;
+    z-index: 30;
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    border: 1px solid $color-border;
+    background: $color-bg;
+    cursor: pointer;
+
+    span {
+      display: block;
+      width: 18px;
+      height: 2px;
+      border-radius: 1px;
+      background: $color-text;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    &:active {
+      box-shadow: inset 0 2px 4px $color-shadow;
+    }
+
+    &--open span {
+      &:nth-child(1) {
+        transform: translateY(6px) rotate(45deg);
+      }
+
+      &:nth-child(2) {
+        opacity: 0;
+      }
+
+      &:nth-child(3) {
+        transform: translateY(-6px) rotate(-45deg);
+      }
+    }
+  }
+
+  .admin-dashboard__scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    background: $color-overlay;
+  }
+
+  .admin-dashboard__sidebar--mobile {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 25;
+    width: min(280px, 80vw);
+  }
+}

@@ -30,7 +30,8 @@
           "saturday": "Sat",
           "sunday": "Sun",
           "closed": "Closed"
-        }
+        },
+        "adminLogin": "Owner login"
       },
       "delivery": {
         "foodora": "Order on Foodora",
@@ -401,6 +402,117 @@
         "passwordLabel": "Password",
         "signIn": "Sign in",
         "signingIn": "Signing in…"
+      },
+      "admin": {
+        "login": {
+          "title": "Owner login",
+          "usernameLabel": "Username",
+          "passwordLabel": "Password",
+          "submit": "Sign in"
+        },
+        "nav": {
+          "overview": "Overview",
+          "messages": "Messages",
+          "products": "Products",
+          "events": "Events",
+          "reviews": "Reviews & ratings",
+          "instagram": "Instagram",
+          "contact": "Contact info",
+          "orders": "Orders",
+          "backToSite": "Back to site"
+        },
+        "overview": {
+          "title": "Overview",
+          "revenueToday": "Revenue today",
+          "ordersToday": "Orders today",
+          "topItems": "Top sellers this week",
+          "weeklyCustomers": "Customers this week"
+        },
+        "messages": {
+          "title": "Messages",
+          "noMessages": "No messages yet.",
+          "selectPrompt": "Select a message to read it.",
+          "fromLabel": "From",
+          "receivedLabel": "Received"
+        },
+        "products": {
+          "title": "Products",
+          "addProduct": "Add product",
+          "editProduct": "Edit product",
+          "nameEnLabel": "Name (English)",
+          "nameNoLabel": "Name (Norwegian)",
+          "descriptionEnLabel": "Description (English)",
+          "descriptionNoLabel": "Description (Norwegian)",
+          "categoryLabel": "Category",
+          "categoryPriceLabel": "Category default price",
+          "priceLabel": "Price",
+          "priceNoneLabel": "No default price",
+          "priceInheritLabel": "Use the category's default price",
+          "priceTakeawayLabel": "Takeaway price",
+          "priceEatInLabel": "Eat-in price",
+          "availableLabel": "Available on the menu",
+          "hiddenLabel": "Hidden",
+          "allergensLabel": "Allergens",
+          "noProducts": "No products in this category yet."
+        },
+        "events": {
+          "title": "Events",
+          "addEvent": "Add event",
+          "editEvent": "Edit event",
+          "titleEnLabel": "Title (English)",
+          "titleNoLabel": "Title (Norwegian)",
+          "descriptionEnLabel": "Description (English)",
+          "descriptionNoLabel": "Description (Norwegian)",
+          "categoryLabel": "Category",
+          "dateLabel": "Date",
+          "timeLabel": "Start time",
+          "endTimeLabel": "End time",
+          "locationAddressLabel": "Location address",
+          "capacityLabel": "Capacity",
+          "priceLabel": "Price",
+          "repeatsWeeklyLabel": "Repeats weekly",
+          "dayOfWeekLabel": "Day of week",
+          "statusLabel": "Status",
+          "imageUrlLabel": "Image URL"
+        },
+        "reviews": {
+          "title": "Reviews",
+          "ratingsTitle": "Platform ratings",
+          "addReview": "Add review",
+          "nameLabel": "Name",
+          "reviewLabel": "Review",
+          "platformLabel": "Platform",
+          "ratingLabel": "Rating"
+        },
+        "instagram": {
+          "title": "Instagram posts",
+          "addPost": "Add post",
+          "imageUrlLabel": "Image URL",
+          "postUrlLabel": "Post URL",
+          "altLabel": "Alt text"
+        },
+        "contact": {
+          "title": "Contact info",
+          "phoneLabel": "Phone",
+          "emailLabel": "Email",
+          "addressLabel": "Address",
+          "hoursTitle": "Opening hours",
+          "closedLabel": "Closed",
+          "openLabel": "Opens",
+          "closeLabel": "Closes"
+        },
+        "orders": {
+          "title": "Orders",
+          "comingSoon": "Order management isn't available yet — check back once online ordering is connected."
+        },
+        "common": {
+          "save": "Save",
+          "cancel": "Cancel",
+          "delete": "Delete",
+          "edit": "Edit",
+          "add": "Add",
+          "confirmDelete": "Are you sure you want to delete this?"
+        }
       }
     }
   },
@@ -435,7 +547,8 @@
           "saturday": "Lør",
           "sunday": "Søn",
           "closed": "Stengt"
-        }
+        },
+        "adminLogin": "Eierinnlogging"
       },
       "delivery": {
         "foodora": "Bestill på Foodora",
@@ -806,6 +919,117 @@
         "passwordLabel": "Passord",
         "signIn": "Logg inn",
         "signingIn": "Logger inn…"
+      },
+      "admin": {
+        "login": {
+          "title": "Eierinnlogging",
+          "usernameLabel": "Brukernavn",
+          "passwordLabel": "Passord",
+          "submit": "Logg inn"
+        },
+        "nav": {
+          "overview": "Oversikt",
+          "messages": "Meldinger",
+          "products": "Produkter",
+          "events": "Arrangementer",
+          "reviews": "Anmeldelser & vurderinger",
+          "instagram": "Instagram",
+          "contact": "Kontaktinfo",
+          "orders": "Bestillinger",
+          "backToSite": "Tilbake til nettsiden"
+        },
+        "overview": {
+          "title": "Oversikt",
+          "revenueToday": "Omsetning i dag",
+          "ordersToday": "Bestillinger i dag",
+          "topItems": "Mest solgt denne uken",
+          "weeklyCustomers": "Kunder denne uken"
+        },
+        "messages": {
+          "title": "Meldinger",
+          "noMessages": "Ingen meldinger ennå.",
+          "selectPrompt": "Velg en melding for å lese den.",
+          "fromLabel": "Fra",
+          "receivedLabel": "Mottatt"
+        },
+        "products": {
+          "title": "Produkter",
+          "addProduct": "Legg til produkt",
+          "editProduct": "Rediger produkt",
+          "nameEnLabel": "Navn (engelsk)",
+          "nameNoLabel": "Navn (norsk)",
+          "descriptionEnLabel": "Beskrivelse (engelsk)",
+          "descriptionNoLabel": "Beskrivelse (norsk)",
+          "categoryLabel": "Kategori",
+          "categoryPriceLabel": "Standardpris for kategori",
+          "priceLabel": "Pris",
+          "priceNoneLabel": "Ingen standardpris",
+          "priceInheritLabel": "Bruk kategoriens standardpris",
+          "priceTakeawayLabel": "Pris, ta med",
+          "priceEatInLabel": "Pris, spise her",
+          "availableLabel": "Tilgjengelig på menyen",
+          "hiddenLabel": "Skjult",
+          "allergensLabel": "Allergener",
+          "noProducts": "Ingen produkter i denne kategorien ennå."
+        },
+        "events": {
+          "title": "Arrangementer",
+          "addEvent": "Legg til arrangement",
+          "editEvent": "Rediger arrangement",
+          "titleEnLabel": "Tittel (engelsk)",
+          "titleNoLabel": "Tittel (norsk)",
+          "descriptionEnLabel": "Beskrivelse (engelsk)",
+          "descriptionNoLabel": "Beskrivelse (norsk)",
+          "categoryLabel": "Kategori",
+          "dateLabel": "Dato",
+          "timeLabel": "Starttid",
+          "endTimeLabel": "Sluttid",
+          "locationAddressLabel": "Stedsadresse",
+          "capacityLabel": "Kapasitet",
+          "priceLabel": "Pris",
+          "repeatsWeeklyLabel": "Gjentas ukentlig",
+          "dayOfWeekLabel": "Ukedag",
+          "statusLabel": "Status",
+          "imageUrlLabel": "Bilde-URL"
+        },
+        "reviews": {
+          "title": "Anmeldelser",
+          "ratingsTitle": "Plattformvurderinger",
+          "addReview": "Legg til anmeldelse",
+          "nameLabel": "Navn",
+          "reviewLabel": "Anmeldelse",
+          "platformLabel": "Plattform",
+          "ratingLabel": "Vurdering"
+        },
+        "instagram": {
+          "title": "Instagram-innlegg",
+          "addPost": "Legg til innlegg",
+          "imageUrlLabel": "Bilde-URL",
+          "postUrlLabel": "Innleggs-URL",
+          "altLabel": "Alt-tekst"
+        },
+        "contact": {
+          "title": "Kontaktinfo",
+          "phoneLabel": "Telefon",
+          "emailLabel": "E-post",
+          "addressLabel": "Adresse",
+          "hoursTitle": "Åpningstider",
+          "closedLabel": "Stengt",
+          "openLabel": "Åpner",
+          "closeLabel": "Stenger"
+        },
+        "orders": {
+          "title": "Bestillinger",
+          "comingSoon": "Bestillingshåndtering er ikke tilgjengelig ennå — kom tilbake når nettbestilling er koblet til."
+        },
+        "common": {
+          "save": "Lagre",
+          "cancel": "Avbryt",
+          "delete": "Slett",
+          "edit": "Rediger",
+          "add": "Legg til",
+          "confirmDelete": "Er du sikker på at du vil slette dette?"
+        }
       }
     }
   }

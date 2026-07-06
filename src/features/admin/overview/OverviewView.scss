@@ -1,0 +1,29 @@
+@use '../../../styles/variables' as *;
+
+.overview-view {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 3;
+  max-width: 900px;
+}
+
+.overview-view__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: $spacing-unit * 2;
+}
+
+.overview-view__top-items ol {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  margin: 0;
+  padding: 0;
+  list-style: decimal inside;
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    gap: $spacing-unit;
+  }
+}

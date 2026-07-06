@@ -49,7 +49,7 @@ export function EventGallery({ events, onSelectEvent, className }: EventGalleryP
             >
               <div className="event-gallery__details">
                 {index === 0 && <span className="event-gallery__label">{t('home.hero.upcomingEvent')}</span>}
-                <h3>{event.title}</h3>
+                <h3>{event.title[language]}</h3>
                 <p className="event-gallery__date">
                   {formatEventDate(occursAt, language, { weekday: 'short', day: 'numeric', month: 'short' })}, {event.time}
                 </p>

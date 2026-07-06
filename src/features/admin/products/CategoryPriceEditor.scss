@@ -1,0 +1,33 @@
+@use '../../../styles/variables' as *;
+
+.category-price-editor {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit * 2;
+  flex-wrap: wrap;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  margin-bottom: $spacing-unit;
+
+  legend {
+    padding: 0 calc($spacing-unit / 2);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: calc($spacing-unit / 2);
+    font-size: 0.875rem;
+  }
+
+  input[type='number'] {
+    width: 70px;
+    padding: calc($spacing-unit / 2) $spacing-unit;
+    border: 1px solid $color-border;
+    border-radius: 6px;
+    font-family: inherit;
+  }
+}
