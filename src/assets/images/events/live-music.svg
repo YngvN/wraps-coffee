@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="Live music illustration">
-  <rect width="160" height="160" rx="24" fill="#FBF1DD" />
-  <circle cx="62" cy="98" r="26" fill="#8F250C" />
-  <circle cx="88" cy="80" r="18" fill="#8F250C" />
-  <circle cx="80" cy="92" r="9" fill="#DFA93E" />
-  <rect x="92" y="36" width="8" height="50" rx="4" fill="#626C66" transform="rotate(20 96 60)" />
-  <circle cx="118" cy="40" r="6" fill="#88D18A" />
-  <circle cx="130" cy="56" r="5" fill="#88D18A" />
-</svg>

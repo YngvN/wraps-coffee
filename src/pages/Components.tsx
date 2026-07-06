@@ -6,6 +6,7 @@ import {
   Card,
   Checkbox,
   DeliveryLinks,
+  EventCalendar,
   EventGallery,
   Input,
   LanguageSwitcher,
@@ -153,11 +154,19 @@ export function Components() {
       <section>
         <h2>Event Gallery</h2>
         <p>
-          Preview of upcoming events: a compact card on narrow screens, or a gallery with a large picture that swaps to match the hovered/focused event on
-          wide screens.
+          Preview of upcoming events: a titled column list on narrow screens, or a gallery with a large picture that swaps to match the hovered/focused
+          event on wide screens.
         </p>
         <div className="components-page__preview">
-          <EventGallery events={getUpcomingEvents(eventsData, 3)} onSelectEvent={() => {}} />
+          <EventGallery events={getUpcomingEvents(eventsData, 5)} onSelectEvent={() => {}} />
+        </div>
+      </section>
+
+      <section>
+        <h2>Event Calendar</h2>
+        <p>Month/week calendar of cafe events, expanding recurring events into every occurrence in the visible range.</p>
+        <div className="components-page__preview">
+          <EventCalendar events={eventsData} onSelectEvent={() => {}} />
         </div>
       </section>
 

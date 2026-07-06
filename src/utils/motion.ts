@@ -1,48 +1,4 @@
-import type { Target, Transition, Variants, ViewportOptions } from 'framer-motion'
-
-/** Direction an element "rains in" from when revealed: a side or from below. */
-export type RevealDirection = 'left' | 'right' | 'up'
-
-/** Framer Motion props produced by {@link reveal}. */
-export interface RevealProps {
-  initial: Target
-  whileInView: Target
-  viewport: ViewportOptions
-  transition: Transition
-}
-
-/**
- * Framer Motion props for a "rain in" scroll reveal: the element fades in
- * while sliding into place from `direction`, animating once the first time
- * it scrolls into view.
- *
- * @param direction - Side the element slides in from (`'left'`/`'right'`),
- * or `'up'` to slide in from below.
- * @param delay - Seconds to wait before starting the animation, used to
- * stagger multiple elements revealing in sequence.
- * @param reducedMotion - When `true` (the user prefers reduced motion), the
- * element is shown in its final position immediately, without animating.
- */
-export function reveal(direction: RevealDirection, delay = 0, reducedMotion = false): RevealProps {
-  if (reducedMotion) {
-    return {
-      initial: { opacity: 1, x: 0, y: 0 },
-      whileInView: { opacity: 1, x: 0, y: 0 },
-      viewport: { once: true, amount: 0.3 },
-      transition: { duration: 0 },
-    }
-  }
-
-  const offset: Target = direction === 'left' ? { x: -60 } : direction === 'right' ? { x: 60 } : { y: 40 }
-  const target: Target = direction === 'up' ? { y: 0 } : { x: 0 }
-
-  return {
-    initial: { opacity: 0, ...offset },
-    whileInView: { opacity: 1, ...target },
-    viewport: { once: true, amount: 0.3 },
-    transition: { duration: 0.6, ease: 'easeOut', delay },
-  }
-}
+import type { Variants, Transition } from 'framer-motion'
 
 /** Framer Motion props produced by {@link pageTransition}. */
 export interface PageTransitionProps {

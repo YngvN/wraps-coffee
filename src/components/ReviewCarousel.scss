@@ -6,20 +6,17 @@
   gap: $spacing-unit * 2;
 }
 
-// Fixed height (sized for the longest clamped review) so the cross-fade
-// between reviews never changes the surrounding layout's height.
+// Minimum height so very short reviews don't collapse the section; grows to
+// fit the full review text instead of clipping longer ones.
 .review-carousel__viewport {
   position: relative;
   min-height: 10rem;
 }
 
 .review-carousel__item {
-  position: absolute;
-  inset: 0;
   margin: 0;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
   gap: $spacing-unit;
 }
 
@@ -29,10 +26,6 @@
   font-size: 1.25rem;
   line-height: 1.5;
   color: $color-text;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
   padding: $spacing-unit * 4;
 }
 

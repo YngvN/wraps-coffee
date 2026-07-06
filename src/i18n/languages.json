@@ -45,8 +45,7 @@
           "description": "Quality ingredients, prepared fresh every day in a cozy spot to slow down, meet friends or grab something good on the go.",
           "cta": "See the menu",
           "ctaPickup": "Order and pick up yourself",
-          "upcomingEvent": "Upcoming event",
-          "scrollDown": "Scroll down"
+          "upcomingEvent": "Upcoming event"
         },
         "menu": {
           "title": "Good food that fills you up",
@@ -59,7 +58,8 @@
         "events": {
           "title": "Not only eating",
           "summary": "Wraps & Coffee is more than a place to eat — book the venue for your own private event, or join us for our weekly quiz night.",
-          "cta": "See our events"
+          "cta": "See our events",
+          "heading": "What's happening"
         },
         "location": {
           "title": "Find us",
@@ -112,163 +112,163 @@
           "salads": {
             "shrimpSalad": {
               "title": "Shrimp Salad",
-              "description": "Fresh salad with shrimp."
+              "description": "Poached shrimp over crisp greens with a light dressing."
             },
             "tunaSalad": {
               "title": "Tuna Salad",
-              "description": "Tuna salad with creamy dressing."
+              "description": "Flaked tuna tossed in a creamy dressing."
             },
             "caesarSalad": {
               "title": "Caesar Salad",
-              "description": "Classic Caesar salad with croutons and dressing."
+              "description": "Crisp lettuce, golden croutons and classic Caesar dressing."
             },
             "fetaSalad": {
               "title": "Feta Salad",
-              "description": "Salad with feta cheese and fresh vegetables."
+              "description": "Feta cheese with crisp, fresh vegetables."
             }
           },
           "wraps": {
             "chickenWrap": {
               "title": "Chicken",
-              "description": "Wrap with rice, cheese, lettuce, cucumber, tomato, corn, red onion, dressing and chicken."
+              "description": "Tender grilled chicken."
             },
             "tunaWrap": {
               "title": "Tuna",
-              "description": "Wrap with rice, cheese, lettuce, cucumber, tomato, corn, red onion, dressing and tuna."
+              "description": "Flaked tuna in a light dressing."
             },
             "vegetarianWrap": {
               "title": "Vegetarian",
-              "description": "Wrap with rice, cheese, lettuce, cucumber, tomato, corn, red onion, dressing and a fajita-spiced bean mix."
+              "description": "A fajita-spiced bean mix."
             },
             "chickenFajitasWrap": {
               "title": "Chicken Fajitas",
-              "description": "Wrap with rice, cheese, lettuce, cucumber, tomato, corn, red onion, dressing and fajita-spiced chicken."
+              "description": "Chicken marinated in fajita spices."
             },
             "chickenFetaWrap": {
               "title": "Chicken & Feta",
-              "description": "Wrap with rice, cheese, lettuce, cucumber, tomato, corn, red onion, dressing, chicken and feta."
+              "description": "Grilled chicken with crumbled feta."
             },
             "chickenTzatzikiWrap": {
               "title": "Chicken Tzatziki",
-              "description": "Wrap with rice, cheese, lettuce, cucumber, tomato, corn, red onion, dressing, chicken and tzatziki."
+              "description": "Grilled chicken with cool tzatziki."
             },
             "chickenTandooriWrap": {
               "title": "Chicken Tandoori",
-              "description": "Wrap with rice, cheese, lettuce, cucumber, tomato, corn, red onion, dressing and tandoori chicken."
+              "description": "Chicken marinated in tandoori spices."
             },
             "chickenCurryWrap": {
               "title": "Chicken Curry",
-              "description": "Wrap with rice, cheese, lettuce, cucumber, tomato, corn, red onion, dressing and curry chicken."
+              "description": "Chicken in a mild curry sauce."
             },
             "chickenAioliWrap": {
               "title": "Chicken Aioli",
-              "description": "Wrap with rice, cheese, lettuce, cucumber, tomato, corn, red onion, dressing, chicken and aioli."
+              "description": "Grilled chicken with garlic aioli."
             },
             "pulledPorkWrap": {
               "title": "Pulled Pork",
-              "description": "Wrap with rice, cheese, lettuce, cucumber, tomato, corn, red onion, dressing and pulled pork."
+              "description": "Slow-cooked, tender pulled pork."
             },
             "chipotleBeefWrap": {
               "title": "Chipotle Beef",
-              "description": "Wrap with rice, cheese, lettuce, cucumber, tomato, corn, red onion, dressing and chipotle beef."
+              "description": "Beef in a smoky chipotle sauce."
             },
             "mexicanTacoWrap": {
               "title": "Mexican Taco",
-              "description": "Wrap with rice, cheese, lettuce, cucumber, tomato, corn, red onion, dressing and Mexican-spiced taco meat."
+              "description": "Mexican-spiced taco meat."
             },
             "hamCheeseWrap": {
               "title": "Ham & Cheese",
-              "description": "Wrap with rice, cheese, lettuce, cucumber, tomato, corn, red onion, dressing, cheese and ham."
+              "description": "Sliced ham with melted cheese."
             }
           },
           "baguettes": {
             "shrimpBaguette": {
               "title": "Shrimp",
-              "description": "Soft baguette with salad mix, tomato, cucumber and shrimp."
+              "description": "Shrimp with a light dressing."
             },
             "tunaBaguette": {
               "title": "Tuna",
-              "description": "Soft baguette with salad mix, tomato, cucumber, tuna and a tasty dressing."
+              "description": "Flaked tuna in a tangy dressing."
             },
             "hamBaguette": {
               "title": "Ham",
-              "description": "Soft baguette with salad mix, tomato, cucumber and ham."
+              "description": "Classic sliced ham."
             },
             "tandooriChickenBaguette": {
               "title": "Tandoori Chicken",
-              "description": "Soft baguette with salad mix, tomato, cucumber and chicken marinated in tandoori spices."
+              "description": "Chicken marinated in tandoori spices."
             },
             "fetaBaguette": {
               "title": "Feta",
-              "description": "Baguette with salad mix, tomato, cucumber and feta cheese."
+              "description": "Crumbled feta cheese."
             },
             "chickenBaguette": {
               "title": "Chicken",
-              "description": "Soft chicken baguette with garlic, salad mix, tomato and cucumber."
+              "description": "Roast chicken with a hint of garlic."
             },
             "chimichurriBaguette": {
               "title": "Chimichurri",
-              "description": "Baguette with salad mix, tomato, cucumber and chimichurri sauce."
+              "description": "Tangy chimichurri sauce."
             },
             "eggTomatoBaguette": {
               "title": "Egg & Tomato",
-              "description": "A simple baguette with egg and tomato."
+              "description": "A simple, fresh classic."
             },
             "mozzarellaBaguette": {
               "title": "Mozzarella",
-              "description": "Baguette with salad mix, tomato, cucumber and mozzarella."
+              "description": "Fresh mozzarella."
             }
           },
           "pizza": {
             "margherita": {
               "title": "Margherita",
-              "description": "Pizza with San Marzano tomato sauce, fresh mozzarella and basil."
+              "description": "San Marzano tomato sauce, fresh mozzarella and basil."
             },
             "chickenPizza": {
               "title": "Chicken",
-              "description": "Pizza with tomato sauce, mozzarella, chicken, mushrooms, onion, parmesan and oregano."
+              "description": "Chicken, mushrooms and onion with parmesan and oregano."
             },
             "parma": {
               "title": "Parma",
-              "description": "Pizza with tomato sauce, mozzarella, Parma ham, rocket, parmesan and pine nuts."
+              "description": "Parma ham, rocket, parmesan and pine nuts."
             }
           },
           "nachos": {
             "chickenNachos": {
-              "title": "Chicken Nachos",
-              "description": "Nacho chips, rice, cheese, lettuce, tomato, cucumber, corn, red onion, dressing and chicken."
+              "title": "Chicken",
+              "description": "Grilled chicken."
             },
             "chickenFajitasNachos": {
-              "title": "Chicken Fajitas Nachos",
-              "description": "Nacho chips, rice, cheese, lettuce, tomato, cucumber, corn, red onion, dressing and fajita-spiced chicken."
+              "title": "Chicken Fajitas",
+              "description": "Chicken marinated in fajita spices."
             },
             "chickenTandooriNachos": {
-              "title": "Chicken Tandoori Nachos",
-              "description": "Nacho chips, rice, cheese, lettuce, tomato, cucumber, corn, red onion, dressing and tandoori chicken."
+              "title": "Chicken Tandoori",
+              "description": "Chicken marinated in tandoori spices."
             },
             "chickenTzatzikiNachos": {
-              "title": "Chicken Tzatziki Nachos",
-              "description": "Nacho chips, rice, cheese, lettuce, tomato, cucumber, corn, red onion, dressing, chicken and tzatziki."
+              "title": "Chicken Tzatziki",
+              "description": "Grilled chicken with cool tzatziki."
             },
             "chickenCurryNachos": {
-              "title": "Chicken Curry Nachos",
-              "description": "Nacho chips, rice, cheese, lettuce, tomato, cucumber, corn, red onion, dressing and curry chicken."
+              "title": "Chicken Curry",
+              "description": "Chicken in a mild curry sauce."
             },
             "chickenAioliNachos": {
-              "title": "Chicken Aioli Nachos",
-              "description": "Nacho chips, rice, cheese, lettuce, tomato, cucumber, corn, red onion, dressing, chicken and aioli."
+              "title": "Chicken Aioli",
+              "description": "Grilled chicken with garlic aioli."
             },
             "chickenFetaNachos": {
-              "title": "Chicken Feta Nachos",
-              "description": "Nacho chips, rice, cheese, lettuce, tomato, cucumber, corn, red onion, dressing, chicken and feta."
+              "title": "Chicken Feta",
+              "description": "Grilled chicken with crumbled feta."
             },
             "vegetarianNachos": {
-              "title": "Vegetarian Nachos",
-              "description": "Nacho chips, rice, cheese, lettuce, tomato, cucumber, corn, red onion, dressing and fajita-spiced beans."
+              "title": "Vegetarian",
+              "description": "A fajita-spiced bean mix."
             },
             "mexicanNachos": {
-              "title": "Mexican Nachos",
-              "description": "Nacho chips, rice, cheese, lettuce, tomato, cucumber, corn, red onion, dressing and Mexican-spiced taco meat."
+              "title": "Mexican",
+              "description": "Mexican-spiced taco meat."
             }
           },
           "drinks": {
@@ -328,15 +328,15 @@
           "smoothies": {
             "orangeStrawberryBanana": {
               "title": "Orange, Strawberry & Banana",
-              "description": "A classic fruity blend of orange, strawberry and banana."
+              "description": "A classic, naturally sweet blend."
             },
             "orangeBlueberryRaspberry": {
               "title": "Orange, Blueberry & Raspberry",
-              "description": "A vibrant mix of orange, blueberry and raspberry."
+              "description": "A vibrant, antioxidant-rich mix."
             },
             "orangeTzatzikiPesto": {
               "title": "Orange, Tzatziki & Pesto",
-              "description": "An unexpected blend of orange with tzatziki and pesto."
+              "description": "An unexpected combination — surprisingly delicious."
             }
           }
         },
@@ -366,27 +366,15 @@
       "events": {
         "title": "Events",
         "intro": "A few of the things happening at Wraps & Coffee. Come hang out!",
-        "items": {
-          "poetryNight": {
-            "title": "Weekly Poetry Night",
-            "date": "Every Tuesday, 19:00",
-            "description": "Bring your own poems or just come to listen. Coffee and good company guaranteed."
-          },
-          "movieNight": {
-            "title": "Movie Nights",
-            "date": "Last Friday of the month, 20:00",
-            "description": "Cozy screenings of feel-good films with snacks and warm drinks."
-          },
-          "liveMusic": {
-            "title": "Live Acoustic Sessions",
-            "date": "Every other Saturday, 18:00",
-            "description": "Local musicians play relaxed acoustic sets while you enjoy dinner."
-          },
-          "coffeeTasting": {
-            "title": "Coffee Tasting Workshop",
-            "date": "First Sunday of the month, 11:00",
-            "description": "A guided tasting through our favourite beans and brewing methods."
-          }
+        "upcomingHeading": "Upcoming events",
+        "calendar": {
+          "month": "Month",
+          "week": "Week",
+          "today": "Today",
+          "previous": "Previous period",
+          "next": "Next period",
+          "viewLabel": "Calendar view",
+          "more": "+{{count}} more"
         },
         "modal": {
           "price": "Price",
@@ -462,8 +450,7 @@
           "description": "Kvalitetsråvarer, tilberedt ferskt hver dag, i et koselig lokale hvor du kan slappe av, møte venner eller ta med deg noe godt på farten.",
           "cta": "Se menyen",
           "ctaPickup": "Bestill og hent selv",
-          "upcomingEvent": "Kommende arrangement",
-          "scrollDown": "Bla ned"
+          "upcomingEvent": "Kommende arrangement"
         },
         "menu": {
           "title": "God mat som metter",
@@ -476,7 +463,8 @@
         "events": {
           "title": "Ikke bare mat",
           "summary": "Wraps & Coffee er mer enn et sted å spise — book lokalet til ditt eget arrangement, eller bli med på quizkvelden vår hver uke.",
-          "cta": "Se arrangementene våre"
+          "cta": "Se arrangementene våre",
+          "heading": "Hva skjer"
         },
         "location": {
           "title": "Finn oss",
@@ -529,163 +517,163 @@
           "salads": {
             "shrimpSalad": {
               "title": "Rekesalat",
-              "description": "Frisk salat med reker."
+              "description": "Pocherte reker over sprø salat med en lett dressing."
             },
             "tunaSalad": {
               "title": "Tunfisksalat",
-              "description": "Tunfisksalat med kremet dressing."
+              "description": "Tunfisk vendt i en kremet dressing."
             },
             "caesarSalad": {
               "title": "Caesarsalat",
-              "description": "Klassisk caesarsalat med krutonger og dressing."
+              "description": "Sprø salat, gyldne krutonger og klassisk caesardressing."
             },
             "fetaSalad": {
               "title": "Fetasalat",
-              "description": "Salat med fetaost og friske grønnsaker."
+              "description": "Fetaost med sprø, ferske grønnsaker."
             }
           },
           "wraps": {
             "chickenWrap": {
               "title": "Kylling",
-              "description": "Wrap med ris, ost, salat, agurk, tomat, mais, rødløk, dressing og kylling."
+              "description": "Mør, grillet kylling."
             },
             "tunaWrap": {
-              "title": "Tuna",
-              "description": "Wrap med ris, ost, salat, agurk, tomat, mais, rødløk, dressing og tunfisk."
+              "title": "Tunfisk",
+              "description": "Tunfisk i en lett dressing."
             },
             "vegetarianWrap": {
               "title": "Vegetar",
-              "description": "Wrap med ris, ost, salat, agurk, tomat, mais, rødløk, dressing og fajitablanding med bønner."
+              "description": "Fajitakrydret bønneblanding."
             },
             "chickenFajitasWrap": {
               "title": "Kylling Fajitas",
-              "description": "Wrap med ris, ost, salat, agurk, tomat, mais, rødløk, dressing og kylling med fajitaskrydder."
+              "description": "Kylling marinert i fajitakrydder."
             },
             "chickenFetaWrap": {
               "title": "Kylling Feta",
-              "description": "Wrap med ris, ost, salat, agurk, tomat, mais, rødløk, dressing og kylling og feta."
+              "description": "Grillet kylling med smuldret feta."
             },
             "chickenTzatzikiWrap": {
               "title": "Kylling Tzatziki",
-              "description": "Wrap med ris, ost, salat, agurk, tomat, mais, rødløk, dressing, kylling og tzatziki."
+              "description": "Grillet kylling med kjølig tzatziki."
             },
             "chickenTandooriWrap": {
               "title": "Kylling Tandoori",
-              "description": "Wrap med ris, ost, salat, agurk, tomat, mais, rødløk, dressing og kylling tandoori."
+              "description": "Kylling marinert i tandoori-krydder."
             },
             "chickenCurryWrap": {
               "title": "Kylling Curry",
-              "description": "Wrap med ris, ost, salat, agurk, tomat, mais, rødløk, dressing og kylling curry."
+              "description": "Kylling i en mild currysaus."
             },
             "chickenAioliWrap": {
               "title": "Kylling Aioli",
-              "description": "Wrap med ris, ost, salat, agurk, tomat, mais, rødløk, dressing, kylling og aioli."
+              "description": "Grillet kylling med hvitløksaioli."
             },
             "pulledPorkWrap": {
               "title": "Pulled Pork",
-              "description": "Wrap med ris, ost, salat, agurk, tomat, mais, rødløk, dressing og pulled pork."
+              "description": "Langtidskokt, mør pulled pork."
             },
             "chipotleBeefWrap": {
               "title": "Chipotle Biff",
-              "description": "Wrap med ris, ost, salat, agurk, tomat, mais, rødløk, dressing og chipotle biff."
+              "description": "Biff i en røykfylt chipotlesaus."
             },
             "mexicanTacoWrap": {
               "title": "Mexicansk Taco",
-              "description": "Wrap med ris, ost, salat, agurk, tomat, mais, rødløk, dressing og mexicansk tacokjøttdeig."
+              "description": "Mexicansk krydret tacokjøttdeig."
             },
             "hamCheeseWrap": {
               "title": "Ost & Skinke",
-              "description": "Wrap med ris, ost, salat, agurk, tomat, mais, rødløk, dressing, ost og skinke."
+              "description": "Skinke med smeltet ost."
             }
           },
           "baguettes": {
             "shrimpBaguette": {
               "title": "Reker",
-              "description": "Saftig baguette med salatmix, tomat, agurk og reker."
+              "description": "Reker med en lett dressing."
             },
             "tunaBaguette": {
               "title": "Tunfisk",
-              "description": "Saftig baguette med salatmix, tomat, agurk, tunfisk og smakfull dressing."
+              "description": "Tunfisk i en syrlig dressing."
             },
             "hamBaguette": {
               "title": "Skinke",
-              "description": "Saftig baguette med salatmix, tomat, agurk og skinke."
+              "description": "Klassisk skiveskåret skinke."
             },
             "tandooriChickenBaguette": {
               "title": "Tandoori Kylling",
-              "description": "Saftig baguette med salatmix, tomat, agurk og kylling marinert i tandoori-krydder."
+              "description": "Kylling marinert i tandoori-krydder."
             },
             "fetaBaguette": {
               "title": "Feta",
-              "description": "Baguette med salatmix, tomat, agurk og fetaost."
+              "description": "Smuldret fetaost."
             },
             "chickenBaguette": {
               "title": "Kylling",
-              "description": "Saftig kyllingbaguette med hvitløk, salatmix, tomat og agurk."
+              "description": "Ovnsbakt kylling med et snev av hvitløk."
             },
             "chimichurriBaguette": {
               "title": "Chimichurri",
-              "description": "Baguette med salatmix, tomat, agurk og chimichurri-saus."
+              "description": "Syrlig chimichurri-saus."
             },
             "eggTomatoBaguette": {
               "title": "Egg & Tomat",
-              "description": "Enkel baguette med egg og tomat."
+              "description": "En enkel, fersk klassiker."
             },
             "mozzarellaBaguette": {
               "title": "Mozzarella",
-              "description": "Baguette med salatmix, tomat, agurk og mozzarella."
+              "description": "Fersk mozzarella."
             }
           },
           "pizza": {
             "margherita": {
               "title": "Margherita",
-              "description": "Pizza med san marzano tomatsaus, fersk mozzarella og basilikum."
+              "description": "San Marzano tomatsaus, fersk mozzarella og basilikum."
             },
             "chickenPizza": {
-              "title": "Chicken",
-              "description": "Pizza med tomatsaus, mozzarella, kylling, sopp, løk, parmesan og oregano."
+              "title": "Kylling",
+              "description": "Kylling, sopp og løk med parmesan og oregano."
             },
             "parma": {
               "title": "Parma",
-              "description": "Pizza med tomatsaus, mozzarella, parmaskinke, ruccola, parmesan og pinjekjerner."
+              "description": "Parmaskinke, ruccola, parmesan og pinjekjerner."
             }
           },
           "nachos": {
             "chickenNachos": {
-              "title": "Nachos Kylling",
-              "description": "Nachos chips, ris, ost, salat, tomat, agurk, mais, rødløk, dressing og kylling."
+              "title": "Kylling",
+              "description": "Grillet kylling."
             },
             "chickenFajitasNachos": {
-              "title": "Nachos Kylling Fajitas",
-              "description": "Nachos chips, ris, ost, salat, tomat, agurk, mais, rødløk, dressing og kylling fajitas-blanding."
+              "title": "Kylling Fajitas",
+              "description": "Kylling marinert i fajitakrydder."
             },
             "chickenTandooriNachos": {
-              "title": "Nachos Kylling Tandoori",
-              "description": "Nachos chips, ris, ost, salat, tomat, agurk, mais, rødløk, dressing og kylling tandoori."
+              "title": "Kylling Tandoori",
+              "description": "Kylling marinert i tandoori-krydder."
             },
             "chickenTzatzikiNachos": {
-              "title": "Nachos Kylling Tzatziki",
-              "description": "Nachos chips, ris, ost, salat, tomat, agurk, mais, rødløk, dressing, kylling og tzatziki."
+              "title": "Kylling Tzatziki",
+              "description": "Grillet kylling med kjølig tzatziki."
             },
             "chickenCurryNachos": {
-              "title": "Nachos Kylling Curry",
-              "description": "Nachos chips, ris, ost, salat, tomat, agurk, mais, rødløk, dressing og kylling curry."
+              "title": "Kylling Curry",
+              "description": "Kylling i en mild currysaus."
             },
             "chickenAioliNachos": {
-              "title": "Nachos Kylling Aioli",
-              "description": "Nachos chips, ris, ost, salat, tomat, agurk, mais, rødløk, dressing og kylling aioli."
+              "title": "Kylling Aioli",
+              "description": "Grillet kylling med hvitløksaioli."
             },
             "chickenFetaNachos": {
-              "title": "Nachos Kylling Fetaost",
-              "description": "Nachos chips, ris, ost, salat, tomat, agurk, mais, rødløk, dressing og kylling fetaost."
+              "title": "Kylling Feta",
+              "description": "Grillet kylling med smuldret feta."
             },
             "vegetarianNachos": {
-              "title": "Nachos Vegetar",
-              "description": "Nachos chips, ris, ost, salat, tomat, agurk, mais, rødløk, dressing og bønner i fajitaskrydder."
+              "title": "Vegetar",
+              "description": "Fajitakrydret bønneblanding."
             },
             "mexicanNachos": {
-              "title": "Nachos Mexicansk",
-              "description": "Nachos chips, ris, ost, salat, tomat, agurk, mais, rødløk, dressing og tacokjøttdeig."
+              "title": "Mexicansk",
+              "description": "Mexicansk krydret tacokjøttdeig."
             }
           },
           "drinks": {
@@ -745,15 +733,15 @@
           "smoothies": {
             "orangeStrawberryBanana": {
               "title": "Appelsin, Jordbær & Banan",
-              "description": "En klassisk fruktig blanding av appelsin, jordbær og banan."
+              "description": "En klassisk, naturlig søt blanding."
             },
             "orangeBlueberryRaspberry": {
               "title": "Appelsin, Blåbær & Bringebær",
-              "description": "En frisk miks av appelsin, blåbær og bringebær."
+              "description": "En frisk miks rik på antioksidanter."
             },
             "orangeTzatzikiPesto": {
               "title": "Appelsin, Tzatziki & Pesto",
-              "description": "En uventet kombinasjon av appelsin med tzatziki og pesto."
+              "description": "En uventet kombinasjon — overraskende god."
             }
           }
         },
@@ -783,27 +771,15 @@
       "events": {
         "title": "Arrangementer",
         "intro": "Noen av tingene som skjer på Wraps & Coffee. Kom og heng med!",
-        "items": {
-          "poetryNight": {
-            "title": "Ukentlig poesikveld",
-            "date": "Hver tirsdag, 19:00",
-            "description": "Ta med egne dikt eller bare kom og lytt. Kaffe og godt selskap er garantert."
-          },
-          "movieNight": {
-            "title": "Filmkvelder",
-            "date": "Siste fredag i måneden, 20:00",
-            "description": "Koselige visninger av god-følelse-filmer med snacks og varme drikker."
-          },
-          "liveMusic": {
-            "title": "Live akustisk musikk",
-            "date": "Annenhver lørdag, 18:00",
-            "description": "Lokale musikere spiller avslappede akustiske sett mens du nyter middagen."
-          },
-          "coffeeTasting": {
-            "title": "Kaffesmaking",
-            "date": "Første søndag i måneden, 11:00",
-            "description": "En guidet smaksrunde gjennom våre favorittbønner og traktemetoder."
-          }
+        "upcomingHeading": "Kommende arrangementer",
+        "calendar": {
+          "month": "Måned",
+          "week": "Uke",
+          "today": "I dag",
+          "previous": "Forrige periode",
+          "next": "Neste periode",
+          "viewLabel": "Kalendervisning",
+          "more": "+{{count}} flere"
         },
         "modal": {
           "price": "Pris",

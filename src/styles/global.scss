@@ -96,7 +96,9 @@ a {
 
 h1 {
   font-family: $font-heading;
-  font-weight: 600;
+  // Fredericka the Great only ships a regular weight; a heavier weight here
+  // would just be synthetically (and poorly) faked by the browser.
+  font-weight: 400;
 }
 
 h2 {

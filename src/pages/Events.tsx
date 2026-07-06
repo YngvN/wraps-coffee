@@ -1,41 +1,57 @@
-import coffeeTastingImage from '../assets/images/events/coffee-tasting.svg'
-import liveMusicImage from '../assets/images/events/live-music.svg'
-import movieNightImage from '../assets/images/events/movie-night.svg'
-import poetryNightImage from '../assets/images/events/poetry-night.svg'
-import { Card, TranslatedText } from '../components'
+import { useState } from 'react'
+import { Badge, EventCalendar, EventDetailsModal, TranslatedText } from '../components'
+import eventsData from '../data/events.json'
 import { useLanguage } from '../i18n'
+import { formatEventDate, getUpcomingEvents, type EventRecord } from '../utils/events'
 import './Events.scss'
 
-/** Events held at Wraps & Coffee. Placeholder content until real events are scheduled. */
-const events = [
-  { key: 'poetryNight', image: poetryNightImage },
-  { key: 'movieNight', image: movieNightImage },
-  { key: 'liveMusic', image: liveMusicImage },
-  { key: 'coffeeTasting', image: coffeeTastingImage },
-] as const
+/** Number of upcoming events shown as tiles below the calendar. */
+const UPCOMING_TILE_COUNT = 8
 
-/** Events page: a list of recurring events held at the cafe. */
+/**
+ * Events page: a month/week calendar of everything happening at Wraps &
+ * Coffee, plus a quick-glance list of the next upcoming events as tiles.
+ * Clicking a calendar entry or a tile opens the shared event details modal.
+ */
 export function Events() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
+  const [selectedEvent, setSelectedEvent] = useState<EventRecord | null>(null)
+  const upcomingEvents = getUpcomingEvents(eventsData, UPCOMING_TILE_COUNT)
 
   return (
     <div className="events">
       <TranslatedText as="h1" id="events.title" />
       <TranslatedText as="p" id="events.intro" />
+
+      <EventCalendar events={eventsData} onSelectEvent={setSelectedEvent} className="events__calendar" />
+
+      <h2 className="events__upcoming-heading">{t('events.upcomingHeading')}</h2>
       <ul className="events__list">
-        {events.map(({ key, image }) => (
-          <li key={key}>
-            <Card className="events__card">
-              <img className="events__image" src={image} alt="" />
-              <div className="events__details">
-                <h2>{t(`events.items.${key}.title`)}</h2>
-                <p className="events__date">{t(`events.items.${key}.date`)}</p>
-                <p>{t(`events.items.${key}.description`)}</p>
+        {upcomingEvents.map(({ event, occursAt }) => (
+          <li key={event.eventID}>
+            <button type="button" className="events__tile" onClick={() => setSelectedEvent(event)}>
+              <img className="events__tile-image" src={event.imageUrl} alt="" />
+              <div className="events__tile-body">
+                <div className="events__tile-badges">
+                  <span className="events__tile-category">{event.category}</span>
+                  {event.status === 'postponed' && <Badge variant="warning">{t('events.modal.postponed')}</Badge>}
+                </div>
+                <h3>{event.title}</h3>
+                <p className="events__tile-date">
+                  {formatEventDate(occursAt, language, { weekday: 'short', day: 'numeric', month: 'short' })} · {event.time}
+                </p>
+                <p className="events__tile-description">{event.description}</p>
+                <p className="events__tile-meta">
+                  {event.price === 0 ? t('events.modal.free') : t('menu.price', { price: event.price })} ·{' '}
+                  {t('events.modal.spotsFilled', { count: event.attendeesCount, capacity: event.capacity })}
+                </p>
               </div>
-            </Card>
+            </button>
           </li>
         ))}
       </ul>
+
+      <EventDetailsModal event={selectedEvent} onClose={() => setSelectedEvent(null)} />
     </div>
   )
 }

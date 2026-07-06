@@ -85,3 +85,46 @@ export function getUpcomingEvents(events: EventRecord[], count: number, from: Da
     .sort((a, b) => a.occursAt.getTime() - b.occursAt.getTime())
     .slice(0, count)
 }
+
+/**
+ * Returns every occurrence of `events` that falls within `[rangeStart,
+ * rangeEnd)`, sorted soonest-first. Unlike `getUpcomingEvents`, this expands
+ * recurring events into all of their matching occurrences in the range
+ * rather than just the next one, which is what a calendar grid needs.
+ * Cancelled events (and cancelled exceptions of recurring events) are
+ * excluded; postponed events appear only at their postponed date/time.
+ */
+export function getOccurrencesInRange(events: EventRecord[], rangeStart: Date, rangeEnd: Date): UpcomingEvent[] {
+  const occurrences: UpcomingEvent[] = []
+
+  for (const event of events) {
+    if (event.status === 'cancelled') continue
+
+    if (event.status === 'postponed' && event.postponedDetails.newDate && event.postponedDetails.newTime) {
+      const occursAt = toDateTime(event.postponedDetails.newDate, event.postponedDetails.newTime)
+      if (occursAt >= rangeStart && occursAt < rangeEnd) occurrences.push({ event, occursAt })
+      continue
+    }
+
+    if (event.recurring && event.recurrence?.frequency === 'weekly') {
+      const cancelledDates = new Set(event.exceptions?.filter((exception) => exception.status === 'cancelled').map((exception) => exception.date))
+      const candidate = new Date(rangeStart)
+      candidate.setDate(candidate.getDate() + ((event.recurrence.dayOfWeek - candidate.getDay() + 7) % 7))
+      candidate.setHours(0, 0, 0, 0)
+
+      while (candidate < rangeEnd) {
+        const dateStr = candidate.toISOString().slice(0, 10)
+        if (!cancelledDates.has(dateStr)) {
+          occurrences.push({ event, occursAt: toDateTime(dateStr, event.time) })
+        }
+        candidate.setDate(candidate.getDate() + 7)
+      }
+      continue
+    }
+
+    const occursAt = toDateTime(event.date, event.time)
+    if (occursAt >= rangeStart && occursAt < rangeEnd) occurrences.push({ event, occursAt })
+  }
+
+  return occurrences.sort((a, b) => a.occursAt.getTime() - b.occursAt.getTime())
+}

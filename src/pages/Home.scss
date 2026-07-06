@@ -26,102 +26,32 @@
 
 // Hero
 // `.app__content--home` removes the top padding that would normally reserve
-// space for the fixed header, so this wrapper (and the hero inside it) sits
-// flush with the top edge of the viewport, behind the transparent header.
-// The wrapper collapses smoothly to 0 height once the user scrolls, so the
-// rest of the page slides up into the space the hero leaves behind. Capping
-// `max-height` at the hero's own `100vh` height (rather than measuring it in
-// JS) keeps it in sync with the live viewport size, so it never clips or
-// leaves a gap. Once collapsed, a top margin reappears to reserve the same
-// space `.app__content`'s padding would on other pages, so `.home__menu`
-// doesn't end up underneath the fixed header.
-.home__hero-wrapper {
-  overflow: hidden;
-  max-height: 100vh;
-  transition:
-    max-height 0.4s ease,
-    margin-top 0.4s ease;
-
-  &--scrolled {
-    max-height: 0;
-    margin-top: calc(var(--header-height, 0px) + $spacing-unit * 3);
-  }
-}
-
+// space for the fixed header, so the hero sits flush with the top edge of
+// the viewport, behind the transparent header.
 .home__hero {
   position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: $spacing-unit * 3;
   min-height: 100vh;
   padding: $spacing-unit * 4;
   background: $color-accent;
   overflow: hidden;
-  transition:
-    transform 0.4s ease,
-    opacity 0.4s ease;
   --hero-action-size: 48px;
-
-  // Slides out of view and fades when the user scrolls down, in sync with
-  // the header's company name revealing in the opposite direction.
-  &--scrolled {
-    transform: translateY(-60px);
-    opacity: 0;
-  }
 }
 
-// Chevron button at the bottom of the hero. Clicking it scrolls just past
-// the `useIsScrolled` threshold, collapsing the hero the same way scrolling does.
-// Fades out automatically with the rest of the hero when `.home__hero--scrolled`.
-.home__hero-scroll {
-  position: absolute;
-  bottom: $spacing-unit * 2.5;
-  left: 50%;
+// Centered above the two-column row, sized to match the text column below it.
+.home__hero-logo {
+  position: relative;
   z-index: 2;
-  transform: translateX(-50%);
-  background: none;
-  border: none;
-  padding: $spacing-unit;
-  cursor: pointer;
-  color: $color-accent-contrast;
-  opacity: 0.5;
-  animation:
-    home-hero-rain-in 0.6s ease-out 0.6s backwards,
-    home-hero-scroll-bounce 2.4s ease-in-out 1.4s infinite;
-
-  @media (hover: hover) {
-
-    &:hover,
-    &:focus-visible {
-      opacity: 1;
-    }
-  }
-
-  &:active {
-    opacity: 0.7;
-  }
-
-  svg {
-    display: block;
-  }
-}
-
-@keyframes home-hero-scroll-bounce {
-
-  0%,
-  100% {
-    transform: translateX(-50%) translateY(0);
-  }
-
-  50% {
-    transform: translateX(-50%) translateY(8px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .home__hero-scroll {
-    animation: none;
-  }
+  width: 100%;
+  max-width: 360px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  animation: home-hero-rain-in 0.6s ease-out backwards;
 }
 
 // Arranges the hero's content (text on the left, delivery links on the right)
@@ -145,22 +75,16 @@
   max-width: 560px;
   color: $color-accent-contrast;
 
-  .home__hero-logo {
-    width: 100%;
-    max-width: 360px;
-    height: auto;
-    display: block;
-  }
-
   // Each direct child "rains in" on initial page load: fading in while
-  // sliding up from below, staggered so they arrive one after another.
+  // sliding up from below, staggered so they arrive one after another,
+  // continuing the stagger started by `.home__hero-logo` above.
   >* {
     animation: home-hero-rain-in 0.6s ease-out backwards;
   }
 
-  @for $i from 1 through 4 {
+  @for $i from 1 through 3 {
     >*:nth-child(#{$i}) {
-      animation-delay: ($i - 1) * 0.12s;
+      animation-delay: $i * 0.12s;
     }
   }
 }
@@ -181,6 +105,7 @@
 
 @media (prefers-reduced-motion: reduce) {
 
+  .home__hero-logo,
   .home__hero-content>*,
   .home__hero-delivery {
     animation: none;
@@ -209,9 +134,11 @@
 
 // "See the menu" and "Order now" buttons side by side; never wrap.
 .home__hero-cta-group {
+  width: 100%;
   display: flex;
+  flex-direction: row;
   flex-wrap: nowrap;
-  gap: $spacing-unit * 1.5;
+  justify-content: space-evenly;
 }
 
 .home__cta {
@@ -220,8 +147,7 @@
   justify-content: center;
   min-height: var(--hero-action-size);
   padding: $spacing-unit calc($spacing-unit * 2.5);
-  border-radius: 999px;
-  border: 2px solid $color-button;
+  border-radius: 10px;
   background: $color-button;
   color: $color-button-contrast;
   font-weight: 600;
@@ -238,7 +164,6 @@
     &:hover,
     &:focus-visible {
       box-shadow: 0 4px 12px $color-shadow;
-      transform: scale(1.15);
     }
   }
 
@@ -264,16 +189,16 @@
   }
 }
 
-// Hero CTAs ("See the menu", "Order and pick up yourself") get an outlined
-// look whose accent fill slides in from the center on hover/focus, instead
-// of the filled/zoom style used elsewhere.
+// Hero CTAs ("See the menu", "Order and pick up yourself") keep the solid
+// button fill at rest, but on hover/focus an accent-colored fill slides in
+// from the center instead of zooming (the zoom style is reserved for the
+// Foodora/Wolt delivery buttons).
 // Source: "Popular Termite" button by adamgiebl on Uiverse.io
 // (https://uiverse.io/adamgiebl/popular-termite-0).
 .home__hero .home__cta {
   position: relative;
   z-index: 1;
-  background: transparent;
-  color: $color-button;
+  overflow: hidden;
   text-transform: uppercase;
   letter-spacing: 1px;
   font-weight: 700;
@@ -285,8 +210,7 @@
     left: 50%;
     right: 50%;
     z-index: -1;
-    border-radius: inherit;
-    background-color: $color-button;
+    background-color: $color-accent;
     opacity: 0;
     transition: 0.5s ease all;
   }
@@ -295,9 +219,7 @@
 
     &:hover,
     &:focus-visible {
-      background: transparent;
-      color: $color-button-contrast;
-      transform: none;
+      color: $color-accent-contrast;
 
       &::before {
         left: 0;
@@ -305,25 +227,11 @@
         opacity: 1;
       }
     }
-
-    &:hover .home__cta-label,
-    &:focus-visible .home__cta-label {
-      transform: none;
-    }
   }
 }
 
 .home__cta-label {
   display: inline-block;
-  transition: transform 0.2s ease;
-
-  @media (hover: hover) {
-
-    .home__cta:hover &,
-    .home__cta:focus-visible & {
-      transform: scale(1.15);
-    }
-  }
 }
 
 // Shared section heading spacing
@@ -381,7 +289,6 @@
   justify-content: center;
   gap: $spacing-unit * 3;
   overflow-x: hidden;
-  background: $color-surface;
 }
 
 // Carousel centered in the section, with rating badges stacked below it.
@@ -441,12 +348,6 @@
   }
 
 
-}
-
-@media (max-width: 640px) {
-  .home__hero-wrapper--scrolled {
-    margin-top: calc(var(--header-height, 0px) + $spacing-unit * 2);
-  }
 }
 
 // On narrow phones, tighten the hero CTA buttons so they stay on one row

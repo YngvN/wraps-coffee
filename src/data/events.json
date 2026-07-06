@@ -67,7 +67,7 @@
       "newTime": null,
       "newEndTime": null
     },
-    "imageUrl": "/images/events/live-jazz-evening.svg",
+    "imageUrl": "https://images.pexels.com/photos/3984830/pexels-photo-3984830.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
     "registrationRequired": false
   },
   {
@@ -138,7 +138,7 @@
       "newTime": null,
       "newEndTime": null
     },
-    "imageUrl": "/images/events/latte-art-workshop.svg",
+    "imageUrl": "https://images.pexels.com/photos/4913342/pexels-photo-4913342.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
     "registrationRequired": true
   },
   {
@@ -209,7 +209,7 @@
       "newTime": null,
       "newEndTime": null
     },
-    "imageUrl": "/images/events/local-artists-exhibition-opening.svg",
+    "imageUrl": "https://images.pexels.com/photos/2559741/pexels-photo-2559741.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
     "registrationRequired": false
   },
   {
@@ -275,7 +275,7 @@
       "newTime": null,
       "newEndTime": null
     },
-    "imageUrl": "/images/events/board-game-night.svg",
+    "imageUrl": "https://images.pexels.com/photos/8111328/pexels-photo-8111328.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
     "registrationRequired": false
   },
   {
@@ -341,7 +341,7 @@
       "newTime": "11:00",
       "newEndTime": "12:30"
     },
-    "imageUrl": "/images/events/coffee-cupping-and-tasting.svg",
+    "imageUrl": "https://images.pexels.com/photos/34505585/pexels-photo-34505585.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
     "registrationRequired": true
   },
   {
@@ -412,7 +412,7 @@
       "newTime": null,
       "newEndTime": null
     },
-    "imageUrl": "/images/events/christmas-market-pop-up.svg",
+    "imageUrl": "https://images.pexels.com/photos/29610937/pexels-photo-29610937.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
     "registrationRequired": false
   },
   {
@@ -490,7 +490,575 @@
       "newTime": null,
       "newEndTime": null
     },
-    "imageUrl": "/images/events/weekly-quiz-night.svg",
+    "imageUrl": "https://images.pexels.com/photos/5428832/pexels-photo-5428832.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
+    "registrationRequired": true
+  },
+  {
+    "eventID": "8",
+    "title": "Open Mic Poetry Night",
+    "category": "Literature",
+    "date": "2026-07-25",
+    "time": "19:00",
+    "endTime": "21:00",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "An open floor for local poets and storytellers to share their work, followed by an open discussion over coffee.",
+    "capacity": 35,
+    "attendeesCount": 12,
+    "price": 0,
+    "currency": "NOK",
+    "tags": [
+      "poetry",
+      "open-mic",
+      "evening"
+    ],
+    "participants": [
+      {
+        "name": "Vilde Andresen",
+        "email": "vilde.andresen@example.com",
+        "roleAtEvent": "Host"
+      },
+      {
+        "name": "Emil Strand",
+        "email": "emil.strand@example.com",
+        "roleAtEvent": "Performer"
+      }
+    ],
+    "contactPerson": {
+      "name": "Vilde Andresen",
+      "phone": "97890123",
+      "email": "vilde@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "51",
+        "name": "Tea",
+        "price": 50
+      },
+      {
+        "itemID": "48",
+        "name": "Mocha",
+        "price": 55
+      }
+    ],
+    "status": "scheduled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "https://images.pexels.com/photos/11838969/pexels-photo-11838969.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
+    "registrationRequired": false
+  },
+  {
+    "eventID": "9",
+    "title": "Sunday Brunch Special",
+    "category": "Food",
+    "date": "2026-07-12",
+    "time": "10:00",
+    "endTime": "14:00",
+    "recurring": true,
+    "recurrence": {
+      "frequency": "weekly",
+      "dayOfWeek": 0,
+      "interval": 1
+    },
+    "exceptions": [],
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "A relaxed weekend brunch menu with extended options, served every Sunday morning until early afternoon.",
+    "capacity": 45,
+    "attendeesCount": 20,
+    "price": 0,
+    "currency": "NOK",
+    "tags": [
+      "brunch",
+      "weekly",
+      "family",
+      "recurring"
+    ],
+    "participants": [
+      {
+        "name": "Kristine Berg",
+        "email": "kristine.berg@example.com",
+        "roleAtEvent": "Organizer"
+      }
+    ],
+    "contactPerson": {
+      "name": "Kristine Berg",
+      "phone": "98901234",
+      "email": "kristine@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "25",
+        "name": "Egg & Tomato",
+        "price": 119
+      },
+      {
+        "itemID": "46",
+        "name": "Café Latte",
+        "price": 50
+      }
+    ],
+    "status": "scheduled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "https://images.pexels.com/photos/38081718/pexels-photo-38081718.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
+    "registrationRequired": false
+  },
+  {
+    "eventID": "10",
+    "title": "Vinyl & Coffee Listening Session",
+    "category": "Music",
+    "date": "2026-08-22",
+    "time": "18:00",
+    "endTime": "20:00",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "Bring a favorite record or just settle in as we spin classics from the café's vinyl collection over evening coffee.",
+    "capacity": 25,
+    "attendeesCount": 8,
+    "price": 0,
+    "currency": "NOK",
+    "tags": [
+      "music",
+      "vinyl",
+      "evening"
+    ],
+    "participants": [
+      {
+        "name": "Sander Lie",
+        "email": "sander.lie@example.com",
+        "roleAtEvent": "Host"
+      }
+    ],
+    "contactPerson": {
+      "name": "Sander Lie",
+      "phone": "90123456",
+      "email": "sander@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "40",
+        "name": "Long Black",
+        "price": 45
+      },
+      {
+        "itemID": "44",
+        "name": "Cortado",
+        "price": 47
+      }
+    ],
+    "status": "scheduled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "https://images.pexels.com/photos/2308825/pexels-photo-2308825.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
+    "registrationRequired": false
+  },
+  {
+    "eventID": "11",
+    "title": "Kids Craft Afternoon",
+    "category": "Family",
+    "date": "2026-09-05",
+    "time": "13:00",
+    "endTime": "15:00",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "A drop-in afternoon of simple crafts for kids, with materials provided and parents welcome to relax with a coffee nearby.",
+    "capacity": 20,
+    "attendeesCount": 7,
+    "price": 50,
+    "currency": "NOK",
+    "tags": [
+      "family",
+      "kids",
+      "afternoon"
+    ],
+    "participants": [
+      {
+        "name": "Mari Solheim",
+        "email": "mari.solheim@example.com",
+        "roleAtEvent": "Organizer"
+      }
+    ],
+    "contactPerson": {
+      "name": "Mari Solheim",
+      "phone": "91234568",
+      "email": "mari@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "52",
+        "name": "Orange, Strawberry & Banana",
+        "price": 89
+      },
+      {
+        "itemID": "45",
+        "name": "Cappuccino",
+        "price": 50
+      }
+    ],
+    "status": "scheduled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "https://images.pexels.com/photos/7869442/pexels-photo-7869442.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
+    "registrationRequired": true
+  },
+  {
+    "eventID": "12",
+    "title": "Book Club: Autumn Read",
+    "category": "Literature",
+    "date": "2026-09-19",
+    "time": "17:30",
+    "endTime": "19:00",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "Monthly discussion of the season's chosen novel, with a short introduction from a member and open conversation after.",
+    "capacity": 18,
+    "attendeesCount": 11,
+    "price": 0,
+    "currency": "NOK",
+    "tags": [
+      "books",
+      "discussion",
+      "evening"
+    ],
+    "participants": [
+      {
+        "name": "Henrik Aune",
+        "email": "henrik.aune@example.com",
+        "roleAtEvent": "Host"
+      }
+    ],
+    "contactPerson": {
+      "name": "Henrik Aune",
+      "phone": "92345679",
+      "email": "henrik@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "51",
+        "name": "Tea",
+        "price": 50
+      },
+      {
+        "itemID": "46",
+        "name": "Café Latte",
+        "price": 50
+      }
+    ],
+    "status": "scheduled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "https://images.pexels.com/photos/15506052/pexels-photo-15506052.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
+    "registrationRequired": true
+  },
+  {
+    "eventID": "13",
+    "title": "Halloween Costume Party",
+    "category": "Party",
+    "date": "2026-10-31",
+    "time": "19:00",
+    "endTime": "23:00",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "Dress up and join us for a spooky evening with themed drinks, decorations and a prize for the best costume.",
+    "capacity": 60,
+    "attendeesCount": 24,
+    "price": 0,
+    "currency": "NOK",
+    "tags": [
+      "party",
+      "halloween",
+      "evening",
+      "costume"
+    ],
+    "participants": [
+      {
+        "name": "Julie Fossum",
+        "email": "julie.fossum@example.com",
+        "roleAtEvent": "Organizer"
+      }
+    ],
+    "contactPerson": {
+      "name": "Julie Fossum",
+      "phone": "93456780",
+      "email": "julie@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "47",
+        "name": "Chai Latte",
+        "price": 55
+      },
+      {
+        "itemID": "38",
+        "name": "Mexican Nachos",
+        "price": 189
+      }
+    ],
+    "status": "scheduled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "https://images.pexels.com/photos/35915780/pexels-photo-35915780.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
+    "registrationRequired": false
+  },
+  {
+    "eventID": "14",
+    "title": "Wine & Cheese Pairing Evening",
+    "category": "Tasting",
+    "date": "2026-11-14",
+    "time": "18:00",
+    "endTime": "20:00",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "A guided pairing of local wines and cheeses, hosted in small groups to keep the evening intimate.",
+    "capacity": 16,
+    "attendeesCount": 5,
+    "price": 300,
+    "currency": "NOK",
+    "tags": [
+      "tasting",
+      "wine",
+      "evening"
+    ],
+    "participants": [
+      {
+        "name": "Amalie Kristiansen",
+        "email": "amalie.kristiansen@example.com",
+        "roleAtEvent": "Host"
+      }
+    ],
+    "contactPerson": {
+      "name": "Amalie Kristiansen",
+      "phone": "94567891",
+      "email": "amalie@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "4",
+        "name": "Feta Salad",
+        "price": 189
+      }
+    ],
+    "status": "scheduled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "https://images.pexels.com/photos/8472750/pexels-photo-8472750.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
+    "registrationRequired": true
+  },
+  {
+    "eventID": "15",
+    "title": "New Year's Eve Celebration",
+    "category": "Party",
+    "date": "2026-12-31",
+    "time": "20:00",
+    "endTime": "23:59",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "Ring in the new year with us — live music, a midnight toast and a full menu served until close.",
+    "capacity": 80,
+    "attendeesCount": 30,
+    "price": 200,
+    "currency": "NOK",
+    "tags": [
+      "party",
+      "new-year",
+      "evening",
+      "music"
+    ],
+    "participants": [
+      {
+        "name": "Fredrik Nystad",
+        "email": "fredrik.nystad@example.com",
+        "roleAtEvent": "Organizer"
+      }
+    ],
+    "contactPerson": {
+      "name": "Fredrik Nystad",
+      "phone": "95678902",
+      "email": "fredrik@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "49",
+        "name": "Ice Café",
+        "price": 60
+      },
+      {
+        "itemID": "27",
+        "name": "Margherita",
+        "price": 179
+      }
+    ],
+    "status": "scheduled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "https://images.pexels.com/photos/5716525/pexels-photo-5716525.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
+    "registrationRequired": true
+  },
+  {
+    "eventID": "16",
+    "title": "Winter Chess Tournament",
+    "category": "Games",
+    "date": "2027-01-17",
+    "time": "12:00",
+    "endTime": "17:00",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "A casual single-elimination chess tournament for all skill levels, with boards provided and coffee on the house for players.",
+    "capacity": 32,
+    "attendeesCount": 16,
+    "price": 0,
+    "currency": "NOK",
+    "tags": [
+      "games",
+      "chess",
+      "tournament"
+    ],
+    "participants": [
+      {
+        "name": "Oskar Lindberg",
+        "email": "oskar.lindberg@example.com",
+        "roleAtEvent": "Organizer"
+      }
+    ],
+    "contactPerson": {
+      "name": "Oskar Lindberg",
+      "phone": "96789013",
+      "email": "oskar@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "39",
+        "name": "Espresso",
+        "price": 40
+      },
+      {
+        "itemID": "42",
+        "name": "Americano",
+        "price": 40
+      }
+    ],
+    "status": "scheduled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "https://images.pexels.com/photos/12111207/pexels-photo-12111207.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
+    "registrationRequired": true
+  },
+  {
+    "eventID": "17",
+    "title": "Valentine's Coffee Date Night",
+    "category": "Special",
+    "date": "2027-02-14",
+    "time": "18:00",
+    "endTime": "21:00",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": "Wraps & Coffee",
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": "A cozy evening menu for couples, with a special dessert and drink pairing available all night.",
+    "capacity": 30,
+    "attendeesCount": 9,
+    "price": 0,
+    "currency": "NOK",
+    "tags": [
+      "special",
+      "valentines",
+      "evening"
+    ],
+    "participants": [
+      {
+        "name": "Silje Wold",
+        "email": "silje.wold@example.com",
+        "roleAtEvent": "Organizer"
+      }
+    ],
+    "contactPerson": {
+      "name": "Silje Wold",
+      "phone": "97890124",
+      "email": "silje@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "48",
+        "name": "Mocha",
+        "price": 55
+      },
+      {
+        "itemID": "29",
+        "name": "Parma",
+        "price": 179
+      }
+    ],
+    "status": "scheduled",
+    "postponedDetails": {
+      "newDate": null,
+      "newTime": null,
+      "newEndTime": null
+    },
+    "imageUrl": "https://images.pexels.com/photos/5722874/pexels-photo-5722874.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
     "registrationRequired": true
   }
 ]
