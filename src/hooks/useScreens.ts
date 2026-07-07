@@ -16,7 +16,12 @@ const STORAGE_KEY = 'admin.screens'
 function normalizeSlot(value: unknown): ScreenSlot {
   if (value && typeof value === 'object' && Array.isArray((value as ScreenSlot).contents)) {
     const slot = value as ScreenSlot
-    return { isSlideshow: Boolean(slot.isSlideshow), contents: slot.contents.length > 0 ? slot.contents : [{ kind: 'none' }], backgroundColor: slot.backgroundColor }
+    return {
+      isSlideshow: Boolean(slot.isSlideshow),
+      contents: slot.contents.length > 0 ? slot.contents : [{ kind: 'none' }],
+      backgroundColor: slot.backgroundColor,
+      backgroundImage: slot.backgroundImage,
+    }
   }
   if (value && typeof value === 'object' && 'kind' in value) {
     return { isSlideshow: false, contents: [value as ScreenSlotContent] }

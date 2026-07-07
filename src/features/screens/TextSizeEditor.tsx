@@ -33,7 +33,8 @@ interface TextSizeEditorProps {
   ownTextSizes?: { useOwn: boolean; onUseOwnChange: (useOwn: boolean) => void }
   /** Resets the sizes (and, when shown, the background color/own-size checkbox) back to what they were when this editor was opened. Omit to hide the button — there's nothing to restore to when changes are already written live with no "previous" snapshot of their own (the admin form's slot editor). */
   onRestore?: () => void
-  onDone: () => void
+  /** Called by the "Done" button — typically closes a modal, or (the admin form's inline per-slide editor) returns to the slot's own "Global" tab. Omit to hide the button entirely, for a usage with no such notion of "finishing" (e.g. a flat, always-inline editor with nothing to return to). */
+  onDone?: () => void
 }
 
 /**
@@ -161,9 +162,11 @@ export function TextSizeEditor({ textSizes, onChange, backgroundColor, onBackgro
             {t('screenDisplay.textSizeEditor.restorePrevious')}
           </Button>
         )}
-        <Button type="button" onClick={onDone}>
-          {t('screenDisplay.textSizeEditor.done')}
-        </Button>
+        {onDone && (
+          <Button type="button" onClick={onDone}>
+            {t('screenDisplay.textSizeEditor.done')}
+          </Button>
+        )}
       </div>
     </div>
   )

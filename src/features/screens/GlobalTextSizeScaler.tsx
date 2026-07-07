@@ -33,13 +33,18 @@ function snapshotFrom(screen: ScreenConfig): SizeSnapshot {
   return { textSizes, slotTextSizes, slots: screen.slots }
 }
 
-/** The "standard" snapshot: the hardcoded default text sizes everywhere (the screen's own, every slot's own, and every slide's own override that's currently on), and every slot's individual color cleared back to transparent. Used by the "Reset" button — unlike "Restore previous", this isn't about undoing this session's edits, it's a hard reset to factory defaults. */
+/** The "standard" snapshot: the hardcoded default text sizes everywhere (the screen's own, every slot's own, and every slide's own override that's currently on), and every slot's (and slide's own override of) individual color and background image cleared. Used by the "Reset" button — unlike "Restore previous", this isn't about undoing this session's edits, it's a hard reset to factory defaults. */
 function standardSnapshotFrom(slots: ScreenConfig['slots']): SizeSnapshot {
   const slotTextSizes: Record<number, TextSizes> = { 0: DEFAULT_TEXT_SIZES, 1: DEFAULT_TEXT_SIZES, 2: DEFAULT_TEXT_SIZES, 3: DEFAULT_TEXT_SIZES }
   const standardSlots = slots.map((slot) => ({
     ...slot,
     backgroundColor: undefined,
-    contents: slot.contents.map((content) => (hasOwnTextSizeFields(content) && content.useOwnTextSizes ? { ...content, textSizes: DEFAULT_TEXT_SIZES } : content)),
+    backgroundImage: undefined,
+    contents: slot.contents.map((content) => ({
+      ...(hasOwnTextSizeFields(content) && content.useOwnTextSizes ? { ...content, textSizes: DEFAULT_TEXT_SIZES } : content),
+      useOwnBackgroundImage: false,
+      backgroundImage: undefined,
+    })),
   })) as ScreenConfig['slots']
   return { textSizes: DEFAULT_TEXT_SIZES, slotTextSizes, slots: standardSlots }
 }

@@ -1,0 +1,18 @@
+@use '../../styles/variables' as *;
+
+.slide-fields {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+
+  select {
+    width: 100%;
+    padding: $spacing-unit calc($spacing-unit * 1.5);
+    border: 1px solid $color-border;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-family: inherit;
+    background: $color-bg;
+    color: $color-text;
+  }
+}

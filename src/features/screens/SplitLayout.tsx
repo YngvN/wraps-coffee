@@ -2,13 +2,13 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { useLanguage } from '../../i18n'
 import type { ScreenConfig, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
-import { slotBackgroundColorStyle } from '../../utils/screenColors'
-import { currentSlotContent, currentSlotContentIndex, currentSlotSubIndex, isSlotActive } from '../../utils/screenSlots'
+import { backgroundImageTextStyle, slotBackgroundColorStyle } from '../../utils/screenColors'
+import { currentSlotContent, currentSlotContentIndex, currentSlotSubIndex, isSlotActive, resolveContentBackgroundImage } from '../../utils/screenSlots'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
 import { SlotContent } from './SlotContent'
 import { SlotEditButton } from './SlotEditButton'
 import './SplitLayout.scss'
-import { SCREEN_TRANSITIONS } from './transitions'
+import { resolveTransitionVariants } from './transitions'
 
 interface SplitLayoutProps {
   screen: ScreenConfig
@@ -63,7 +63,7 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused }: S
   }
 
   const borderModifier = screen.showSlotBorders === false ? ' split-layout--no-borders' : ''
-  const variants = SCREEN_TRANSITIONS[screen.transitionStyle]
+  const variants = resolveTransitionVariants(screen.transitionStyle, screen.slideTransitionDirection ?? 'right')
   const transition = reducedMotion ? { duration: 0 } : { duration: 0.6, ease: 'easeInOut' as const }
 
   /**
@@ -75,17 +75,43 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused }: S
    * slide actually mounts, instead of resizing the outgoing slide mid-fade.
    * The slot's own background color, conversely, is set on the always-mounted
    * pane div itself, not the fading inner one — so only the text/image
-   * crossfades; the backdrop color never fades in or out. Divider borders
-   * between panes are drawn once, by the grid container itself (its own
-   * background showing through its `gap`), not per-pane — so a slot's own
-   * background color here never needs to also carry a border color.
+   * crossfades; the backdrop color never fades in or out. A background image
+   * (the slide's own, else its slot's) is its own always-mounted layer
+   * (blurred, scaled to cover) behind the content — never the content div's
+   * own `background`, since blurring that would blur the text/image drawn on
+   * top of it too — but it gets its own `AnimatePresence`, keyed by the
+   * image+overlay themselves rather than the slide index, so it only
+   * crossfades when the effective image (or its overlay) actually changes
+   * between slides, instead of re-fading the same backdrop in and out every
+   * rotation. Its overlay (if any) also forces the text color, overriding
+   * whatever the background color alone would have picked, since a photo's
+   * own contrast can't be measured the way a flat color's can. Divider
+   * borders between panes are drawn once, by the grid container itself (its
+   * own background showing through its `gap`), not per-pane — so a slot's
+   * own background color here never needs to also carry a border color.
    */
   const renderPane = (slot: ScreenSlot, index: number, extraClassName = '') => {
     const content = currentSlotContent(slot, tick)
     const contentIndex = currentSlotContentIndex(slot, tick)
-    const paneStyle = slotBackgroundColorStyle(slot.backgroundColor)
+    const backgroundImage = resolveContentBackgroundImage(content, slot.backgroundImage)
+    const paneStyle = { ...slotBackgroundColorStyle(slot.backgroundColor), ...backgroundImageTextStyle(backgroundImage?.overlay) }
     return (
       <div className={`split-layout__pane${extraClassName}`} key={index} style={paneStyle}>
+        <AnimatePresence mode="wait">
+          {backgroundImage && (
+            <motion.div
+              key={`${backgroundImage.imageUrl}|${backgroundImage.overlay}`}
+              className="split-layout__pane-bg"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={transition}
+            >
+              <div className="split-layout__pane-bg-image" style={{ backgroundImage: `url(${backgroundImage.imageUrl})` }} />
+              {backgroundImage.overlay !== 'none' && <div className={`split-layout__pane-bg-overlay split-layout__pane-bg-overlay--${backgroundImage.overlay}`} />}
+            </motion.div>
+          )}
+        </AnimatePresence>
         <AnimatePresence mode="wait">
           <motion.div
             key={currentSlotSubIndex(slot, tick)}

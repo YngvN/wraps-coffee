@@ -111,6 +111,38 @@
   }
 }
 
+// Sized to exactly cover the pane (its own positioning context for the
+// overscanned, blurred image below) so it can crossfade as a unit whenever
+// the effective background image changes between slides.
+.split-layout__pane-bg {
+  position: absolute;
+  inset: 0;
+}
+
+// Overscanned past the pane's own edges and blurred — the overscan keeps the
+// blur's own soft edge from ever peeking in from outside the pane's visible
+// area, since `.split-layout__pane`'s `overflow: hidden` clips it away.
+.split-layout__pane-bg-image {
+  position: absolute;
+  inset: -30px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(20px);
+}
+
+.split-layout__pane-bg-overlay {
+  position: absolute;
+  inset: 0;
+
+  &--light {
+    background: rgba(255, 255, 255, 0.55);
+  }
+
+  &--dark {
+    background: rgba(0, 0, 0, 0.55);
+  }
+}
+
 .split-layout__pane-content {
   position: absolute;
   inset: 0;

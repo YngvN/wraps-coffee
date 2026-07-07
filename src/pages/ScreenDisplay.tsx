@@ -18,6 +18,17 @@ import './ScreenDisplay.scss'
 /** A slot with no selection yet — the starting draft before a slot's own data has been seeded in. */
 const EMPTY_SLOT: ScreenSlot = { isSlideshow: false, contents: [{ kind: 'none' }] }
 
+/** Folds a slide's own live text-size draft into `slot`, at `slideIndex` — used both when switching away from that slide's own tab (so its edits aren't lost) and when the whole editor closes. */
+function flushSlideTextSizeIntoSlot(slot: ScreenSlot, slideIndex: number, textSizes: TextSizes, useOwn: boolean): ScreenSlot {
+  return {
+    ...slot,
+    contents: slot.contents.map((content, i) => {
+      if (i !== slideIndex || !hasOwnTextSizeFields(content)) return content
+      return useOwn ? { ...content, useOwnTextSizes: true, textSizes } : { ...content, useOwnTextSizes: false }
+    }),
+  }
+}
+
 /** Maps a screen's text sizes, background color and (if set) its own fixed border color to the CSS custom properties the whole display (and, by inheritance, any slot without its own override) reads from. */
 function screenAppearanceToCssVars(textSizes: TextSizes, backgroundColor: string, borderColor: string | undefined): CSSProperties {
   return { ...textSizesToCssVars(textSizes), ...getScreenColorVars(backgroundColor), ...borderColorStyle(borderColor) } as CSSProperties
@@ -45,13 +56,14 @@ type EditingTarget = 'screen' | SlideTarget | null
  * own overall background color (a slot's own individual color is only
  * editable from that slot's own editor, not here). Hovering any individual
  * slide instead reveals a small "Edit slot" button covering that whole
- * slot: its content list (change/add/remove slides), its own slideshow
- * toggle and (when relevant) the shared rotation timer, its own background
- * color (standard is transparent, showing the screen's own color through),
- * and its text sizes — including, for a slide that's part of a
- * slideshow-enabled slot with more than one slide, a checkbox to opt just
- * that slide out of the slot's shared size and give it its own. Neither
- * editor has a "Save" step — the in-progress draft is written to the
+ * slot: its own slideshow toggle plus, once it's rotating through more
+ * than one slide, a "Global" tab (the slot's own shared background
+ * color/image, the rotation timer, and its shared/fallback text size) and
+ * one tab per slide (that slide's own content, its own background-image
+ * override, and a checkbox to opt out of the slot's shared text size and
+ * give it its own) — mirroring the admin dashboard's own tabs one level
+ * deeper. A slot with just one slide skips the tabs and shows that single
+ * slide's fields flat. Neither editor has a "Save" step — the in-progress draft is written to the
  * persisted screen as soon as it closes (whether via its own "Done"
  * button, the modal's × / Escape, or clicking outside it), and a "Restore
  * previous" button resets the draft back to the values it had when the
@@ -73,6 +85,11 @@ export function ScreenDisplay() {
   const [draftUseOwnTextSizes, setDraftUseOwnTextSizes] = useState(false)
   const [originalTextSizes, setOriginalTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
   const [originalUseOwnTextSizes, setOriginalUseOwnTextSizes] = useState(false)
+  /** The slot's own shared/fallback text sizes — the "Global" tab's own value, shown once a slot has more than one slide (see `SlotEditor`). */
+  const [draftSlotTextSizes, setDraftSlotTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
+  const [originalSlotTextSizes, setOriginalSlotTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
+  /** Which of the slot editor's own tabs is active: its "Global" settings, or one specific slide by index — only meaningful once the slot has more than one slide. */
+  const [activeSlideTab, setActiveSlideTab] = useState<'global' | number>('global')
 
   if (!screen) {
     return (
@@ -93,16 +110,22 @@ export function ScreenDisplay() {
       : screen
 
   /**
-   * Resolves the sizes a given slide should render with right now: the live
-   * draft if that exact slide is the one being edited; the whole-screen
-   * percentage scaler's live draft (its own resolved value for this exact
-   * slide, own-override or not) if the whole screen is being edited; else
-   * its own persisted override if it has one; else the slot's persisted
-   * effective value.
+   * Resolves the sizes a given slide should render with right now. While
+   * editing this exact slot: the live draft if this exact slide's own tab
+   * is the active one (so dragging its sliders previews instantly,
+   * regardless of whether its "use own size" checkbox is on yet); else its
+   * own resolved value against the slot editor's own live "Global" tab
+   * draft (which itself may be mid-edit). While the whole screen is being
+   * edited: the percentage scaler's own resolved value for this exact
+   * slide. Otherwise: its own persisted override if it has one, else the
+   * slot's persisted effective value.
    */
   const resolveTextSizes = (slotIndex: number, contentIndex: number, content: ScreenSlotContent): TextSizes => {
-    const isThisSlideBeingEdited = typeof editingTarget === 'object' && editingTarget !== null && editingTarget.slotIndex === slotIndex && editingTarget.contentIndex === contentIndex
-    if (isThisSlideBeingEdited) return draftTextSizes
+    const isEditingThisSlot = typeof editingTarget === 'object' && editingTarget !== null && editingTarget.slotIndex === slotIndex
+    if (isEditingThisSlot) {
+      if (activeSlideTab === contentIndex) return draftTextSizes
+      return resolveContentTextSizes(content, draftSlotTextSizes)
+    }
 
     if (editingTarget === 'screen' && screenDraftSnapshot) {
       const draftContent = screenDraftSnapshot.slots[slotIndex].contents[contentIndex]
@@ -130,7 +153,31 @@ export function ScreenDisplay() {
     setOriginalTextSizes(effective)
     setDraftUseOwnTextSizes(useOwn)
     setOriginalUseOwnTextSizes(useOwn)
+    setDraftSlotTextSizes(sharedTextSizes)
+    setOriginalSlotTextSizes(sharedTextSizes)
+    setActiveSlideTab(contentIndex)
     setEditingTarget({ slotIndex, contentIndex })
+  }
+
+  /**
+   * Switches which of the slot editor's own tabs is active — the slot's
+   * "Global" settings, or a specific slide by index. First folds whatever
+   * the currently active slide's own tab holds into `draftSlot` (so
+   * navigating away from it can't lose those edits), then reseeds the
+   * live draft for the tab being switched to, against the slot's own
+   * (possibly just-edited) "Global" shared value.
+   */
+  const handleActiveSlideTabChange = (nextTab: 'global' | number) => {
+    const flushedSlot = typeof activeSlideTab === 'number' ? flushSlideTextSizeIntoSlot(draftSlot, activeSlideTab, draftTextSizes, draftUseOwnTextSizes) : draftSlot
+    if (flushedSlot !== draftSlot) setDraftSlot(flushedSlot)
+
+    if (typeof nextTab === 'number') {
+      const content = flushedSlot.contents[nextTab] ?? { kind: 'none' as const }
+      setDraftTextSizes(resolveContentTextSizes(content, draftSlotTextSizes))
+      setDraftUseOwnTextSizes(hasOwnTextSizeFields(content) && Boolean(content.useOwnTextSizes))
+    }
+
+    setActiveSlideTab(nextTab)
   }
 
   /** The screen's shared rotation timer is a live setting, not part of any slot's draft — it applies (and persists) immediately, same as any other admin-dashboard edit. */
@@ -138,15 +185,28 @@ export function ScreenDisplay() {
     setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, slideDurationSeconds: seconds } : existing)))
   }
 
-  /** Resets the slot (content/slideshow/color) and text-size drafts back to the values captured when the editor was opened — the actual persisting still only happens once the editor closes. The whole-screen scaler restores itself internally. */
+  /** Resets the slot (content/slideshow/color), its text-size drafts, and which tab is active back to the values captured when the editor was opened — the actual persisting still only happens once the editor closes. The whole-screen scaler restores itself internally. */
   const handleRestore = () => {
     setDraftSlot(originalSlot)
     setDraftTextSizes(originalTextSizes)
     setDraftUseOwnTextSizes(originalUseOwnTextSizes)
+    setDraftSlotTextSizes(originalSlotTextSizes)
+    if (typeof editingTarget === 'object' && editingTarget !== null) setActiveSlideTab(editingTarget.contentIndex)
   }
 
-  /** Persists whatever the draft currently holds, then closes the editor. Wired to every way the modal can exit (its own "Done" button, ×, Escape, and clicking outside it), so there's no separate save step to remember. */
+  /**
+   * Persists whatever the draft currently holds, then closes the editor.
+   * Wired to every way the modal can exit (its own "Done" button, ×,
+   * Escape, and clicking outside it), so there's no separate save step to
+   * remember. Once the slot has more than one slide (so its editor shows
+   * tabs), the currently active slide tab is folded in first — same as
+   * switching tabs does — and the slot's own "Global" tab value is written
+   * to its shared size unconditionally, since it's no longer entangled
+   * with any one slide's own value the way a flat (single-slide) slot's
+   * shared/own distinction still is below.
+   */
   const closeEditor = () => {
+    const hasSlideTabs = draftSlot.isSlideshow
     setScreens(
       screens.map((existing) => {
         if (existing.screenID !== screen.screenID) return existing
@@ -156,6 +216,11 @@ export function ScreenDisplay() {
         }
         if (editingTarget) {
           const { slotIndex, contentIndex } = editingTarget
+          if (hasSlideTabs) {
+            const flushedSlot = typeof activeSlideTab === 'number' ? flushSlideTextSizeIntoSlot(draftSlot, activeSlideTab, draftTextSizes, draftUseOwnTextSizes) : draftSlot
+            const slots = existing.slots.map((slot, index) => (index === slotIndex ? flushedSlot : slot)) as ScreenConfig['slots']
+            return { ...existing, slots, slotTextSizes: { ...existing.slotTextSizes, [slotIndex]: draftSlotTextSizes } }
+          }
           const contents = draftSlot.contents.map((content, i) => {
             if (i !== contentIndex || !hasOwnTextSizeFields(content)) return content
             return draftUseOwnTextSizes ? { ...content, useOwnTextSizes: true, textSizes: draftTextSizes } : { ...content, useOwnTextSizes: false }
@@ -210,6 +275,10 @@ export function ScreenDisplay() {
             textSizes={draftTextSizes}
             onTextSizesChange={setDraftTextSizes}
             ownTextSizes={showOwnTextSizeOption ? { useOwn: draftUseOwnTextSizes, onUseOwnChange: setDraftUseOwnTextSizes } : undefined}
+            slotTextSizes={draftSlotTextSizes}
+            onSlotTextSizesChange={setDraftSlotTextSizes}
+            activeSlideTab={activeSlideTab}
+            onActiveSlideTabChange={handleActiveSlideTabChange}
             onRestore={handleRestore}
             onDone={closeEditor}
           />

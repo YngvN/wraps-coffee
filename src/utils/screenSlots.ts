@@ -1,4 +1,4 @@
-import type { ScreenSlot, ScreenSlotContent } from '../types/screen'
+import type { BackgroundImage, ScreenSlot, ScreenSlotContent } from '../types/screen'
 
 /** Identifies one specific slide: which slot it's in, and its own index within that slot's `contents`. Shared by the display's own per-slot editor and the admin form's per-slide text-size editor. */
 export interface SlideTarget {
@@ -35,4 +35,10 @@ export function currentSlotContentIndex(slot: ScreenSlot, tick: number): number 
   const activeWithIndex = slot.contents.map((content, index) => ({ content, index })).filter((entry) => entry.content.kind !== 'none')
   if (activeWithIndex.length === 0) return 0
   return activeWithIndex[currentSlotSubIndex(slot, tick)].index
+}
+
+/** Effective background image for a specific slide: its own (`useOwnBackgroundImage`) when set, else `fallback` — typically the slide's slot's own image. */
+export function resolveContentBackgroundImage(content: ScreenSlotContent, fallback: BackgroundImage | undefined): BackgroundImage | undefined {
+  if (content.useOwnBackgroundImage && content.backgroundImage) return content.backgroundImage
+  return fallback
 }

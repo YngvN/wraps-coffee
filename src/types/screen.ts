@@ -3,6 +3,21 @@ import type { ProductCategory } from './product'
 /** How an image slide's picture fills its slot: shrunk to fit without cropping (the default), or scaled to fill the entire container, cropping as needed. */
 export type ImageFit = 'contain' | 'cover'
 
+/** How a background image is tinted, both for readability and to pick a matching text color: unmodified, lightened (paired with black text), or darkened (paired with white text). */
+export type BackgroundImageOverlay = 'none' | 'light' | 'dark'
+
+/** A background image behind a slot's (or one of its slides') own content: always scaled to cover its whole pane and blurred, with an optional tint that also decides whether the text drawn over it is forced to black or white. */
+export interface BackgroundImage {
+  imageUrl: string
+  overlay: BackgroundImageOverlay
+}
+
+/** Shared by every `ScreenSlotContent` variant: lets one slide opt out of its slot's own `backgroundImage` and use its own instead. */
+interface OwnBackgroundImageFields {
+  useOwnBackgroundImage?: boolean
+  backgroundImage?: BackgroundImage
+}
+
 /**
  * What a single slide within a slot shows: nothing, a specific menu category,
  * the upcoming-events list, or a single centered image (e.g. a logo or an
@@ -13,13 +28,15 @@ export type ImageFit = 'contain' | 'cover'
  * because it needs bigger text than the other slides sharing that slot. An
  * image slide has no text of its own, so it has no text-size fields at all;
  * `fit` instead controls how its picture fills the slide, falling back to
- * `'contain'` when absent.
+ * `'contain'` when absent. Every kind can independently opt out of its
+ * slot's own `backgroundImage` via `useOwnBackgroundImage`, regardless of
+ * whether it has text of its own.
  */
 export type ScreenSlotContent =
-  | { kind: 'none' }
-  | { kind: 'category'; category: ProductCategory; useOwnTextSizes?: boolean; textSizes?: TextSizes }
-  | { kind: 'events'; useOwnTextSizes?: boolean; textSizes?: TextSizes }
-  | { kind: 'image'; imageUrl: string; fit?: ImageFit }
+  | ({ kind: 'none' } & OwnBackgroundImageFields)
+  | ({ kind: 'category'; category: ProductCategory; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
+  | ({ kind: 'events'; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
+  | ({ kind: 'image'; imageUrl: string; fit?: ImageFit } & OwnBackgroundImageFields)
 
 /**
  * One of a screen's up to 4 content slots. When `isSlideshow` is false, only
@@ -34,6 +51,8 @@ export interface ScreenSlot {
   contents: ScreenSlotContent[]
   /** This slot's own background color (hex, from `SCREEN_BACKGROUND_COLORS`), independent of the screen's own. Falls back to transparent (showing the screen's own background through) when absent — the standard, until the owner picks one for this slot specifically. */
   backgroundColor?: string
+  /** This slot's own background image (blurred, scaled to cover the pane), shown behind whichever slide is currently active. Falls back to none when absent. A slide with `useOwnBackgroundImage` set overrides this one just for itself. */
+  backgroundImage?: BackgroundImage
 }
 
 /** How a screen's panes are arranged along their split axis: side by side, or stacked. Only meaningful when `slotCount` is 2. */
@@ -51,6 +70,9 @@ export type SplitBigPosition = 'first' | 'second'
 
 /** How a slide change is animated for any slot's own in-place rotation. Kept as its own union so more styles can be added later without changing `ScreenConfig`'s shape. */
 export type ScreenTransitionStyle = 'fade' | 'slide'
+
+/** Which side a `'slide'`-style transition's incoming slide enters from — the outgoing one exits toward the opposite side. Only relevant when `transitionStyle` is `'slide'`. */
+export type SlideTransitionDirection = 'left' | 'right' | 'up' | 'down'
 
 /** One selectable screen background color: a fixed hex value from the project's brand palette (not a theme variable), so it looks the same regardless of the viewer's light/dark mode. */
 export interface ScreenBackgroundColorOption {
@@ -116,6 +138,8 @@ export interface ScreenConfig {
   /** Seconds each slide is shown before rotating to the next, for any individual slot's own rotation (when that slot's `isSlideshow` is true). */
   slideDurationSeconds: number
   transitionStyle: ScreenTransitionStyle
+  /** Which side the incoming slide enters from when `transitionStyle` is `'slide'`. Falls back to `'right'` (matching the original hardcoded direction) when absent. Unused for `'fade'`. */
+  slideTransitionDirection?: SlideTransitionDirection
   /** Optional per-screen text size override, set via the display's own "Edit appearance" panel. Falls back to `DEFAULT_TEXT_SIZES` when absent. */
   textSizes?: TextSizes
   /** Optional per-slot text size override (keyed by slot index, 0-3), set by hovering a slot's pane and clicking its own edit button. Falls back to `textSizes` (then `DEFAULT_TEXT_SIZES`) for any slot without one. */

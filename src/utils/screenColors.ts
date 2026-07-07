@@ -1,3 +1,5 @@
+import type { BackgroundImageOverlay } from '../types/screen'
+
 /** Parses a "#rrggbb" hex color into 0-255 [r, g, b] components. */
 function hexToRgb(hex: string): [number, number, number] {
   const value = parseInt(hex.replace('#', ''), 16)
@@ -48,4 +50,19 @@ export function slotBackgroundColorStyle(backgroundColor: string | undefined): R
 export function borderColorStyle(borderColor: string | undefined): Record<string, string> {
   if (!borderColor) return {}
   return { '--screen-border': borderColor }
+}
+
+/**
+ * Forces `--screen-text`/`--screen-text-muted` to a fixed black or white when
+ * a pane has a background image with a light/dark overlay — a photo's own
+ * contrast can't be measured the way a flat color's can, so the overlay
+ * itself (rather than the underlying image) decides which reads better:
+ * lightening it pairs with black text, darkening it with white. A `'none'`
+ * overlay (or no image at all) leaves the existing color vars — from the
+ * slot's own background color, or the screen's — in place.
+ */
+export function backgroundImageTextStyle(overlay: BackgroundImageOverlay | undefined): Record<string, string> {
+  if (overlay !== 'light' && overlay !== 'dark') return {}
+  const textRgb = overlay === 'light' ? '17, 17, 17' : '245, 245, 245'
+  return { '--screen-text': `rgb(${textRgb})`, '--screen-text-muted': `rgba(${textRgb}, 0.7)` }
 }
