@@ -16,3 +16,17 @@
     color: $color-text;
   }
 }
+
+.slide-fields__categories {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  padding: $spacing-unit;
+  border: 1px solid $color-border;
+  border-radius: 6px;
+}
+
+.slide-fields__categories-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}

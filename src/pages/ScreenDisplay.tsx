@@ -209,7 +209,13 @@ export function ScreenDisplay() {
    * switching tabs does — and the slot's own "Global" tab value is written
    * to its shared size unconditionally, since it's no longer entangled
    * with any one slide's own value the way a flat (single-slide) slot's
-   * shared/own distinction still is below.
+   * shared/own distinction still is below. Either way, the flat/tabbed
+   * branch itself always applies to `activeSlideTab`'s own index, not the
+   * (possibly stale, if the slot's own "Slideshow" toggle was flipped off
+   * since) index the editor originally opened on — `activeSlideTab` is
+   * kept correctly seeded to whatever's actually loaded into the draft
+   * (see `SlotEditor`'s own "Slideshow" checkbox), so it's always the one
+   * to trust here.
    */
   const closeEditor = () => {
     const hasSlideTabs = draftSlot.isSlideshow
@@ -222,13 +228,14 @@ export function ScreenDisplay() {
         }
         if (editingTarget) {
           const { slotIndex, contentIndex } = editingTarget
+          const activeContentIndex = typeof activeSlideTab === 'number' ? activeSlideTab : contentIndex
           if (hasSlideTabs) {
-            const flushedSlot = typeof activeSlideTab === 'number' ? flushSlideTextSizeIntoSlot(draftSlot, activeSlideTab, draftTextSizes, draftUseOwnTextSizes) : draftSlot
+            const flushedSlot = flushSlideTextSizeIntoSlot(draftSlot, activeContentIndex, draftTextSizes, draftUseOwnTextSizes)
             const slots = existing.slots.map((slot, index) => (index === slotIndex ? flushedSlot : slot)) as ScreenConfig['slots']
             return { ...existing, slots, slotTextSizes: { ...existing.slotTextSizes, [slotIndex]: draftSlotTextSizes } }
           }
           const contents = draftSlot.contents.map((content, i) => {
-            if (i !== contentIndex || !hasOwnTextSizeFields(content)) return content
+            if (i !== activeContentIndex || !hasOwnTextSizeFields(content)) return content
             return draftUseOwnTextSizes ? { ...content, useOwnTextSizes: true, textSizes: draftTextSizes } : { ...content, useOwnTextSizes: false }
           })
           const slots = existing.slots.map((slot, index) => (index === slotIndex ? { ...draftSlot, contents } : slot)) as ScreenConfig['slots']

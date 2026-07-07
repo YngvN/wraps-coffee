@@ -14,7 +14,7 @@ import {
   type SplitDirection,
   type TextSizes,
 } from '../../../types/screen'
-import { hasOwnTextSizeFields, isSlotActive } from '../../../utils/screenSlots'
+import { firstActiveContentIndex, hasOwnTextSizeFields, isSlotActive } from '../../../utils/screenSlots'
 import { resolveContentTextSizes } from '../../../utils/textSizeVars'
 import { BackgroundColorPicker } from '../../screens/BackgroundColorPicker'
 import { BackgroundImagePicker } from '../../screens/BackgroundImagePicker'
@@ -121,14 +121,14 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
   /** The freshest persisted version of this screen — reflects any live writes already made this session (background color, text sizes) that this form's own local state doesn't separately track, so neither re-seeding a sub-panel nor the final Save can stomp them with stale data. */
   const latestScreen = screen ? (screens.find((candidate) => candidate.screenID === screen.screenID) ?? screen) : null
 
-  /** Switches the outer tab (the screen-wide "Global" settings, or one specific slot), resetting/reseeding the inner slot tab: a slideshow slot lands on its own "Global" sub-tab, a flat (single-slide) one goes straight to its one slide's own text-size buffer. */
+  /** Switches the outer tab (the screen-wide "Global" settings, or one specific slot), resetting/reseeding the inner slot tab: a slideshow slot lands on its own "Global" sub-tab, a flat (single-slide) one goes straight to its own actually-shown slide's text-size buffer — its first active entry, not necessarily index 0. */
   const handleSelectTab = (tab: 'global' | number) => {
     setActiveTab(tab)
     if (typeof tab !== 'number') {
       setActiveSlideTab('global')
       return
     }
-    const innerTab = slotFields[tab].value.isSlideshow ? 'global' : 0
+    const innerTab = slotFields[tab].value.isSlideshow ? 'global' : firstActiveContentIndex(slotFields[tab].value.contents)
     setActiveSlideTab(innerTab)
     seedLiveTextSizes(tab, innerTab)
   }
@@ -524,7 +524,7 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
                 onChange={(event) => {
                   const isSlideshow = event.target.checked
                   activeSlot.onChange({ ...activeSlot.value, isSlideshow })
-                  handleActiveSlideTabChange(isSlideshow ? 'global' : 0)
+                  handleActiveSlideTabChange(isSlideshow ? 'global' : firstActiveContentIndex(activeSlot.value.contents))
                 }}
               />
 
@@ -570,9 +570,14 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
 
               {!hasSlideTabs && (
                 <>
-                  <SlideFields id={activeSlot.id} content={activeSlot.value.contents[0]} onChange={(content) => handleSlideContentChange(0, content)} label={activeSlot.label} />
+                  <SlideFields
+                    id={activeSlot.id}
+                    content={activeSlot.value.contents[activeSlideIndex] ?? { kind: 'none' }}
+                    onChange={(content) => handleSlideContentChange(activeSlideIndex, content)}
+                    label={activeSlot.label}
+                  />
 
-                  {screen && hasOwnTextSizeFields(activeSlot.value.contents[0]) && (
+                  {screen && hasOwnTextSizeFields(activeSlot.value.contents[activeSlideIndex] ?? { kind: 'none' }) && (
                     <TextSizeEditor textSizes={liveTextSizes} onChange={handleLiveTextSizesChange} />
                   )}
                 </>

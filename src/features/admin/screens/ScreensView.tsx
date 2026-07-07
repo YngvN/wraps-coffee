@@ -31,8 +31,22 @@ export function ScreensView() {
     setScreens(screens.filter((existing) => existing.screenID !== screen.screenID))
   }
 
+  /**
+   * Adds a full copy of `screen` to the list — a new id, its name suffixed
+   * to distinguish it from the original, and everything else (slots,
+   * colors, text sizes, arrangement…) identical. Deep-cloned via
+   * JSON round-tripping (screens are already plain, localStorage-persisted
+   * JSON) so the copy never shares a nested object with the original —
+   * editing either one afterwards can't accidentally affect the other.
+   */
+  const handleDuplicate = (screen: ScreenConfig) => {
+    const copy: ScreenConfig = { ...(JSON.parse(JSON.stringify(screen)) as ScreenConfig), screenID: `${Date.now()}`, name: t('admin.screens.duplicateName', { name: screen.name }) }
+    setScreens([...screens, copy])
+  }
+
   const contentLabel = (content: ScreenSlotContent) => {
     if (content.kind === 'none') return t('admin.screens.slotNoneLabel')
+    if (content.kind === 'menu') return t('admin.screens.slotMenuLabel')
     if (content.kind === 'events') return t('admin.screens.slotEventsLabel')
     if (content.kind === 'image') return t('admin.screens.slotImageLabel')
     return t(`menu.categories.${content.category}.title`)
@@ -105,6 +119,9 @@ export function ScreensView() {
                     <div className="screens-view__item-actions">
                       <Button variant="secondary" onClick={() => setEditingScreen(screen)}>
                         {t('admin.common.edit')}
+                      </Button>
+                      <Button variant="secondary" onClick={() => handleDuplicate(screen)}>
+                        {t('admin.common.duplicate')}
                       </Button>
                       <Button variant="secondary" onClick={() => handleDelete(screen)}>
                         {t('admin.common.delete')}

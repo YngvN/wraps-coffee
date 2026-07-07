@@ -20,21 +20,25 @@ interface OwnBackgroundImageFields {
 
 /**
  * What a single slide within a slot shows: nothing, a specific menu category,
- * the upcoming-events list, or a single centered image (e.g. a logo or an
- * Instagram photo, pasted in as a URL). A category/events slide normally
- * follows its slot's own text size (which itself falls back to the screen's
- * default) — `useOwnTextSizes` lets one slide in a multi-slide (slideshow)
- * slot opt out and keep its own independent `textSizes` instead, e.g.
- * because it needs bigger text than the other slides sharing that slot. An
- * image slide has no text of its own, so it has no text-size fields at all;
- * `fit` instead controls how its picture fills the slide, falling back to
- * `'contain'` when absent. Every kind can independently opt out of its
- * slot's own `backgroundImage` via `useOwnBackgroundImage`, regardless of
- * whether it has text of its own.
+ * the entire menu (every category with available items, laid out the same
+ * way as the public Menu page — or, via `categories`, just a chosen subset
+ * of them, e.g. to split the full menu across more than one screen), the
+ * upcoming-events list, or a single centered image (e.g. a logo or an
+ * Instagram photo, pasted in as a URL). A category/menu/events slide
+ * normally follows its slot's own text size (which itself falls back to the
+ * screen's default) — `useOwnTextSizes` lets one slide in a multi-slide
+ * (slideshow) slot opt out and keep its own independent `textSizes`
+ * instead, e.g. because it needs bigger text than the other slides sharing
+ * that slot. An image slide has no text of its own, so it has no
+ * text-size fields at all; `fit` instead controls how its picture fills
+ * the slide, falling back to `'contain'` when absent. Every kind can
+ * independently opt out of its slot's own `backgroundImage` via
+ * `useOwnBackgroundImage`, regardless of whether it has text of its own.
  */
 export type ScreenSlotContent =
   | ({ kind: 'none' } & OwnBackgroundImageFields)
   | ({ kind: 'category'; category: ProductCategory; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
+  | ({ kind: 'menu'; categories?: ProductCategory[]; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({ kind: 'events'; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({ kind: 'image'; imageUrl: string; fit?: ImageFit } & OwnBackgroundImageFields)
 

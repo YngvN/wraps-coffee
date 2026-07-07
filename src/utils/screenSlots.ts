@@ -12,8 +12,14 @@ export function isSlotActive(slot: ScreenSlot): boolean {
 }
 
 /** A slide's content kind that has text of its own, and so can carry a per-slide `useOwnTextSizes`/`textSizes` override — unlike `'none'` (nothing to show) or `'image'` (no text at all). */
-export function hasOwnTextSizeFields(content: ScreenSlotContent): content is Extract<ScreenSlotContent, { kind: 'category' } | { kind: 'events' }> {
-  return content.kind === 'category' || content.kind === 'events'
+export function hasOwnTextSizeFields(content: ScreenSlotContent): content is Extract<ScreenSlotContent, { kind: 'category' } | { kind: 'menu' } | { kind: 'events' }> {
+  return content.kind === 'category' || content.kind === 'menu' || content.kind === 'events'
+}
+
+/** The index of a slot's first active (non-"none") entry, falling back to 0 if it has none — what a non-slideshow slot actually shows (see `currentSlotContent`), so its editor's own "flat" (no tabs) view must default to this exact index too, not a literal 0, or it can end up showing/editing a different slide than the one actually on screen (e.g. after turning "Slideshow" off on a slot whose first `contents` entry isn't its active one). */
+export function firstActiveContentIndex(contents: ScreenSlotContent[]): number {
+  const index = contents.findIndex((content) => content.kind !== 'none')
+  return index === -1 ? 0 : index
 }
 
 /** Which of a slot's active entries is currently showing for a given tick: always 0 for a non-rotating (or single-slide) slot, so only a genuinely rotating slot produces a changing value. Useful as an animation key — a stable value means no transition plays. */

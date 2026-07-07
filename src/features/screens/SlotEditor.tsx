@@ -1,6 +1,7 @@
 import { Checkbox, Input } from '../../components'
 import { useLanguage } from '../../i18n'
 import type { ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
+import { firstActiveContentIndex } from '../../utils/screenSlots'
 import { BackgroundImagePicker } from './BackgroundImagePicker'
 import { SlideFields } from './SlideFields'
 import './SlotEditor.scss'
@@ -88,7 +89,16 @@ export function SlotEditor({
         id={`${id}-slideshow`}
         label={t('screenDisplay.textSizeEditor.slideshowLabel')}
         checked={slot.isSlideshow}
-        onChange={(event) => onSlotChange({ ...slot, isSlideshow: event.target.checked })}
+        onChange={(event) => {
+          const isSlideshow = event.target.checked
+          onSlotChange({ ...slot, isSlideshow })
+          // Turning it off collapses the editor back to a flat, single-slide
+          // view of whichever slide is actually shown without rotation (its
+          // first active entry, not necessarily index 0) — reseeds the
+          // text-size draft to match, so it can't end up bound to a
+          // different slide than the one the flat view is now showing.
+          if (!isSlideshow) onActiveSlideTabChange(firstActiveContentIndex(contents))
+        }}
       />
 
       {hasSlideTabs && <SlotSlideTabs slideCount={contents.length} activeTab={activeSlideTab} onActiveTabChange={onActiveSlideTabChange} onAddSlide={addSlide} />}
@@ -109,11 +119,34 @@ export function SlotEditor({
             </button>
           )}
 
-          <TextSizeEditor textSizes={textSizes} onChange={onTextSizesChange} ownTextSizes={ownTextSizes} onRestore={onRestore} onDone={onDone} />
+          {/*
+            Without `ownTextSizes` (only one active slide, so there's nothing
+            for it to differ from — see `showOwnTextSizeOption` in
+            `ScreenDisplay`), this slide's own text size *is* the slot's
+            shared one: bind straight to `slotTextSizes` instead of the
+            per-slide `textSizes` draft, which would otherwise sit adjusted
+            but never actually persisted (`closeEditor`'s tabbed branch only
+            ever writes `textSizes` into the content when `useOwn` is true,
+            which it can never become here with no checkbox to set it).
+          */}
+          <TextSizeEditor
+            textSizes={ownTextSizes ? textSizes : slotTextSizes}
+            onChange={ownTextSizes ? onTextSizesChange : onSlotTextSizesChange}
+            ownTextSizes={ownTextSizes}
+            onRestore={onRestore}
+            onDone={onDone}
+          />
         </>
       ) : (
         <>
-          {!hasSlideTabs && <SlideFields id={id} content={contents[0]} onChange={(content) => setContentAt(0, content)} label={t('screenDisplay.textSizeEditor.slotContentLabel')} />}
+          {!hasSlideTabs && (
+            <SlideFields
+              id={id}
+              content={contents[activeSlideIndex] ?? { kind: 'none' }}
+              onChange={(content) => setContentAt(activeSlideIndex, content)}
+              label={t('screenDisplay.textSizeEditor.slotContentLabel')}
+            />
+          )}
 
           <BackgroundImagePicker
             id={`${id}-bg-image`}

@@ -1,0 +1,141 @@
+@use '../../styles/variables' as *;
+
+.full-menu-slide {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 5;
+  height: 100%;
+  padding: $spacing-unit * 6;
+  overflow-y: auto;
+
+  // Hides the scrollbar cross-browser but keeps scrollability, when the
+  // screen's own "Hide scrollbar" setting is on — content taller than the
+  // screen must still be reachable, not clipped off, just without visible
+  // scroll UI.
+  .screen-display--hide-scrollbar & {
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
+.full-menu-slide__category {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 3;
+  padding-top: $spacing-unit * 5;
+  border-top: 2px solid var(--screen-border);
+
+  &:first-of-type {
+    padding-top: 0;
+    border-top: none;
+  }
+}
+
+.full-menu-slide__category-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: $spacing-unit * 3;
+}
+
+// Sized relative to the heading's own (adjustable) font size, rather than a
+// flat pixel value, so it scales along with everything else when the
+// heading slider is used.
+.full-menu-slide__category-image {
+  height: calc(var(--slide-heading-size, 3.5rem) * 0.85);
+  width: calc(var(--slide-heading-size, 3.5rem) * 0.85);
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.full-menu-slide__category-heading {
+  min-width: 0;
+
+  h1 {
+    font-family: $font-heading;
+    font-size: var(--slide-heading-size, 3.5rem);
+    margin: 0;
+    overflow-wrap: break-word;
+  }
+}
+
+.full-menu-slide__category-description {
+  margin: calc($spacing-unit / 2) 0 0;
+  color: var(--screen-text-muted);
+  font-style: italic;
+  font-size: var(--slide-description-size, 1.25rem);
+  overflow-wrap: break-word;
+}
+
+.full-menu-slide__category-price {
+  margin-left: auto;
+  font-size: var(--slide-price-size, 1.5rem);
+  font-weight: 600;
+  color: var(--screen-accent);
+  white-space: nowrap;
+  // A fixed black backdrop (independent of the screen's own chosen
+  // background) so the price stays legible even on a background close to
+  // the accent color itself, instead of relying on that background for
+  // contrast. Sized in `em` so it scales with the price's own font size.
+  background: #000;
+  border-radius: 0.4em;
+  padding: 0.15em 0.6em;
+}
+
+.full-menu-slide__items {
+  display: grid;
+  // `font-size` here (not inherited by children — they set their own via
+  // the same var) makes `ch` below resolve relative to the item-title size,
+  // so the minimum column width scales with it live without reserving far
+  // more space than the text actually needs.
+  font-size: var(--slide-item-title-size, 1.75rem);
+  grid-template-columns: repeat(auto-fit, minmax(max(160px, 14ch), 1fr));
+  gap: $spacing-unit * 3;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.full-menu-slide__item {
+  min-width: 0;
+
+  h2 {
+    margin: 0;
+    font-size: var(--slide-item-title-size, 1.75rem);
+    overflow-wrap: break-word;
+  }
+
+  p {
+    margin: calc($spacing-unit / 2) 0 0;
+    color: var(--screen-text-muted);
+    font-size: var(--slide-description-size, 1.25rem);
+    overflow-wrap: break-word;
+  }
+}
+
+.full-menu-slide__item-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: $spacing-unit * 2;
+
+  h2 {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+}
+
+.full-menu-slide__item-price {
+  font-size: var(--slide-item-price-size, 1.5rem);
+  font-weight: 600;
+  color: var(--screen-accent);
+  white-space: nowrap;
+  flex-shrink: 0;
+  // Same fixed black backdrop as .full-menu-slide__category-price, for the
+  // same legibility reason.
+  background: #000;
+  border-radius: 0.4em;
+  padding: 0.15em 0.6em;
+}

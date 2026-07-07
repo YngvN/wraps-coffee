@@ -6,14 +6,14 @@ import { CATEGORY_ORDER } from '../admin/products/categoryMeta'
 import { BackgroundImagePicker } from './BackgroundImagePicker'
 import './SlideFields.scss'
 
-/** Encodes a slide's content as a `<select>` option value: "none", "events", "image", or "category:<key>". */
+/** Encodes a slide's content as a `<select>` option value: "none", "menu", "events", "image", or "category:<key>". */
 function contentToOptionValue(content: ScreenSlotContent): string {
   return content.kind === 'category' ? `category:${content.category}` : content.kind
 }
 
 /** Decodes a `<select>` option value back into a `ScreenSlotContent`. An "image" slide starts with an empty URL, filled in via its own field below the selector. */
 function optionValueToContent(value: string): ScreenSlotContent {
-  if (value === 'none' || value === 'events') return { kind: value }
+  if (value === 'none' || value === 'menu' || value === 'events') return { kind: value }
   if (value === 'image') return { kind: 'image', imageUrl: '' }
   return { kind: 'category', category: value.slice('category:'.length) as ProductCategory }
 }
@@ -36,7 +36,9 @@ interface SlideFieldsProps {
 
 /**
  * One slide's own fields: what it shows (a content-kind selector), its own
- * URL/fill-container fields when set to "Image", and — for a slide that's
+ * URL/fill-container fields when set to "Image", a checkbox per category
+ * when set to "Full menu" (letting the full menu be split across more than
+ * one screen — each gets its own subset checked), and — for a slide that's
  * one of several in a slideshow-enabled slot — a toggle to opt out of its
  * slot's own background image and use its own instead.
  */
@@ -50,10 +52,19 @@ export function SlideFields({ id, content, onChange, label, showOwnBackgroundIma
     onChange({ ...content, fit: fillContainer ? 'cover' : 'contain' })
   }
 
+  /** Toggles one category in/out of a "Full menu" slide's own `categories` — starting from every category checked (the standard, when `categories` is still absent) so unchecking the first one narrows it down from there, rather than from an empty set. */
+  const toggleMenuCategory = (category: ProductCategory, checked: boolean) => {
+    if (content.kind !== 'menu') return
+    const current = content.categories ?? CATEGORY_ORDER
+    const next = checked ? [...current, category] : current.filter((existing) => existing !== category)
+    onChange({ ...content, categories: CATEGORY_ORDER.filter((existing) => next.includes(existing)) })
+  }
+
   return (
     <div className="slide-fields">
       <select aria-label={label} value={contentToOptionValue(content)} onChange={(event) => onChange(optionValueToContent(event.target.value))}>
         <option value="none">{t('admin.screens.slotNoneLabel')}</option>
+        <option value="menu">{t('admin.screens.slotMenuLabel')}</option>
         <option value="events">{t('admin.screens.slotEventsLabel')}</option>
         <option value="image">{t('admin.screens.slotImageLabel')}</option>
         {CATEGORY_ORDER.map((category) => (
@@ -73,6 +84,21 @@ export function SlideFields({ id, content, onChange, label, showOwnBackgroundIma
             onChange={(event) => setImageFillContainer(event.target.checked)}
           />
         </>
+      )}
+
+      {content.kind === 'menu' && (
+        <div className="slide-fields__categories">
+          <span className="slide-fields__categories-label">{t('admin.screens.menuCategoriesLabel')}</span>
+          {CATEGORY_ORDER.map((category) => (
+            <Checkbox
+              key={category}
+              id={`${id}-category-${category}`}
+              label={t(`menu.categories.${category}.title`)}
+              checked={(content.categories ?? CATEGORY_ORDER).includes(category)}
+              onChange={(event) => toggleMenuCategory(category, event.target.checked)}
+            />
+          ))}
+        </div>
       )}
 
       {showOwnBackgroundImage && (
