@@ -8,6 +8,14 @@
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  transition: background-color 0.15s ease;
+
+  // While a slider inside the modal is being actively dragged — see
+  // `Modal.tsx` — so whatever it's changing on the page behind can be
+  // watched live instead of hidden behind the backdrop.
+  &--transparent {
+    background: transparent;
+  }
 }
 
 .modal {
@@ -26,6 +34,15 @@
   box-shadow:
     $color-shadow 0 10px 15px -3px,
     $color-shadow 0 4px 6px -2px;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+
+  // Same moment as `.modal-overlay--transparent` — its own background (and
+  // shadow, which would otherwise float oddly with nothing behind it) fades
+  // out too, leaving only its text/controls visible over the live page.
+  &--transparent {
+    background: transparent;
+    box-shadow: none;
+  }
 
   &__title {
     margin: 0 0 $spacing-unit;

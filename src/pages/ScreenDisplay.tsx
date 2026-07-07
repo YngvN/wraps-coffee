@@ -109,6 +109,12 @@ export function ScreenDisplay() {
       ? { ...screen, slots: screen.slots.map((slot, index) => (index === editingTarget.slotIndex ? draftSlot : slot)) as ScreenConfig['slots'] }
       : screen
 
+  /** While a specific slide's own tab is active (not the slot's "Global" one), forces its pane to show that exact slide — so switching a slot editor's own tabs actually previews each slide, live, instead of leaving whatever the rotation had frozen on. */
+  const forcedSlide =
+    typeof editingTarget === 'object' && editingTarget !== null && typeof activeSlideTab === 'number'
+      ? { slotIndex: editingTarget.slotIndex, contentIndex: activeSlideTab }
+      : undefined
+
   /**
    * Resolves the sizes a given slide should render with right now. While
    * editing this exact slot: the live draft if this exact slide's own tab
@@ -250,7 +256,14 @@ export function ScreenDisplay() {
           {t('screenDisplay.editSizes')}
         </button>
       </ScreenToolbar>
-      <SplitLayout key={screen.screenID} screen={effectiveScreen} resolveTextSizes={resolveTextSizes} onEditSlide={openSlideEditor} paused={editingTarget !== null} />
+      <SplitLayout
+        key={screen.screenID}
+        screen={effectiveScreen}
+        resolveTextSizes={resolveTextSizes}
+        onEditSlide={openSlideEditor}
+        paused={editingTarget !== null}
+        forcedSlide={forcedSlide}
+      />
 
       <Modal
         open={editingTarget !== null}

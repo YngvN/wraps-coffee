@@ -18,6 +18,8 @@ interface SplitLayoutProps {
   onEditSlide: (slotIndex: number, contentIndex: number) => void
   /** Pauses every rotating slot's timer — set while a slide (or the whole screen) is being edited, so the preview isn't pulled out from under the editor. */
   paused: boolean
+  /** While a specific slide's own tab is active in its slot's editor, forces that one pane to show that exact slide (by its `contents` index) instead of whatever its rotation happened to freeze on — so switching between a slot's own slide tabs previews each one, live, right where it'll actually appear. */
+  forcedSlide?: { slotIndex: number; contentIndex: number }
 }
 
 /**
@@ -37,7 +39,7 @@ interface SplitLayoutProps {
  * stays fixed. Hovering any pane reveals a small button opening that slot's
  * editor (content, slideshow, color, and — where applicable — text size).
  */
-export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused }: SplitLayoutProps) {
+export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, forcedSlide }: SplitLayoutProps) {
   const { t } = useLanguage()
   const reducedMotion = useReducedMotion()
   const [tick, setTick] = useState(0)
@@ -89,10 +91,17 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused }: S
    * borders between panes are drawn once, by the grid container itself (its
    * own background showing through its `gap`), not per-pane — so a slot's
    * own background color here never needs to also carry a border color.
+   * When `forcedSlide` names this exact pane, its own resolved (raw, not
+   * rotation-position) index is used both as the shown content and as the
+   * crossfade key instead — so switching a slot's own editor between its
+   * slide tabs animates between them here too, live, regardless of where
+   * the rotation itself happened to freeze when the editor opened.
    */
   const renderPane = (slot: ScreenSlot, index: number, extraClassName = '') => {
-    const content = currentSlotContent(slot, tick)
-    const contentIndex = currentSlotContentIndex(slot, tick)
+    const isForced = forcedSlide?.slotIndex === index
+    const contentIndex = isForced ? forcedSlide.contentIndex : currentSlotContentIndex(slot, tick)
+    const content = isForced ? (slot.contents[contentIndex] ?? { kind: 'none' as const }) : currentSlotContent(slot, tick)
+    const motionKey = isForced ? contentIndex : currentSlotSubIndex(slot, tick)
     const backgroundImage = resolveContentBackgroundImage(content, slot.backgroundImage)
     const paneStyle = { ...slotBackgroundColorStyle(slot.backgroundColor), ...backgroundImageTextStyle(backgroundImage?.overlay) }
     return (
@@ -114,7 +123,7 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused }: S
         </AnimatePresence>
         <AnimatePresence mode="wait">
           <motion.div
-            key={currentSlotSubIndex(slot, tick)}
+            key={motionKey}
             className="split-layout__pane-content"
             style={textSizesToCssVars(resolveTextSizes(index, contentIndex, content))}
             variants={variants}
