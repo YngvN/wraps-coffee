@@ -5,14 +5,13 @@ import { Modal } from '../components'
 import { FullscreenToggle } from '../features/screens/FullscreenToggle'
 import { GlobalTextSizeScaler, type SizeSnapshot } from '../features/screens/GlobalTextSizeScaler'
 import { ScreenToolbar } from '../features/screens/ScreenToolbar'
-import { SlideshowLayout } from '../features/screens/SlideshowLayout'
 import { SlotEditor } from '../features/screens/SlotEditor'
 import { SplitLayout } from '../features/screens/SplitLayout'
 import { useScreens } from '../hooks/useScreens'
 import { useLanguage } from '../i18n'
 import { DEFAULT_SCREEN_BACKGROUND_COLOR, DEFAULT_TEXT_SIZES, type ScreenConfig, type ScreenSlot, type ScreenSlotContent, type TextSizes } from '../types/screen'
 import { getScreenColorVars } from '../utils/screenColors'
-import { hasOwnTextSizeFields } from '../utils/screenSlots'
+import { hasOwnTextSizeFields, type SlideTarget } from '../utils/screenSlots'
 import { resolveContentTextSizes, textSizesToCssVars } from '../utils/textSizeVars'
 import './ScreenDisplay.scss'
 
@@ -29,12 +28,6 @@ function getPersistedSlotTextSizes(screen: ScreenConfig, slotIndex: number): Tex
   return screen.slotTextSizes?.[slotIndex] ?? screen.textSizes ?? DEFAULT_TEXT_SIZES
 }
 
-/** Identifies one specific slide being edited: which slot it's in, and its own index within that slot's `contents`. */
-interface SlideTarget {
-  slotIndex: number
-  contentIndex: number
-}
-
 /** Which appearance settings are currently open for editing: the whole screen's defaults (incl. background color), one specific slot (opened via its currently-showing slide), or nothing. */
 type EditingTarget = 'screen' | SlideTarget | null
 
@@ -48,23 +41,24 @@ type EditingTarget = 'screen' | SlideTarget | null
  * make a change: the toolbar's "Edit appearance" button opens a
  * percentage-based scaler (`GlobalTextSizeScaler`) that grows/shrinks the
  * screen's default, every slot's own size, and every slide's own override
- * all together, relative to whatever each currently is — plus the screen's
- * own background color and, for any slot that already has its own
- * individual color, a swatch picker for that slot too. Hovering any
- * individual slide instead reveals a small "Edit slot" button covering that
- * whole slot: its content list (change/add/remove slides), its own
- * slideshow toggle and (when relevant) the shared rotation timer, its own
- * background color (standard is transparent, showing the screen's own
- * color through), and its text sizes — including, for a slide that's part
- * of a slideshow-enabled slot with more than one slide, a checkbox to opt
- * just that slide out of the slot's shared size and give it its own.
- * Neither editor has a "Save" step — the in-progress draft is written to
- * the persisted screen as soon as it closes (whether via its own "Done"
- * button, the modal's × / Escape, or clicking outside it), and a "Restore
- * previous" button resets the draft back to the values it had when the
- * editor was opened. Any rotation (the screen-level slideshow, or a slot's
- * own in-place one) is paused while an editor is open, so the live preview
- * isn't pulled out from under the slide being edited.
+ * all together, relative to whatever each currently is — plus, for any slot
+ * that already has its own individual color, a swatch picker for that slot
+ * (the screen's own overall background color is only editable from the
+ * admin dashboard, not here — per-slot color is enough on the display
+ * itself). Hovering any individual slide instead reveals a small "Edit
+ * slot" button covering that whole slot: its content list (change/add/
+ * remove slides), its own slideshow toggle and (when relevant) the shared
+ * rotation timer, its own background color (standard is transparent,
+ * showing the screen's own color through), and its text sizes — including,
+ * for a slide that's part of a slideshow-enabled slot with more than one
+ * slide, a checkbox to opt just that slide out of the slot's shared size
+ * and give it its own. Neither editor has a "Save" step — the in-progress
+ * draft is written to the persisted screen as soon as it closes (whether
+ * via its own "Done" button, the modal's × / Escape, or clicking outside
+ * it), and a "Restore previous" button resets the draft back to the values
+ * it had when the editor was opened. Any slot's own in-place rotation is
+ * paused while an editor is open, so the live preview isn't pulled out from
+ * under the slide being edited.
  */
 export function ScreenDisplay() {
   const { t } = useLanguage()
@@ -73,7 +67,6 @@ export function ScreenDisplay() {
   const screen = screens.find((candidate) => candidate.screenID === screenId)
   const [editingTarget, setEditingTarget] = useState<EditingTarget>(null)
   const [screenDraftSnapshot, setScreenDraftSnapshot] = useState<SizeSnapshot | null>(null)
-  const [draftBackgroundColor, setDraftBackgroundColor] = useState(DEFAULT_SCREEN_BACKGROUND_COLOR)
   const [draftSlot, setDraftSlot] = useState<ScreenSlot>(EMPTY_SLOT)
   const [originalSlot, setOriginalSlot] = useState<ScreenSlot>(EMPTY_SLOT)
   const [draftTextSizes, setDraftTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
@@ -91,7 +84,7 @@ export function ScreenDisplay() {
   }
 
   const activeTextSizes = editingTarget === 'screen' && screenDraftSnapshot ? screenDraftSnapshot.textSizes : (screen.textSizes ?? DEFAULT_TEXT_SIZES)
-  const activeBackgroundColor = editingTarget === 'screen' ? draftBackgroundColor : (screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR)
+  const activeBackgroundColor = screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR
 
   /** The screen as it should currently render: the slot being edited (if any) swapped for its live draft, so content/slideshow/color changes preview immediately, same as text-size changes already do. */
   const effectiveScreen: ScreenConfig =
@@ -120,7 +113,6 @@ export function ScreenDisplay() {
   }
 
   const openScreenEditor = () => {
-    setDraftBackgroundColor(screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR)
     setScreenDraftSnapshot(null)
     setEditingTarget('screen')
   }
@@ -158,8 +150,8 @@ export function ScreenDisplay() {
       screens.map((existing) => {
         if (existing.screenID !== screen.screenID) return existing
         if (editingTarget === 'screen') {
-          if (!screenDraftSnapshot) return { ...existing, backgroundColor: draftBackgroundColor }
-          return { ...existing, textSizes: screenDraftSnapshot.textSizes, slotTextSizes: screenDraftSnapshot.slotTextSizes, slots: screenDraftSnapshot.slots, backgroundColor: draftBackgroundColor }
+          if (!screenDraftSnapshot) return existing
+          return { ...existing, textSizes: screenDraftSnapshot.textSizes, slotTextSizes: screenDraftSnapshot.slotTextSizes, slots: screenDraftSnapshot.slots }
         }
         if (editingTarget) {
           const { slotIndex, contentIndex } = editingTarget
@@ -192,11 +184,7 @@ export function ScreenDisplay() {
           {t('screenDisplay.editSizes')}
         </button>
       </ScreenToolbar>
-      {screen.layout === 'slideshow' ? (
-        <SlideshowLayout key={screen.screenID} screen={effectiveScreen} resolveTextSizes={resolveTextSizes} onEditSlide={openSlideEditor} paused={editingTarget !== null} />
-      ) : (
-        <SplitLayout key={screen.screenID} screen={effectiveScreen} resolveTextSizes={resolveTextSizes} onEditSlide={openSlideEditor} paused={editingTarget !== null} />
-      )}
+      <SplitLayout key={screen.screenID} screen={effectiveScreen} resolveTextSizes={resolveTextSizes} onEditSlide={openSlideEditor} paused={editingTarget !== null} />
 
       <Modal
         open={editingTarget !== null}
@@ -204,13 +192,7 @@ export function ScreenDisplay() {
         title={editingTarget === 'screen' ? t('screenDisplay.textSizeEditor.title') : t('screenDisplay.slotEditorTitle')}
       >
         {editingTarget === 'screen' ? (
-          <GlobalTextSizeScaler
-            screen={screen}
-            onChange={setScreenDraftSnapshot}
-            backgroundColor={draftBackgroundColor}
-            onBackgroundColorChange={setDraftBackgroundColor}
-            onDone={closeEditor}
-          />
+          <GlobalTextSizeScaler screen={screen} onChange={setScreenDraftSnapshot} onDone={closeEditor} />
         ) : (
           <SlotEditor
             id={typeof editingTarget === 'object' && editingTarget !== null ? `slot-${editingTarget.slotIndex}` : 'slot'}

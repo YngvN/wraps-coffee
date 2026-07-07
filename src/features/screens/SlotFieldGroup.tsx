@@ -2,6 +2,7 @@ import { Input } from '../../components'
 import { useLanguage } from '../../i18n'
 import type { ProductCategory } from '../../types/product'
 import type { ScreenSlot, ScreenSlotContent } from '../../types/screen'
+import { hasOwnTextSizeFields } from '../../utils/screenSlots'
 import { CATEGORY_ORDER } from '../admin/products/categoryMeta'
 import './SlotFieldGroup.scss'
 
@@ -23,8 +24,15 @@ interface SlotFieldGroupProps {
   label: string
   slot: ScreenSlot
   onChange: (slot: ScreenSlot) => void
-  /** Opens this slot's own text-size editor. Omitted (hiding the button) when there's no persisted screen yet to write live edits to, or when the caller already has its own text-size section elsewhere (the on-screen "Edit slot" panel). */
-  onEditTextSize?: () => void
+  /**
+   * Opens the text-size editor for one specific slide, given its own index
+   * within `contents` (always 0 outside slideshow mode, since there's only
+   * one). Omitted (hiding every edit-text-size button) when there's no
+   * persisted screen yet to write live edits to, or when the caller already
+   * has its own text-size section elsewhere (the on-screen "Edit slot"
+   * panel, which edits whichever one slide is currently showing).
+   */
+  onEditTextSize?: (contentIndex: number) => void
 }
 
 /**
@@ -36,6 +44,9 @@ interface SlotFieldGroupProps {
  * product/event data. Shared by the admin form (where "Slideshows" is one
  * screen-wide checkbox covering all 4 slots) and the display's own per-slot
  * "Edit slot" panel (where each slot's `isSlideshow` is toggled on its own).
+ * In slideshow mode, since each slide can have its own text size, the
+ * "Edit text size" button moves from the shared header to each individual
+ * slide row.
  */
 export function SlotFieldGroup({ id, label, slot, onChange, onEditTextSize }: SlotFieldGroupProps) {
   const { t } = useLanguage()
@@ -67,8 +78,8 @@ export function SlotFieldGroup({ id, label, slot, onChange, onEditTextSize }: Sl
     <div className="slot-field-group">
       <div className="slot-field-group__header">
         <span className="slot-field-group__label">{label}</span>
-        {onEditTextSize && (
-          <button type="button" className="slot-field-group__edit-text-size" onClick={onEditTextSize}>
+        {!slot.isSlideshow && onEditTextSize && hasOwnTextSizeFields(contents[0]) && (
+          <button type="button" className="slot-field-group__edit-text-size" onClick={() => onEditTextSize(0)}>
             {t('admin.screens.editTextSize')}
           </button>
         )}
@@ -86,6 +97,11 @@ export function SlotFieldGroup({ id, label, slot, onChange, onEditTextSize }: Sl
                 >
                   {options}
                 </select>
+                {onEditTextSize && hasOwnTextSizeFields(content) && (
+                  <button type="button" className="slot-field-group__edit-text-size" onClick={() => onEditTextSize(index)}>
+                    {t('admin.screens.editTextSize')}
+                  </button>
+                )}
                 {contents.length > 1 && (
                   <button type="button" className="slot-field-group__remove" onClick={() => removeSlide(index)} aria-label={t('admin.screens.removeSlideLabel')}>
                     ×

@@ -1,5 +1,11 @@
 import type { ScreenSlot, ScreenSlotContent } from '../types/screen'
 
+/** Identifies one specific slide: which slot it's in, and its own index within that slot's `contents`. Shared by the display's own per-slot editor and the admin form's per-slide text-size editor. */
+export interface SlideTarget {
+  slotIndex: number
+  contentIndex: number
+}
+
 /** Whether a slot has any content to show at all. */
 export function isSlotActive(slot: ScreenSlot): boolean {
   return slot.contents.some((content) => content.kind !== 'none')
@@ -22,31 +28,6 @@ export function currentSlotContent(slot: ScreenSlot, tick: number): ScreenSlotCo
   const active = slot.contents.filter((content) => content.kind !== 'none')
   if (active.length === 0) return { kind: 'none' }
   return active[currentSlotSubIndex(slot, tick)]
-}
-
-/** One entry in a flattened, screen-wide rotation: a slide's content, tagged with the original slot index it came from, its own original index within that slot's `contents`, and that slot's own background color (both needed for per-slot/per-slide text-size resolution/editing, and rendering that slot's own color). */
-export interface FlattenedSlide {
-  content: ScreenSlotContent
-  slotIndex: number
-  contentIndex: number
-  slotBackgroundColor?: string
-}
-
-/**
- * Flattens every slot's slide(s) into one ordered, screen-wide list — each
- * slideshow-enabled slot contributes all of its non-"none" entries in order,
- * each single-mode slot contributes its one entry (if any). Used by the
- * screen-level 'slideshow' layout, which shows one slide at a time
- * regardless of which slot it came from.
- */
-export function flattenScreenSlots(slots: ScreenSlot[]): FlattenedSlide[] {
-  const result: FlattenedSlide[] = []
-  slots.forEach((slot, slotIndex) => {
-    const active = slot.contents.map((content, contentIndex) => ({ content, contentIndex })).filter((entry) => entry.content.kind !== 'none')
-    const entries = slot.isSlideshow ? active : active.slice(0, 1)
-    entries.forEach(({ content, contentIndex }) => result.push({ content, slotIndex, contentIndex, slotBackgroundColor: slot.backgroundColor }))
-  })
-  return result
 }
 
 /** The original `contents` index (not its position among only the active entries) of whichever slide a slot is currently showing for a given tick — needed to address that exact slide when reading/writing its own text-size override. */

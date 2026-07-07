@@ -1,5 +1,6 @@
 import screensSeed from '../data/screens.json'
 import type { ScreenConfig, ScreenSlot, ScreenSlotContent, TextSizes } from '../types/screen'
+import { isSlotActive } from '../utils/screenSlots'
 import { normalizeTextSizes } from '../utils/textSizeVars'
 import { useLocalStorage } from './useLocalStorage'
 
@@ -27,7 +28,10 @@ function normalizeSlot(value: unknown): ScreenSlot {
  * Normalizes a screen's `slots` tuple (padding with empty slots if it's
  * missing or short) and fills in any missing `itemPrice` on its text sizes —
  * older persisted screens predate that field, so this keeps them from ever
- * handing out a `TextSizes` with an `undefined` `itemPrice`.
+ * handing out a `TextSizes` with an `undefined` `itemPrice`. Also fills in
+ * `slotCount` for screens saved before it existed (from the old fullscreen
+ * "Slideshow" layout mode, since removed) — using however many slots
+ * already have content as a reasonable guess at the arrangement they had.
  */
 function normalizeScreen(screen: ScreenConfig): ScreenConfig {
   const rawSlots = Array.isArray(screen.slots) ? screen.slots : []
@@ -36,7 +40,11 @@ function normalizeScreen(screen: ScreenConfig): ScreenConfig {
   const slotTextSizes = screen.slotTextSizes
     ? (Object.fromEntries(Object.entries(screen.slotTextSizes).map(([key, value]) => [key, normalizeTextSizes(value)])) as Record<number, TextSizes>)
     : screen.slotTextSizes
-  return { ...screen, slots, textSizes, slotTextSizes }
+  const slotCount =
+    typeof screen.slotCount === 'number' && screen.slotCount >= 1 && screen.slotCount <= 4
+      ? screen.slotCount
+      : Math.min(4, Math.max(1, slots.filter(isSlotActive).length || 1))
+  return { ...screen, slots, textSizes, slotTextSizes, slotCount }
 }
 
 /** Returns the live list of configured screens and a setter that persists edits to localStorage, overlaying `screens.json` until a real backend exists. */

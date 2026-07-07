@@ -8,15 +8,12 @@ export type LayoutIconPattern =
   | 'single'
   | 'quad'
   | 'empty'
-  | 'slideshow'
 
 interface IconRect {
   x: number
   y: number
   width: number
   height: number
-  /** Lightly filled (rather than outline-only), used to distinguish the "current" frame in the slideshow preview. */
-  filled?: boolean
   /** Dashed stroke, used for the "nothing configured" empty preview. */
   dashed?: boolean
 }
@@ -59,10 +56,6 @@ const RECTS: Record<LayoutIconPattern, IconRect[]> = {
     { x: 17, y: 13, width: 14, height: 10 },
   ],
   empty: [{ x: 1, y: 1, width: 30, height: 22, dashed: true }],
-  slideshow: [
-    { x: 5, y: 1, width: 26, height: 18 },
-    { x: 1, y: 5, width: 26, height: 18, filled: true },
-  ],
 }
 
 interface LayoutIconProps {
@@ -83,8 +76,7 @@ export function LayoutIcon({ pattern, width = 32, height = 24 }: LayoutIconProps
           width={rect.width}
           height={rect.height}
           rx={1.5}
-          fill={rect.filled ? 'currentColor' : 'none'}
-          fillOpacity={rect.filled ? 0.15 : undefined}
+          fill="none"
           stroke="currentColor"
           strokeWidth={1.5}
           strokeDasharray={rect.dashed ? '3 2' : undefined}

@@ -21,8 +21,8 @@ export type ScreenSlotContent =
  * `contents[0]` is shown (defaulting to `{ kind: 'none' }` if the array is
  * empty). When true, the slot itself rotates through every non-"none" entry
  * in `contents`, using the screen's own `slideDurationSeconds` as the shared
- * timer — independent of the screen's overall `layout`, so an individual
- * pane in a 'split' screen can rotate while the others stay fixed.
+ * timer — independently of every other slot, so one pane can rotate while
+ * the others stay fixed.
  */
 export interface ScreenSlot {
   isSlideshow: boolean
@@ -31,23 +31,20 @@ export interface ScreenSlot {
   backgroundColor?: string
 }
 
-/** How a screen presents its two slots: rotating one at a time, or both at once. */
-export type ScreenLayout = 'slideshow' | 'split'
-
-/** How a 'split' screen's panes are arranged along their split axis: side by side, or stacked. */
+/** How a screen's panes are arranged along their split axis: side by side, or stacked. Only meaningful when `slotCount` is 2. */
 export type SplitDirection = 'row' | 'column'
 
 /**
- * When exactly 3 of a 'split' screen's 4 slots are active, one is shown
+ * When exactly 3 of a screen's `slotCount` panes are shown, one is shown
  * "featured" (occupying a full row/column) and the other two share the
  * remaining space as two small squares. This says whether the featured one
  * comes first (top, if `splitDirection` is 'row'; left, if 'column') or
- * second (bottom/right). The featured slot itself is always the first
- * active slot in slot order (Slot 1 before Slot 2, etc).
+ * second (bottom/right). The featured pane itself is always the first one
+ * in slot order (Slot 1 before Slot 2, etc).
  */
 export type SplitBigPosition = 'first' | 'second'
 
-/** How a slide change is animated — both the screen-level rotation (when `layout` is 'slideshow') and any individual slot's own in-place rotation. Kept as its own union so more styles can be added later without changing `ScreenConfig`'s shape. */
+/** How a slide change is animated for any slot's own in-place rotation. Kept as its own union so more styles can be added later without changing `ScreenConfig`'s shape. */
 export type ScreenTransitionStyle = 'fade' | 'slide'
 
 /** One selectable screen background color: a fixed hex value from the project's brand palette (not a theme variable), so it looks the same regardless of the viewer's light/dark mode. */
@@ -99,21 +96,30 @@ export const DEFAULT_TEXT_SIZES: TextSizes = {
 export interface ScreenConfig {
   screenID: string
   name: string
-  layout: ScreenLayout
+  /**
+   * How many of the 4 slots (starting from Slot 1) are actually shown on
+   * the live display, 1-4 — an explicit layout choice, independent of
+   * whether each of those slots has its own content configured yet (an
+   * in-range slot with nothing set just renders blank in its position).
+   * Reducing this never touches a hidden slot's own content/settings —
+   * they're simply not rendered until `slotCount` grows back to include
+   * them again, or the whole screen is deleted.
+   */
+  slotCount: number
   /** Up to 4 content slots; unused ones have no non-"none" entries in their `contents`. */
   slots: [ScreenSlot, ScreenSlot, ScreenSlot, ScreenSlot]
-  /** Seconds each slide is shown before rotating to the next — both the screen-level rotation (when `layout` is 'slideshow') and any individual slot's own rotation (when that slot's `isSlideshow` is true). */
+  /** Seconds each slide is shown before rotating to the next, for any individual slot's own rotation (when that slot's `isSlideshow` is true). */
   slideDurationSeconds: number
   transitionStyle: ScreenTransitionStyle
   /** Optional per-screen text size override, set via the display's own "Edit appearance" panel. Falls back to `DEFAULT_TEXT_SIZES` when absent. */
   textSizes?: TextSizes
   /** Optional per-slot text size override (keyed by slot index, 0-3), set by hovering a slot's pane and clicking its own edit button. Falls back to `textSizes` (then `DEFAULT_TEXT_SIZES`) for any slot without one. */
   slotTextSizes?: Record<number, TextSizes>
-  /** Only used when `layout` is 'split' and exactly 2 or 3 slots are active. Falls back to 'row' (side by side) when absent. */
+  /** Only used when `slotCount` is 2. Falls back to 'row' (side by side) when absent. */
   splitDirection?: SplitDirection
-  /** Only used when `layout` is 'split' and exactly 3 slots are active. Falls back to 'first' when absent. */
+  /** Only used when `slotCount` is 3. Falls back to 'first' when absent. */
   splitBigPosition?: SplitBigPosition
-  /** Whether visible borders are drawn between panes in 'split' layout. Falls back to `true` (shown) when absent. */
+  /** Whether visible borders are drawn between panes. Falls back to `true` (shown) when absent. */
   showSlotBorders?: boolean
   /** Whether a slide's own scrollbar (shown when its content is taller than the screen) is hidden. Content stays scrollable either way — this only hides the scrollbar UI. Falls back to `false` (shown) when absent. */
   hideScrollbar?: boolean

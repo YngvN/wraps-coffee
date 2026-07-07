@@ -69,6 +69,13 @@
   height: 100%;
   overflow: hidden;
   border: 1px solid var(--screen-border);
+  // Re-declares `color` here (not just inherits it from `.screen-display`)
+  // so that when this pane's own background color redefines `--screen-text`
+  // (see `slotBackgroundColorStyle`), its text actually picks that up —
+  // redefining a custom property lower in the tree doesn't retroactively
+  // change a `color` value already resolved higher up. Falls back to the
+  // screen's own text color when the slot has no color of its own.
+  color: var(--screen-text);
 
   .split-layout--no-borders & {
     border: none;

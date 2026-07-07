@@ -65,6 +65,7 @@ export function ScreensView() {
           <AnimatePresence initial={false}>
             {screens.map((screen) => {
               const url = `${window.location.origin}/screens/${screen.screenID}`
+              const slotCountLabel = screen.slotCount === 1 ? t('admin.screens.slotCountBadgeOne') : t('admin.screens.slotCountBadge', { count: screen.slotCount })
               return (
                 <motion.li
                   key={screen.screenID}
@@ -77,14 +78,14 @@ export function ScreensView() {
                   <div
                     className="screens-view__item-preview"
                     style={getScreenColorVars(screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR) as CSSProperties}
-                    title={t(`admin.screens.layout${screen.layout === 'slideshow' ? 'Slideshow' : 'Split'}Label`)}
+                    title={slotCountLabel}
                   >
                     <LayoutIcon pattern={getScreenPreviewPattern(screen)} width={56} height={42} />
                   </div>
                   <div className="screens-view__item-body">
                     <div className="screens-view__item-info">
                       <span className="screens-view__item-name">{screen.name}</span>
-                      <Badge variant="info">{t(`admin.screens.layout${screen.layout === 'slideshow' ? 'Slideshow' : 'Split'}Label`)}</Badge>
+                      <Badge variant="info">{slotCountLabel}</Badge>
                       <span className="screens-view__item-slots">
                         {screen.slots
                           .map(slotSummary)
