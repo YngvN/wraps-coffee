@@ -1,7 +1,30 @@
 import type { ProductCategory } from './product'
 
-/** What a screen's content slot shows: nothing, a specific menu category, or the upcoming-events list. */
-export type ScreenSlotContent = { kind: 'none' } | { kind: 'category'; category: ProductCategory } | { kind: 'events' }
+/**
+ * What a single slide within a slot shows: nothing, a specific menu category,
+ * or the upcoming-events list. A category/events slide normally follows its
+ * slot's own text size (which itself falls back to the screen's default) —
+ * `useOwnTextSizes` lets one slide in a multi-slide (slideshow) slot opt out
+ * and keep its own independent `textSizes` instead, e.g. because it needs
+ * bigger text than the other slides sharing that slot.
+ */
+export type ScreenSlotContent =
+  | { kind: 'none' }
+  | { kind: 'category'; category: ProductCategory; useOwnTextSizes?: boolean; textSizes?: TextSizes }
+  | { kind: 'events'; useOwnTextSizes?: boolean; textSizes?: TextSizes }
+
+/**
+ * One of a screen's up to 4 content slots. When `isSlideshow` is false, only
+ * `contents[0]` is shown (defaulting to `{ kind: 'none' }` if the array is
+ * empty). When true, the slot itself rotates through every non-"none" entry
+ * in `contents`, using the screen's own `slideDurationSeconds` as the shared
+ * timer — independent of the screen's overall `layout`, so an individual
+ * pane in a 'split' screen can rotate while the others stay fixed.
+ */
+export interface ScreenSlot {
+  isSlideshow: boolean
+  contents: ScreenSlotContent[]
+}
 
 /** How a screen presents its two slots: rotating one at a time, or both at once. */
 export type ScreenLayout = 'slideshow' | 'split'
@@ -19,8 +42,8 @@ export type SplitDirection = 'row' | 'column'
  */
 export type SplitBigPosition = 'first' | 'second'
 
-/** Only 'fade' exists today; kept as its own union so new transition styles can be added later without changing `ScreenConfig`'s shape. */
-export type ScreenTransitionStyle = 'fade'
+/** How a slide change is animated — both the screen-level rotation (when `layout` is 'slideshow') and any individual slot's own in-place rotation. Kept as its own union so more styles can be added later without changing `ScreenConfig`'s shape. */
+export type ScreenTransitionStyle = 'fade' | 'slide'
 
 /** One selectable screen background color: a fixed hex value from the project's brand palette (not a theme variable), so it looks the same regardless of the viewer's light/dark mode. */
 export interface ScreenBackgroundColorOption {
@@ -42,12 +65,20 @@ export const SCREEN_BACKGROUND_COLORS: ScreenBackgroundColorOption[] = [
 /** Used when a screen has no `backgroundColor` of its own yet. */
 export const DEFAULT_SCREEN_BACKGROUND_COLOR = '#ffffff'
 
-/** Font sizes (in rem) for the text roles shared by every slide, adjustable per screen via the in-display text size editor. */
+/**
+ * Font sizes (in rem) for the text roles shared by every slide, adjustable
+ * per screen via the in-display text size editor. `price` is a category's
+ * own default price (shown once in its header); `itemPrice` is each
+ * individual product's own price — kept separate since a category that
+ * shows one header price (e.g. Nachos) and a category whose items each show
+ * their own price (e.g. Coffee & Drinks) aren't necessarily meant to match.
+ */
 export interface TextSizes {
   heading: number
   itemTitle: number
   description: number
   price: number
+  itemPrice: number
 }
 
 /** Sizes matching the slides' original hardcoded values, used when a screen has no `textSizes` of its own yet. */
@@ -56,6 +87,7 @@ export const DEFAULT_TEXT_SIZES: TextSizes = {
   itemTitle: 1.75,
   description: 1.25,
   price: 1.5,
+  itemPrice: 1.5,
 }
 
 /** A configured fullscreen display, editable via the admin Screens view and rendered at `/screens/:screenId`. */
@@ -63,9 +95,9 @@ export interface ScreenConfig {
   screenID: string
   name: string
   layout: ScreenLayout
-  /** Up to 4 content slots; unused ones are `{ kind: 'none' }`. */
-  slots: [ScreenSlotContent, ScreenSlotContent, ScreenSlotContent, ScreenSlotContent]
-  /** Seconds each slot is shown before rotating to the next. Only used when `layout` is 'slideshow'. */
+  /** Up to 4 content slots; unused ones have no non-"none" entries in their `contents`. */
+  slots: [ScreenSlot, ScreenSlot, ScreenSlot, ScreenSlot]
+  /** Seconds each slide is shown before rotating to the next — both the screen-level rotation (when `layout` is 'slideshow') and any individual slot's own rotation (when that slot's `isSlideshow` is true). */
   slideDurationSeconds: number
   transitionStyle: ScreenTransitionStyle
   /** Optional per-screen text size override, set via the display's own "Edit appearance" panel. Falls back to `DEFAULT_TEXT_SIZES` when absent. */
@@ -76,6 +108,10 @@ export interface ScreenConfig {
   splitDirection?: SplitDirection
   /** Only used when `layout` is 'split' and exactly 3 slots are active. Falls back to 'first' when absent. */
   splitBigPosition?: SplitBigPosition
+  /** Whether visible borders are drawn between panes in 'split' layout. Falls back to `true` (shown) when absent. */
+  showSlotBorders?: boolean
+  /** Whether a slide's own scrollbar (shown when its content is taller than the screen) is hidden. Content stays scrollable either way — this only hides the scrollbar UI. Falls back to `false` (shown) when absent. */
+  hideScrollbar?: boolean
   /** Fixed background color (hex) for this screen, chosen from `SCREEN_BACKGROUND_COLORS`. Falls back to `DEFAULT_SCREEN_BACKGROUND_COLOR` when absent. Not affected by the site's light/dark mode. */
   backgroundColor?: string
 }

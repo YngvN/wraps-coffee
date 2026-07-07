@@ -8,6 +8,17 @@
   padding: $spacing-unit * 6;
   overflow-y: auto;
 
+  // Hides the scrollbar cross-browser but keeps scrollability, when the
+  // screen's own "Hide scrollbar" setting is on — content taller than the
+  // screen must still be reachable, not clipped off, just without visible
+  // scroll UI.
+  .screen-display--hide-scrollbar & {
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
   > h1 {
     margin: 0;
     font-family: $font-heading;

@@ -3,7 +3,7 @@ import { useState, type CSSProperties } from 'react'
 import { Badge, Button, Modal, TranslatedText } from '../../../components'
 import { useScreens } from '../../../hooks/useScreens'
 import { useLanguage } from '../../../i18n'
-import { DEFAULT_SCREEN_BACKGROUND_COLOR, type ScreenConfig, type ScreenSlotContent } from '../../../types/screen'
+import { DEFAULT_SCREEN_BACKGROUND_COLOR, type ScreenConfig, type ScreenSlot, type ScreenSlotContent } from '../../../types/screen'
 import { getScreenColorVars } from '../../../utils/screenColors'
 import { LayoutIcon } from './LayoutIcon'
 import { ScreenForm } from './ScreenForm'
@@ -31,10 +31,16 @@ export function ScreensView() {
     setScreens(screens.filter((existing) => existing.screenID !== screen.screenID))
   }
 
-  const slotLabel = (slot: ScreenSlotContent) => {
-    if (slot.kind === 'none') return t('admin.screens.slotNoneLabel')
-    if (slot.kind === 'events') return t('admin.screens.slotEventsLabel')
-    return t(`menu.categories.${slot.category}.title`)
+  const contentLabel = (content: ScreenSlotContent) => {
+    if (content.kind === 'none') return t('admin.screens.slotNoneLabel')
+    if (content.kind === 'events') return t('admin.screens.slotEventsLabel')
+    return t(`menu.categories.${content.category}.title`)
+  }
+
+  /** A slot's summary text: its active slide labels joined with "+" (e.g. "Wraps + Salads" for a rotating slot), or `null` if it has none. */
+  const slotSummary = (slot: ScreenSlot) => {
+    const active = slot.contents.filter((content) => content.kind !== 'none')
+    return active.length > 0 ? active.map(contentLabel).join(' + ') : null
   }
 
   const handleCopy = (screen: ScreenConfig, url: string) => {
@@ -80,8 +86,8 @@ export function ScreensView() {
                       <Badge variant="info">{t(`admin.screens.layout${screen.layout === 'slideshow' ? 'Slideshow' : 'Split'}Label`)}</Badge>
                       <span className="screens-view__item-slots">
                         {screen.slots
-                          .filter((slot) => slot.kind !== 'none')
-                          .map(slotLabel)
+                          .map(slotSummary)
+                          .filter((summary): summary is string => summary !== null)
                           .join(' · ')}
                       </span>
                     </div>

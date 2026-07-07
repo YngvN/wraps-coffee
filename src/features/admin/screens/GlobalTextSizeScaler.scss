@@ -1,0 +1,25 @@
+@use '../../../styles/variables' as *;
+
+.global-text-size-scaler {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+  min-width: min(420px, 80vw);
+}
+
+.global-text-size-scaler__slider {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  font-size: 0.875rem;
+  font-weight: 600;
+
+  input[type='range'] {
+    width: 100%;
+  }
+}
+
+.global-text-size-scaler__actions {
+  display: flex;
+  justify-content: flex-end;
+}

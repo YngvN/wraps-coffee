@@ -70,6 +70,10 @@
   overflow: hidden;
   border: 1px solid var(--screen-border);
 
+  .split-layout--no-borders & {
+    border: none;
+  }
+
   @media (hover: hover) {
     &:hover .slot-edit-button {
       opacity: 1;
@@ -87,4 +91,9 @@
   &--small2 {
     grid-area: small2;
   }
+}
+
+.split-layout__pane-content {
+  position: absolute;
+  inset: 0;
 }

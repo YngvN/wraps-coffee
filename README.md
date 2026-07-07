@@ -28,6 +28,7 @@ The website for Wraps & Coffee, a cozy cafe serving wraps, baguettes, pizza, nac
 - **[Sass](https://sass-lang.com/)** — component styling with theme variables (`src/styles`).
 - **[Framer Motion](https://www.framer.com/motion/)** — animations (e.g. the `TranslatedText` fade transition).
 - **[Leaflet](https://leafletjs.com/) + [React Leaflet](https://react-leaflet.js.org/)** — OpenStreetMap embed showing the cafe's location (`LocationMap`).
+- **[vite-plugin-pwa](https://vite-pwa-org.netlify.app/)** — precaches the built app so it can reload fully offline (used so screen displays keep working through a network drop; configured in `vite.config.ts`).
 - **[ESLint](https://eslint.org/)** — linting.
 
 ## Getting started

@@ -7,6 +7,17 @@
   height: 100%;
   padding: $spacing-unit * 6;
   overflow-y: auto;
+
+  // Hides the scrollbar cross-browser but keeps scrollability, when the
+  // screen's own "Hide scrollbar" setting is on — content taller than the
+  // screen must still be reachable, not clipped off, just without visible
+  // scroll UI.
+  .screen-display--hide-scrollbar & {
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
 }
 
 .category-slide__header {
@@ -22,13 +33,6 @@
     min-width: 0;
     overflow-wrap: break-word;
   }
-}
-
-.category-slide__image {
-  width: 96px;
-  height: 96px;
-  object-fit: contain;
-  flex-shrink: 0;
 }
 
 .category-slide__price {
@@ -84,7 +88,7 @@
 }
 
 .category-slide__item-price {
-  font-size: var(--slide-price-size, 1.5rem);
+  font-size: var(--slide-item-price-size, 1.5rem);
   font-weight: 600;
   color: var(--screen-accent);
   white-space: nowrap;

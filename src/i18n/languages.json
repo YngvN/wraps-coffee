@@ -518,9 +518,15 @@
           "slot2Label": "Slot 2",
           "slot3Label": "Slot 3",
           "slot4Label": "Slot 4",
+          "slotSlideshowLabel": "Slideshows",
+          "addSlide": "+ Add slide",
+          "removeSlideLabel": "Remove slide",
           "slotNoneLabel": "None",
           "slotEventsLabel": "Upcoming events",
           "slideDurationLabel": "Seconds per slide",
+          "showSlotBordersLabel": "Show borders between slots",
+          "hideScrollbarLabel": "Hide scrollbar",
+          "editTextSize": "Edit text size",
           "splitDirectionLabel": "Arrangement",
           "splitDirectionRowLabel": "Side by side",
           "splitDirectionColumnLabel": "Stacked",
@@ -540,6 +546,7 @@
           "delete": "Delete",
           "edit": "Edit",
           "add": "Add",
+          "done": "Done",
           "confirmDelete": "Are you sure you want to delete this?"
         }
       },
@@ -566,17 +573,19 @@
             "burgundy": "Burgundy",
             "lime": "Lime"
           },
+          "useOwnTextSizesLabel": "Use own text size for this slide",
           "headingLabel": "Heading",
           "itemTitleLabel": "Item title",
           "descriptionLabel": "Description",
           "priceLabel": "Price",
+          "itemPriceLabel": "Price per item",
           "presetLabel": "Preset",
           "loadPreset": "Load a saved preset…",
           "presetNamePlaceholder": "Preset name",
           "saveAsPreset": "Save as preset",
           "presetSaved": "Preset saved",
-          "save": "Save",
-          "cancel": "Cancel"
+          "restorePrevious": "Restore previous",
+          "done": "Done"
         }
       }
     }
@@ -1100,9 +1109,15 @@
           "slot2Label": "Plass 2",
           "slot3Label": "Plass 3",
           "slot4Label": "Plass 4",
+          "slotSlideshowLabel": "Lysbildefremvisninger",
+          "addSlide": "+ Legg til lysbilde",
+          "removeSlideLabel": "Fjern lysbilde",
           "slotNoneLabel": "Ingen",
           "slotEventsLabel": "Kommende arrangementer",
           "slideDurationLabel": "Sekunder per lysbilde",
+          "showSlotBordersLabel": "Vis kantlinjer mellom feltene",
+          "hideScrollbarLabel": "Skjul rullefelt",
+          "editTextSize": "Rediger tekststørrelse",
           "splitDirectionLabel": "Plassering",
           "splitDirectionRowLabel": "Side om side",
           "splitDirectionColumnLabel": "Stablet",
@@ -1122,6 +1137,7 @@
           "delete": "Slett",
           "edit": "Rediger",
           "add": "Legg til",
+          "done": "Ferdig",
           "confirmDelete": "Er du sikker på at du vil slette dette?"
         }
       },
@@ -1148,17 +1164,19 @@
             "burgundy": "Bordeaux",
             "lime": "Lime"
           },
+          "useOwnTextSizesLabel": "Bruk egen tekststørrelse for dette lysbildet",
           "headingLabel": "Overskrift",
           "itemTitleLabel": "Varetittel",
           "descriptionLabel": "Beskrivelse",
           "priceLabel": "Pris",
+          "itemPriceLabel": "Pris per vare",
           "presetLabel": "Forhåndsinnstilling",
           "loadPreset": "Last inn en lagret forhåndsinnstilling…",
           "presetNamePlaceholder": "Navn på forhåndsinnstilling",
           "saveAsPreset": "Lagre som forhåndsinnstilling",
           "presetSaved": "Forhåndsinnstilling lagret",
-          "save": "Lagre",
-          "cancel": "Avbryt"
+          "restorePrevious": "Gjenopprett forrige",
+          "done": "Ferdig"
         }
       }
     }

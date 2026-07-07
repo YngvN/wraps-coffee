@@ -1,11 +1,12 @@
 import type { ScreenConfig } from '../../../types/screen'
+import { isSlotActive } from '../../../utils/screenSlots'
 import type { LayoutIconPattern } from './LayoutIcon'
 
 /** Derives which `LayoutIconPattern` best represents a screen's actual current configuration, for its card preview. */
 export function getScreenPreviewPattern(screen: ScreenConfig): LayoutIconPattern {
   if (screen.layout === 'slideshow') return 'slideshow'
 
-  const activeCount = screen.slots.filter((slot) => slot.kind !== 'none').length
+  const activeCount = screen.slots.filter(isSlotActive).length
   if (activeCount === 0) return 'empty'
   if (activeCount === 1) return 'single'
   if (activeCount === 4) return 'quad'

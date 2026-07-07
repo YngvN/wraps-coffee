@@ -3,7 +3,6 @@ import { useProducts } from '../../hooks/useProducts'
 import { useLanguage } from '../../i18n'
 import type { ProductCategory } from '../../types/product'
 import { formatPrice } from '../../utils/price'
-import { CATEGORY_META } from '../admin/products/categoryMeta'
 import './CategorySlide.scss'
 
 interface CategorySlideProps {
@@ -15,14 +14,12 @@ export function CategorySlide({ category }: CategorySlideProps) {
   const { t, language } = useLanguage()
   const [products] = useProducts()
   const [categoryPrices] = useCategoryPrices()
-  const meta = CATEGORY_META[category]
   const defaultPrice = categoryPrices[category]
   const items = products.filter((product) => product.category === category && product.available)
 
   return (
     <div className="category-slide">
       <div className="category-slide__header">
-        <img className="category-slide__image" src={meta.image} alt="" />
         <h1>{t(`menu.categories.${category}.title`)}</h1>
         {defaultPrice !== undefined && <span className="category-slide__price">{formatPrice(defaultPrice, t)}</span>}
       </div>
