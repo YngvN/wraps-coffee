@@ -61,14 +61,13 @@ interface GlobalTextSizeScalerProps {
  * individual slide's own override (for a slide that's opted out of its
  * slot's shared size) all keep their own current size and are scaled
  * relative to the reference point captured when the panel opened (or reset
- * to, if "Reset" was used since). Also shows, for any slot that already has
- * its own individual color, a swatch picker to adjust that slot's color
- * without leaving this panel — changing the screen's own background color
- * here never touches those, and vice versa. "Restore previous" undoes
- * everything back to how the screen was when the panel opened; "Reset"
- * instead sets every size to the hardcoded standard and clears every slot's
- * own color back to transparent, leaving the screen's own background color
- * alone.
+ * to, if "Reset" was used since). Only the screen's own overall background
+ * color is editable here — a slot's own individual color is only editable
+ * from that slot's own editor, to keep this panel about the whole screen.
+ * "Restore previous" undoes everything back to how the screen was when the
+ * panel opened; "Reset" instead sets every size to the hardcoded standard
+ * and clears every slot's own color back to transparent, leaving the
+ * screen's own background color alone.
  */
 export function GlobalTextSizeScaler({ screen, onChange, backgroundColor, onBackgroundColorChange, onDone }: GlobalTextSizeScalerProps) {
   const { t } = useLanguage()
@@ -76,20 +75,20 @@ export function GlobalTextSizeScaler({ screen, onChange, backgroundColor, onBack
   const [originalBackgroundColor] = useState(() => backgroundColor)
   const [reference, setReference] = useState<SizeSnapshot>(baseline)
   const [percentages, setPercentages] = useState<Record<keyof TextSizes, number>>(ALL_100)
+  const [allPercent, setAllPercent] = useState(100)
   const [current, setCurrent] = useState<SizeSnapshot>(baseline)
 
-  const setPercentage = (field: keyof TextSizes, percent: number) => {
-    setPercentages((prev) => ({ ...prev, [field]: percent }))
-
+  /** Scales a single field (the default, every slot's own, and every slide's own override) by `percent`, relative to `reference`. */
+  const scaleField = (base: SizeSnapshot, field: keyof TextSizes, percent: number): SizeSnapshot => {
     const scale = percent / 100
-    const nextTextSizes = { ...current.textSizes, [field]: reference.textSizes[field] * scale }
+    const nextTextSizes = { ...base.textSizes, [field]: reference.textSizes[field] * scale }
 
-    const nextSlotTextSizes = { ...current.slotTextSizes }
+    const nextSlotTextSizes = { ...base.slotTextSizes }
     ;[0, 1, 2, 3].forEach((index) => {
-      nextSlotTextSizes[index] = { ...current.slotTextSizes[index], [field]: reference.slotTextSizes[index][field] * scale }
+      nextSlotTextSizes[index] = { ...base.slotTextSizes[index], [field]: reference.slotTextSizes[index][field] * scale }
     })
 
-    const nextSlots = current.slots.map((slot, slotIndex) => ({
+    const nextSlots = base.slots.map((slot, slotIndex) => ({
       ...slot,
       contents: slot.contents.map((content, contentIndex) => {
         if (!hasOwnTextSizeFields(content) || !content.useOwnTextSizes || !content.textSizes) return content
@@ -99,13 +98,21 @@ export function GlobalTextSizeScaler({ screen, onChange, backgroundColor, onBack
       }),
     })) as ScreenConfig['slots']
 
-    const next = { textSizes: nextTextSizes, slotTextSizes: nextSlotTextSizes, slots: nextSlots }
+    return { textSizes: nextTextSizes, slotTextSizes: nextSlotTextSizes, slots: nextSlots }
+  }
+
+  const setPercentage = (field: keyof TextSizes, percent: number) => {
+    setPercentages((prev) => ({ ...prev, [field]: percent }))
+    const next = scaleField(current, field, percent)
     setCurrent(next)
     onChange(next)
   }
 
-  const handleSlotBackgroundColorChange = (slotIndex: number, color: string | undefined) => {
-    const next = { ...current, slots: current.slots.map((slot, i) => (i === slotIndex ? { ...slot, backgroundColor: color } : slot)) as ScreenConfig['slots'] }
+  /** The "All" slider — scales every role by the same percentage in one pass, so the individual sliders below move to reflect their new size together, instead of drifting out of sync one call at a time. */
+  const setAllPercentage = (percent: number) => {
+    setAllPercent(percent)
+    setPercentages({ heading: percent, itemTitle: percent, description: percent, price: percent, itemPrice: percent })
+    const next = SLIDERS.reduce((acc, { key }) => scaleField(acc, key, percent), current)
     setCurrent(next)
     onChange(next)
   }
@@ -113,6 +120,7 @@ export function GlobalTextSizeScaler({ screen, onChange, backgroundColor, onBack
   /** Undoes everything back to how the screen was when this panel opened. */
   const handleRestore = () => {
     setPercentages(ALL_100)
+    setAllPercent(100)
     setReference(baseline)
     setCurrent(baseline)
     onChange(baseline)
@@ -123,6 +131,7 @@ export function GlobalTextSizeScaler({ screen, onChange, backgroundColor, onBack
   const handleReset = () => {
     const standard = standardSnapshotFrom(current.slots)
     setPercentages(ALL_100)
+    setAllPercent(100)
     setReference(standard)
     setCurrent(standard)
     onChange(standard)
@@ -134,17 +143,12 @@ export function GlobalTextSizeScaler({ screen, onChange, backgroundColor, onBack
         <BackgroundColorPicker backgroundColor={backgroundColor} onChange={(color) => color !== undefined && onBackgroundColorChange(color)} />
       )}
 
-      {current.slots.map((slot, slotIndex) =>
-        slot.backgroundColor !== undefined ? (
-          <BackgroundColorPicker
-            key={slotIndex}
-            backgroundColor={slot.backgroundColor}
-            onChange={(color) => handleSlotBackgroundColorChange(slotIndex, color)}
-            allowTransparent
-            label={t('screenDisplay.textSizeEditor.slotColorLabel', { number: slotIndex + 1 })}
-          />
-        ) : null,
-      )}
+      <label className="global-text-size-scaler__slider global-text-size-scaler__slider--all">
+        <span>
+          {t('screenDisplay.textSizeEditor.allLabel')} — {allPercent}%
+        </span>
+        <input type="range" min={25} max={300} step={5} value={allPercent} onChange={(event) => setAllPercentage(Number(event.target.value))} />
+      </label>
 
       {SLIDERS.map(({ key, labelKey }) => (
         <label key={key} className="global-text-size-scaler__slider">

@@ -17,6 +17,13 @@
   input[type='range'] {
     width: 100%;
   }
+
+  // Marks the "All" master slider as distinct from the individual roles it
+  // moves in sync — a rule beneath it separates the two groups visually.
+  &--all {
+    padding-bottom: $spacing-unit;
+    border-bottom: 1px solid $color-border;
+  }
 }
 
 .text-size-editor__presets {

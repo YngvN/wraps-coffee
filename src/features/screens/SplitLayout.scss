@@ -4,6 +4,17 @@
   display: grid;
   width: 100%;
   height: 100%;
+  // The divider between panes is this grid's own background showing through
+  // its `gap` — grid gap only ever appears *between* cells, never around
+  // the outside, so this can't produce an outer border no matter the
+  // arrangement.
+  gap: 4px;
+  background: var(--screen-border);
+
+  &--no-borders {
+    gap: 0;
+    background: transparent;
+  }
 
   &--row {
     grid-template-columns: 1fr 1fr;
@@ -68,7 +79,11 @@
   position: relative;
   height: 100%;
   overflow: hidden;
-  border: 1px solid var(--screen-border);
+  // Always paints its own background (not just relying on the screen's own
+  // showing through) so it fully covers the grid container's background —
+  // otherwise that divider color (see `.split-layout`'s own `background`)
+  // would show through the whole pane, not just the gap around it.
+  background: var(--screen-bg);
   // Re-declares `color` here (not just inherits it from `.screen-display`)
   // so that when this pane's own background color redefines `--screen-text`
   // (see `slotBackgroundColorStyle`), its text actually picks that up —
@@ -76,10 +91,6 @@
   // change a `color` value already resolved higher up. Falls back to the
   // screen's own text color when the slot has no color of its own.
   color: var(--screen-text);
-
-  .split-layout--no-borders & {
-    border: none;
-  }
 
   @media (hover: hover) {
     &:hover .slot-edit-button {

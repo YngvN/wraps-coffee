@@ -43,3 +43,9 @@ export function slotBackgroundColorStyle(backgroundColor: string | undefined): R
   if (!backgroundColor) return {}
   return { ...getScreenColorVars(backgroundColor), background: 'var(--screen-bg)' }
 }
+
+/** Overrides `--screen-border` (normally an automatic contrast-based color, see `getScreenColorVars`) with a fixed color — `undefined` leaves the automatic one in place. */
+export function borderColorStyle(borderColor: string | undefined): Record<string, string> {
+  if (!borderColor) return {}
+  return { '--screen-border': borderColor }
+}

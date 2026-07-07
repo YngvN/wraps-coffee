@@ -41,11 +41,12 @@ function nextDefaultScreenName(screens: ScreenConfig[], prefix: string): string 
 /**
  * Create/edit form for a single screen: a "Global" tab with name, the
  * screen's own background color, how many of its 4 slots are actually shown
- * (`slotCount`) plus their on-screen arrangement, and — one tab per slot, so
- * each gets its own room — that slot's own "Slideshow" toggle, content
- * list, background color, and (per slide) text size. Everything available
- * from the display's own in-place editors is available here too, so the
- * whole screen can be configured externally without ever opening the live
+ * (`slotCount`) plus their on-screen arrangement, whether/what color the
+ * borders between panes use, and — one tab per slot, so each gets its own
+ * room — that slot's own "Slideshow" toggle, content list, background
+ * color, and (per slide) text size. Everything available from the
+ * display's own in-place editors is available here too, so the whole
+ * screen can be configured externally without ever opening the live
  * display. Reducing `slotCount` never clears a hidden slot's own
  * content/settings — its tab stays fully editable, just visually marked as
  * not currently shown — so dialing it back up (or mis-saving with it lower
@@ -166,6 +167,9 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
 
   /** Writes the screen's own background color straight to the persisted screen, live. */
   const handleScreenBackgroundColorChange = (color: string) => liveUpdateScreen({ backgroundColor: color })
+
+  /** Writes the pane border color straight to the persisted screen, live. `undefined` goes back to the automatic contrast-based color. */
+  const handleBorderColorChange = (color: string | undefined) => liveUpdateScreen({ borderColor: color })
 
   /** Writes the chosen slot count straight to the persisted screen, live. */
   const handleSlotCountChange = (count: number) => {
@@ -330,6 +334,16 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
                 label={t('admin.screens.showSlotBordersLabel')}
                 checked={showSlotBorders}
                 onChange={(event) => setShowSlotBorders(event.target.checked)}
+              />
+            )}
+
+            {slotCount > 1 && showSlotBorders && screen && (
+              <BackgroundColorPicker
+                backgroundColor={latestScreen?.borderColor}
+                onChange={handleBorderColorChange}
+                allowTransparent
+                label={t('admin.screens.borderColorLabel')}
+                transparentLabel={t('admin.screens.autoBorderColorLabel')}
               />
             )}
 

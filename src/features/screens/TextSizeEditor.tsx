@@ -52,9 +52,23 @@ export function TextSizeEditor({ textSizes, onChange, backgroundColor, onBackgro
   const [presets, setPresets] = useTextSizePresets()
   const [presetName, setPresetName] = useState('')
   const [justSaved, setJustSaved] = useState(false)
+  /** The sizes as they were when this editor opened — the "100%" reference point for the "All" slider below. */
+  const [baseline] = useState(() => textSizes)
+  const [allPercent, setAllPercent] = useState(100)
 
   const setSize = (key: keyof TextSizes, value: number) => {
     onChange({ ...textSizes, [key]: value })
+  }
+
+  /** The "All" slider — scales every role by the same percentage relative to `baseline`, in one pass, so the individual sliders below move to reflect their new size together. */
+  const setAllSize = (percent: number) => {
+    setAllPercent(percent)
+    const scale = percent / 100
+    const next = { ...textSizes }
+    SLIDERS.forEach(({ key, min, max }) => {
+      next[key] = Math.min(max, Math.max(min, baseline[key] * scale))
+    })
+    onChange(next)
   }
 
   const handleLoadPreset = (presetID: string) => {
@@ -82,6 +96,13 @@ export function TextSizeEditor({ textSizes, onChange, backgroundColor, onBackgro
           onChange={(event) => ownTextSizes.onUseOwnChange(event.target.checked)}
         />
       )}
+
+      <label className="text-size-editor__slider text-size-editor__slider--all">
+        <span>
+          {t('screenDisplay.textSizeEditor.allLabel')} — {allPercent}%
+        </span>
+        <input type="range" min={25} max={300} step={5} value={allPercent} onChange={(event) => setAllSize(Number(event.target.value))} />
+      </label>
 
       {SLIDERS.map(({ key, labelKey, min, max }) => (
         <label key={key} className="text-size-editor__slider">
@@ -129,7 +150,14 @@ export function TextSizeEditor({ textSizes, onChange, backgroundColor, onBackgro
 
       <div className="text-size-editor__actions">
         {onRestore && (
-          <Button type="button" variant="secondary" onClick={onRestore}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setAllPercent(100)
+              onRestore()
+            }}
+          >
             {t('screenDisplay.textSizeEditor.restorePrevious')}
           </Button>
         )}

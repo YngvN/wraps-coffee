@@ -34,9 +34,8 @@ interface SplitLayoutProps {
  * rotates through its own slides in place, on a shared timer
  * (`screen.slideDurationSeconds`) with an animated transition
  * (`screen.transitionStyle`) between them, while every pane's position
- * stays fixed. Hovering any pane reveals a small button to edit that
- * slide's own text sizes — omitted for an image slide, which has no text of
- * its own to size.
+ * stays fixed. Hovering any pane reveals a small button opening that slot's
+ * editor (content, slideshow, color, and — where applicable — text size).
  */
 export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused }: SplitLayoutProps) {
   const { t } = useLanguage()
@@ -76,13 +75,17 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused }: S
    * slide actually mounts, instead of resizing the outgoing slide mid-fade.
    * The slot's own background color, conversely, is set on the always-mounted
    * pane div itself, not the fading inner one — so only the text/image
-   * crossfades; the backdrop color never fades in or out.
+   * crossfades; the backdrop color never fades in or out. Divider borders
+   * between panes are drawn once, by the grid container itself (its own
+   * background showing through its `gap`), not per-pane — so a slot's own
+   * background color here never needs to also carry a border color.
    */
   const renderPane = (slot: ScreenSlot, index: number, extraClassName = '') => {
     const content = currentSlotContent(slot, tick)
     const contentIndex = currentSlotContentIndex(slot, tick)
+    const paneStyle = slotBackgroundColorStyle(slot.backgroundColor)
     return (
-      <div className={`split-layout__pane${extraClassName}`} key={index} style={slotBackgroundColorStyle(slot.backgroundColor)}>
+      <div className={`split-layout__pane${extraClassName}`} key={index} style={paneStyle}>
         <AnimatePresence mode="wait">
           <motion.div
             key={currentSlotSubIndex(slot, tick)}
@@ -97,7 +100,7 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused }: S
             <SlotContent slot={content} />
           </motion.div>
         </AnimatePresence>
-        {content.kind !== 'image' && <SlotEditButton onClick={() => onEditSlide(index, contentIndex)} />}
+        <SlotEditButton onClick={() => onEditSlide(index, contentIndex)} />
       </div>
     )
   }

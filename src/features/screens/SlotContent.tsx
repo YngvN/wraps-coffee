@@ -11,6 +11,6 @@ interface SlotContentProps {
 export function SlotContent({ slot }: SlotContentProps) {
   if (slot.kind === 'category') return <CategorySlide category={slot.category} />
   if (slot.kind === 'events') return <EventsSlide />
-  if (slot.kind === 'image') return <ImageSlide imageUrl={slot.imageUrl} />
+  if (slot.kind === 'image') return <ImageSlide imageUrl={slot.imageUrl} fit={slot.fit} />
   return null
 }

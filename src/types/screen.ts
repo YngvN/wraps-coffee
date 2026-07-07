@@ -1,5 +1,8 @@
 import type { ProductCategory } from './product'
 
+/** How an image slide's picture fills its slot: shrunk to fit without cropping (the default), or scaled to fill the entire container, cropping as needed. */
+export type ImageFit = 'contain' | 'cover'
+
 /**
  * What a single slide within a slot shows: nothing, a specific menu category,
  * the upcoming-events list, or a single centered image (e.g. a logo or an
@@ -8,13 +11,15 @@ import type { ProductCategory } from './product'
  * default) — `useOwnTextSizes` lets one slide in a multi-slide (slideshow)
  * slot opt out and keep its own independent `textSizes` instead, e.g.
  * because it needs bigger text than the other slides sharing that slot. An
- * image slide has no text of its own, so it has no text-size fields at all.
+ * image slide has no text of its own, so it has no text-size fields at all;
+ * `fit` instead controls how its picture fills the slide, falling back to
+ * `'contain'` when absent.
  */
 export type ScreenSlotContent =
   | { kind: 'none' }
   | { kind: 'category'; category: ProductCategory; useOwnTextSizes?: boolean; textSizes?: TextSizes }
   | { kind: 'events'; useOwnTextSizes?: boolean; textSizes?: TextSizes }
-  | { kind: 'image'; imageUrl: string }
+  | { kind: 'image'; imageUrl: string; fit?: ImageFit }
 
 /**
  * One of a screen's up to 4 content slots. When `isSlideshow` is false, only
@@ -121,6 +126,8 @@ export interface ScreenConfig {
   splitBigPosition?: SplitBigPosition
   /** Whether visible borders are drawn between panes. Falls back to `true` (shown) when absent. */
   showSlotBorders?: boolean
+  /** Fixed border color (hex, from `SCREEN_BACKGROUND_COLORS`) between panes. Falls back to an automatic contrast-based color (`--screen-border`) when absent. Only relevant while `showSlotBorders` is on and `slotCount` is more than 1. */
+  borderColor?: string
   /** Whether a slide's own scrollbar (shown when its content is taller than the screen) is hidden. Content stays scrollable either way — this only hides the scrollbar UI. Falls back to `false` (shown) when absent. */
   hideScrollbar?: boolean
   /** Fixed background color (hex) for this screen, chosen from `SCREEN_BACKGROUND_COLORS`. Falls back to `DEFAULT_SCREEN_BACKGROUND_COLOR` when absent. Not affected by the site's light/dark mode. */

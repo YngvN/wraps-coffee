@@ -1,4 +1,4 @@
-import { Input } from '../../components'
+import { Checkbox, Input } from '../../components'
 import { useLanguage } from '../../i18n'
 import type { ProductCategory } from '../../types/product'
 import type { ScreenSlot, ScreenSlotContent } from '../../types/screen'
@@ -58,6 +58,12 @@ export function SlotFieldGroup({ id, label, slot, onChange, onEditTextSize }: Sl
 
   const setImageUrlAt = (index: number, imageUrl: string) => setContentAt(index, { kind: 'image', imageUrl })
 
+  const setImageFillContainerAt = (index: number, fillContainer: boolean) => {
+    const content = contents[index]
+    if (content.kind !== 'image') return
+    setContentAt(index, { ...content, fit: fillContainer ? 'cover' : 'contain' })
+  }
+
   const addSlide = () => onChange({ ...slot, contents: [...contents, { kind: 'none' }] })
   const removeSlide = (index: number) => onChange({ ...slot, contents: contents.filter((_, i) => i !== index) })
 
@@ -109,12 +115,20 @@ export function SlotFieldGroup({ id, label, slot, onChange, onEditTextSize }: Sl
                 )}
               </div>
               {content.kind === 'image' && (
-                <Input
-                  id={`${id}-image-url-${index}`}
-                  label={t('admin.screens.imageUrlLabel')}
-                  value={content.imageUrl}
-                  onChange={(event) => setImageUrlAt(index, event.target.value)}
-                />
+                <>
+                  <Input
+                    id={`${id}-image-url-${index}`}
+                    label={t('admin.screens.imageUrlLabel')}
+                    value={content.imageUrl}
+                    onChange={(event) => setImageUrlAt(index, event.target.value)}
+                  />
+                  <Checkbox
+                    id={`${id}-image-fill-${index}`}
+                    label={t('admin.screens.imageFillContainerLabel')}
+                    checked={content.fit === 'cover'}
+                    onChange={(event) => setImageFillContainerAt(index, event.target.checked)}
+                  />
+                </>
               )}
             </div>
           ))}
@@ -128,7 +142,15 @@ export function SlotFieldGroup({ id, label, slot, onChange, onEditTextSize }: Sl
             {options}
           </select>
           {contents[0].kind === 'image' && (
-            <Input id={`${id}-image-url`} label={t('admin.screens.imageUrlLabel')} value={contents[0].imageUrl} onChange={(event) => setImageUrlAt(0, event.target.value)} />
+            <>
+              <Input id={`${id}-image-url`} label={t('admin.screens.imageUrlLabel')} value={contents[0].imageUrl} onChange={(event) => setImageUrlAt(0, event.target.value)} />
+              <Checkbox
+                id={`${id}-image-fill`}
+                label={t('admin.screens.imageFillContainerLabel')}
+                checked={contents[0].fit === 'cover'}
+                onChange={(event) => setImageFillContainerAt(0, event.target.checked)}
+              />
+            </>
           )}
         </>
       )}
