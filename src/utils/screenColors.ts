@@ -31,3 +31,15 @@ export function getScreenColorVars(backgroundHex: string): Record<string, string
     '--screen-accent': '#dfa93e',
   }
 }
+
+/**
+ * Style for one slide/pane's own background color override — `undefined`
+ * (the standard) leaves it transparent, showing the screen's own background
+ * through. Given a color, repaints `--screen-*` locally (so contrast-picked
+ * text stays readable against it) and actually paints that background at
+ * this element, not just an ancestor.
+ */
+export function slotBackgroundColorStyle(backgroundColor: string | undefined): Record<string, string> {
+  if (!backgroundColor) return {}
+  return { ...getScreenColorVars(backgroundColor), background: 'var(--screen-bg)' }
+}

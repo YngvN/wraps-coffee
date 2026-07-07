@@ -1,0 +1,8 @@
+@use '../../styles/variables' as *;
+
+.slot-editor {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+  min-width: min(420px, 80vw);
+}

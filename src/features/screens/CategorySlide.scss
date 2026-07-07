@@ -41,6 +41,13 @@
   font-weight: 600;
   color: var(--screen-accent);
   white-space: nowrap;
+  // A fixed black backdrop (independent of the screen's own chosen
+  // background) so the price stays legible even on a background close to
+  // the accent color itself, instead of relying on that background for
+  // contrast. Sized in `em` so it scales with the price's own font size.
+  background: #000;
+  border-radius: 0.4em;
+  padding: 0.15em 0.6em;
 }
 
 .category-slide__items {
@@ -93,4 +100,9 @@
   color: var(--screen-accent);
   white-space: nowrap;
   flex-shrink: 0;
+  // Same fixed black backdrop as .category-slide__price, for the same
+  // legibility reason.
+  background: #000;
+  border-radius: 0.4em;
+  padding: 0.15em 0.6em;
 }

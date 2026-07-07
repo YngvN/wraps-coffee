@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { ScreenSlotContent, TextSizes } from '../types/screen'
+import { hasOwnTextSizeFields } from './screenSlots'
 
 /** Maps a `TextSizes` object to the CSS custom properties the slide components read their font sizes from. */
 export function textSizesToCssVars(textSizes: TextSizes): CSSProperties {
@@ -29,6 +30,6 @@ export function normalizeTextSizes(textSizes: TextSizes): TextSizes {
  * slide's slot's own size, or (absent that) the screen's default.
  */
 export function resolveContentTextSizes(content: ScreenSlotContent, fallback: TextSizes): TextSizes {
-  if (content.kind !== 'none' && content.useOwnTextSizes && content.textSizes) return normalizeTextSizes(content.textSizes)
+  if (hasOwnTextSizeFields(content) && content.useOwnTextSizes && content.textSizes) return normalizeTextSizes(content.textSizes)
   return fallback
 }

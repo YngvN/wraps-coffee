@@ -1,0 +1,17 @@
+@use '../../styles/variables' as *;
+
+.image-slide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: $spacing-unit * 6;
+}
+
+.image-slide__image {
+  max-width: 100%;
+  max-height: 100%;
+  // `contain` (not `cover`) so a logo or Instagram photo is never cropped —
+  // it shrinks to fit the available space instead.
+  object-fit: contain;
+}

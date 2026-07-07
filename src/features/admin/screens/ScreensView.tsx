@@ -34,6 +34,7 @@ export function ScreensView() {
   const contentLabel = (content: ScreenSlotContent) => {
     if (content.kind === 'none') return t('admin.screens.slotNoneLabel')
     if (content.kind === 'events') return t('admin.screens.slotEventsLabel')
+    if (content.kind === 'image') return t('admin.screens.slotImageLabel')
     return t(`menu.categories.${content.category}.title`)
   }
 

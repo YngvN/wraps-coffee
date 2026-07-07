@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { useLanguage } from '../../i18n'
 import type { ScreenConfig, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
+import { slotBackgroundColorStyle } from '../../utils/screenColors'
 import { currentSlotContent, currentSlotContentIndex, currentSlotSubIndex, isSlotActive } from '../../utils/screenSlots'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
 import { SlotContent } from './SlotContent'
@@ -29,7 +30,8 @@ interface SplitLayoutProps {
  * place, on a shared timer (`screen.slideDurationSeconds`) with an animated
  * transition (`screen.transitionStyle`) between them, while every pane's
  * position stays fixed. Hovering any pane reveals a small button to edit
- * that slot's own text sizes.
+ * that slide's own text sizes — omitted for an image slide, which has no
+ * text of its own to size.
  */
 export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused }: SplitLayoutProps) {
   const { t } = useLanguage()
@@ -67,12 +69,15 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused }: S
    * not the always-mounted pane div — so a rotation to a differently-sized
    * slide only takes effect once its exit animation finishes and the new
    * slide actually mounts, instead of resizing the outgoing slide mid-fade.
+   * The slot's own background color, conversely, is set on the always-mounted
+   * pane div itself, not the fading inner one — so only the text/image
+   * crossfades; the backdrop color never fades in or out.
    */
   const renderPane = (slot: ScreenSlot, index: number, extraClassName = '') => {
     const content = currentSlotContent(slot, tick)
     const contentIndex = currentSlotContentIndex(slot, tick)
     return (
-      <div className={`split-layout__pane${extraClassName}`} key={index}>
+      <div className={`split-layout__pane${extraClassName}`} key={index} style={slotBackgroundColorStyle(slot.backgroundColor)}>
         <AnimatePresence mode="wait">
           <motion.div
             key={currentSlotSubIndex(slot, tick)}
@@ -87,7 +92,7 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused }: S
             <SlotContent slot={content} />
           </motion.div>
         </AnimatePresence>
-        <SlotEditButton onClick={() => onEditSlide(index, contentIndex)} />
+        {content.kind !== 'image' && <SlotEditButton onClick={() => onEditSlide(index, contentIndex)} />}
       </div>
     )
   }

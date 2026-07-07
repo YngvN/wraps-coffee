@@ -523,6 +523,8 @@
           "removeSlideLabel": "Remove slide",
           "slotNoneLabel": "None",
           "slotEventsLabel": "Upcoming events",
+          "slotImageLabel": "Image",
+          "imageUrlLabel": "Image URL",
           "slideDurationLabel": "Seconds per slide",
           "showSlotBordersLabel": "Show borders between slots",
           "hideScrollbarLabel": "Hide scrollbar",
@@ -559,11 +561,13 @@
         "enterFullscreen": "Enter fullscreen",
         "exitFullscreen": "Exit fullscreen",
         "editSizes": "Edit appearance",
-        "editSlotSizes": "Edit text size",
-        "slotTextSizeEditorTitle": "Text size",
+        "editSlot": "Edit slot",
+        "slotEditorTitle": "Edit slot",
         "textSizeEditor": {
           "title": "Appearance",
           "backgroundColorLabel": "Background color",
+          "transparentLabel": "Transparent",
+          "slotColorLabel": "Slot {{number}} color",
           "colors": {
             "white": "White",
             "cream": "Cream",
@@ -573,6 +577,9 @@
             "burgundy": "Burgundy",
             "lime": "Lime"
           },
+          "slotContentLabel": "Content",
+          "slideshowLabel": "Slideshow",
+          "slideDurationLabel": "Seconds per slide",
           "useOwnTextSizesLabel": "Use own text size for this slide",
           "headingLabel": "Heading",
           "itemTitleLabel": "Item title",
@@ -584,6 +591,7 @@
           "presetNamePlaceholder": "Preset name",
           "saveAsPreset": "Save as preset",
           "presetSaved": "Preset saved",
+          "reset": "Reset",
           "restorePrevious": "Restore previous",
           "done": "Done"
         }
@@ -1114,6 +1122,8 @@
           "removeSlideLabel": "Fjern lysbilde",
           "slotNoneLabel": "Ingen",
           "slotEventsLabel": "Kommende arrangementer",
+          "slotImageLabel": "Bilde",
+          "imageUrlLabel": "Bilde-URL",
           "slideDurationLabel": "Sekunder per lysbilde",
           "showSlotBordersLabel": "Vis kantlinjer mellom feltene",
           "hideScrollbarLabel": "Skjul rullefelt",
@@ -1150,11 +1160,13 @@
         "enterFullscreen": "Gå til fullskjerm",
         "exitFullscreen": "Avslutt fullskjerm",
         "editSizes": "Rediger utseende",
-        "editSlotSizes": "Rediger tekststørrelse",
-        "slotTextSizeEditorTitle": "Tekststørrelse",
+        "editSlot": "Rediger felt",
+        "slotEditorTitle": "Rediger felt",
         "textSizeEditor": {
           "title": "Utseende",
           "backgroundColorLabel": "Bakgrunnsfarge",
+          "transparentLabel": "Gjennomsiktig",
+          "slotColorLabel": "Farge for felt {{number}}",
           "colors": {
             "white": "Hvit",
             "cream": "Krem",
@@ -1164,6 +1176,9 @@
             "burgundy": "Bordeaux",
             "lime": "Lime"
           },
+          "slotContentLabel": "Innhold",
+          "slideshowLabel": "Lysbildefremvisning",
+          "slideDurationLabel": "Sekunder per lysbilde",
           "useOwnTextSizesLabel": "Bruk egen tekststørrelse for dette lysbildet",
           "headingLabel": "Overskrift",
           "itemTitleLabel": "Varetittel",
@@ -1175,6 +1190,7 @@
           "presetNamePlaceholder": "Navn på forhåndsinnstilling",
           "saveAsPreset": "Lagre som forhåndsinnstilling",
           "presetSaved": "Forhåndsinnstilling lagret",
+          "reset": "Tilbakestill",
           "restorePrevious": "Gjenopprett forrige",
           "done": "Ferdig"
         }

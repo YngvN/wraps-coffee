@@ -8,7 +8,7 @@ interface SlotEditButtonProps {
 /**
  * Small button revealed on hover over an individual slot's pane (in split
  * layout) or the currently visible slide (in slideshow layout), opening the
- * text-size editor scoped to just that slot. Its parent must set
+ * combined "Edit slot" panel scoped to just that slot. Its parent must set
  * `position: relative` (or already be positioned) and reveal it via a
  * `@media (hover: hover)` `:hover` rule, since it's hidden by default here.
  */
@@ -24,7 +24,7 @@ export function SlotEditButton({ onClick }: SlotEditButtonProps) {
         onClick()
       }}
     >
-      {t('screenDisplay.editSlotSizes')}
+      {t('screenDisplay.editSlot')}
     </button>
   )
 }

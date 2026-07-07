@@ -18,9 +18,11 @@ const SLIDERS: { key: keyof TextSizes; labelKey: string; min: number; max: numbe
 interface TextSizeEditorProps {
   textSizes: TextSizes
   onChange: (textSizes: TextSizes) => void
-  /** Omit both `backgroundColor` and `onBackgroundColorChange` to hide the swatch picker — used when editing a single slot's text sizes, since background color is a whole-screen setting. */
+  /** Current value (`undefined` = transparent/no color). Omit `onBackgroundColorChange` to hide the swatch picker entirely. */
   backgroundColor?: string
-  onBackgroundColorChange?: (backgroundColor: string) => void
+  onBackgroundColorChange?: (backgroundColor: string | undefined) => void
+  /** Shows a "Transparent" swatch in the color picker — used for a slot's own color, whose standard/default is transparent. */
+  allowTransparentBackground?: boolean
   /**
    * Shows a checkbox letting the current slide opt out of following its
    * slot's/screen's shared text size and use its own instead. Only
@@ -37,15 +39,15 @@ interface TextSizeEditorProps {
 /**
  * Panel with a slider per text role (heading/item title/description/price),
  * plus loading/saving named text size presets shareable across screens. When
- * `backgroundColor`/`onBackgroundColorChange` are provided (whole-screen
- * editing, not a single slot), also shows a background color swatch picker
- * from the site's fixed brand palette — never affected by the site's own
- * light/dark mode; text color follows automatically for contrast. Every
- * change here is applied live via `onChange`/`onBackgroundColorChange` — there
- * is no separate "Save" step, so the caller is expected to persist it (e.g.
- * on the wrapping modal being closed).
+ * `onBackgroundColorChange` is provided, also shows a background color
+ * swatch picker from the site's fixed brand palette (optionally with a
+ * "Transparent" option) — never affected by the site's own light/dark mode;
+ * text color follows automatically for contrast. Every change here is
+ * applied live via `onChange`/`onBackgroundColorChange` — there is no
+ * separate "Save" step, so the caller is expected to persist it (e.g. on the
+ * wrapping modal being closed).
  */
-export function TextSizeEditor({ textSizes, onChange, backgroundColor, onBackgroundColorChange, ownTextSizes, onRestore, onDone }: TextSizeEditorProps) {
+export function TextSizeEditor({ textSizes, onChange, backgroundColor, onBackgroundColorChange, allowTransparentBackground, ownTextSizes, onRestore, onDone }: TextSizeEditorProps) {
   const { t } = useLanguage()
   const [presets, setPresets] = useTextSizePresets()
   const [presetName, setPresetName] = useState('')
@@ -70,7 +72,7 @@ export function TextSizeEditor({ textSizes, onChange, backgroundColor, onBackgro
 
   return (
     <div className="text-size-editor">
-      {backgroundColor !== undefined && onBackgroundColorChange && <BackgroundColorPicker backgroundColor={backgroundColor} onChange={onBackgroundColorChange} />}
+      {onBackgroundColorChange && <BackgroundColorPicker backgroundColor={backgroundColor} onChange={onBackgroundColorChange} allowTransparent={allowTransparentBackground} />}
 
       {ownTextSizes && (
         <Checkbox

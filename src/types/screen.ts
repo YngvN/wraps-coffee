@@ -2,16 +2,19 @@ import type { ProductCategory } from './product'
 
 /**
  * What a single slide within a slot shows: nothing, a specific menu category,
- * or the upcoming-events list. A category/events slide normally follows its
- * slot's own text size (which itself falls back to the screen's default) —
- * `useOwnTextSizes` lets one slide in a multi-slide (slideshow) slot opt out
- * and keep its own independent `textSizes` instead, e.g. because it needs
- * bigger text than the other slides sharing that slot.
+ * the upcoming-events list, or a single centered image (e.g. a logo or an
+ * Instagram photo, pasted in as a URL). A category/events slide normally
+ * follows its slot's own text size (which itself falls back to the screen's
+ * default) — `useOwnTextSizes` lets one slide in a multi-slide (slideshow)
+ * slot opt out and keep its own independent `textSizes` instead, e.g.
+ * because it needs bigger text than the other slides sharing that slot. An
+ * image slide has no text of its own, so it has no text-size fields at all.
  */
 export type ScreenSlotContent =
   | { kind: 'none' }
   | { kind: 'category'; category: ProductCategory; useOwnTextSizes?: boolean; textSizes?: TextSizes }
   | { kind: 'events'; useOwnTextSizes?: boolean; textSizes?: TextSizes }
+  | { kind: 'image'; imageUrl: string }
 
 /**
  * One of a screen's up to 4 content slots. When `isSlideshow` is false, only
@@ -24,6 +27,8 @@ export type ScreenSlotContent =
 export interface ScreenSlot {
   isSlideshow: boolean
   contents: ScreenSlotContent[]
+  /** This slot's own background color (hex, from `SCREEN_BACKGROUND_COLORS`), independent of the screen's own. Falls back to transparent (showing the screen's own background through) when absent — the standard, until the owner picks one for this slot specifically. */
+  backgroundColor?: string
 }
 
 /** How a screen presents its two slots: rotating one at a time, or both at once. */

@@ -5,6 +5,11 @@ export function isSlotActive(slot: ScreenSlot): boolean {
   return slot.contents.some((content) => content.kind !== 'none')
 }
 
+/** A slide's content kind that has text of its own, and so can carry a per-slide `useOwnTextSizes`/`textSizes` override — unlike `'none'` (nothing to show) or `'image'` (no text at all). */
+export function hasOwnTextSizeFields(content: ScreenSlotContent): content is Extract<ScreenSlotContent, { kind: 'category' } | { kind: 'events' }> {
+  return content.kind === 'category' || content.kind === 'events'
+}
+
 /** Which of a slot's active entries is currently showing for a given tick: always 0 for a non-rotating (or single-slide) slot, so only a genuinely rotating slot produces a changing value. Useful as an animation key — a stable value means no transition plays. */
 export function currentSlotSubIndex(slot: ScreenSlot, tick: number): number {
   const activeCount = slot.contents.filter((content) => content.kind !== 'none').length
@@ -19,11 +24,12 @@ export function currentSlotContent(slot: ScreenSlot, tick: number): ScreenSlotCo
   return active[currentSlotSubIndex(slot, tick)]
 }
 
-/** One entry in a flattened, screen-wide rotation: a slide's content, tagged with the original slot index it came from and its own original index within that slot's `contents` (both needed for per-slot/per-slide text-size resolution/editing). */
+/** One entry in a flattened, screen-wide rotation: a slide's content, tagged with the original slot index it came from, its own original index within that slot's `contents`, and that slot's own background color (both needed for per-slot/per-slide text-size resolution/editing, and rendering that slot's own color). */
 export interface FlattenedSlide {
   content: ScreenSlotContent
   slotIndex: number
   contentIndex: number
+  slotBackgroundColor?: string
 }
 
 /**
@@ -38,7 +44,7 @@ export function flattenScreenSlots(slots: ScreenSlot[]): FlattenedSlide[] {
   slots.forEach((slot, slotIndex) => {
     const active = slot.contents.map((content, contentIndex) => ({ content, contentIndex })).filter((entry) => entry.content.kind !== 'none')
     const entries = slot.isSlideshow ? active : active.slice(0, 1)
-    entries.forEach(({ content, contentIndex }) => result.push({ content, slotIndex, contentIndex }))
+    entries.forEach(({ content, contentIndex }) => result.push({ content, slotIndex, contentIndex, slotBackgroundColor: slot.backgroundColor }))
   })
   return result
 }

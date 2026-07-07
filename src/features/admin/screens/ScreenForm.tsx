@@ -5,10 +5,10 @@ import { useLanguage } from '../../../i18n'
 import { DEFAULT_TEXT_SIZES, type ScreenConfig, type ScreenLayout, type ScreenSlot, type SplitBigPosition, type SplitDirection, type TextSizes } from '../../../types/screen'
 import { isSlotActive } from '../../../utils/screenSlots'
 import { GlobalTextSizeScaler, type SizeSnapshot } from '../../screens/GlobalTextSizeScaler'
+import { SlotFieldGroup } from '../../screens/SlotFieldGroup'
 import { TextSizeEditor } from '../../screens/TextSizeEditor'
 import { LayoutIcon, type LayoutIconPattern } from './LayoutIcon'
 import './ScreenForm.scss'
-import { SlotFieldGroup } from './SlotFieldGroup'
 
 interface ScreenFormProps {
   /** The screen being edited, or `null` when creating a new one. */
@@ -117,6 +117,11 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
     event.preventDefault()
 
     onSave({
+      // Carries forward fields this form has no controls for (the screen's
+      // own background color, and its text-size overrides) — otherwise
+      // saving here would silently wipe them, since only the fields listed
+      // below are ever tracked as this form's own local state.
+      ...screen,
       screenID: screen?.screenID ?? `${Date.now()}`,
       name,
       layout,
@@ -164,7 +169,7 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
 
       <div className="screen-form__row">
         {slotFields.map(({ id, label, value, onChange }, index) => (
-          <SlotFieldGroup key={id} label={label} slot={value} onChange={onChange} onEditTextSize={screen ? () => openSlotTextSizeEditor(index) : undefined} />
+          <SlotFieldGroup key={id} id={id} label={label} slot={value} onChange={onChange} onEditTextSize={screen ? () => openSlotTextSizeEditor(index) : undefined} />
         ))}
       </div>
 

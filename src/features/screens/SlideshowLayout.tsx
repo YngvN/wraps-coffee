@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { useLanguage } from '../../i18n'
 import type { ScreenConfig, ScreenSlotContent, TextSizes } from '../../types/screen'
+import { slotBackgroundColorStyle } from '../../utils/screenColors'
 import { flattenScreenSlots } from '../../utils/screenSlots'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
 import { SlotContent } from './SlotContent'
@@ -28,7 +29,11 @@ interface SlideshowLayoutProps {
  * more entries in the same sequence. Render with `key={screen.screenID}` so
  * switching to a different screen remounts (and resets) this component
  * rather than needing an effect to reset `activeIndex`. Hovering the visible
- * slide reveals a small button to edit its own text sizes.
+ * slide reveals a small button to edit its own text sizes — omitted for an
+ * image slide, which has no text of its own to size. A slot's own
+ * background color is painted on the outer (always-mounted) container, not
+ * the fading inner one — so only the text/image crossfades; the backdrop
+ * itself switches instantly, never fading in or out.
  */
 export function SlideshowLayout({ screen, resolveTextSizes, onEditSlide, paused }: SlideshowLayoutProps) {
   const { t } = useLanguage()
@@ -59,7 +64,7 @@ export function SlideshowLayout({ screen, resolveTextSizes, onEditSlide, paused 
   const current = activeEntries[activeIndex]
 
   return (
-    <div className="slideshow-layout">
+    <div className="slideshow-layout" style={slotBackgroundColorStyle(current.slotBackgroundColor)}>
       <AnimatePresence mode="wait">
         <motion.div
           key={activeIndex}
@@ -72,7 +77,7 @@ export function SlideshowLayout({ screen, resolveTextSizes, onEditSlide, paused 
           transition={transition}
         >
           <SlotContent slot={current.content} />
-          <SlotEditButton onClick={() => onEditSlide(current.slotIndex, current.contentIndex)} />
+          {current.content.kind !== 'image' && <SlotEditButton onClick={() => onEditSlide(current.slotIndex, current.contentIndex)} />}
         </motion.div>
       </AnimatePresence>
     </div>
