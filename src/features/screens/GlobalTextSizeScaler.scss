@@ -1,4 +1,4 @@
-@use '../../../styles/variables' as *;
+@use '../../styles/variables' as *;
 
 .global-text-size-scaler {
   display: flex;
@@ -22,4 +22,5 @@
 .global-text-size-scaler__actions {
   display: flex;
   justify-content: flex-end;
+  gap: $spacing-unit;
 }

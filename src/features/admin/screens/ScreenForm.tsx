@@ -4,8 +4,8 @@ import { useScreens } from '../../../hooks/useScreens'
 import { useLanguage } from '../../../i18n'
 import { DEFAULT_TEXT_SIZES, type ScreenConfig, type ScreenLayout, type ScreenSlot, type SplitBigPosition, type SplitDirection, type TextSizes } from '../../../types/screen'
 import { isSlotActive } from '../../../utils/screenSlots'
+import { GlobalTextSizeScaler, type SizeSnapshot } from '../../screens/GlobalTextSizeScaler'
 import { TextSizeEditor } from '../../screens/TextSizeEditor'
-import { GlobalTextSizeScaler } from './GlobalTextSizeScaler'
 import { LayoutIcon, type LayoutIconPattern } from './LayoutIcon'
 import './ScreenForm.scss'
 import { SlotFieldGroup } from './SlotFieldGroup'
@@ -97,10 +97,10 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
     setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, slotTextSizes: { ...existing.slotTextSizes, [editingTarget]: sizes } } : existing)))
   }
 
-  /** Writes a whole-screen percentage-scaled change (the default plus every slot's own size) straight to the persisted screen, live — same reasoning as `handleLiveSlotTextSizesChange`. */
-  const handleGlobalTextSizesChange = (next: { textSizes: TextSizes; slotTextSizes: Record<number, TextSizes> }) => {
+  /** Writes a whole-screen percentage-scaled change (the default, every slot's own size, and every slide's own override) straight to the persisted screen, live — same reasoning as `handleLiveSlotTextSizesChange`. */
+  const handleGlobalTextSizesChange = (next: SizeSnapshot) => {
     if (!screen) return
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, textSizes: next.textSizes, slotTextSizes: next.slotTextSizes } : existing)))
+    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, textSizes: next.textSizes, slotTextSizes: next.slotTextSizes, slots: next.slots } : existing)))
   }
 
   const closeTextSizeEditor = () => setEditingTarget(null)

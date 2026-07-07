@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Modal } from '../components'
 import { FullscreenToggle } from '../features/screens/FullscreenToggle'
+import { GlobalTextSizeScaler, type SizeSnapshot } from '../features/screens/GlobalTextSizeScaler'
 import { ScreenToolbar } from '../features/screens/ScreenToolbar'
 import { SlideshowLayout } from '../features/screens/SlideshowLayout'
 import { SplitLayout } from '../features/screens/SplitLayout'
@@ -40,20 +41,23 @@ type EditingTarget = 'screen' | SlideTarget | null
  * another tab of the same browser are reflected here without a refresh.
  *
  * Includes two in-place editing entry points, both live-previewed as you
- * drag a slider: the toolbar's "Edit appearance" button edits the whole
- * screen's default text sizes and background color, while hovering any
- * individual slide reveals a small button to edit its own text sizes. For a
- * slide that's part of a slideshow-enabled slot with more than one slide,
- * that editor also offers a checkbox to opt just that slide out of the
- * slot's shared size and give it its own — every other slide in the slot
- * keeps sharing the slot's size either way. Neither editor has a "Save"
- * step — the in-progress draft is written to the persisted screen as soon
- * as it closes (whether via its own "Done" button, the modal's × / Escape,
- * or clicking outside it), and a "Restore previous" button resets the
- * draft back to the values it had when the editor was opened. Any rotation
- * (the screen-level slideshow, or a slot's own in-place one) is paused
- * while an editor is open, so the live preview isn't pulled out from under
- * the slide being edited.
+ * drag a slider: the toolbar's "Edit appearance" button opens a
+ * percentage-based scaler (`GlobalTextSizeScaler`) that grows/shrinks the
+ * screen's default, every slot's own size, and every slide's own override
+ * all together, relative to whatever each currently is — plus the
+ * background color swatch picker. Hovering any individual slide instead
+ * reveals a small button to edit its own absolute text sizes; for a slide
+ * that's part of a slideshow-enabled slot with more than one slide, that
+ * editor also offers a checkbox to opt just that slide out of the slot's
+ * shared size and give it its own — every other slide in the slot keeps
+ * sharing the slot's size either way. Neither editor has a "Save" step —
+ * the in-progress draft is written to the persisted screen as soon as it
+ * closes (whether via its own "Done" button, the modal's × / Escape, or
+ * clicking outside it), and a "Restore previous" button resets the draft
+ * back to the values it had when the editor was opened. Any rotation (the
+ * screen-level slideshow, or a slot's own in-place one) is paused while an
+ * editor is open, so the live preview isn't pulled out from under the
+ * slide being edited.
  */
 export function ScreenDisplay() {
   const { t } = useLanguage()
@@ -61,12 +65,12 @@ export function ScreenDisplay() {
   const [screens, setScreens] = useScreens()
   const screen = screens.find((candidate) => candidate.screenID === screenId)
   const [editingTarget, setEditingTarget] = useState<EditingTarget>(null)
+  const [screenDraftSnapshot, setScreenDraftSnapshot] = useState<SizeSnapshot | null>(null)
   const [draftTextSizes, setDraftTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
   const [draftUseOwnTextSizes, setDraftUseOwnTextSizes] = useState(false)
   const [draftBackgroundColor, setDraftBackgroundColor] = useState(DEFAULT_SCREEN_BACKGROUND_COLOR)
   const [originalTextSizes, setOriginalTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
   const [originalUseOwnTextSizes, setOriginalUseOwnTextSizes] = useState(false)
-  const [originalBackgroundColor, setOriginalBackgroundColor] = useState(DEFAULT_SCREEN_BACKGROUND_COLOR)
 
   if (!screen) {
     return (
@@ -77,31 +81,32 @@ export function ScreenDisplay() {
     )
   }
 
-  const activeTextSizes = editingTarget === 'screen' ? draftTextSizes : (screen.textSizes ?? DEFAULT_TEXT_SIZES)
+  const activeTextSizes = editingTarget === 'screen' && screenDraftSnapshot ? screenDraftSnapshot.textSizes : (screen.textSizes ?? DEFAULT_TEXT_SIZES)
   const activeBackgroundColor = editingTarget === 'screen' ? draftBackgroundColor : (screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR)
 
   /**
    * Resolves the sizes a given slide should render with right now: the live
-   * draft if that exact slide is the one being edited; else its own
-   * persisted override (independent of anything else being edited); else
-   * the screen-level draft if the whole screen is being edited; else the
-   * slot's persisted effective value.
+   * draft if that exact slide is the one being edited; the whole-screen
+   * percentage scaler's live draft (its own resolved value for this exact
+   * slide, own-override or not) if the whole screen is being edited; else
+   * its own persisted override if it has one; else the slot's persisted
+   * effective value.
    */
   const resolveTextSizes = (slotIndex: number, contentIndex: number, content: ScreenSlotContent): TextSizes => {
     const isThisSlideBeingEdited = typeof editingTarget === 'object' && editingTarget !== null && editingTarget.slotIndex === slotIndex && editingTarget.contentIndex === contentIndex
     if (isThisSlideBeingEdited) return draftTextSizes
-    if (content.kind !== 'none' && content.useOwnTextSizes && content.textSizes) return content.textSizes
-    if (editingTarget === 'screen') return draftTextSizes
-    return getPersistedSlotTextSizes(screen, slotIndex)
+
+    if (editingTarget === 'screen' && screenDraftSnapshot) {
+      const draftContent = screenDraftSnapshot.slots[slotIndex].contents[contentIndex]
+      return resolveContentTextSizes(draftContent, screenDraftSnapshot.slotTextSizes[slotIndex])
+    }
+
+    return resolveContentTextSizes(content, getPersistedSlotTextSizes(screen, slotIndex))
   }
 
   const openScreenEditor = () => {
-    const currentTextSizes = screen.textSizes ?? DEFAULT_TEXT_SIZES
-    const currentBackgroundColor = screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR
-    setDraftTextSizes(currentTextSizes)
-    setOriginalTextSizes(currentTextSizes)
-    setDraftBackgroundColor(currentBackgroundColor)
-    setOriginalBackgroundColor(currentBackgroundColor)
+    setDraftBackgroundColor(screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR)
+    setScreenDraftSnapshot(null)
     setEditingTarget('screen')
   }
 
@@ -117,11 +122,10 @@ export function ScreenDisplay() {
     setEditingTarget({ slotIndex, contentIndex })
   }
 
-  /** Resets the draft (and, when applicable, the own-size checkbox/background color) back to the values captured when the editor was opened — the actual persisting still only happens once the editor closes. */
+  /** Resets a single slide's draft (and its own-size checkbox) back to the values captured when its editor was opened — the actual persisting still only happens once the editor closes. The whole-screen scaler restores itself internally. */
   const handleRestore = () => {
     setDraftTextSizes(originalTextSizes)
     setDraftUseOwnTextSizes(originalUseOwnTextSizes)
-    if (editingTarget === 'screen') setDraftBackgroundColor(originalBackgroundColor)
   }
 
   /** Persists whatever the draft currently holds, then closes the editor. Wired to every way the modal can exit (its own "Done" button, ×, Escape, and clicking outside it), so there's no separate save step to remember. */
@@ -129,7 +133,10 @@ export function ScreenDisplay() {
     setScreens(
       screens.map((existing) => {
         if (existing.screenID !== screen.screenID) return existing
-        if (editingTarget === 'screen') return { ...existing, textSizes: draftTextSizes, backgroundColor: draftBackgroundColor }
+        if (editingTarget === 'screen') {
+          if (!screenDraftSnapshot) return { ...existing, backgroundColor: draftBackgroundColor }
+          return { ...existing, textSizes: screenDraftSnapshot.textSizes, slotTextSizes: screenDraftSnapshot.slotTextSizes, slots: screenDraftSnapshot.slots, backgroundColor: draftBackgroundColor }
+        }
         if (editingTarget) {
           const { slotIndex, contentIndex } = editingTarget
           const slots = existing.slots.map((slot, index) => {
@@ -176,15 +183,23 @@ export function ScreenDisplay() {
         onClose={closeEditor}
         title={editingTarget === 'screen' ? t('screenDisplay.textSizeEditor.title') : t('screenDisplay.slotTextSizeEditorTitle')}
       >
-        <TextSizeEditor
-          textSizes={draftTextSizes}
-          onChange={setDraftTextSizes}
-          backgroundColor={editingTarget === 'screen' ? draftBackgroundColor : undefined}
-          onBackgroundColorChange={editingTarget === 'screen' ? setDraftBackgroundColor : undefined}
-          ownTextSizes={showOwnTextSizeOption ? { useOwn: draftUseOwnTextSizes, onUseOwnChange: setDraftUseOwnTextSizes } : undefined}
-          onRestore={handleRestore}
-          onDone={closeEditor}
-        />
+        {editingTarget === 'screen' ? (
+          <GlobalTextSizeScaler
+            screen={screen}
+            onChange={setScreenDraftSnapshot}
+            backgroundColor={draftBackgroundColor}
+            onBackgroundColorChange={setDraftBackgroundColor}
+            onDone={closeEditor}
+          />
+        ) : (
+          <TextSizeEditor
+            textSizes={draftTextSizes}
+            onChange={setDraftTextSizes}
+            ownTextSizes={showOwnTextSizeOption ? { useOwn: draftUseOwnTextSizes, onUseOwnChange: setDraftUseOwnTextSizes } : undefined}
+            onRestore={handleRestore}
+            onDone={closeEditor}
+          />
+        )}
       </Modal>
     </div>
   )

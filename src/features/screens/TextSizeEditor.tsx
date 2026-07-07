@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Button, Checkbox, Input } from '../../components'
 import { useTextSizePresets } from '../../hooks/useTextSizePresets'
 import { useLanguage } from '../../i18n'
-import { SCREEN_BACKGROUND_COLORS, type TextSizes } from '../../types/screen'
+import type { TextSizes } from '../../types/screen'
+import { BackgroundColorPicker } from './BackgroundColorPicker'
 import './TextSizeEditor.scss'
 
 /** One slider row's config: which `TextSizes` field it controls, its label key, and its rem range. */
@@ -69,24 +70,7 @@ export function TextSizeEditor({ textSizes, onChange, backgroundColor, onBackgro
 
   return (
     <div className="text-size-editor">
-      {backgroundColor !== undefined && onBackgroundColorChange && (
-        <div className="text-size-editor__field">
-          <span>{t('screenDisplay.textSizeEditor.backgroundColorLabel')}</span>
-          <div className="text-size-editor__swatches">
-            {SCREEN_BACKGROUND_COLORS.map((color) => (
-              <button
-                key={color.hex}
-                type="button"
-                className={`text-size-editor__swatch${backgroundColor === color.hex ? ' text-size-editor__swatch--active' : ''}`}
-                style={{ backgroundColor: color.hex }}
-                onClick={() => onBackgroundColorChange(color.hex)}
-                aria-label={t(`screenDisplay.textSizeEditor.colors.${color.key}`)}
-                title={t(`screenDisplay.textSizeEditor.colors.${color.key}`)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      {backgroundColor !== undefined && onBackgroundColorChange && <BackgroundColorPicker backgroundColor={backgroundColor} onChange={onBackgroundColorChange} />}
 
       {ownTextSizes && (
         <Checkbox
