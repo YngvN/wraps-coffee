@@ -1,0 +1,7 @@
+@use '../../styles/variables' as *;
+
+.background-editor {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+}

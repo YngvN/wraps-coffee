@@ -26,6 +26,15 @@
   }
 }
 
+.global-text-size-scaler__screensaver {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit;
+  padding-bottom: $spacing-unit;
+  border-bottom: 1px solid $color-border;
+}
+
 .global-text-size-scaler__actions {
   display: flex;
   justify-content: flex-end;

@@ -3,6 +3,7 @@ import { useState, type CSSProperties } from 'react'
 import { Badge, Button, Modal, TranslatedText } from '../../../components'
 import { useScreenLockPin } from '../../../hooks/useScreenLockPin'
 import { useScreens } from '../../../hooks/useScreens'
+import { useScreensaverSchedule } from '../../../hooks/useScreensaverSchedule'
 import { useLanguage } from '../../../i18n'
 import { DEFAULT_SCREEN_BACKGROUND_COLOR, type ScreenConfig, type ScreenSlot, type ScreenSlotContent } from '../../../types/screen'
 import { getScreenColorVars } from '../../../utils/screenColors'
@@ -10,19 +11,27 @@ import { CreatePinModal } from './CreatePinModal'
 import { LayoutIcon } from './LayoutIcon'
 import { ScreenForm } from './ScreenForm'
 import { getScreenPreviewPattern } from './screenPreviewPattern'
+import { ScreensaverScheduleModal } from './ScreensaverScheduleModal'
 import './ScreensView.scss'
 
-/** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link, plus the "Create pin" button that sets the one shared PIN every screen's own "Lock screen" button locks behind. */
+/** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link, plus the "Create pin" button that sets the one shared PIN every screen's own "Lock screen" button locks behind, and the "Screen saver" button that sets the one shared daily window every screen's own "Use screensaver" checkbox opts into. */
 export function ScreensView() {
   const { t } = useLanguage()
   const [screens, setScreens] = useScreens()
   const [pin] = useScreenLockPin()
+  const [screensaverSchedule] = useScreensaverSchedule()
   const [editingScreen, setEditingScreen] = useState<ScreenConfig | null | undefined>(undefined)
   const [pinModalOpen, setPinModalOpen] = useState(false)
+  const [screensaverModalOpen, setScreensaverModalOpen] = useState(false)
   const [copiedID, setCopiedID] = useState<string | null>(null)
+  /** The screen form's own currently open sub-view (e.g. "Resize panes"), shown next to the modal's title — see `ScreenForm`'s `onRouteChange`. Reset on close so a stale route doesn't flash before the next open's fresh form reports its own. */
+  const [formRoute, setFormRoute] = useState<string | undefined>(undefined)
 
   const isFormOpen = editingScreen !== undefined
-  const closeForm = () => setEditingScreen(undefined)
+  const closeForm = () => {
+    setEditingScreen(undefined)
+    setFormRoute(undefined)
+  }
 
   const handleSave = (screen: ScreenConfig) => {
     const exists = screens.some((existing) => existing.screenID === screen.screenID)
@@ -76,6 +85,9 @@ export function ScreensView() {
         <div className="screens-view__header-actions">
           <Button variant="secondary" onClick={() => setPinModalOpen(true)}>
             {pin ? t('admin.screens.changePinButton') : t('admin.screens.createPinButton')}
+          </Button>
+          <Button variant="secondary" onClick={() => setScreensaverModalOpen(true)}>
+            {screensaverSchedule ? t('admin.screens.changeScreensaverButton') : t('admin.screens.screensaverButton')}
           </Button>
           <Button onClick={() => setEditingScreen(null)}>{t('admin.screens.addScreen')}</Button>
         </div>
@@ -144,11 +156,12 @@ export function ScreensView() {
         </ul>
       )}
 
-      <Modal open={isFormOpen} onClose={closeForm} title={editingScreen ? t('admin.screens.editScreen') : t('admin.screens.addScreen')}>
-        {isFormOpen && <ScreenForm screen={editingScreen ?? null} onSave={handleSave} onCancel={closeForm} />}
+      <Modal open={isFormOpen} onClose={closeForm} title={editingScreen ? t('admin.screens.editScreen') : t('admin.screens.addScreen')} route={formRoute}>
+        {isFormOpen && <ScreenForm screen={editingScreen ?? null} onSave={handleSave} onCancel={closeForm} onRouteChange={setFormRoute} />}
       </Modal>
 
       <CreatePinModal open={pinModalOpen} onClose={() => setPinModalOpen(false)} />
+      <ScreensaverScheduleModal open={screensaverModalOpen} onClose={() => setScreensaverModalOpen(false)} />
     </div>
   )
 }

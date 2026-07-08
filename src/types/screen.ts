@@ -31,16 +31,21 @@ interface OwnBackgroundImageFields {
  * instead, e.g. because it needs bigger text than the other slides sharing
  * that slot. An image slide has no text of its own, so it has no
  * text-size fields at all; `fit` instead controls how its picture fills
- * the slide, falling back to `'contain'` when absent. Every kind can
- * independently opt out of its slot's own `backgroundImage` via
- * `useOwnBackgroundImage`, regardless of whether it has text of its own.
+ * the slide, falling back to `'contain'` when absent. `resizeToFit`
+ * (image slides only) instead makes its own *pane* grow or shrink to match
+ * the image's own aspect ratio — capped at 40% of the screen's viewport
+ * width and height (see `imageResizeRatioPatch`) — while it's the one
+ * showing, sliding back to the slot's own set size once a slideshow
+ * rotates to a different slide. Every kind can independently opt out of
+ * its slot's own `backgroundImage` via `useOwnBackgroundImage`, regardless
+ * of whether it has text of its own.
  */
 export type ScreenSlotContent =
   | ({ kind: 'none' } & OwnBackgroundImageFields)
   | ({ kind: 'category'; category: ProductCategory; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({ kind: 'menu'; categories?: ProductCategory[]; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({ kind: 'events'; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
-  | ({ kind: 'image'; imageUrl: string; fit?: ImageFit } & OwnBackgroundImageFields)
+  | ({ kind: 'image'; imageUrl: string; fit?: ImageFit; resizeToFit?: boolean } & OwnBackgroundImageFields)
 
 /**
  * One of a screen's up to 4 content slots. When `isSlideshow` is false, only
@@ -75,7 +80,7 @@ export type SplitBigPosition = 'first' | 'second'
 /** How a slide change is animated for any slot's own in-place rotation. Kept as its own union so more styles can be added later without changing `ScreenConfig`'s shape. */
 export type ScreenTransitionStyle = 'fade' | 'slide'
 
-/** Which side a `'slide'`-style transition's incoming slide enters from — the outgoing one exits toward the opposite side. Only relevant when `transitionStyle` is `'slide'`. */
+/** Which side a `'slide'`-style transition's incoming slide enters from — the outgoing one exits toward the opposite side. Only relevant when `transitionStyle` is `'slide'`; computed per pane from the arrangement itself (see `paneDefaultSlideDirection`) rather than stored on `ScreenConfig`, so a slide never has to enter/exit through a border it shares with a neighboring pane. */
 export type SlideTransitionDirection = 'left' | 'right' | 'up' | 'down'
 
 /** One selectable screen background color: a fixed hex value from the project's brand palette (not a theme variable), so it looks the same regardless of the viewer's light/dark mode. */
@@ -142,8 +147,6 @@ export interface ScreenConfig {
   /** Seconds each slide is shown before rotating to the next, for any individual slot's own rotation (when that slot's `isSlideshow` is true). */
   slideDurationSeconds: number
   transitionStyle: ScreenTransitionStyle
-  /** Which side the incoming slide enters from when `transitionStyle` is `'slide'`. Falls back to `'right'` (matching the original hardcoded direction) when absent. Unused for `'fade'`. */
-  slideTransitionDirection?: SlideTransitionDirection
   /** Optional per-screen text size override, set via the display's own "Edit appearance" panel. Falls back to `DEFAULT_TEXT_SIZES` when absent. */
   textSizes?: TextSizes
   /** Optional per-slot text size override (keyed by slot index, 0-3), set by hovering a slot's pane and clicking its own edit button. Falls back to `textSizes` (then `DEFAULT_TEXT_SIZES`) for any slot without one. */
@@ -170,8 +173,14 @@ export interface ScreenConfig {
   hideScrollbar?: boolean
   /** Fixed background color (hex) for this screen, chosen from `SCREEN_BACKGROUND_COLORS`. Falls back to `DEFAULT_SCREEN_BACKGROUND_COLOR` when absent. Not affected by the site's light/dark mode. */
   backgroundColor?: string
+  /** A background image for the whole screen (blurred, scaled to cover, same technique as a slot's own — see `BackgroundImage`), shown behind every pane that doesn't have its own background color/image. Falls back to none when absent. */
+  backgroundImage?: BackgroundImage
   /** Whether this screen's own editing controls (its toolbar's "Edit appearance" button, each pane's hover-revealed edit button, and its draggable resize dividers) are hidden — a deterrent against casual tampering at the physical display, not real security, since unlocking just takes the shared PIN set from the admin Screens dashboard (`useScreenLockPin`), stored in the same plain browser storage as everything else here. Falls back to `false` (unlocked) when absent. */
   locked?: boolean
+  /** Whether this screen goes black during the shared screensaver schedule's own window (set once, for every screen, from the admin dashboard's "Screen saver" button — see `useScreensaverSchedule`). A whole-screen effect, not per-slot. Has no effect at all — and its own checkbox stays hidden — until a schedule's actually been set. Falls back to `false` (never) when absent. */
+  useScreensaver?: boolean
+  /** Live-toggled preview of the screensaver ("Test screensaver"), independent of the actual schedule — shows the same black overlay immediately regardless of the time of day (or whether `useScreensaver` is even on), on this screen and any other open tab of it. Manually turned back off the same way; falls back to `false` when absent. */
+  screensaverTestActive?: boolean
 }
 
 /** A named, reusable set of text sizes, saved from one screen's editor and applicable to any screen. */

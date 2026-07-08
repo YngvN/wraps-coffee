@@ -14,6 +14,13 @@
   &--cover {
     padding: 0;
   }
+
+  // The pane itself is already sized to hug this image (see
+  // `imageResizeRatioPatch`) — this padding would otherwise show up as a
+  // gap on every side instead of the pane actually fitting the image.
+  &--resize-to-fit {
+    padding: 0;
+  }
 }
 
 .image-slide__image {

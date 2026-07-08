@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Modal } from '../components'
+import { BackButton, Modal } from '../components'
+import { BackgroundEditor } from '../features/screens/BackgroundEditor'
 import { FullscreenToggle } from '../features/screens/FullscreenToggle'
 import { GlobalTextSizeScaler, type SizeSnapshot } from '../features/screens/GlobalTextSizeScaler'
 import { LockIcon } from '../features/screens/LockIcon'
@@ -11,9 +12,11 @@ import { SplitLayout } from '../features/screens/SplitLayout'
 import { UnlockScreenModal } from '../features/screens/UnlockScreenModal'
 import { useScreenLockPin } from '../hooks/useScreenLockPin'
 import { useScreens } from '../hooks/useScreens'
+import { useScreensaverSchedule } from '../hooks/useScreensaverSchedule'
 import { useLanguage } from '../i18n'
-import { DEFAULT_SCREEN_BACKGROUND_COLOR, DEFAULT_TEXT_SIZES, type ScreenConfig, type ScreenSlot, type ScreenSlotContent, type TextSizes } from '../types/screen'
-import { borderColorStyle, getScreenColorVars } from '../utils/screenColors'
+import { DEFAULT_SCREEN_BACKGROUND_COLOR, DEFAULT_TEXT_SIZES, type BackgroundImage, type ScreenConfig, type ScreenSlot, type ScreenSlotContent, type TextSizes } from '../types/screen'
+import { backgroundImageTextStyle, borderColorStyle, getScreenColorVars } from '../utils/screenColors'
+import { isWithinScreensaverWindow } from '../utils/screensaver'
 import { hasOwnTextSizeFields, type SlideTarget } from '../utils/screenSlots'
 import { resolveContentTextSizes, textSizesToCssVars } from '../utils/textSizeVars'
 import './ScreenDisplay.scss'
@@ -32,9 +35,14 @@ function flushSlideTextSizeIntoSlot(slot: ScreenSlot, slideIndex: number, textSi
   }
 }
 
-/** Maps a screen's text sizes, background color and (if set) its own fixed border color to the CSS custom properties the whole display (and, by inheritance, any slot without its own override) reads from. */
-function screenAppearanceToCssVars(textSizes: TextSizes, backgroundColor: string, borderColor: string | undefined): CSSProperties {
-  return { ...textSizesToCssVars(textSizes), ...getScreenColorVars(backgroundColor), ...borderColorStyle(borderColor) } as CSSProperties
+/** Maps a screen's text sizes, background color, (if set) its own fixed border color, and (if its own whole-screen background image has a light/dark overlay) the contrast-forced text color that overlay picks, to the CSS custom properties the whole display (and, by inheritance, any slot without its own override) reads from. */
+function screenAppearanceToCssVars(textSizes: TextSizes, backgroundColor: string, borderColor: string | undefined, backgroundImage: BackgroundImage | undefined): CSSProperties {
+  return {
+    ...textSizesToCssVars(textSizes),
+    ...getScreenColorVars(backgroundColor),
+    ...borderColorStyle(borderColor),
+    ...backgroundImageTextStyle(backgroundImage?.overlay),
+  } as CSSProperties
 }
 
 /** The persisted (non-live-draft) effective text sizes for a slot as a whole: its own override, else the screen's own, else the global default. Used both as the shared fallback for that slot's slides and as what editing "the slot" (rather than one specific slide) reads/writes. */
@@ -44,6 +52,11 @@ function getPersistedSlotTextSizes(screen: ScreenConfig, slotIndex: number): Tex
 
 /** Which appearance settings are currently open for editing: the whole screen's defaults (incl. background color), one specific slot (opened via its currently-showing slide), or nothing. */
 type EditingTarget = 'screen' | SlideTarget | null
+
+/** A random spot for the "Screen saver test" label to sit at, kept well clear of the edges. */
+function randomScreensaverTestLabelPosition(): { top: number; left: number } {
+  return { top: 10 + Math.random() * 80, left: 10 + Math.random() * 80 }
+}
 
 /**
  * Fullscreen kiosk display for a single configured screen, reached at
@@ -55,9 +68,15 @@ type EditingTarget = 'screen' | SlideTarget | null
  * make a change: the toolbar's "Edit appearance" button opens a
  * percentage-based scaler (`GlobalTextSizeScaler`) that grows/shrinks the
  * screen's default, every slot's own size, and every slide's own override
- * all together, relative to whatever each currently is — plus the screen's
- * own overall background color (a slot's own individual color is only
- * editable from that slot's own editor, not here). Hovering any individual
+ * all together, relative to whatever each currently is — plus its own
+ * "Background" button, opening a sub-view (`BackgroundEditor`) for the
+ * screen's own overall background color and an optional whole-screen
+ * background image (blurred and scaled to cover, same technique as a
+ * slot's own — see `.screen-display__bg`), shown through any pane that
+ * doesn't have its own background color/image (a slot's own individual
+ * background is only editable from that slot's own editor, not here).
+ * Unlike the scaler's own fields, both are always live, with no
+ * draft/"restore previous" step. Hovering any individual
  * slide instead reveals a small "Edit slot" button covering that whole
  * slot: its own slideshow toggle plus, once it's rotating through more
  * than one slide, a "Global" tab (the slot's own shared background
@@ -86,15 +105,27 @@ type EditingTarget = 'screen' | SlideTarget | null
  * `fullscreenchange` listener makes a best-effort attempt to hop straight
  * back into fullscreen if it's exited, though it can't actually stop
  * Escape from exiting in the first place; no website can override that.
+ *
+ * A screen with its own "Use screensaver" checkbox on (only offered once a
+ * shared daily window's been set from the admin dashboard's "Screen saver"
+ * button — see `useScreensaverSchedule`) shows a solid black overlay, above
+ * the slots but below the toolbar, for as long as the current time falls
+ * within that window, or immediately regardless of the time while its own
+ * "Test screensaver" button is toggled on. Both the checkbox and the test
+ * button are also reachable from the toolbar's own "Edit appearance" panel,
+ * live either way.
  */
 export function ScreenDisplay() {
   const { t } = useLanguage()
   const { screenId } = useParams<{ screenId: string }>()
   const [screens, setScreens] = useScreens()
+  const [screensaverSchedule] = useScreensaverSchedule()
   const screen = screens.find((candidate) => candidate.screenID === screenId)
+  const [now, setNow] = useState(() => new Date())
   const [editingTarget, setEditingTarget] = useState<EditingTarget>(null)
   const [screenDraftSnapshot, setScreenDraftSnapshot] = useState<SizeSnapshot | null>(null)
-  const [draftBackgroundColor, setDraftBackgroundColor] = useState(DEFAULT_SCREEN_BACKGROUND_COLOR)
+  /** Whether the whole-screen editor is showing its own "Background" sub-view instead of the main percentage scaler — reset whenever the editor (re)opens. Background color/image are always live (see `handleScreenBackgroundColorChange`/`handleScreenBackgroundImageChange`), so unlike the scaler's own fields this has no draft/restore state of its own. */
+  const [screenSubview, setScreenSubview] = useState<'background' | null>(null)
   const [draftSlot, setDraftSlot] = useState<ScreenSlot>(EMPTY_SLOT)
   const [originalSlot, setOriginalSlot] = useState<ScreenSlot>(EMPTY_SLOT)
   const [draftTextSizes, setDraftTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
@@ -108,6 +139,7 @@ export function ScreenDisplay() {
   const [activeSlideTab, setActiveSlideTab] = useState<'global' | number>('global')
   const [pin] = useScreenLockPin()
   const [unlockModalOpen, setUnlockModalOpen] = useState(false)
+  const [screensaverTestLabelPosition, setScreensaverTestLabelPosition] = useState(randomScreensaverTestLabelPosition)
 
   /**
    * Best-effort attempt to keep a locked screen in fullscreen — if it gets
@@ -128,6 +160,19 @@ export function ScreenDisplay() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [screen?.locked])
 
+  /** Keeps `now` fresh enough for the screensaver's own scheduled window to actually kick in (and end) without needing a refresh, without re-rendering every second for a check that's only ever precise to the minute. */
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 30_000)
+    return () => clearInterval(interval)
+  }, [])
+
+  /** While the screensaver's own "Test screensaver" button is on, periodically moves its "Screen saver test" label to a new random spot — same reasoning a real screensaver moves its content around, so nothing sits burned into one spot on the (probably otherwise idle) display for the whole test. */
+  useEffect(() => {
+    if (!screen?.screensaverTestActive) return
+    const interval = setInterval(() => setScreensaverTestLabelPosition(randomScreensaverTestLabelPosition()), 4000)
+    return () => clearInterval(interval)
+  }, [screen?.screensaverTestActive])
+
   if (!screen) {
     return (
       <div className="screen-display screen-display--not-found" style={getScreenColorVars(DEFAULT_SCREEN_BACKGROUND_COLOR) as CSSProperties}>
@@ -138,7 +183,6 @@ export function ScreenDisplay() {
   }
 
   const activeTextSizes = editingTarget === 'screen' && screenDraftSnapshot ? screenDraftSnapshot.textSizes : (screen.textSizes ?? DEFAULT_TEXT_SIZES)
-  const activeBackgroundColor = editingTarget === 'screen' ? draftBackgroundColor : (screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR)
 
   /** The screen as it should currently render: the slot being edited (if any) swapped for its live draft, so content/slideshow/color changes preview immediately, same as text-size changes already do. */
   const effectiveScreen: ScreenConfig =
@@ -179,8 +223,8 @@ export function ScreenDisplay() {
   }
 
   const openScreenEditor = () => {
-    setDraftBackgroundColor(screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR)
     setScreenDraftSnapshot(null)
+    setScreenSubview(null)
     setEditingTarget('screen')
   }
 
@@ -244,6 +288,26 @@ export function ScreenDisplay() {
     setUnlockModalOpen(false)
   }
 
+  /** Toggles this screen's own opt-in to the shared screensaver schedule — live, same as `handleResizeDivider`, so it's reflected instantly on any other open tab of this same screen. */
+  const handleUseScreensaverChange = (useScreensaver: boolean) => {
+    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, useScreensaver } : existing)))
+  }
+
+  /** Toggles the live screensaver preview, independent of the actual schedule — see `ScreenConfig.screensaverTestActive`. */
+  const handleTestScreensaverChange = (screensaverTestActive: boolean) => {
+    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, screensaverTestActive } : existing)))
+  }
+
+  /** Writes the screen's own background color straight to the persisted screen, live — no draft/restore step, unlike the whole-screen scaler's own fields. */
+  const handleScreenBackgroundColorChange = (backgroundColor: string) => {
+    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, backgroundColor } : existing)))
+  }
+
+  /** Writes the screen's own whole-screen background image straight to the persisted screen, live — same reasoning as `handleScreenBackgroundColorChange`. */
+  const handleScreenBackgroundImageChange = (backgroundImage: BackgroundImage | undefined) => {
+    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, backgroundImage } : existing)))
+  }
+
   /** Resets the slot (content/slideshow/color), its text-size drafts, and which tab is active back to the values captured when the editor was opened — the actual persisting still only happens once the editor closes. The whole-screen scaler restores itself internally. */
   const handleRestore = () => {
     setDraftSlot(originalSlot)
@@ -276,8 +340,8 @@ export function ScreenDisplay() {
       screens.map((existing) => {
         if (existing.screenID !== screen.screenID) return existing
         if (editingTarget === 'screen') {
-          if (!screenDraftSnapshot) return { ...existing, backgroundColor: draftBackgroundColor }
-          return { ...existing, textSizes: screenDraftSnapshot.textSizes, slotTextSizes: screenDraftSnapshot.slotTextSizes, slots: screenDraftSnapshot.slots, backgroundColor: draftBackgroundColor }
+          if (!screenDraftSnapshot) return existing
+          return { ...existing, textSizes: screenDraftSnapshot.textSizes, slotTextSizes: screenDraftSnapshot.slotTextSizes, slots: screenDraftSnapshot.slots }
         }
         if (editingTarget) {
           const { slotIndex, contentIndex } = editingTarget
@@ -304,12 +368,20 @@ export function ScreenDisplay() {
   const editingSlotActiveCount = typeof editingTarget === 'object' && editingTarget !== null ? draftSlot.contents.filter((content) => content.kind !== 'none').length : 0
   const showOwnTextSizeOption = typeof editingTarget === 'object' && editingTarget !== null && draftSlot.isSlideshow && editingSlotActiveCount > 1
 
+  const screensaverActive = Boolean(screen.useScreensaver && (screen.screensaverTestActive || isWithinScreensaverWindow(screensaverSchedule, now)))
+
   return (
     <div
       className={`screen-display${screen.hideScrollbar ? ' screen-display--hide-scrollbar' : ''}${screen.locked ? ' screen-display--locked' : ''}`}
-      style={screenAppearanceToCssVars(activeTextSizes, activeBackgroundColor, screen.borderColor)}
+      style={screenAppearanceToCssVars(activeTextSizes, screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR, screen.borderColor, screen.backgroundImage)}
       onContextMenu={(event) => screen.locked && event.preventDefault()}
     >
+      {screen.backgroundImage && (
+        <div className="screen-display__bg">
+          <div className="screen-display__bg-image" style={{ backgroundImage: `url(${screen.backgroundImage.imageUrl})` }} />
+          {screen.backgroundImage.overlay !== 'none' && <div className={`screen-display__bg-overlay screen-display__bg-overlay--${screen.backgroundImage.overlay}`} />}
+        </div>
+      )}
       <ScreenToolbar>
         {!screen.locked && (
           <>
@@ -348,21 +420,56 @@ export function ScreenDisplay() {
         onResizeDivider={screen.locked ? undefined : handleResizeDivider}
       />
 
+      {screensaverActive && (
+        <div className="screen-display__screensaver">
+          {screen.screensaverTestActive && (
+            <span
+              className="screen-display__screensaver-test-label"
+              style={{ top: `${screensaverTestLabelPosition.top}%`, left: `${screensaverTestLabelPosition.left}%` }}
+            >
+              {t('screenDisplay.screensaverTestLabel')}
+            </span>
+          )}
+        </div>
+      )}
+
       <UnlockScreenModal open={unlockModalOpen} onClose={() => setUnlockModalOpen(false)} onUnlock={handleUnlock} />
 
       <Modal
         open={editingTarget !== null}
         onClose={closeEditor}
         title={editingTarget === 'screen' ? t('screenDisplay.textSizeEditor.title') : t('screenDisplay.slotEditorTitle')}
+        route={editingTarget === 'screen' && screenSubview === 'background' ? t('admin.screens.backgroundLabel') : undefined}
       >
         {editingTarget === 'screen' ? (
-          <GlobalTextSizeScaler
-            screen={screen}
-            onChange={setScreenDraftSnapshot}
-            backgroundColor={draftBackgroundColor}
-            onBackgroundColorChange={setDraftBackgroundColor}
-            onDone={closeEditor}
-          />
+          screenSubview === 'background' ? (
+            <>
+              <BackButton onClick={() => setScreenSubview(null)}>{t('admin.common.back')}</BackButton>
+              <BackgroundEditor
+                backgroundColor={screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR}
+                onBackgroundColorChange={handleScreenBackgroundColorChange}
+                backgroundImage={screen.backgroundImage}
+                onBackgroundImageChange={handleScreenBackgroundImageChange}
+              />
+            </>
+          ) : (
+            <GlobalTextSizeScaler
+              screen={screen}
+              onChange={setScreenDraftSnapshot}
+              screensaver={
+                screensaverSchedule
+                  ? {
+                      enabled: screen.useScreensaver ?? false,
+                      onEnabledChange: handleUseScreensaverChange,
+                      testActive: screen.screensaverTestActive ?? false,
+                      onTestActiveChange: handleTestScreensaverChange,
+                    }
+                  : undefined
+              }
+              onOpenBackground={() => setScreenSubview('background')}
+              onDone={closeEditor}
+            />
+          )
         ) : (
           <SlotEditor
             id={typeof editingTarget === 'object' && editingTarget !== null ? `slot-${editingTarget.slotIndex}` : 'slot'}

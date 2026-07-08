@@ -29,6 +29,65 @@
   }
 }
 
+// The screen's own whole-screen background image — sits behind everything
+// (before the toolbar/slots in DOM order, with no `z-index` of its own), so
+// any pane without its own background color/image shows it through instead
+// of the plain `--screen-bg` color underneath.
+.screen-display__bg {
+  position: absolute;
+  inset: 0;
+}
+
+// Overscanned past the screen's own edges and blurred — same reasoning as a
+// slot's own background image (see `.split-layout__pane-bg-image`): the
+// overscan keeps the blur's soft edge from peeking in, clipped away by
+// `.screen-display`'s own `overflow: hidden`.
+.screen-display__bg-image {
+  position: absolute;
+  inset: -30px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(20px);
+}
+
+.screen-display__bg-overlay {
+  position: absolute;
+  inset: 0;
+
+  &--light {
+    background: rgba(255, 255, 255, 0.55);
+  }
+
+  &--dark {
+    background: rgba(0, 0, 0, 0.55);
+  }
+}
+
+// Sits above the slots but below the toolbar (z-index: 10, see
+// ScreenToolbar.scss) so the lock icon / "Edit appearance" button stay
+// reachable while the screensaver's active.
+.screen-display__screensaver {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  background: #000;
+}
+
+// Drifts to a new random spot every few seconds (see ScreenDisplay.tsx) —
+// the `top`/`left` transition is what makes each jump read as a slide
+// instead of a jarring teleport.
+.screen-display__screensaver-test-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  opacity: 0.6;
+  font-family: $font-sans;
+  font-size: 1.25rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: top 1.5s ease, left 1.5s ease;
+}
+
 .screen-display--not-found {
   display: flex;
   flex-direction: column;

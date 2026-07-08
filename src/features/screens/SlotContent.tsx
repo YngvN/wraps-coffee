@@ -13,6 +13,6 @@ export function SlotContent({ slot }: SlotContentProps) {
   if (slot.kind === 'category') return <CategorySlide category={slot.category} />
   if (slot.kind === 'menu') return <FullMenuSlide categories={slot.categories} />
   if (slot.kind === 'events') return <EventsSlide />
-  if (slot.kind === 'image') return <ImageSlide imageUrl={slot.imageUrl} fit={slot.fit} />
+  if (slot.kind === 'image') return <ImageSlide imageUrl={slot.imageUrl} fit={slot.fit} resizeToFit={slot.resizeToFit} />
   return null
 }

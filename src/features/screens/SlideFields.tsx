@@ -36,20 +36,35 @@ interface SlideFieldsProps {
 
 /**
  * One slide's own fields: what it shows (a content-kind selector), its own
- * URL/fill-container fields when set to "Image", a checkbox per category
- * when set to "Full menu" (letting the full menu be split across more than
- * one screen — each gets its own subset checked), and — for a slide that's
- * one of several in a slideshow-enabled slot — a toggle to opt out of its
- * slot's own background image and use its own instead.
+ * URL/fill-container/resize-to-fit fields when set to "Image" (the last of
+ * these makes the slide's own *pane* grow or shrink to match the image's
+ * aspect ratio, capped at 40% of the screen's viewport, while it's showing
+ * — see `SplitLayout`), a checkbox per category when set to "Full menu"
+ * (letting the full menu be split across more than one screen — each gets
+ * its own subset checked), and — for a slide that's one of several in a
+ * slideshow-enabled slot — a toggle to opt out of its slot's own
+ * background image and use its own instead.
  */
 export function SlideFields({ id, content, onChange, label, showOwnBackgroundImage }: SlideFieldsProps) {
   const { t } = useLanguage()
 
-  const setImageUrl = (imageUrl: string) => onChange({ kind: 'image', imageUrl })
+  /** Starts a fresh image slide when switching the selector to "Image"; otherwise just updates the URL in place, keeping this slide's other own fields (fit, resize-to-fit, background image) intact. */
+  const setImageUrl = (imageUrl: string) => {
+    if (content.kind !== 'image') {
+      onChange({ kind: 'image', imageUrl })
+      return
+    }
+    onChange({ ...content, imageUrl })
+  }
 
   const setImageFillContainer = (fillContainer: boolean) => {
     if (content.kind !== 'image') return
     onChange({ ...content, fit: fillContainer ? 'cover' : 'contain' })
+  }
+
+  const setImageResizeToFit = (resizeToFit: boolean) => {
+    if (content.kind !== 'image') return
+    onChange({ ...content, resizeToFit })
   }
 
   /** Toggles one category in/out of a "Full menu" slide's own `categories` — starting from every category checked (the standard, when `categories` is still absent) so unchecking the first one narrows it down from there, rather than from an empty set. */
@@ -82,6 +97,12 @@ export function SlideFields({ id, content, onChange, label, showOwnBackgroundIma
             label={t('admin.screens.imageFillContainerLabel')}
             checked={content.fit === 'cover'}
             onChange={(event) => setImageFillContainer(event.target.checked)}
+          />
+          <Checkbox
+            id={`${id}-image-resize-to-fit`}
+            label={t('admin.screens.resizeToFitImageLabel')}
+            checked={Boolean(content.resizeToFit)}
+            onChange={(event) => setImageResizeToFit(event.target.checked)}
           />
         </>
       )}

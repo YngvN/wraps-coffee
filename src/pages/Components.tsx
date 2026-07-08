@@ -18,6 +18,7 @@ import {
   Spinner,
   Textarea,
   ThemeToggle,
+  TimeField,
   TranslatedText,
 } from '../components'
 import { useEvents } from '../hooks/useEvents'
@@ -33,6 +34,7 @@ export function Components() {
   const [eventsData] = useEvents()
   const [ratingsData] = useRatings()
   const [reviewsData] = useReviews()
+  const [previewTime, setPreviewTime] = useState('22:00')
 
   return (
     <div className="components-page">
@@ -92,6 +94,15 @@ export function Components() {
         <h2>Textarea</h2>
         <div className="components-page__row">
           <Textarea label="Description" placeholder="Write a longer description..." />
+        </div>
+      </section>
+
+      <section>
+        <h2>Time Field</h2>
+        <p>Stores a plain 24-hour value regardless of which format it's shown in — see the admin Screens "Screen saver" schedule for a real 24h/12h toggle driving this.</p>
+        <div className="components-page__row">
+          <TimeField id="time-field-24h" label="24-hour" value={previewTime} onChange={setPreviewTime} format="24h" />
+          <TimeField id="time-field-12h" label="12-hour" value={previewTime} onChange={setPreviewTime} format="12h" />
         </div>
       </section>
 
@@ -206,8 +217,8 @@ export function Components() {
         <div className="components-page__row">
           <Button onClick={() => setModalOpen(true)}>Open modal</Button>
         </div>
-        <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Example modal">
-          <p>This is the modal content.</p>
+        <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Example modal" route="Sub-view">
+          <p>This is the modal content. The "Sub-view" text next to the title above (regular weight, separated by "-") is the optional `route` prop, shown when a caller has its own nested sub-view navigation.</p>
         </Modal>
       </section>
     </div>

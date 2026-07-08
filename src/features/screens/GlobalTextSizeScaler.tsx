@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { Button } from '../../components'
+import { Button, Checkbox } from '../../components'
 import { useLanguage } from '../../i18n'
 import { DEFAULT_TEXT_SIZES, type ScreenConfig, type TextSizes } from '../../types/screen'
 import { hasOwnTextSizeFields } from '../../utils/screenSlots'
-import { BackgroundColorPicker } from './BackgroundColorPicker'
 import './GlobalTextSizeScaler.scss'
 
 /** One slider row's config: which `TextSizes` field it scales, and its i18n label key (shared with the display's own text-size editor). */
@@ -51,11 +50,17 @@ function standardSnapshotFrom(slots: ScreenConfig['slots']): SizeSnapshot {
 
 interface GlobalTextSizeScalerProps {
   screen: ScreenConfig
-  /** Called with the newly-scaled sizes (the default, every slot's own, and every slide's own override) plus any slot color change, live, on every edit. */
+  /** Called with the newly-scaled sizes (the default, every slot's own, and every slide's own override), live, on every edit. */
   onChange: (next: SizeSnapshot) => void
-  /** Omit both `backgroundColor` and `onBackgroundColorChange` to hide the swatch picker — used by the admin form's percentage scaler, where background color isn't part of this panel. */
-  backgroundColor?: string
-  onBackgroundColorChange?: (backgroundColor: string) => void
+  /** Shows the "Use screensaver"/"Test screensaver" section — omit to hide it entirely. Only passed by the on-screen "Edit appearance" panel; the admin form's own percentage scaler doesn't need it since its Global tab already has its own directly. */
+  screensaver?: {
+    enabled: boolean
+    onEnabledChange: (enabled: boolean) => void
+    testActive: boolean
+    onTestActiveChange: (active: boolean) => void
+  }
+  /** Shows a "Background" button that navigates to the screen's own background color/image sub-view — omit to hide it. Only passed by the on-screen "Edit appearance" panel; the admin form's Global tab already has its own "Background" button directly, alongside this panel's own "Edit text size" one. */
+  onOpenBackground?: () => void
   onDone: () => void
 }
 
@@ -66,18 +71,16 @@ interface GlobalTextSizeScalerProps {
  * individual slide's own override (for a slide that's opted out of its
  * slot's shared size) all keep their own current size and are scaled
  * relative to the reference point captured when the panel opened (or reset
- * to, if "Reset" was used since). Only the screen's own overall background
- * color is editable here — a slot's own individual color is only editable
- * from that slot's own editor, to keep this panel about the whole screen.
- * "Restore previous" undoes everything back to how the screen was when the
- * panel opened; "Reset" instead sets every size to the hardcoded standard
- * and clears every slot's own color back to transparent, leaving the
- * screen's own background color alone.
+ * to, if "Reset" was used since). The screen's own overall background
+ * (color and image) lives in its own separate sub-view (`onOpenBackground`),
+ * not here, since it's always live and has no restore/reset semantics of
+ * its own. "Restore previous" undoes everything back to how the screen was
+ * when the panel opened; "Reset" instead sets every size to the hardcoded
+ * standard and clears every slot's own color/image back to transparent.
  */
-export function GlobalTextSizeScaler({ screen, onChange, backgroundColor, onBackgroundColorChange, onDone }: GlobalTextSizeScalerProps) {
+export function GlobalTextSizeScaler({ screen, onChange, screensaver, onOpenBackground, onDone }: GlobalTextSizeScalerProps) {
   const { t } = useLanguage()
   const [baseline] = useState(() => snapshotFrom(screen))
-  const [originalBackgroundColor] = useState(() => backgroundColor)
   const [reference, setReference] = useState<SizeSnapshot>(baseline)
   const [percentages, setPercentages] = useState<Record<keyof TextSizes, number>>(ALL_100)
   const [allPercent, setAllPercent] = useState(100)
@@ -129,7 +132,6 @@ export function GlobalTextSizeScaler({ screen, onChange, backgroundColor, onBack
     setReference(baseline)
     setCurrent(baseline)
     onChange(baseline)
-    if (onBackgroundColorChange && originalBackgroundColor !== undefined) onBackgroundColorChange(originalBackgroundColor)
   }
 
   /** Hard-resets every size to the standard default and clears every slot's own color — a fresh 100% reference point, not tied to how the screen looked when the panel opened. Leaves the screen's own background color untouched. */
@@ -144,8 +146,24 @@ export function GlobalTextSizeScaler({ screen, onChange, backgroundColor, onBack
 
   return (
     <div className="global-text-size-scaler">
-      {backgroundColor !== undefined && onBackgroundColorChange && (
-        <BackgroundColorPicker backgroundColor={backgroundColor} onChange={(color) => color !== undefined && onBackgroundColorChange(color)} />
+      {onOpenBackground && (
+        <Button type="button" variant="secondary" onClick={onOpenBackground}>
+          {t('admin.screens.backgroundLabel')}
+        </Button>
+      )}
+
+      {screensaver && (
+        <div className="global-text-size-scaler__screensaver">
+          <Checkbox
+            id="global-use-screensaver"
+            label={t('admin.screens.useScreensaverLabel')}
+            checked={screensaver.enabled}
+            onChange={(event) => screensaver.onEnabledChange(event.target.checked)}
+          />
+          <Button type="button" variant="secondary" onClick={() => screensaver.onTestActiveChange(!screensaver.testActive)}>
+            {screensaver.testActive ? t('admin.screens.stopTestScreensaverButton') : t('admin.screens.testScreensaverButton')}
+          </Button>
+        </div>
       )}
 
       <label className="global-text-size-scaler__slider global-text-size-scaler__slider--all">

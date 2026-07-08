@@ -34,6 +34,7 @@ The website for Wraps & Coffee, a cozy cafe serving wraps, baguettes, pizza, nac
   - Text-size controls at every level — the whole screen, one slot, or a single slide's own override — editable either live on the display itself (`ScreenDisplay.tsx`, with "Restore previous"/"Reset" and a live percentage-based scaler) or fully from the admin dashboard's tabbed screen editor, so a screen can be configured entirely without ever opening it.
   - Background color per screen and per slot (a fixed brand-palette swatch picker, independent of the site's own light/dark theme; a slot's default is transparent, showing the screen's color through).
   - Live sync across same-browser tabs/windows via a `storage`-event-enhanced `useLocalStorage` (explicitly same-browser only, not a real backend) and offline resilience via the PWA app-shell precache, so a kiosk display keeps working through a network drop.
+  - **Screen saver** — a single shared daily start/end time window (set once from the admin dashboard's "Screen saver" button) that any screen with its own "Use screensaver" checkbox on goes solid black during; the checkbox (once a window's been set) and a "Test screensaver" button that forces it on immediately, ignoring the schedule, both appear in the admin screen editor and live on the screen's own "Edit appearance" panel.
 
 ## Tech stack
 

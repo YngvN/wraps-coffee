@@ -2,11 +2,20 @@
 
 .modal-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  // Explicit viewport units rather than `inset: 0`, which only resolves
+  // against the true viewport as long as no ancestor happens to establish
+  // its own containing block (e.g. via a CSS transform) — `vw`/`vh` stay
+  // pinned to the real viewport regardless, so the sheet reliably reaches
+  // the actual bottom of the screen with no gap beneath it.
+  width: 100vw;
+  height: 100dvh;
   background: $color-overlay;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   z-index: 1000;
   transition: background-color 0.15s ease;
 
@@ -21,16 +30,25 @@
 .modal {
   position: relative;
   overflow: hidden;
-  background: $color-bg;
+  background: $color-grey;
   // Explicit (not inherited) so the modal always follows the site's own
   // light/dark theme, even when it's nested inside a screen display whose
   // `.screen-display` ancestor sets a fixed, theme-independent `color` for
   // its own content (see src/utils/screenColors.ts).
   color: $color-text;
-  border-radius: 8px;
-  padding: $spacing-unit * 3;
-  max-width: 480px;
-  width: calc(100% - #{$spacing-unit * 4});
+  // Rounded only at the top — the bottom edge always sits flush against the
+  // bottom of the screen (see Modal.tsx), so rounding it too would just cut
+  // two little corners out of the backdrop for no reason.
+  border-radius: 20px 20px 0 0;
+  padding: 0 ($spacing-unit * 3) calc(#{$spacing-unit * 3} + env(safe-area-inset-bottom, 0px));
+  // Fixed, not `max-height` — always the same size regardless of how little
+  // content it holds, so a short dialog (e.g. the PIN prompt) still reaches
+  // the actual bottom of the screen instead of leaving a gap beneath it.
+  height: 85vh;
+  width: 100%;
+  max-width: 1000px;
+  display: flex;
+  flex-direction: column;
   box-shadow:
     $color-shadow 0 10px 15px -3px,
     $color-shadow 0 4px 6px -2px;
@@ -44,14 +62,121 @@
     box-shadow: none;
   }
 
+  // The handle, title and × button together — a flex item sitting above
+  // `&__scroll`, not inside it, so a tall body scrolls beneath them without
+  // ever carrying them along (no `position: sticky` needed for that). Its
+  // own background spans the full width of the sheet (so the rounded
+  // corners never need to clip anything peeking out from behind its
+  // sides), but its bottom border lives on `&__header-row` instead, capped
+  // to the same width as the content below it — see that rule for why. A
+  // positioning context for `&__handle`, which floats above `&__header-row`
+  // rather than pushing it down, so the row itself touches the very top of
+  // the sheet with no visible gap before it.
+  &__header {
+    position: relative;
+    z-index: 2;
+    flex-shrink: 0;
+    margin: 0 (-$spacing-unit * 3);
+    padding: 0 ($spacing-unit * 3);
+    background: inherit;
+  }
+
+  // The actual scrolling container — kept separate from the sheet itself
+  // (`overflow: hidden`, no scroll of its own) so the native scrollbar
+  // renders as a plain rectangle inset from the sheet's own edges, instead
+  // of bleeding past its rounded corners.
+  &__scroll {
+    flex: 1;
+    // Without this, a flex item's default `min-height: auto` can keep it
+    // sized to fit all its content instead of respecting `flex: 1`,
+    // preventing it from ever actually needing to scroll.
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  // Layered on top of `&__header-row` (not in normal flow, so it doesn't
+  // push the row's own top edge down) and narrow rather than full-width, so
+  // its own hit area can't intercept clicks on the title or × button beside
+  // it despite sitting above them in the stacking order.
+  &__handle {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    padding: ($spacing-unit * 1.5) ($spacing-unit * 4) $spacing-unit;
+    cursor: grab;
+    touch-action: none;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  &__handle-bar {
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: $color-text;
+    opacity: 0.6;
+  }
+
+  // The title and × button, side by side (so the × lines up with the
+  // title instead of floating at some other height) and capped to the
+  // same width as `&__content` below — the border only ever needs to
+  // reach as wide as there's actually content to scroll under it. Extra
+  // top padding clears the handle floating above it (see `&__handle`), so
+  // its own hit area doesn't visually sit on top of the title text.
+  &__header-row {
+    display: flex;
+    align-items: center;
+    gap: $spacing-unit;
+    max-width: 520px;
+    height: 100%;
+    margin: 0 auto;
+    padding: ($spacing-unit * 4) ($spacing-unit * 2) ($spacing-unit * 2);
+    border-bottom: 1px solid $color-border;
+    background: $color-grey;
+  }
+
+  // `flex: 1` (rather than `justify-content: space-between` on the row)
+  // so the × button still lands at the row's far right edge via its own
+  // `margin-left: auto` even on the rare modal with no title at all.
   &__title {
-    margin: 0 0 $spacing-unit;
+    flex: 1;
+    margin: 0;
+  }
+
+  // The current sub-view's own name, right after the title — regular
+  // weight (vs. the title's bold) so it reads as "where you are", not a
+  // second heading.
+  &__route {
+    font-weight: 400;
+    color: $color-text-muted;
+  }
+
+  // Caps and centers the body within the sheet's own full-width background,
+  // so it reads as a normal-width form/dialog on larger screens instead of
+  // stretching into unreadably wide fields — the sheet itself still spans
+  // edge to edge either way.
+  &__content {
+    max-width: 480px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  &__body {
+    margin-top: $spacing-unit * 2;
   }
 
   &__close {
-    position: absolute;
-    top: $spacing-unit;
-    right: $spacing-unit;
+    flex-shrink: 0;
+    margin-left: auto;
     border: none;
     background: transparent;
     font-size: 1.25rem;
@@ -62,5 +187,18 @@
     &:hover {
       color: $color-text;
     }
+  }
+}
+
+// The header row drops the floating-card look (the `max-width`
+// cap, its centering margin, and its rounded corners) and instead spans
+// edge to edge like the rest of the sheet — the same negative-margin trick
+// `&__header` itself uses to cancel out its own horizontal padding.
+@media (max-width: 640px) {
+  .modal__header-row {
+    max-width: none;
+    margin: 0 (-$spacing-unit * 3);
+    padding: ($spacing-unit * 4) ($spacing-unit * 3) ($spacing-unit * 2);
+    border-radius: 0;
   }
 }

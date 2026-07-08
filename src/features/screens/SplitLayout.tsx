@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLanguage } from '../../i18n'
 import type { ScreenConfig, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
 import { backgroundImageTextStyle, slotBackgroundColorStyle } from '../../utils/screenColors'
-import { crossHandle, screenDividers, splitGridTemplate, type RatioPatch } from '../../utils/screenLayout'
+import { crossHandle, imageResizeRatioPatch, paneDefaultSlideDirection, screenDividers, splitGridTemplate, type RatioPatch } from '../../utils/screenLayout'
 import { currentSlotContent, currentSlotContentIndex, currentSlotSubIndex, isSlotActive, resolveContentBackgroundImage } from '../../utils/screenSlots'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
 import { SlotContent } from './SlotContent'
@@ -51,7 +51,14 @@ interface SplitLayoutProps {
  * dividers also get a combined handle right where they meet (a clean
  * crosspoint for 4 slots, a T-junction for 3 — see `crossHandle`) —
  * dragging that moves both together, resizing every pane at once instead
- * of just the two on either side of one line.
+ * of just the two on either side of one line. A pane whose own
+ * currently-showing slide is an image with `resizeToFit` on temporarily
+ * overrides whichever ratio field(s) govern its own axes (see
+ * `imageResizeRatioPatch`) to fit that image, capped at 40% of the
+ * viewport along either — live-visual only, never persisted, so a
+ * slideshow rotating away from it (or the slide simply changing) drops
+ * the override and the pane slides back to its own set size on its own,
+ * the same transition a manual resize already animates with.
  */
 export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, forcedSlide, onResizeDivider }: SplitLayoutProps) {
   const { t } = useLanguage()
@@ -60,6 +67,17 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
   const containerRef = useRef<HTMLDivElement>(null)
   /** A divider's own value while it's actively being dragged — overrides the persisted screen's own for live visual feedback, cleared again once the drag commits. */
   const [liveRatios, setLiveRatios] = useState<RatioPatch>({})
+  /** The container's own measured pixel size — stands in for the viewport (this arrangement always fills it entirely), needed to turn a `resizeToFit` image's natural size into a percentage ratio. */
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+  /** Natural (unscaled) pixel dimensions of every `resizeToFit` image seen so far this session, keyed by its own URL — populated by the preload effect below, since neither `SlotContent` nor this component otherwise has any reason to know an image's real size. */
+  const [imageNaturalSizes, setImageNaturalSizes] = useState<Record<string, { width: number; height: number }>>({})
+  /** Guards the preload effect against re-requesting a URL it's already asked the browser to load, without needing `imageNaturalSizes` itself (still async at that point) in its dependency array. */
+  const requestedImagesRef = useRef<Set<string>>(new Set())
+  /** Which panes had an active `resizeToFit` override as of the *previous* render — kept in sync with a guarded update during render itself (React's own documented pattern for tracking a previous value, since refs can't be read during render), so this render can tell whether a pane just lost one (and so needs its own shrink held off, not just its content's crossfade) rather than gained or kept one. */
+  const [previouslyResizedPanes, setPreviouslyResizedPanes] = useState<Set<number>>(new Set())
+  /** Whether *this* render is the one where some pane just lost its `resizeToFit` override — stored as its own state (rather than re-derived from `previouslyResizedPanes` on every render) because a guarded render-phase update to `previouslyResizedPanes` already resolves to its *new* value by the time React re-renders to commit, which would make a same-render re-derivation always see "no change". Reset back to `false` a beat later (see the effect below) so a later, unrelated resize doesn't inherit a stale delay. */
+  const [isShrinkingAwayFromImage, setIsShrinkingAwayFromImage] = useState(false)
+  const transition = reducedMotion ? { duration: 0 } : { duration: 0.6, ease: 'easeInOut' as const }
   const visibleSlots = screen.slots.slice(0, screen.slotCount)
   const direction = screen.splitDirection ?? 'row'
   const bigPosition = screen.splitBigPosition ?? 'first'
@@ -73,6 +91,80 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
     return () => clearInterval(timer)
   }, [hasRotatingSlot, screen.slideDurationSeconds, paused])
 
+  useEffect(() => {
+    const node = containerRef.current
+    if (!node) return
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setContainerSize({ width: entry.contentRect.width, height: entry.contentRect.height })
+    })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [screen.slotCount])
+
+  /** Which slide (by index within its slot's own `contents`) a pane is currently showing — its forced slide while that exact pane's editor has one open, else wherever its own rotation (or lack of one) has it. */
+  const resolvePaneContent = (slot: ScreenSlot, index: number): { content: ScreenSlotContent; contentIndex: number } => {
+    const isForced = forcedSlide?.slotIndex === index
+    const contentIndex = isForced ? forcedSlide.contentIndex : currentSlotContentIndex(slot, tick)
+    const content = isForced ? (slot.contents[contentIndex] ?? { kind: 'none' as const }) : currentSlotContent(slot, tick)
+    return { content, contentIndex }
+  }
+
+  const isResizingImage = (content: ScreenSlotContent): content is Extract<ScreenSlotContent, { kind: 'image' }> =>
+    content.kind === 'image' && Boolean(content.resizeToFit) && Boolean(content.imageUrl)
+
+  const activeResizeImageUrls = visibleSlots
+    .map((slot, index) => resolvePaneContent(slot, index).content)
+    .filter(isResizingImage)
+    .map((content) => content.imageUrl)
+
+  useEffect(() => {
+    activeResizeImageUrls.forEach((url) => {
+      if (requestedImagesRef.current.has(url)) return
+      requestedImagesRef.current.add(url)
+      const img = new Image()
+      img.onload = () => setImageNaturalSizes((current) => ({ ...current, [url]: { width: img.naturalWidth, height: img.naturalHeight } }))
+      img.src = url
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `activeResizeImageUrls` is a new array every render; this key is its faithful (and stable) serialization.
+  }, [activeResizeImageUrls.join('|')])
+
+  const resizedPanesThisRender = new Set<number>()
+  const imageResizeOverrides: RatioPatch = visibleSlots.reduce<RatioPatch>((patch, slot, index) => {
+    const { content } = resolvePaneContent(slot, index)
+    if (!isResizingImage(content)) return patch
+    const naturalSize = imageNaturalSizes[content.imageUrl]
+    if (!naturalSize) return patch
+    resizedPanesThisRender.add(index)
+    return { ...patch, ...imageResizeRatioPatch(screen, index, naturalSize.width, naturalSize.height, containerSize.width, containerSize.height) }
+  }, {})
+
+  // A pane that just stopped showing a `resizeToFit` image (it had one as of
+  // the previous render, not this one) needs its own *shrink* held off until
+  // its outgoing slide has actually finished crossfading out — otherwise the
+  // pane collapses around the image while it's still visible mid-fade,
+  // squeezing it, since that crossfade (`transition` below) is a separate,
+  // ongoing animation `AnimatePresence` runs independently of this render.
+  // Growing (or switching between two differently-sized images) has no such
+  // problem — the incoming slide doesn't even start fading in (`mode="wait"`)
+  // until the outgoing one is already gone — so only a shrink gets delayed.
+  // Computed and stored (`setIsShrinkingAwayFromImage`) right here, during
+  // this same render, rather than read back from `previouslyResizedPanes`
+  // afterward — that comparison has to happen before `previouslyResizedPanes`
+  // itself is updated below, since React re-renders synchronously once more
+  // before committing, and by then the comparison would already see the two
+  // sides as equal.
+  const resizedPanesChanged = previouslyResizedPanes.size !== resizedPanesThisRender.size || [...resizedPanesThisRender].some((index) => !previouslyResizedPanes.has(index))
+  if (resizedPanesChanged) {
+    setIsShrinkingAwayFromImage([...previouslyResizedPanes].some((index) => !resizedPanesThisRender.has(index)))
+    setPreviouslyResizedPanes(resizedPanesThisRender)
+  }
+
+  useEffect(() => {
+    if (!isShrinkingAwayFromImage) return
+    const timer = setTimeout(() => setIsShrinkingAwayFromImage(false), transition.duration * 1000)
+    return () => clearTimeout(timer)
+  }, [isShrinkingAwayFromImage, transition.duration])
+
   if (!visibleSlots.some(isSlotActive)) {
     return (
       <div className="split-layout split-layout--empty">
@@ -82,11 +174,23 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
   }
 
   const borderModifier = screen.showSlotBorders === false ? ' split-layout--no-borders' : ''
-  const variants = resolveTransitionVariants(screen.transitionStyle, screen.slideTransitionDirection ?? 'right')
-  const transition = reducedMotion ? { duration: 0 } : { duration: 0.6, ease: 'easeInOut' as const }
 
-  const layoutScreen = { ...screen, ...liveRatios }
-  const gridTemplate = splitGridTemplate(layoutScreen)
+  const layoutScreen = { ...screen, ...imageResizeOverrides, ...liveRatios }
+  const paneVariants = (slotIndex: number) => resolveTransitionVariants(screen.transitionStyle, paneDefaultSlideDirection(screen, slotIndex))
+  // A non-empty `liveRatios` means a divider's actively being dragged right
+  // here — that needs to track the pointer instantly, with no transition
+  // lag. Any other ratio change (the admin dashboard's own arrow-nudge
+  // "Resize" panel, live-synced in from another tab, or a `resizeToFit`
+  // image's own pane growing/shrinking to fit it) has no such live pointer
+  // to keep up with, so it gets a CSS transition instead, sliding the
+  // divider into its new position rather than snapping there — delayed
+  // until the crossfade finishes for a shrink (see `isShrinkingAwayFromImage`).
+  const isDragging = Object.keys(liveRatios).length > 0
+  const gridDelay = isShrinkingAwayFromImage ? transition.duration : 0
+  const gridTemplate = {
+    ...splitGridTemplate(layoutScreen),
+    ...(!isDragging && !reducedMotion ? { transition: `grid-template-columns 0.3s ease ${gridDelay}s, grid-template-rows 0.3s ease ${gridDelay}s` } : {}),
+  }
   const dividers = screenDividers(layoutScreen)
   const centerHandle = crossHandle(layoutScreen)
 
@@ -140,10 +244,8 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
    * the rotation itself happened to freeze when the editor opened.
    */
   const renderPane = (slot: ScreenSlot, index: number, extraClassName = '') => {
-    const isForced = forcedSlide?.slotIndex === index
-    const contentIndex = isForced ? forcedSlide.contentIndex : currentSlotContentIndex(slot, tick)
-    const content = isForced ? (slot.contents[contentIndex] ?? { kind: 'none' as const }) : currentSlotContent(slot, tick)
-    const motionKey = isForced ? contentIndex : currentSlotSubIndex(slot, tick)
+    const { content, contentIndex } = resolvePaneContent(slot, index)
+    const motionKey = forcedSlide?.slotIndex === index ? contentIndex : currentSlotSubIndex(slot, tick)
     const backgroundImage = resolveContentBackgroundImage(content, slot.backgroundImage)
     const paneStyle = { ...slotBackgroundColorStyle(slot.backgroundColor), ...backgroundImageTextStyle(backgroundImage?.overlay) }
     return (
@@ -168,7 +270,7 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
             key={motionKey}
             className="split-layout__pane-content"
             style={textSizesToCssVars(resolveTextSizes(index, contentIndex, content))}
-            variants={variants}
+            variants={paneVariants(index)}
             initial="initial"
             animate="animate"
             exit="exit"

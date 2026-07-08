@@ -1,4 +1,4 @@
-import type { ScreenConfig } from '../types/screen'
+import type { ScreenConfig, SlideTransitionDirection } from '../types/screen'
 
 /** A screen field holding one adjustable divider's position, as a percentage. */
 export type RatioField = 'splitRatio' | 'tripleBigRatio' | 'tripleSmallRatio' | 'quadColumnRatio' | 'quadRowRatio'
@@ -167,4 +167,166 @@ export function nudgeRatio(screen: ScreenConfig, direction: ResizeDirection, ste
 
   const current = clampRatio(screen[divider.field] ?? 50)
   return { [divider.field]: clampRatio(current + fieldSign * step) }
+}
+
+/** One axis (width or height) a pane can actually be resized along — which ratio field governs it, and whether the pane's own share is that field's raw value or its complement (`100 -` it). */
+export interface PaneAxis {
+  field: RatioField
+  isFirstShare: boolean
+}
+
+/** Which axis (or axes) of a pane's own box are governed by an adjustable ratio field at all, for `screen`'s current arrangement — the other axis (if any) is always fixed to the full container edge-to-edge (e.g. a 2-slot pane's cross-axis, or a 3-slot "big" pane's own — see `splitGridTemplate`), so it's simply omitted rather than forced to some value. */
+export interface PaneResizableAxes {
+  width?: PaneAxis
+  height?: PaneAxis
+}
+
+/**
+ * Maps `slotIndex` (0-3, in the same order `SplitLayout` renders its panes)
+ * to the ratio field(s) that actually govern its own width/height, for
+ * `screen`'s current arrangement — used by `imageResizeRatioPatch` to know
+ * which axis (or axes) of a pane can be resized to fit an image at all.
+ * Deliberately independent of `splitBigPosition`: a 3-slot arrangement's
+ * "big" pane's own share is always `tripleBigRatio`'s raw value and the
+ * small pair's shared cross-axis share is always its complement, regardless
+ * of whether the big pane is placed first or second along the main axis —
+ * only *where* it's drawn (not the numeric shares themselves) depends on
+ * that.
+ */
+export function paneResizableAxes(screen: ScreenConfig, slotIndex: number): PaneResizableAxes {
+  const direction = screen.splitDirection ?? 'row'
+
+  if (screen.slotCount === 2) {
+    const axis: PaneAxis = { field: 'splitRatio', isFirstShare: slotIndex === 0 }
+    return direction === 'row' ? { width: axis } : { height: axis }
+  }
+
+  if (screen.slotCount === 4) {
+    // Pane order (see `SplitLayout`'s own auto-placed 2x2 grid): 0 top-left, 1 top-right, 2 bottom-left, 3 bottom-right.
+    const width: PaneAxis = { field: 'quadColumnRatio', isFirstShare: slotIndex === 0 || slotIndex === 2 }
+    const height: PaneAxis = { field: 'quadRowRatio', isFirstShare: slotIndex === 0 || slotIndex === 1 }
+    return { width, height }
+  }
+
+  if (screen.slotCount === 3) {
+    if (slotIndex === 0) {
+      // The "big" pane — one axis only; its cross-axis always spans the full container (see `splitGridTemplate`'s `bigTrack`).
+      const axis: PaneAxis = { field: 'tripleBigRatio', isFirstShare: true }
+      return direction === 'row' ? { height: axis } : { width: axis }
+    }
+    // Small1 (1) or small2 (2) — their own split (via `tripleSmallRatio`) plus their shared cross-axis, which comes out of the big pane's own share (so growing it here shrinks the big pane, same as dragging that divider directly).
+    const ownSplit: PaneAxis = { field: 'tripleSmallRatio', isFirstShare: slotIndex === 1 }
+    const sharedWithBig: PaneAxis = { field: 'tripleBigRatio', isFirstShare: false }
+    return direction === 'row' ? { width: ownSplit, height: sharedWithBig } : { height: ownSplit, width: sharedWithBig }
+  }
+
+  return {}
+}
+
+/**
+ * The slide-in/out direction a pane's own rotation should use by default, so
+ * it only ever enters/exits through an actual screen edge and never through
+ * a border it shares with a neighboring pane. A pane bordering a neighbor on
+ * only one axis (a 2-slot pane, or a 3-slot arrangement's "big" one) has no
+ * choice — it must slide along that axis, away from the neighbor. A pane
+ * bordering a neighbor on *both* axes (3-slot small1/small2, or any of a
+ * 4-slot quad's corners) has two equally valid outer edges; this always
+ * picks the horizontal one, purely as a consistent tie-break (either would
+ * satisfy the "never through a border" rule equally well). Unlike
+ * `paneResizableAxes`, this accounts for `splitBigPosition` itself (not just
+ * which ratio field governs an axis), since it needs the pane's actual
+ * left/right/top/bottom placement, not just which field its share comes
+ * from.
+ */
+export function paneDefaultSlideDirection(screen: Pick<ScreenConfig, 'slotCount' | 'splitDirection' | 'splitBigPosition'>, slotIndex: number): SlideTransitionDirection {
+  const direction = screen.splitDirection ?? 'row'
+  const bigPosition = screen.splitBigPosition ?? 'first'
+
+  if (screen.slotCount === 2) {
+    const isFirst = slotIndex === 0
+    return direction === 'row' ? (isFirst ? 'left' : 'right') : isFirst ? 'up' : 'down'
+  }
+
+  if (screen.slotCount === 3) {
+    if (slotIndex === 0) {
+      // The "big" pane spans the full cross-axis — only the axis it shares with the small pair borders a neighbor, on whichever side that pair sits.
+      if (direction === 'row') return bigPosition === 'first' ? 'up' : 'down'
+      return bigPosition === 'first' ? 'left' : 'right'
+    }
+    // Small1 (1) or small2 (2) border each other *and* the big pane — pick the horizontal outer edge within their own row (row-direction) or the vertical one within their own column (column-direction), independent of `bigPosition`.
+    const isFirstSmall = slotIndex === 1
+    if (direction === 'row') return isFirstSmall ? 'left' : 'right'
+    return isFirstSmall ? 'up' : 'down'
+  }
+
+  if (screen.slotCount === 4) {
+    // 0 top-left, 1 top-right, 2 bottom-left, 3 bottom-right (see `paneResizableAxes`) — every corner borders a neighbor on both axes, so this just picks the horizontal outer edge consistently.
+    const isLeft = slotIndex === 0 || slotIndex === 2
+    return isLeft ? 'left' : 'right'
+  }
+
+  // 1 slot: the whole screen, no neighbor on any side — any direction is a valid screen edge.
+  return 'right'
+}
+
+/** The largest fraction of the screen's own viewport (standing in for `containerWidth`/`containerHeight`, since an arrangement always fills it entirely) a slide's own `resizeToFit` image is ever allowed to grow its pane to, along either axis. */
+export const IMAGE_RESIZE_MAX_VIEWPORT_FRACTION = 0.4
+
+/** Fits a `naturalWidth`x`naturalHeight` box within `maxWidth`x`maxHeight`, preserving aspect ratio and never exceeding either bound — the same math as CSS `object-fit: contain`. */
+export function fitImageBox(naturalWidth: number, naturalHeight: number, maxWidth: number, maxHeight: number): { width: number; height: number } {
+  if (naturalWidth <= 0 || naturalHeight <= 0 || maxWidth <= 0 || maxHeight <= 0) return { width: maxWidth, height: maxHeight }
+  const aspectRatio = naturalWidth / naturalHeight
+  let width = maxWidth
+  let height = width / aspectRatio
+  if (height > maxHeight) {
+    height = maxHeight
+    width = height * aspectRatio
+  }
+  return { width, height }
+}
+
+/**
+ * The ratio-field overrides that resize `slotIndex`'s own pane to fit an
+ * image of `naturalWidth`x`naturalHeight`, capped at
+ * `IMAGE_RESIZE_MAX_VIEWPORT_FRACTION` of the arrangement's own
+ * `containerWidth`x`containerHeight` — meant to be applied live (never
+ * persisted) while that pane's currently-showing slide is an image with
+ * `resizeToFit` on, and dropped the instant it isn't (see `SplitLayout`),
+ * which is what lets it slide back to the slot's own set size on its own,
+ * the same transition a manual resize already animates with.
+ *
+ * The 40% cap belongs to the *image* (`fitImageBox`, always capped on
+ * both axes, regardless of the pane's own role) — never to the pane
+ * itself: a pane only ever adopts whichever of that box's two dimensions
+ * matches an axis it actually has a field for (see `paneResizableAxes`),
+ * with no cap or other size of its own imposed beyond that. A pane with
+ * only one resizable axis (a 2-slot pane, or a 3-slot arrangement's "big"
+ * one) simply leaves its other axis alone — still the full container
+ * edge-to-edge, exactly as before this override — rather than trying to
+ * stretch the image to fill it.
+ */
+export function imageResizeRatioPatch(
+  screen: ScreenConfig,
+  slotIndex: number,
+  naturalWidth: number,
+  naturalHeight: number,
+  containerWidth: number,
+  containerHeight: number,
+): RatioPatch {
+  const axes = paneResizableAxes(screen, slotIndex)
+  if (!axes.width && !axes.height) return {}
+  if (containerWidth <= 0 || containerHeight <= 0) return {}
+
+  const box = fitImageBox(naturalWidth, naturalHeight, containerWidth * IMAGE_RESIZE_MAX_VIEWPORT_FRACTION, containerHeight * IMAGE_RESIZE_MAX_VIEWPORT_FRACTION)
+
+  const patch: RatioPatch = {}
+  if (axes.width) {
+    const share = clampRatio((box.width / containerWidth) * 100)
+    patch[axes.width.field] = axes.width.isFirstShare ? share : 100 - share
+  }
+  if (axes.height) {
+    const share = clampRatio((box.height / containerHeight) * 100)
+    patch[axes.height.field] = axes.height.isFirstShare ? share : 100 - share
+  }
+  return patch
 }

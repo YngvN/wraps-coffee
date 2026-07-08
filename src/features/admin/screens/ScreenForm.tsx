@@ -1,15 +1,17 @@
+import { AnimatePresence, motion } from 'framer-motion'
 import { useState, type FormEvent } from 'react'
 import { BackButton, Button, Checkbox, Input } from '../../../components'
 import { useScreens } from '../../../hooks/useScreens'
+import { useScreensaverSchedule } from '../../../hooks/useScreensaverSchedule'
 import { useLanguage } from '../../../i18n'
 import {
   DEFAULT_SCREEN_BACKGROUND_COLOR,
   DEFAULT_TEXT_SIZES,
+  type BackgroundImage,
   type ScreenConfig,
   type ScreenSlot,
   type ScreenSlotContent,
   type ScreenTransitionStyle,
-  type SlideTransitionDirection,
   type SplitBigPosition,
   type SplitDirection,
   type TextSizes,
@@ -18,6 +20,7 @@ import { nudgeRatio, type ResizeDirection } from '../../../utils/screenLayout'
 import { firstActiveContentIndex, hasOwnTextSizeFields, isSlotActive } from '../../../utils/screenSlots'
 import { resolveContentTextSizes } from '../../../utils/textSizeVars'
 import { BackgroundColorPicker } from '../../screens/BackgroundColorPicker'
+import { BackgroundEditor } from '../../screens/BackgroundEditor'
 import { BackgroundImagePicker } from '../../screens/BackgroundImagePicker'
 import { GlobalTextSizeScaler, type SizeSnapshot } from '../../screens/GlobalTextSizeScaler'
 import { SlideFields } from '../../screens/SlideFields'
@@ -31,6 +34,8 @@ interface ScreenFormProps {
   screen: ScreenConfig | null
   onSave: (screen: ScreenConfig) => void
   onCancel: () => void
+  /** Reports this form's own currently open sub-view by name (e.g. "Resize panes"), or `undefined` while showing its main tabbed content — lets the parent's `Modal` show it as a "Edit screen - Resize panes" breadcrumb next to its title. */
+  onRouteChange?: (route: string | undefined) => void
 }
 
 /** The 4 arrangements available when exactly 3 of a screen's slots are active. */
@@ -39,14 +44,6 @@ const TRIPLE_ARRANGEMENTS: { pattern: LayoutIconPattern; direction: SplitDirecti
   { pattern: 'triple-row-second', direction: 'row', bigPosition: 'second', labelKey: 'tripleRowSecondLabel' },
   { pattern: 'triple-column-first', direction: 'column', bigPosition: 'first', labelKey: 'tripleColumnFirstLabel' },
   { pattern: 'triple-column-second', direction: 'column', bigPosition: 'second', labelKey: 'tripleColumnSecondLabel' },
-]
-
-/** The 4 entry directions available for a `'slide'` transition — which side the incoming slide comes from. */
-const SLIDE_DIRECTIONS: { direction: SlideTransitionDirection; labelKey: string }[] = [
-  { direction: 'left', labelKey: 'slideDirectionLeftLabel' },
-  { direction: 'right', labelKey: 'slideDirectionRightLabel' },
-  { direction: 'up', labelKey: 'slideDirectionUpLabel' },
-  { direction: 'down', labelKey: 'slideDirectionDownLabel' },
 ]
 
 /** A slot with no selection yet. */
@@ -85,11 +82,14 @@ function nextDefaultScreenName(screens: ScreenConfig[], prefix: string): string 
  * mis-saving with it lower than intended) can't lose any data; only
  * deleting the whole screen does.
  */
-export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
+export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFormProps) {
   const { t } = useLanguage()
   const [screens, setScreens] = useScreens()
-  /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the "Resize" arrow panel, or neither. */
-  const [editingTarget, setEditingTarget] = useState<'global' | 'resize' | null>(null)
+  const [screensaverSchedule] = useScreensaverSchedule()
+  /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the "Arrangement" editor (layout picker plus its own resize D-pad, and its own nested "Borders" sub-menu — see `arrangementShowingBorders`), the "Background" color/image editor, the "Slideshow" (duration/transition/direction) editor, the "Screen saver" editor, the "Other settings" editor, or neither. */
+  const [editingTarget, setEditingTarget] = useState<'global' | 'arrangement' | 'background' | 'slideshow' | 'screensaver' | 'other' | null>(null)
+  /** Whether the "Arrangement" sub-view is itself showing its own nested "Borders" sub-menu rather than the layout picker/resize D-pad — reset whenever Arrangement (re)opens. */
+  const [arrangementShowingBorders, setArrangementShowingBorders] = useState(false)
   const [liveTextSizes, setLiveTextSizes] = useState<TextSizes>(screen?.textSizes ?? DEFAULT_TEXT_SIZES)
   const [liveUseOwnTextSizes, setLiveUseOwnTextSizes] = useState(false)
   /** Which of the active slot's own tabs is showing: its "Global" settings, or one specific slide by index — only meaningful once that slot has more than one slide. */
@@ -107,8 +107,8 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
   const [splitBigPosition, setSplitBigPosition] = useState<SplitBigPosition>(screen?.splitBigPosition ?? 'first')
   const [showSlotBorders, setShowSlotBorders] = useState(screen?.showSlotBorders ?? true)
   const [hideScrollbar, setHideScrollbar] = useState(screen?.hideScrollbar ?? false)
+  const [useScreensaver, setUseScreensaver] = useState(screen?.useScreensaver ?? false)
   const [transitionStyle, setTransitionStyle] = useState<ScreenTransitionStyle>(screen?.transitionStyle ?? 'fade')
-  const [slideTransitionDirection, setSlideTransitionDirection] = useState<SlideTransitionDirection>(screen?.slideTransitionDirection ?? 'right')
 
   const slotFields: { id: string; label: string; value: ScreenSlot; onChange: (slot: ScreenSlot) => void }[] = [
     { id: 'slot-1', label: t('admin.screens.slot1Label'), value: slot1, onChange: setSlot1 },
@@ -141,6 +141,57 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
   const openGlobalTextSizeEditor = () => {
     if (!screen) return
     setEditingTarget('global')
+    onRouteChange?.(t('admin.screens.editTextSize'))
+  }
+
+  /** Opens the screen's own background color/image editor. */
+  const openBackgroundEditor = () => {
+    if (!screen) return
+    setEditingTarget('background')
+    onRouteChange?.(t('admin.screens.backgroundLabel'))
+  }
+
+  /** Opens the layout picker/resize D-pad editor. */
+  const openArrangementEditor = () => {
+    setEditingTarget('arrangement')
+    setArrangementShowingBorders(false)
+    onRouteChange?.(t('admin.screens.splitDirectionLabel'))
+  }
+
+  /** Opens Arrangement's own nested "Borders" sub-menu. */
+  const openBordersWithinArrangement = () => {
+    setArrangementShowingBorders(true)
+    onRouteChange?.(`${t('admin.screens.splitDirectionLabel')} - ${t('admin.screens.bordersLabel')}`)
+  }
+
+  /** Returns from Arrangement's own nested "Borders" sub-menu back to the layout picker/resize D-pad — one level up, not all the way out to the main form. */
+  const closeBordersWithinArrangement = () => {
+    setArrangementShowingBorders(false)
+    onRouteChange?.(t('admin.screens.splitDirectionLabel'))
+  }
+
+  /** Opens the slide duration/transition/direction editor. */
+  const openSlideshowEditor = () => {
+    setEditingTarget('slideshow')
+    onRouteChange?.(t('admin.screens.slideshowLabel'))
+  }
+
+  /** Opens the "Use screensaver"/"Test screensaver" editor. */
+  const openScreensaverEditor = () => {
+    setEditingTarget('screensaver')
+    onRouteChange?.(t('admin.screens.screensaverLabel'))
+  }
+
+  /** Opens the catch-all "Other settings" editor. */
+  const openOtherSettingsEditor = () => {
+    setEditingTarget('other')
+    onRouteChange?.(t('admin.screens.otherSettingsLabel'))
+  }
+
+  /** Closes whichever sub-view is currently open, back to the main tabbed form. */
+  const closeSubview = () => {
+    setEditingTarget(null)
+    onRouteChange?.(undefined)
   }
 
   /** Seeds the live text-size buffer for one slot's own tab — the slot's shared/fallback value for "Global", else that slide's own resolved value (its own override if it has one, else the shared value). */
@@ -248,6 +299,9 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
   /** Writes the screen's own background color straight to the persisted screen, live. */
   const handleScreenBackgroundColorChange = (color: string) => liveUpdateScreen({ backgroundColor: color })
 
+  /** Writes the screen's own whole-screen background image straight to the persisted screen, live. */
+  const handleScreenBackgroundImageChange = (backgroundImage: BackgroundImage | undefined) => liveUpdateScreen({ backgroundImage })
+
   /** Writes the pane border color straight to the persisted screen, live. `undefined` goes back to the automatic contrast-based color. */
   const handleBorderColorChange = (color: string | undefined) => liveUpdateScreen({ borderColor: color })
 
@@ -276,17 +330,17 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
     liveUpdateScreen({ transitionStyle: style })
   }
 
-  /** Writes the slide transition's entry direction straight to the persisted screen, live. */
-  const handleSlideTransitionDirectionChange = (direction: SlideTransitionDirection) => {
-    setSlideTransitionDirection(direction)
-    liveUpdateScreen({ slideTransitionDirection: direction })
-  }
-
   /** Nudges the divider a "Resize" arrow direction controls (for the screen's current arrangement) by 1%, live — the exact same fields the display's own draggable dividers adjust, so the two stay in sync no matter which is used to resize. No-ops (button disabled) for a direction with no divider on that axis. */
   const handleNudgeRatio = (direction: ResizeDirection) => {
     if (!latestScreen) return
     const patch = nudgeRatio(latestScreen, direction)
     if (patch) liveUpdateScreen(patch)
+  }
+
+  /** Toggles the live screensaver preview straight on the persisted screen — unlike `useScreensaver` itself (a plain field saved along with everything else on Submit), this needs to show up immediately on any open kiosk tab to actually be useful as a test. */
+  const handleToggleTestScreensaver = () => {
+    if (!latestScreen) return
+    liveUpdateScreen({ screensaverTestActive: !latestScreen.screensaverTestActive })
   }
 
   /**
@@ -305,27 +359,181 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
       setSlot4(latest.slots[3])
     }
     setEditingTarget(null)
+    onRouteChange?.(undefined)
   }
 
   if (editingTarget === 'global' && screen) {
     return (
       <div className="screen-form__subview">
         <BackButton onClick={closeGlobalTextSizeEditor}>{t('admin.common.back')}</BackButton>
-        <GlobalTextSizeScaler
-          screen={latestScreen ?? screen}
-          onChange={handleGlobalTextSizesChange}
-          backgroundColor={latestScreen?.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR}
+        <GlobalTextSizeScaler screen={latestScreen ?? screen} onChange={handleGlobalTextSizesChange} onDone={closeGlobalTextSizeEditor} />
+      </div>
+    )
+  }
+
+  if (editingTarget === 'background' && latestScreen) {
+    return (
+      <div className="screen-form__subview">
+        <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
+        <BackgroundEditor
+          backgroundColor={latestScreen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR}
           onBackgroundColorChange={handleScreenBackgroundColorChange}
-          onDone={closeGlobalTextSizeEditor}
+          backgroundImage={latestScreen.backgroundImage}
+          onBackgroundImageChange={handleScreenBackgroundImageChange}
         />
       </div>
     )
   }
 
-  if (editingTarget === 'resize' && latestScreen) {
+  if (editingTarget === 'slideshow' && screen) {
     return (
       <div className="screen-form__subview">
-        <BackButton onClick={() => setEditingTarget(null)}>{t('admin.common.back')}</BackButton>
+        <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
+        <Input
+          id="screen-slide-duration"
+          label={t('admin.screens.slideDurationLabel')}
+          type="number"
+          min={1}
+          value={slideDurationSeconds}
+          onChange={(event) => setSlideDurationSeconds(Number(event.target.value))}
+        />
+        <div className="screen-form__field">
+          <span>{t('admin.screens.transitionStyleLabel')}</span>
+          <div className="screen-form__layout-picker">
+            <button
+              type="button"
+              className={`screen-form__layout-option${transitionStyle === 'fade' ? ' screen-form__layout-option--active' : ''}`}
+              onClick={() => handleTransitionStyleChange('fade')}
+            >
+              {t('admin.screens.transitionFadeLabel')}
+            </button>
+            <button
+              type="button"
+              className={`screen-form__layout-option${transitionStyle === 'slide' ? ' screen-form__layout-option--active' : ''}`}
+              onClick={() => handleTransitionStyleChange('slide')}
+            >
+              {t('admin.screens.transitionSlideLabel')}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (editingTarget === 'other') {
+    return (
+      <div className="screen-form__subview">
+        <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
+        <Checkbox
+          id="screen-hide-scrollbar"
+          label={t('admin.screens.hideScrollbarLabel')}
+          checked={hideScrollbar}
+          onChange={(event) => setHideScrollbar(event.target.checked)}
+        />
+      </div>
+    )
+  }
+
+  if (editingTarget === 'screensaver' && screen) {
+    return (
+      <div className="screen-form__subview">
+        <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
+        <Checkbox
+          id="screen-use-screensaver"
+          label={t('admin.screens.useScreensaverLabel')}
+          checked={useScreensaver}
+          onChange={(event) => setUseScreensaver(event.target.checked)}
+        />
+        {latestScreen && (
+          <Button type="button" variant="secondary" onClick={handleToggleTestScreensaver}>
+            {latestScreen.screensaverTestActive ? t('admin.screens.stopTestScreensaverButton') : t('admin.screens.testScreensaverButton')}
+          </Button>
+        )}
+      </div>
+    )
+  }
+
+  if (editingTarget === 'arrangement' && latestScreen && arrangementShowingBorders) {
+    return (
+      <div className="screen-form__subview">
+        <BackButton onClick={closeBordersWithinArrangement}>{t('admin.common.back')}</BackButton>
+        <Checkbox
+          id="screen-show-slot-borders"
+          label={t('admin.screens.showSlotBordersLabel')}
+          checked={showSlotBorders}
+          onChange={(event) => setShowSlotBorders(event.target.checked)}
+        />
+        {showSlotBorders && (
+          <BackgroundColorPicker
+            backgroundColor={latestScreen?.borderColor}
+            onChange={handleBorderColorChange}
+            allowTransparent
+            label={t('admin.screens.borderColorLabel')}
+            transparentLabel={t('admin.screens.autoBorderColorLabel')}
+          />
+        )}
+      </div>
+    )
+  }
+
+  if (editingTarget === 'arrangement' && latestScreen) {
+    return (
+      <div className="screen-form__subview">
+        <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
+
+        {slotCount === 2 && (
+          <div className="screen-form__field">
+            <span>{t('admin.screens.splitDirectionLabel')}</span>
+            <div className="screen-form__layout-picker">
+              <button
+                type="button"
+                className={`screen-form__layout-option${splitDirection === 'row' ? ' screen-form__layout-option--active' : ''}`}
+                onClick={() => handleSplitDirectionChange('row')}
+                aria-label={t('admin.screens.splitDirectionRowLabel')}
+                title={t('admin.screens.splitDirectionRowLabel')}
+              >
+                <LayoutIcon pattern="row" />
+              </button>
+              <button
+                type="button"
+                className={`screen-form__layout-option${splitDirection === 'column' ? ' screen-form__layout-option--active' : ''}`}
+                onClick={() => handleSplitDirectionChange('column')}
+                aria-label={t('admin.screens.splitDirectionColumnLabel')}
+                title={t('admin.screens.splitDirectionColumnLabel')}
+              >
+                <LayoutIcon pattern="column" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {slotCount === 3 && (
+          <div className="screen-form__field">
+            <span>{t('admin.screens.splitDirectionLabel')}</span>
+            <div className="screen-form__layout-picker">
+              {TRIPLE_ARRANGEMENTS.map(({ pattern, direction, bigPosition, labelKey }) => {
+                const isActive = splitDirection === direction && splitBigPosition === bigPosition
+                const label = t(`admin.screens.${labelKey}`)
+                return (
+                  <button
+                    type="button"
+                    key={pattern}
+                    className={`screen-form__layout-option${isActive ? ' screen-form__layout-option--active' : ''}`}
+                    onClick={() => handleTripleArrangementChange(direction, bigPosition)}
+                    aria-label={label}
+                    title={label}
+                  >
+                    <LayoutIcon pattern={pattern} />
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="screen-form__field">
+          <span>{t('admin.screens.resizeLabel')}</span>
+        </div>
         <div className="screen-form__resize-pad" role="group" aria-label={t('admin.screens.resizeLabel')}>
           <button
             type="button"
@@ -364,6 +572,10 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
             ▼
           </button>
         </div>
+
+        <Button type="button" variant="secondary" onClick={openBordersWithinArrangement}>
+          {t('admin.screens.bordersLabel')}
+        </Button>
       </div>
     )
   }
@@ -383,11 +595,11 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
       slots: [slot1, slot2, slot3, slot4],
       slideDurationSeconds,
       transitionStyle,
-      slideTransitionDirection,
       splitDirection,
       splitBigPosition,
       showSlotBorders,
       hideScrollbar,
+      useScreensaver,
     })
   }
 
@@ -422,19 +634,6 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
           <>
             <Input id="screen-name" label={t('admin.screens.nameLabel')} value={name} onChange={(event) => setName(event.target.value)} required />
 
-            {screen && (
-              <BackgroundColorPicker
-                backgroundColor={latestScreen?.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR}
-                onChange={(color) => color !== undefined && handleScreenBackgroundColorChange(color)}
-              />
-            )}
-
-            {screen && (
-              <Button type="button" variant="secondary" onClick={openGlobalTextSizeEditor}>
-                {t('admin.screens.editTextSize')}
-              </Button>
-            )}
-
             <div className="screen-form__field">
               <span>{t('admin.screens.slotCountLabel')}</span>
               <div className="screen-form__layout-picker">
@@ -451,137 +650,62 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
               </div>
             </div>
 
-            {needsDurationField && (
-              <Input
-                id="screen-slide-duration"
-                label={t('admin.screens.slideDurationLabel')}
-                type="number"
-                min={1}
-                value={slideDurationSeconds}
-                onChange={(event) => setSlideDurationSeconds(Number(event.target.value))}
-              />
-            )}
+            {/* Fades and slides in/out as slotCount crosses 1 (`initial={false}` skips this on first mount, since it's not really "appearing"). Animating its own `height` (0 to/from its natural size, `layout` enables interpolating that "auto" value) — rather than just `opacity`/`y` — is what actually makes every field below it glide smoothly into its new position instead of snapping the instant this one's removed from the document flow; those fields only need `layout` themselves to pick up that progressive reflow. `overflow: hidden` keeps the button from spilling out while its own height is still animating. */}
+            <AnimatePresence initial={false}>
+              {slotCount > 1 && latestScreen && (
+                <motion.div
+                  key="arrangement"
+                  layout
+                  initial={{ opacity: 0, y: -12, height: 0 }}
+                  animate={{ opacity: 1, y: 0, height: 'auto' }}
+                  exit={{ opacity: 0, y: -12, height: 0 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  style={{ overflow: 'hidden' }}
+                >
+                  <Button type="button" variant="secondary" onClick={openArrangementEditor}>
+                    {t('admin.screens.splitDirectionLabel')}
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            {needsDurationField && (
-              <div className="screen-form__field">
-                <span>{t('admin.screens.transitionStyleLabel')}</span>
-                <div className="screen-form__layout-picker">
-                  <button
-                    type="button"
-                    className={`screen-form__layout-option${transitionStyle === 'fade' ? ' screen-form__layout-option--active' : ''}`}
-                    onClick={() => handleTransitionStyleChange('fade')}
-                  >
-                    {t('admin.screens.transitionFadeLabel')}
-                  </button>
-                  <button
-                    type="button"
-                    className={`screen-form__layout-option${transitionStyle === 'slide' ? ' screen-form__layout-option--active' : ''}`}
-                    onClick={() => handleTransitionStyleChange('slide')}
-                  >
-                    {t('admin.screens.transitionSlideLabel')}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {needsDurationField && transitionStyle === 'slide' && (
-              <div className="screen-form__field">
-                <span>{t('admin.screens.slideDirectionLabel')}</span>
-                <div className="screen-form__layout-picker">
-                  {SLIDE_DIRECTIONS.map(({ direction, labelKey }) => (
-                    <button
-                      key={direction}
-                      type="button"
-                      className={`screen-form__layout-option${slideTransitionDirection === direction ? ' screen-form__layout-option--active' : ''}`}
-                      onClick={() => handleSlideTransitionDirectionChange(direction)}
-                    >
-                      {t(`admin.screens.${labelKey}`)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {slotCount > 1 && (
-              <Checkbox
-                id="screen-show-slot-borders"
-                label={t('admin.screens.showSlotBordersLabel')}
-                checked={showSlotBorders}
-                onChange={(event) => setShowSlotBorders(event.target.checked)}
-              />
-            )}
-
-            {slotCount > 1 && showSlotBorders && screen && (
-              <BackgroundColorPicker
-                backgroundColor={latestScreen?.borderColor}
-                onChange={handleBorderColorChange}
-                allowTransparent
-                label={t('admin.screens.borderColorLabel')}
-                transparentLabel={t('admin.screens.autoBorderColorLabel')}
-              />
-            )}
-
-            <Checkbox
-              id="screen-hide-scrollbar"
-              label={t('admin.screens.hideScrollbarLabel')}
-              checked={hideScrollbar}
-              onChange={(event) => setHideScrollbar(event.target.checked)}
-            />
-
-            {slotCount === 2 && (
-              <div className="screen-form__field">
-                <span>{t('admin.screens.splitDirectionLabel')}</span>
-                <div className="screen-form__layout-picker">
-                  <button
-                    type="button"
-                    className={`screen-form__layout-option${splitDirection === 'row' ? ' screen-form__layout-option--active' : ''}`}
-                    onClick={() => handleSplitDirectionChange('row')}
-                  >
-                    <LayoutIcon pattern="row" />
-                    <span>{t('admin.screens.splitDirectionRowLabel')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`screen-form__layout-option${splitDirection === 'column' ? ' screen-form__layout-option--active' : ''}`}
-                    onClick={() => handleSplitDirectionChange('column')}
-                  >
-                    <LayoutIcon pattern="column" />
-                    <span>{t('admin.screens.splitDirectionColumnLabel')}</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {slotCount === 3 && (
-              <div className="screen-form__field">
-                <span>{t('admin.screens.splitDirectionLabel')}</span>
-                <div className="screen-form__layout-picker">
-                  {TRIPLE_ARRANGEMENTS.map(({ pattern, direction, bigPosition, labelKey }) => {
-                    const isActive = splitDirection === direction && splitBigPosition === bigPosition
-                    return (
-                      <button
-                        type="button"
-                        key={pattern}
-                        className={`screen-form__layout-option${isActive ? ' screen-form__layout-option--active' : ''}`}
-                        onClick={() => handleTripleArrangementChange(direction, bigPosition)}
-                      >
-                        <LayoutIcon pattern={pattern} />
-                        <span>{t(`admin.screens.${labelKey}`)}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {slotCount > 1 && latestScreen && (
-              <div className="screen-form__field">
-                <span>{t('admin.screens.resizeLabel')}</span>
-                <Button type="button" variant="secondary" onClick={() => setEditingTarget('resize')}>
-                  {t('admin.screens.resizeButton')}
+            {screen && (
+              <motion.div layout>
+                <Button type="button" variant="secondary" onClick={openBackgroundEditor}>
+                  {t('admin.screens.backgroundLabel')}
                 </Button>
-              </div>
+              </motion.div>
             )}
+
+            {screen && (
+              <motion.div layout>
+                <Button type="button" variant="secondary" onClick={openGlobalTextSizeEditor}>
+                  {t('admin.screens.editTextSize')}
+                </Button>
+              </motion.div>
+            )}
+
+            {needsDurationField && (
+              <motion.div layout>
+                <Button type="button" variant="secondary" onClick={openSlideshowEditor}>
+                  {t('admin.screens.slideshowLabel')}
+                </Button>
+              </motion.div>
+            )}
+
+            {screensaverSchedule && (
+              <motion.div layout>
+                <Button type="button" variant="secondary" onClick={openScreensaverEditor}>
+                  {t('admin.screens.screensaverLabel')}
+                </Button>
+              </motion.div>
+            )}
+
+            <motion.div layout>
+              <Button type="button" variant="secondary" onClick={openOtherSettingsEditor}>
+                {t('admin.screens.otherSettingsLabel')}
+              </Button>
+            </motion.div>
           </>
         ) : (
           activeSlot && (
