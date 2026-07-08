@@ -12,6 +12,12 @@
   align-items: center;
   justify-content: space-between;
   gap: $spacing-unit * 2;
+  flex-wrap: wrap;
+}
+
+.screens-view__header-actions {
+  display: flex;
+  gap: $spacing-unit;
 }
 
 .screens-view__empty {

@@ -1,0 +1,9 @@
+@use '../../../styles/variables' as *;
+
+.create-pin-modal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $spacing-unit * 2;
+  text-align: center;
+}

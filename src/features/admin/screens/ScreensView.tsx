@@ -1,20 +1,24 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState, type CSSProperties } from 'react'
 import { Badge, Button, Modal, TranslatedText } from '../../../components'
+import { useScreenLockPin } from '../../../hooks/useScreenLockPin'
 import { useScreens } from '../../../hooks/useScreens'
 import { useLanguage } from '../../../i18n'
 import { DEFAULT_SCREEN_BACKGROUND_COLOR, type ScreenConfig, type ScreenSlot, type ScreenSlotContent } from '../../../types/screen'
 import { getScreenColorVars } from '../../../utils/screenColors'
+import { CreatePinModal } from './CreatePinModal'
 import { LayoutIcon } from './LayoutIcon'
 import { ScreenForm } from './ScreenForm'
 import { getScreenPreviewPattern } from './screenPreviewPattern'
 import './ScreensView.scss'
 
-/** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link. */
+/** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link, plus the "Create pin" button that sets the one shared PIN every screen's own "Lock screen" button locks behind. */
 export function ScreensView() {
   const { t } = useLanguage()
   const [screens, setScreens] = useScreens()
+  const [pin] = useScreenLockPin()
   const [editingScreen, setEditingScreen] = useState<ScreenConfig | null | undefined>(undefined)
+  const [pinModalOpen, setPinModalOpen] = useState(false)
   const [copiedID, setCopiedID] = useState<string | null>(null)
 
   const isFormOpen = editingScreen !== undefined
@@ -69,7 +73,12 @@ export function ScreensView() {
     <div className="screens-view">
       <div className="screens-view__header">
         <TranslatedText as="h1" id="admin.screens.title" />
-        <Button onClick={() => setEditingScreen(null)}>{t('admin.screens.addScreen')}</Button>
+        <div className="screens-view__header-actions">
+          <Button variant="secondary" onClick={() => setPinModalOpen(true)}>
+            {pin ? t('admin.screens.changePinButton') : t('admin.screens.createPinButton')}
+          </Button>
+          <Button onClick={() => setEditingScreen(null)}>{t('admin.screens.addScreen')}</Button>
+        </div>
       </div>
 
       {screens.length === 0 ? (
@@ -138,6 +147,8 @@ export function ScreensView() {
       <Modal open={isFormOpen} onClose={closeForm} title={editingScreen ? t('admin.screens.editScreen') : t('admin.screens.addScreen')}>
         {isFormOpen && <ScreenForm screen={editingScreen ?? null} onSave={handleSave} onCancel={closeForm} />}
       </Modal>
+
+      <CreatePinModal open={pinModalOpen} onClose={() => setPinModalOpen(false)} />
     </div>
   )
 }

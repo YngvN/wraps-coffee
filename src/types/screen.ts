@@ -152,6 +152,16 @@ export interface ScreenConfig {
   splitDirection?: SplitDirection
   /** Only used when `slotCount` is 3. Falls back to 'first' when absent. */
   splitBigPosition?: SplitBigPosition
+  /** Percentage (10-90) of shared space Slot 1 occupies at the single divider in a 2-slot row/column arrangement — draggable on the live display, or nudgeable 1% at a time from the admin form's "Resize" panel. Falls back to 50 (even split) when absent. Unused for other slot counts. */
+  splitRatio?: number
+  /** Percentage (10-90) of space, along the split axis, the "big" pane occupies in a 3-slot arrangement — the position of the divider between it and the two small panes. Falls back to 50 when absent. */
+  tripleBigRatio?: number
+  /** Percentage (10-90) of their own shared space Slot 2 (the first small pane, left/top of the pair) occupies in a 3-slot arrangement — the position of the divider between the two small panes. Falls back to 50 when absent. */
+  tripleSmallRatio?: number
+  /** Percentage (10-90) of width the left column occupies in a 4-slot 2x2 grid — the position of its vertical divider. Falls back to 50 when absent. */
+  quadColumnRatio?: number
+  /** Percentage (10-90) of height the top row occupies in a 4-slot 2x2 grid — the position of its horizontal divider. Falls back to 50 when absent. */
+  quadRowRatio?: number
   /** Whether visible borders are drawn between panes. Falls back to `true` (shown) when absent. */
   showSlotBorders?: boolean
   /** Fixed border color (hex, from `SCREEN_BACKGROUND_COLORS`) between panes. Falls back to an automatic contrast-based color (`--screen-border`) when absent. Only relevant while `showSlotBorders` is on and `slotCount` is more than 1. */
@@ -160,6 +170,8 @@ export interface ScreenConfig {
   hideScrollbar?: boolean
   /** Fixed background color (hex) for this screen, chosen from `SCREEN_BACKGROUND_COLORS`. Falls back to `DEFAULT_SCREEN_BACKGROUND_COLOR` when absent. Not affected by the site's light/dark mode. */
   backgroundColor?: string
+  /** Whether this screen's own editing controls (its toolbar's "Edit appearance" button, each pane's hover-revealed edit button, and its draggable resize dividers) are hidden — a deterrent against casual tampering at the physical display, not real security, since unlocking just takes the shared PIN set from the admin Screens dashboard (`useScreenLockPin`), stored in the same plain browser storage as everything else here. Falls back to `false` (unlocked) when absent. */
+  locked?: boolean
 }
 
 /** A named, reusable set of text sizes, saved from one screen's editor and applicable to any screen. */

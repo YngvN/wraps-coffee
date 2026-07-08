@@ -1,12 +1,15 @@
 import type { CSSProperties } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Modal } from '../components'
 import { FullscreenToggle } from '../features/screens/FullscreenToggle'
 import { GlobalTextSizeScaler, type SizeSnapshot } from '../features/screens/GlobalTextSizeScaler'
+import { LockIcon } from '../features/screens/LockIcon'
 import { ScreenToolbar } from '../features/screens/ScreenToolbar'
 import { SlotEditor } from '../features/screens/SlotEditor'
 import { SplitLayout } from '../features/screens/SplitLayout'
+import { UnlockScreenModal } from '../features/screens/UnlockScreenModal'
+import { useScreenLockPin } from '../hooks/useScreenLockPin'
 import { useScreens } from '../hooks/useScreens'
 import { useLanguage } from '../i18n'
 import { DEFAULT_SCREEN_BACKGROUND_COLOR, DEFAULT_TEXT_SIZES, type ScreenConfig, type ScreenSlot, type ScreenSlotContent, type TextSizes } from '../types/screen'
@@ -70,6 +73,19 @@ type EditingTarget = 'screen' | SlideTarget | null
  * editor was opened. Any slot's own in-place rotation is paused while an
  * editor is open, so the live preview isn't pulled out from under the
  * slide being edited.
+ *
+ * The toolbar's "Lock screen" button (shown only once a PIN's been set from
+ * the admin dashboard) collapses the whole toolbar down to a single lock
+ * icon button — hiding the screen name, the fullscreen toggle, the "Edit
+ * appearance" button, and (via `SplitLayout`) every pane's own
+ * hover-revealed edit button plus its draggable resize dividers. Tapping
+ * that icon opens `UnlockScreenModal` to ask for that same PIN before
+ * restoring all of it. While locked, text/image selection, dragging and
+ * the right-click menu are also disabled (`.screen-display--locked`),
+ * leaving scrolling as the only thing still possible — and a
+ * `fullscreenchange` listener makes a best-effort attempt to hop straight
+ * back into fullscreen if it's exited, though it can't actually stop
+ * Escape from exiting in the first place; no website can override that.
  */
 export function ScreenDisplay() {
   const { t } = useLanguage()
@@ -90,6 +106,27 @@ export function ScreenDisplay() {
   const [originalSlotTextSizes, setOriginalSlotTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
   /** Which of the slot editor's own tabs is active: its "Global" settings, or one specific slide by index — only meaningful once the slot has more than one slide. */
   const [activeSlideTab, setActiveSlideTab] = useState<'global' | number>('global')
+  const [pin] = useScreenLockPin()
+  const [unlockModalOpen, setUnlockModalOpen] = useState(false)
+
+  /**
+   * Best-effort attempt to keep a locked screen in fullscreen — if it gets
+   * exited (e.g. via Escape) while still locked, immediately re-requests
+   * it. This can't actually stop Escape from exiting fullscreen in the
+   * first place — no website can override that, by design, as a browser
+   * safety net for the user — so this only re-enters a moment later, and
+   * even that isn't guaranteed: browsers require a fresh user gesture for
+   * `requestFullscreen()`, which this `fullscreenchange` handler doesn't
+   * have, so some browsers may silently refuse it.
+   */
+  useEffect(() => {
+    if (!screen?.locked) return
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {})
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [screen?.locked])
 
   if (!screen) {
     return (
@@ -191,6 +228,22 @@ export function ScreenDisplay() {
     setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, slideDurationSeconds: seconds } : existing)))
   }
 
+  /** A divider's new position, dragged right on this display — applies (and persists) immediately, same reasoning as `handleSlideDurationChange`, and mirrors the admin dashboard's own arrow-nudge "Resize" panel writing to the very same fields. */
+  const handleResizeDivider = (patch: Partial<ScreenConfig>) => {
+    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, ...patch } : existing)))
+  }
+
+  /** Hides this screen's own editing controls behind the shared PIN — only offered once one's actually been set from the admin dashboard, since there'd otherwise be no way back in. */
+  const handleLockScreen = () => {
+    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, locked: true } : existing)))
+  }
+
+  /** Restores this screen's own editing controls, once `UnlockScreenModal` confirms the right PIN was entered. */
+  const handleUnlock = () => {
+    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, locked: false } : existing)))
+    setUnlockModalOpen(false)
+  }
+
   /** Resets the slot (content/slideshow/color), its text-size drafts, and which tab is active back to the values captured when the editor was opened — the actual persisting still only happens once the editor closes. The whole-screen scaler restores itself internally. */
   const handleRestore = () => {
     setDraftSlot(originalSlot)
@@ -253,24 +306,49 @@ export function ScreenDisplay() {
 
   return (
     <div
-      className={`screen-display${screen.hideScrollbar ? ' screen-display--hide-scrollbar' : ''}`}
+      className={`screen-display${screen.hideScrollbar ? ' screen-display--hide-scrollbar' : ''}${screen.locked ? ' screen-display--locked' : ''}`}
       style={screenAppearanceToCssVars(activeTextSizes, activeBackgroundColor, screen.borderColor)}
+      onContextMenu={(event) => screen.locked && event.preventDefault()}
     >
       <ScreenToolbar>
-        <span className="screen-toolbar__label">{screen.name}</span>
-        <FullscreenToggle />
-        <button type="button" className="screen-toolbar__button" onClick={openScreenEditor}>
-          {t('screenDisplay.editSizes')}
-        </button>
+        {!screen.locked && (
+          <>
+            <span className="screen-toolbar__label">{screen.name}</span>
+            <FullscreenToggle />
+            <button type="button" className="screen-toolbar__button" onClick={openScreenEditor}>
+              {t('screenDisplay.editSizes')}
+            </button>
+          </>
+        )}
+        {screen.locked ? (
+          <button
+            type="button"
+            className="screen-toolbar__button screen-toolbar__button--icon"
+            onClick={() => setUnlockModalOpen(true)}
+            aria-label={t('screenDisplay.lock.unlockButton')}
+            title={t('screenDisplay.lock.unlockButton')}
+          >
+            <LockIcon />
+          </button>
+        ) : (
+          pin && (
+            <button type="button" className="screen-toolbar__button" onClick={handleLockScreen}>
+              {t('screenDisplay.lock.lockButton')}
+            </button>
+          )
+        )}
       </ScreenToolbar>
       <SplitLayout
         key={screen.screenID}
         screen={effectiveScreen}
         resolveTextSizes={resolveTextSizes}
-        onEditSlide={openSlideEditor}
-        paused={editingTarget !== null}
+        onEditSlide={screen.locked ? undefined : openSlideEditor}
+        paused={editingTarget !== null || unlockModalOpen}
         forcedSlide={forcedSlide}
+        onResizeDivider={screen.locked ? undefined : handleResizeDivider}
       />
+
+      <UnlockScreenModal open={unlockModalOpen} onClose={() => setUnlockModalOpen(false)} onUnlock={handleUnlock} />
 
       <Modal
         open={editingTarget !== null}

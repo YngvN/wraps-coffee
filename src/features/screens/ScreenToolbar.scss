@@ -49,4 +49,15 @@
   &:active {
     box-shadow: inset 0 2px 4px $color-shadow;
   }
+
+  // The locked toolbar's own single icon-only button — round instead of a
+  // text pill, since there's no label to give it its shape.
+  &--icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+  }
 }

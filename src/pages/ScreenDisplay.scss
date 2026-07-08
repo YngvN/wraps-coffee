@@ -13,6 +13,22 @@
   color: var(--screen-text);
 }
 
+// While locked, every editing affordance is already unmounted (see
+// ScreenDisplay.tsx) — this just closes the remaining gaps: no selecting
+// or dragging out any of the slide text/images, and no long-press/
+// right-click menu offering to do so another way. Scrolling itself isn't
+// selection or dragging, so it's untouched.
+.screen-display--locked {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+
+  img {
+    -webkit-user-drag: none;
+    user-drag: none;
+  }
+}
+
 .screen-display--not-found {
   display: flex;
   flex-direction: column;

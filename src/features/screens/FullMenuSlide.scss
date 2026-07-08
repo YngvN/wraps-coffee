@@ -34,24 +34,24 @@
 }
 
 .full-menu-slide__category-header {
+  // Its own positioning context for `.full-menu-slide__category-price`
+  // below — so it stays put at a fixed spot on the header no matter how
+  // long the category's own title/description happen to be, rather than
+  // being a normal flex sibling that gets pushed down onto its own line
+  // once the heading block grows too wide to share a row with it (the same
+  // fix, for the same reason, as `CategorySlide.scss`'s own header/price).
+  position: relative;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: $spacing-unit * 3;
-}
-
-// Sized relative to the heading's own (adjustable) font size, rather than a
-// flat pixel value, so it scales along with everything else when the
-// heading slider is used.
-.full-menu-slide__category-image {
-  height: calc(var(--slide-heading-size, 3.5rem) * 0.85);
-  width: calc(var(--slide-heading-size, 3.5rem) * 0.85);
-  flex-shrink: 0;
-  object-fit: contain;
+  // Reserves room so a long title/description wraps before it ever runs
+  // under the absolutely-positioned price, instead of the two overlapping.
+  padding-right: 8rem;
 }
 
 .full-menu-slide__category-heading {
   min-width: 0;
+  flex: 1 1 auto;
 
   h1 {
     font-family: $font-heading;
@@ -70,7 +70,9 @@
 }
 
 .full-menu-slide__category-price {
-  margin-left: auto;
+  position: absolute;
+  top: 0;
+  right: 0;
   font-size: var(--slide-price-size, 1.5rem);
   font-weight: 600;
   color: var(--screen-accent);

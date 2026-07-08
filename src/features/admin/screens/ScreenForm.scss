@@ -6,6 +6,14 @@
   gap: $spacing-unit * 2;
 }
 
+// A sub-view replacing the whole tabbed form (the whole-screen text-size
+// scaler, the "Resize" arrow panel) — its own Back button returns to it.
+.screen-form__subview {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+}
+
 .screen-form__tabs {
   display: flex;
   flex-wrap: wrap;
@@ -127,6 +135,70 @@
     border-color: $color-accent;
     color: $color-text;
     background: $color-surface;
+  }
+}
+
+// A 3x3 "D-pad": one arrow button per direction, in its own compass
+// position, with the center cell left empty.
+.screen-form__resize-pad {
+  display: grid;
+  grid-template-areas:
+    '. up .'
+    'left . right'
+    '. down .';
+  grid-template-columns: repeat(3, 40px);
+  grid-template-rows: repeat(3, 40px);
+  gap: calc($spacing-unit / 2);
+  // Centered within its own sub-view (not `flex-start`, now that the
+  // "Resize" panel is its own dedicated screen rather than sitting inline
+  // right under its trigger button) — the Back button above it keeps its
+  // own left alignment via its own `align-self`, unaffected by this.
+  align-self: center;
+  margin-top: $spacing-unit * 2;
+}
+
+.screen-form__resize-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  background: $color-bg;
+  color: $color-text-muted;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      border-color: $color-accent;
+      color: $color-text;
+    }
+  }
+
+  &:active:not(:disabled) {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  &--up {
+    grid-area: up;
+  }
+
+  &--down {
+    grid-area: down;
+  }
+
+  &--left {
+    grid-area: left;
+  }
+
+  &--right {
+    grid-area: right;
   }
 }
 

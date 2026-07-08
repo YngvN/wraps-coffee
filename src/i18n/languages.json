@@ -509,6 +509,10 @@
         "screens": {
           "title": "Screens",
           "addScreen": "Add screen",
+          "createPinButton": "Create pin",
+          "changePinButton": "Change pin",
+          "createPinTitle": "Set unlock PIN",
+          "createPinDescription": "Enter a new 4-digit PIN. Any screen locked from its own toolbar will need this PIN to unlock.",
           "editScreen": "Edit screen",
           "nameLabel": "Name",
           "defaultNamePrefix": "Screen",
@@ -553,6 +557,12 @@
           "tripleRowSecondLabel": "Featured on bottom",
           "tripleColumnFirstLabel": "Featured on left",
           "tripleColumnSecondLabel": "Featured on right",
+          "resizeLabel": "Resize panes",
+          "resizeButton": "Resize",
+          "resizeUpLabel": "Move divider up",
+          "resizeDownLabel": "Move divider down",
+          "resizeLeftLabel": "Move divider left",
+          "resizeRightLabel": "Move divider right",
           "displayUrlLabel": "Display link",
           "copyUrl": "Copy link",
           "openInNewTab": "Open",
@@ -568,6 +578,7 @@
           "duplicate": "Duplicate",
           "add": "Add",
           "done": "Done",
+          "back": "Back",
           "confirmDelete": "Are you sure you want to delete this?"
         }
       },
@@ -582,6 +593,13 @@
         "editSizes": "Edit appearance",
         "editSlot": "Edit slot",
         "slotEditorTitle": "Edit slot",
+        "lock": {
+          "lockButton": "Lock screen",
+          "unlockButton": "Unlock",
+          "unlockTitle": "Unlock screen",
+          "enterPin": "Enter the 4-digit PIN to unlock this screen.",
+          "wrongPin": "Incorrect PIN — try again."
+        },
         "textSizeEditor": {
           "title": "Appearance",
           "backgroundColorLabel": "Background color",
@@ -1136,6 +1154,10 @@
         "screens": {
           "title": "Skjermer",
           "addScreen": "Legg til skjerm",
+          "createPinButton": "Opprett PIN",
+          "changePinButton": "Endre PIN",
+          "createPinTitle": "Angi PIN for opplåsing",
+          "createPinDescription": "Skriv inn en ny 4-sifret PIN-kode. Enhver skjerm som låses fra sin egen verktøylinje vil trenge denne PIN-koden for å låses opp.",
           "editScreen": "Rediger skjerm",
           "nameLabel": "Navn",
           "defaultNamePrefix": "Skjerm",
@@ -1180,6 +1202,12 @@
           "tripleRowSecondLabel": "Fremhevet nederst",
           "tripleColumnFirstLabel": "Fremhevet til venstre",
           "tripleColumnSecondLabel": "Fremhevet til høyre",
+          "resizeLabel": "Endre størrelse på feltene",
+          "resizeButton": "Endre størrelse",
+          "resizeUpLabel": "Flytt skillelinjen opp",
+          "resizeDownLabel": "Flytt skillelinjen ned",
+          "resizeLeftLabel": "Flytt skillelinjen til venstre",
+          "resizeRightLabel": "Flytt skillelinjen til høyre",
           "displayUrlLabel": "Visningslenke",
           "copyUrl": "Kopier lenke",
           "openInNewTab": "Åpne",
@@ -1195,6 +1223,7 @@
           "duplicate": "Dupliser",
           "add": "Legg til",
           "done": "Ferdig",
+          "back": "Tilbake",
           "confirmDelete": "Er du sikker på at du vil slette dette?"
         }
       },
@@ -1209,6 +1238,13 @@
         "editSizes": "Rediger utseende",
         "editSlot": "Rediger felt",
         "slotEditorTitle": "Rediger felt",
+        "lock": {
+          "lockButton": "Lås skjermen",
+          "unlockButton": "Lås opp",
+          "unlockTitle": "Lås opp skjermen",
+          "enterPin": "Skriv inn den 4-sifrede PIN-koden for å låse opp denne skjermen.",
+          "wrongPin": "Feil PIN-kode — prøv igjen."
+        },
         "textSizeEditor": {
           "title": "Utseende",
           "backgroundColorLabel": "Bakgrunnsfarge",

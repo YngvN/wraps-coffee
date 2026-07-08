@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   Alert,
+  BackButton,
   Badge,
   Button,
   Card,
@@ -68,6 +69,14 @@ export function Components() {
           <Button variant="primary" disabled>
             Disabled
           </Button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Back Button</h2>
+        <p>Used to navigate out of a sub-view back to wherever it was opened from — e.g. the admin Screens form's "Resize" panel.</p>
+        <div className="components-page__row">
+          <BackButton onClick={() => {}}>Back</BackButton>
         </div>
       </section>
 

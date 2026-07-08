@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Button, Checkbox, Input } from '../../../components'
+import { BackButton, Button, Checkbox, Input } from '../../../components'
 import { useScreens } from '../../../hooks/useScreens'
 import { useLanguage } from '../../../i18n'
 import {
@@ -14,6 +14,7 @@ import {
   type SplitDirection,
   type TextSizes,
 } from '../../../types/screen'
+import { nudgeRatio, type ResizeDirection } from '../../../utils/screenLayout'
 import { firstActiveContentIndex, hasOwnTextSizeFields, isSlotActive } from '../../../utils/screenSlots'
 import { resolveContentTextSizes } from '../../../utils/textSizeVars'
 import { BackgroundColorPicker } from '../../screens/BackgroundColorPicker'
@@ -62,11 +63,14 @@ function nextDefaultScreenName(screens: ScreenConfig[], prefix: string): string 
 /**
  * Create/edit form for a single screen: a "Global" tab with name, the
  * screen's own background color, how many of its 4 slots are actually shown
- * (`slotCount`) plus their on-screen arrangement, whether/what color the
- * borders between panes use, which animation (fade or slide, plus — for
- * slide — which side it enters from) any rotating slot's own slides use,
- * and — one tab per slot, so each gets its own room — that slot's own
- * "Slideshow" toggle. Once a slot is rotating through more than one slide,
+ * (`slotCount`) plus their on-screen arrangement, a "Resize" panel of 4
+ * arrows nudging whichever pane divider each one controls 1% at a time (the
+ * exact same fields the live display's own draggable dividers adjust, so
+ * either one stays in sync with the other), whether/what color the borders
+ * between panes use, which animation (fade or slide, plus — for slide —
+ * which side it enters from) any rotating slot's own slides use, and — one
+ * tab per slot, so each gets its own room — that slot's own "Slideshow"
+ * toggle. Once a slot is rotating through more than one slide,
  * its own tab splits further into a "Global" sub-tab (its shared background
  * color/image) and one sub-tab per slide (that slide's own content, its own
  * background-image override, and, once there's more than one active slide,
@@ -84,8 +88,8 @@ function nextDefaultScreenName(screens: ScreenConfig[], prefix: string): string 
 export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
   const { t } = useLanguage()
   const [screens, setScreens] = useScreens()
-  /** Whether the whole-screen percentage scaler is open. */
-  const [editingTarget, setEditingTarget] = useState<'global' | null>(null)
+  /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the "Resize" arrow panel, or neither. */
+  const [editingTarget, setEditingTarget] = useState<'global' | 'resize' | null>(null)
   const [liveTextSizes, setLiveTextSizes] = useState<TextSizes>(screen?.textSizes ?? DEFAULT_TEXT_SIZES)
   const [liveUseOwnTextSizes, setLiveUseOwnTextSizes] = useState(false)
   /** Which of the active slot's own tabs is showing: its "Global" settings, or one specific slide by index — only meaningful once that slot has more than one slide. */
@@ -278,6 +282,13 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
     liveUpdateScreen({ slideTransitionDirection: direction })
   }
 
+  /** Nudges the divider a "Resize" arrow direction controls (for the screen's current arrangement) by 1%, live — the exact same fields the display's own draggable dividers adjust, so the two stay in sync no matter which is used to resize. No-ops (button disabled) for a direction with no divider on that axis. */
+  const handleNudgeRatio = (direction: ResizeDirection) => {
+    if (!latestScreen) return
+    const patch = nudgeRatio(latestScreen, direction)
+    if (patch) liveUpdateScreen(patch)
+  }
+
   /**
    * Returning from the whole-screen percentage scaler to the main form —
    * re-seeds the 4 slot fields from the freshest persisted data, since the
@@ -298,13 +309,62 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
 
   if (editingTarget === 'global' && screen) {
     return (
-      <GlobalTextSizeScaler
-        screen={latestScreen ?? screen}
-        onChange={handleGlobalTextSizesChange}
-        backgroundColor={latestScreen?.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR}
-        onBackgroundColorChange={handleScreenBackgroundColorChange}
-        onDone={closeGlobalTextSizeEditor}
-      />
+      <div className="screen-form__subview">
+        <BackButton onClick={closeGlobalTextSizeEditor}>{t('admin.common.back')}</BackButton>
+        <GlobalTextSizeScaler
+          screen={latestScreen ?? screen}
+          onChange={handleGlobalTextSizesChange}
+          backgroundColor={latestScreen?.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR}
+          onBackgroundColorChange={handleScreenBackgroundColorChange}
+          onDone={closeGlobalTextSizeEditor}
+        />
+      </div>
+    )
+  }
+
+  if (editingTarget === 'resize' && latestScreen) {
+    return (
+      <div className="screen-form__subview">
+        <BackButton onClick={() => setEditingTarget(null)}>{t('admin.common.back')}</BackButton>
+        <div className="screen-form__resize-pad" role="group" aria-label={t('admin.screens.resizeLabel')}>
+          <button
+            type="button"
+            className="screen-form__resize-arrow screen-form__resize-arrow--up"
+            disabled={!nudgeRatio(latestScreen, 'up')}
+            onClick={() => handleNudgeRatio('up')}
+            aria-label={t('admin.screens.resizeUpLabel')}
+          >
+            ▲
+          </button>
+          <button
+            type="button"
+            className="screen-form__resize-arrow screen-form__resize-arrow--left"
+            disabled={!nudgeRatio(latestScreen, 'left')}
+            onClick={() => handleNudgeRatio('left')}
+            aria-label={t('admin.screens.resizeLeftLabel')}
+          >
+            ◀
+          </button>
+          <button
+            type="button"
+            className="screen-form__resize-arrow screen-form__resize-arrow--right"
+            disabled={!nudgeRatio(latestScreen, 'right')}
+            onClick={() => handleNudgeRatio('right')}
+            aria-label={t('admin.screens.resizeRightLabel')}
+          >
+            ▶
+          </button>
+          <button
+            type="button"
+            className="screen-form__resize-arrow screen-form__resize-arrow--down"
+            disabled={!nudgeRatio(latestScreen, 'down')}
+            onClick={() => handleNudgeRatio('down')}
+            aria-label={t('admin.screens.resizeDownLabel')}
+          >
+            ▼
+          </button>
+        </div>
+      </div>
     )
   }
 
@@ -511,6 +571,15 @@ export function ScreenForm({ screen, onSave, onCancel }: ScreenFormProps) {
                     )
                   })}
                 </div>
+              </div>
+            )}
+
+            {slotCount > 1 && latestScreen && (
+              <div className="screen-form__field">
+                <span>{t('admin.screens.resizeLabel')}</span>
+                <Button type="button" variant="secondary" onClick={() => setEditingTarget('resize')}>
+                  {t('admin.screens.resizeButton')}
+                </Button>
               </div>
             )}
           </>

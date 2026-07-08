@@ -1,0 +1,39 @@
+.split-layout__divider {
+  position: absolute;
+  z-index: 5;
+  touch-action: none;
+
+  &--vertical {
+    cursor: col-resize;
+  }
+
+  &--horizontal {
+    cursor: row-resize;
+  }
+
+  // A 3- or 4-slot arrangement's own combined handle, where its two
+  // dividers meet — round (rather than a thin strip) and raised above them
+  // (see `SplitLayoutCenterHandle`) so a grab exactly there always moves
+  // both together, instead of landing on whichever line divider happens to
+  // be on top.
+  &--center {
+    z-index: 6;
+    border-radius: 50%;
+    cursor: move;
+  }
+
+  // A faint highlight on hover/drag so the (otherwise invisible) hit-area
+  // gives some feedback that it's grabbable, without permanently thickening
+  // the divider line itself.
+  @media (hover: hover) {
+    &:hover {
+      background: var(--screen-accent);
+      opacity: 0.35;
+    }
+  }
+
+  &--dragging {
+    background: var(--screen-accent);
+    opacity: 0.5;
+  }
+}

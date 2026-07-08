@@ -1,25 +1,30 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLanguage } from '../../i18n'
 import type { ScreenConfig, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
 import { backgroundImageTextStyle, slotBackgroundColorStyle } from '../../utils/screenColors'
+import { crossHandle, screenDividers, splitGridTemplate, type RatioPatch } from '../../utils/screenLayout'
 import { currentSlotContent, currentSlotContentIndex, currentSlotSubIndex, isSlotActive, resolveContentBackgroundImage } from '../../utils/screenSlots'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
 import { SlotContent } from './SlotContent'
 import { SlotEditButton } from './SlotEditButton'
+import { SplitLayoutCenterHandle } from './SplitLayoutCenterHandle'
 import './SplitLayout.scss'
+import { SplitLayoutDivider } from './SplitLayoutDivider'
 import { resolveTransitionVariants } from './transitions'
 
 interface SplitLayoutProps {
   screen: ScreenConfig
   /** Resolves the effective (persisted, its own override, or live-drafted while being edited) text sizes for a given slide. */
   resolveTextSizes: (slotIndex: number, contentIndex: number, content: ScreenSlotContent) => TextSizes
-  /** Called when a pane's hover-revealed edit button is clicked, with that slot's original index (0-3) and its currently-showing slide's own index within that slot's `contents`. */
-  onEditSlide: (slotIndex: number, contentIndex: number) => void
+  /** Called when a pane's hover-revealed edit button is clicked, with that slot's original index (0-3) and its currently-showing slide's own index within that slot's `contents`. Omit (along with `onResizeDivider`) to render the panes read-only, with neither edit buttons nor drag handles — e.g. while the screen is locked. */
+  onEditSlide?: (slotIndex: number, contentIndex: number) => void
   /** Pauses every rotating slot's timer — set while a slide (or the whole screen) is being edited, so the preview isn't pulled out from under the editor. */
   paused: boolean
   /** While a specific slide's own tab is active in its slot's editor, forces that one pane to show that exact slide (by its `contents` index) instead of whatever its rotation happened to freeze on — so switching between a slot's own slide tabs previews each one, live, right where it'll actually appear. */
   forcedSlide?: { slotIndex: number; contentIndex: number }
+  /** Persists a divider's new position once it's been dragged to it. Omit to render the panes without any draggable dividers at all. */
+  onResizeDivider?: (patch: Partial<ScreenConfig>) => void
 }
 
 /**
@@ -38,11 +43,23 @@ interface SplitLayoutProps {
  * (`screen.transitionStyle`) between them, while every pane's position
  * stays fixed. Hovering any pane reveals a small button opening that slot's
  * editor (content, slideshow, color, and — where applicable — text size).
+ * Every arrangement with more than one slot also gets one draggable divider
+ * per split (see `screenDividers`), sized from the screen's own adjustable
+ * ratio fields — dragging one live-resizes its two neighboring panes and
+ * persists on release, mirroring the admin dashboard's own arrow-nudge
+ * "Resize" panel for the same fields. A 3- or 4-slot arrangement's two
+ * dividers also get a combined handle right where they meet (a clean
+ * crosspoint for 4 slots, a T-junction for 3 — see `crossHandle`) —
+ * dragging that moves both together, resizing every pane at once instead
+ * of just the two on either side of one line.
  */
-export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, forcedSlide }: SplitLayoutProps) {
+export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, forcedSlide, onResizeDivider }: SplitLayoutProps) {
   const { t } = useLanguage()
   const reducedMotion = useReducedMotion()
   const [tick, setTick] = useState(0)
+  const containerRef = useRef<HTMLDivElement>(null)
+  /** A divider's own value while it's actively being dragged — overrides the persisted screen's own for live visual feedback, cleared again once the drag commits. */
+  const [liveRatios, setLiveRatios] = useState<RatioPatch>({})
   const visibleSlots = screen.slots.slice(0, screen.slotCount)
   const direction = screen.splitDirection ?? 'row'
   const bigPosition = screen.splitBigPosition ?? 'first'
@@ -67,6 +84,31 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
   const borderModifier = screen.showSlotBorders === false ? ' split-layout--no-borders' : ''
   const variants = resolveTransitionVariants(screen.transitionStyle, screen.slideTransitionDirection ?? 'right')
   const transition = reducedMotion ? { duration: 0 } : { duration: 0.6, ease: 'easeInOut' as const }
+
+  const layoutScreen = { ...screen, ...liveRatios }
+  const gridTemplate = splitGridTemplate(layoutScreen)
+  const dividers = screenDividers(layoutScreen)
+  const centerHandle = crossHandle(layoutScreen)
+
+  const handleLiveChange = (patch: RatioPatch) => setLiveRatios((current) => ({ ...current, ...patch }))
+  const handleCommit = (patch: RatioPatch) => {
+    setLiveRatios((current) => {
+      const next = { ...current }
+      for (const field of Object.keys(patch) as (keyof RatioPatch)[]) delete next[field]
+      return next
+    })
+    onResizeDivider?.(patch)
+  }
+
+  const renderDividers = () =>
+    onResizeDivider && (
+      <>
+        {dividers.map((divider) => (
+          <SplitLayoutDivider key={divider.field} divider={divider} containerRef={containerRef} onLiveChange={handleLiveChange} onCommit={handleCommit} />
+        ))}
+        {centerHandle && <SplitLayoutCenterHandle handle={centerHandle} containerRef={containerRef} onLiveChange={handleLiveChange} onCommit={handleCommit} />}
+      </>
+    )
 
   /**
    * Renders one pane: its currently-showing slide (animated whenever the
@@ -135,7 +177,7 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
             <SlotContent slot={content} />
           </motion.div>
         </AnimatePresence>
-        <SlotEditButton onClick={() => onEditSlide(index, contentIndex)} />
+        {onEditSlide && <SlotEditButton onClick={() => onEditSlide(index, contentIndex)} />}
       </div>
     )
   }
@@ -146,15 +188,19 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
 
   if (screen.slotCount === 3) {
     return (
-      <div className={`split-layout split-layout--triple-${direction}-${bigPosition}${borderModifier}`}>
+      <div ref={containerRef} className={`split-layout split-layout--triple-${direction}-${bigPosition}${borderModifier}`} style={gridTemplate}>
         {renderPane(visibleSlots[0], 0, ' split-layout__pane--big')}
         {renderPane(visibleSlots[1], 1, ' split-layout__pane--small1')}
         {renderPane(visibleSlots[2], 2, ' split-layout__pane--small2')}
+        {renderDividers()}
       </div>
     )
   }
 
   return (
-    <div className={`split-layout split-layout--${screen.slotCount === 4 ? 'quad' : direction}${borderModifier}`}>{visibleSlots.map((slot, index) => renderPane(slot, index))}</div>
+    <div ref={containerRef} className={`split-layout split-layout--${screen.slotCount === 4 ? 'quad' : direction}${borderModifier}`} style={gridTemplate}>
+      {visibleSlots.map((slot, index) => renderPane(slot, index))}
+      {renderDividers()}
+    </div>
   )
 }
