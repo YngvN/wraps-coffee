@@ -1,10 +1,23 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
 import { useLanguage } from '../../i18n'
-import type { ScreenConfig, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
+import type { RatioField, ScreenConfig, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
 import { backgroundImageTextStyle, slotBackgroundColorStyle } from '../../utils/screenColors'
-import { crossHandle, imageResizeRatioPatch, paneDefaultSlideDirection, screenDividers, splitGridTemplate, type RatioPatch } from '../../utils/screenLayout'
-import { currentSlotContent, currentSlotContentIndex, currentSlotSubIndex, isSlotActive, resolveContentBackgroundImage } from '../../utils/screenSlots'
+import {
+  applyRatioOverrides,
+  CENTER_RATIO,
+  crossHandle,
+  imageResizeRatioPatch,
+  imageResizeScaleFromDrag,
+  paneDefaultSlideDirection,
+  paneResizableAxes,
+  screenDividers,
+  splitGridTemplate,
+  type PaneResizableAxes,
+  type RatioPatch,
+} from '../../utils/screenLayout'
+import { isResizeToFitImage, resolveContentBackgroundImage } from '../../utils/screenSlots'
+import { isSlotActive, resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolvedCheckpointStage, resolveSlotContent, writeStageCheckpoint } from '../../utils/screenStages'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
 import { SlotContent } from './SlotContent'
 import { SlotEditButton } from './SlotEditButton'
@@ -15,14 +28,14 @@ import { resolveTransitionVariants } from './transitions'
 
 interface SplitLayoutProps {
   screen: ScreenConfig
-  /** Resolves the effective (persisted, its own override, or live-drafted while being edited) text sizes for a given slide. */
-  resolveTextSizes: (slotIndex: number, contentIndex: number, content: ScreenSlotContent) => TextSizes
-  /** Called when a pane's hover-revealed edit button is clicked, with that slot's original index (0-3) and its currently-showing slide's own index within that slot's `contents`. Omit (along with `onResizeDivider`) to render the panes read-only, with neither edit buttons nor drag handles — e.g. while the screen is locked. */
-  onEditSlide?: (slotIndex: number, contentIndex: number) => void
-  /** Pauses every rotating slot's timer — set while a slide (or the whole screen) is being edited, so the preview isn't pulled out from under the editor. */
-  paused: boolean
-  /** While a specific slide's own tab is active in its slot's editor, forces that one pane to show that exact slide (by its `contents` index) instead of whatever its rotation happened to freeze on — so switching between a slot's own slide tabs previews each one, live, right where it'll actually appear. */
-  forcedSlide?: { slotIndex: number; contentIndex: number }
+  /** Resolves the effective (persisted, its own override, or live-drafted while being edited) text sizes for a given slot at a given stage. */
+  resolveTextSizes: (slotIndex: number, stage: number, content: ScreenSlotContent) => TextSizes
+  /** Called when a pane's hover-revealed edit button is clicked, with that slot's own index (0-3). Omit (along with `onResizeDivider`) to render the panes read-only, with neither edit buttons nor drag handles — e.g. while the screen is locked. */
+  onEditSlide?: (slotIndex: number) => void
+  /** The current stage (1-indexed), resolved by the caller from its own shared rotation timer. */
+  stage: number
+  /** Overrides `stage` for every pane at once — e.g. while an admin's slot editor is actively viewing a specific stage, so the whole live display previews exactly that stage instead of its natural rotating one (every slot shares the same stage sequence, so this isn't scoped to just the one pane being edited). */
+  forcedStage?: number
   /** Persists a divider's new position once it's been dragged to it. Omit to render the panes without any draggable dividers at all. */
   onResizeDivider?: (patch: Partial<ScreenConfig>) => void
 }
@@ -37,12 +50,12 @@ interface SplitLayoutProps {
  * each one has its own content configured yet — an in-range slot with
  * nothing set just renders blank in its position, rather than being skipped
  * over (unlike a slot beyond `slotCount`, whose content/settings are kept
- * but simply never shown). A slot whose own `isSlideshow` is set still
- * rotates through its own slides in place, on a shared timer
- * (`screen.slideDurationSeconds`) with an animated transition
- * (`screen.transitionStyle`) between them, while every pane's position
- * stays fixed. Hovering any pane reveals a small button opening that slot's
- * editor (content, slideshow, color, and — where applicable — text size).
+ * but simply never shown). Each slot's content, background color/image, and
+ * shared text size are all independently resolved against the shared
+ * `stage` (see `src/utils/screenStages.ts`) — an animated transition
+ * (`screen.transitionStyle`) plays whenever a pane's own resolved
+ * checkpoint actually changes, while every pane's position stays fixed.
+ * Hovering any pane reveals a small button opening that slot's editor.
  * Every arrangement with more than one slot also gets one draggable divider
  * per split (see `screenDividers`), sized from the screen's own adjustable
  * ratio fields — dragging one live-resizes its two neighboring panes and
@@ -52,18 +65,17 @@ interface SplitLayoutProps {
  * crosspoint for 4 slots, a T-junction for 3 — see `crossHandle`) —
  * dragging that moves both together, resizing every pane at once instead
  * of just the two on either side of one line. A pane whose own
- * currently-showing slide is an image with `resizeToFit` on temporarily
+ * currently-showing content is an image with `resizeToFit` on temporarily
  * overrides whichever ratio field(s) govern its own axes (see
  * `imageResizeRatioPatch`) to fit that image, capped at 40% of the
- * viewport along either — live-visual only, never persisted, so a
- * slideshow rotating away from it (or the slide simply changing) drops
- * the override and the pane slides back to its own set size on its own,
- * the same transition a manual resize already animates with.
+ * viewport along either — live-visual only, never persisted, so the stage
+ * sequence advancing to different content drops the override and the pane
+ * slides back to its own set size on its own, the same transition a manual
+ * resize already animates with.
  */
-export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, forcedSlide, onResizeDivider }: SplitLayoutProps) {
+export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forcedStage, onResizeDivider }: SplitLayoutProps) {
   const { t } = useLanguage()
   const reducedMotion = useReducedMotion()
-  const [tick, setTick] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   /** A divider's own value while it's actively being dragged — overrides the persisted screen's own for live visual feedback, cleared again once the drag commits. */
   const [liveRatios, setLiveRatios] = useState<RatioPatch>({})
@@ -81,15 +93,7 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
   const visibleSlots = screen.slots.slice(0, screen.slotCount)
   const direction = screen.splitDirection ?? 'row'
   const bigPosition = screen.splitBigPosition ?? 'first'
-
-  const hasRotatingSlot = visibleSlots.some((slot) => slot.isSlideshow && slot.contents.filter((c) => c.kind !== 'none').length > 1)
-
-  useEffect(() => {
-    if (paused || !hasRotatingSlot) return
-
-    const timer = setInterval(() => setTick((current) => current + 1), screen.slideDurationSeconds * 1000)
-    return () => clearInterval(timer)
-  }, [hasRotatingSlot, screen.slideDurationSeconds, paused])
+  const effectiveStage = forcedStage ?? stage
 
   useEffect(() => {
     const node = containerRef.current
@@ -101,21 +105,36 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
     return () => observer.disconnect()
   }, [screen.slotCount])
 
-  /** Which slide (by index within its slot's own `contents`) a pane is currently showing — its forced slide while that exact pane's editor has one open, else wherever its own rotation (or lack of one) has it. */
-  const resolvePaneContent = (slot: ScreenSlot, index: number): { content: ScreenSlotContent; contentIndex: number } => {
-    const isForced = forcedSlide?.slotIndex === index
-    const contentIndex = isForced ? forcedSlide.contentIndex : currentSlotContentIndex(slot, tick)
-    const content = isForced ? (slot.contents[contentIndex] ?? { kind: 'none' as const }) : currentSlotContent(slot, tick)
-    return { content, contentIndex }
-  }
+  /**
+   * Each visible pane's own content checkpoint (see `resolvedCheckpointStage`)
+   * as of the *previous* render — compared, in `renderPane` below, against
+   * this render's own freshly resolved one to tell whether *this* pane's
+   * content just actually crossfaded to a new checkpoint (a stage advance
+   * reaching one of its own set checkpoints), as opposed to the shared
+   * stage simply ticking past one this particular slot doesn't have its own
+   * checkpoint at, or an independently live-edited background color
+   * arriving with no stage change at all. Only in the first case should
+   * this pane's own background/text color visibly wait for that crossfade
+   * to finish before easing into its new color, instead of visibly leading
+   * it (see `paneColorDelay`). Kept in sync with a guarded render-phase
+   * update (React's own documented pattern for tracking a previous value,
+   * same technique `previouslyResizedPanes` below already uses) rather than
+   * a ref, since this component only reads/writes it during render itself,
+   * never from an event handler — a ref wouldn't trigger the re-render
+   * `paneColorDelay` needs once the "just changed" render has passed.
+   */
+  const [previousContentCheckpoints, setPreviousContentCheckpoints] = useState<Record<number, number>>({})
+  const contentCheckpointsThisRender: Record<number, number> = {}
+  visibleSlots.forEach((slot, index) => {
+    contentCheckpointsThisRender[index] = resolvedCheckpointStage(slot.content, effectiveStage) ?? effectiveStage
+  })
+  const contentCheckpointsChanged = visibleSlots.some((_, index) => contentCheckpointsThisRender[index] !== previousContentCheckpoints[index])
+  if (contentCheckpointsChanged) setPreviousContentCheckpoints(contentCheckpointsThisRender)
 
-  const isResizingImage = (content: ScreenSlotContent): content is Extract<ScreenSlotContent, { kind: 'image' }> =>
-    content.kind === 'image' && Boolean(content.resizeToFit) && Boolean(content.imageUrl)
+  /** A pane's content, resolved from its slot's own timeline at the effective stage. */
+  const resolvePaneContent = (slot: ScreenSlot): ScreenSlotContent => resolveSlotContent(slot, effectiveStage)
 
-  const activeResizeImageUrls = visibleSlots
-    .map((slot, index) => resolvePaneContent(slot, index).content)
-    .filter(isResizingImage)
-    .map((content) => content.imageUrl)
+  const activeResizeImageUrls = visibleSlots.map((slot) => resolvePaneContent(slot)).filter(isResizeToFitImage).map((content) => content.imageUrl)
 
   useEffect(() => {
     activeResizeImageUrls.forEach((url) => {
@@ -130,13 +149,28 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
 
   const resizedPanesThisRender = new Set<number>()
   const imageResizeOverrides: RatioPatch = visibleSlots.reduce<RatioPatch>((patch, slot, index) => {
-    const { content } = resolvePaneContent(slot, index)
-    if (!isResizingImage(content)) return patch
+    const content = resolvePaneContent(slot)
+    if (!isResizeToFitImage(content)) return patch
     const naturalSize = imageNaturalSizes[content.imageUrl]
     if (!naturalSize) return patch
     resizedPanesThisRender.add(index)
-    return { ...patch, ...imageResizeRatioPatch(screen, index, naturalSize.width, naturalSize.height, containerSize.width, containerSize.height) }
+    return { ...patch, ...imageResizeRatioPatch(screen, index, naturalSize.width, naturalSize.height, containerSize.width, containerSize.height, content.resizeScale) }
   }, {})
+
+  /** The one pane (there's never more than one active per stage — see `isResizeToFitConflict`) currently fit to a `resizeToFit` image, if any — kept alongside `imageResizeOverrides` so a divider drag touching one of its own axes (see `handleLiveChange`/`handleCommit`) can be redirected into changing the image's own `resizeScale` instead of writing straight to the arrangement's ratio fields, which are recomputed from that scale every render anyway. */
+  const resizeImageEntry = visibleSlots.reduce<{ index: number; naturalSize: { width: number; height: number } } | undefined>((found, slot, index) => {
+    if (found) return found
+    const content = resolvePaneContent(slot)
+    if (!isResizeToFitImage(content)) return found
+    const naturalSize = imageNaturalSizes[content.imageUrl]
+    return naturalSize ? { index, naturalSize } : found
+  }, undefined)
+  const activeImageResize: { slotIndex: number; axes: PaneResizableAxes; naturalWidth: number; naturalHeight: number } | undefined = resizeImageEntry && {
+    slotIndex: resizeImageEntry.index,
+    axes: paneResizableAxes(screen, resizeImageEntry.index),
+    naturalWidth: resizeImageEntry.naturalSize.width,
+    naturalHeight: resizeImageEntry.naturalSize.height,
+  }
 
   // A pane that just stopped showing a `resizeToFit` image (it had one as of
   // the previous render, not this one) needs its own *shrink* held off until
@@ -175,33 +209,109 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
 
   const borderModifier = screen.showSlotBorders === false ? ' split-layout--no-borders' : ''
 
-  const layoutScreen = { ...screen, ...imageResizeOverrides, ...liveRatios }
+  // The live overlay (a divider actively being dragged, or a `resizeToFit`
+  // image's own pane-fit) is injected as an exact checkpoint at the
+  // *effective* stage, in a copy of `screen.ratios` — read-only, never
+  // itself persisted — so `splitGridTemplate`/`screenDividers`/`crossHandle`
+  // below can resolve it through the exact same per-stage machinery as any
+  // real, saved ratio, rather than needing a parallel "flat override" path.
+  const layoutScreen: ScreenConfig = { ...screen, ratios: applyRatioOverrides(screen.ratios, effectiveStage, { ...imageResizeOverrides, ...liveRatios }) }
   const paneVariants = (slotIndex: number) => resolveTransitionVariants(screen.transitionStyle, paneDefaultSlideDirection(screen, slotIndex))
   // A non-empty `liveRatios` means a divider's actively being dragged right
   // here — that needs to track the pointer instantly, with no transition
-  // lag. Any other ratio change (the admin dashboard's own arrow-nudge
-  // "Resize" panel, live-synced in from another tab, or a `resizeToFit`
-  // image's own pane growing/shrinking to fit it) has no such live pointer
-  // to keep up with, so it gets a CSS transition instead, sliding the
-  // divider into its new position rather than snapping there — delayed
-  // until the crossfade finishes for a shrink (see `isShrinkingAwayFromImage`).
+  // lag, EXCEPT the one instant it magnetically locks to dead center (see
+  // `dividerFieldValue`'s own snap): that moment gets a quick glide instead
+  // of a hard teleport from wherever the raw pointer position was, straight
+  // to the exact center value — detected simply by the live value already
+  // being exactly `CENTER_RATIO`, since an organically-dragged raw position
+  // landing there by sheer coincidence (rather than the snap) is never
+  // going to happen. Any other ratio change (the admin dashboard's own
+  // arrow-nudge "Resize" panel, live-synced in from another tab, or a
+  // `resizeToFit` image's own pane growing/shrinking to fit it) has no such
+  // live pointer to keep up with, so it gets the same full CSS transition
+  // as always, sliding the divider into its new position rather than
+  // snapping there — delayed until the crossfade finishes for a shrink (see
+  // `isShrinkingAwayFromImage`).
   const isDragging = Object.keys(liveRatios).length > 0
+  const isSnappingToCenterWhileDragging = isDragging && Object.values(liveRatios).some((value) => value === CENTER_RATIO)
   const gridDelay = isShrinkingAwayFromImage ? transition.duration : 0
+  const dragSnapGlideSeconds = 0.15
+  // The divider gap's own color (`--screen-border`, derived from the
+  // screen's background — see `getScreenColorVars`) also gets a transition
+  // here, in the same inline value, rather than a separate stylesheet rule —
+  // an inline `transition` entirely replaces (not merges with) a class's own,
+  // so appending it to whichever branch is already active is the only way it
+  // wouldn't just get clobbered by the grid-template one above. Left out of
+  // the two dragging branches on purpose: those need to stay exactly as
+  // untouched as before (instant 1:1 tracking, or only the short snap
+  // glide), and a background-color change never actually happens mid-drag
+  // anyway.
+  const gridTransition = isDragging
+    ? isSnappingToCenterWhileDragging && `grid-template-columns ${dragSnapGlideSeconds}s ease, grid-template-rows ${dragSnapGlideSeconds}s ease`
+    : `grid-template-columns 0.5s ease ${gridDelay}s, grid-template-rows 0.5s ease ${gridDelay}s, background-color 0.4s ease`
   const gridTemplate = {
-    ...splitGridTemplate(layoutScreen),
-    ...(!isDragging && !reducedMotion ? { transition: `grid-template-columns 0.5s ease ${gridDelay}s, grid-template-rows 0.5s ease ${gridDelay}s` } : {}),
+    ...splitGridTemplate(layoutScreen, effectiveStage),
+    ...(!reducedMotion && gridTransition ? { transition: gridTransition } : {}),
   }
-  const dividers = screenDividers(layoutScreen)
-  const centerHandle = crossHandle(layoutScreen)
+  const dividers = screenDividers(layoutScreen, effectiveStage)
+  const centerHandle = crossHandle(layoutScreen, effectiveStage)
 
-  const handleLiveChange = (patch: RatioPatch) => setLiveRatios((current) => ({ ...current, ...patch }))
+  // A divider drag whose field is one of `activeImageResize`'s own axes is
+  // really a drag of that image's own box border — redirected below into a
+  // `resizeScale` change (see `imageResizeScaleFromDrag`) instead of writing
+  // straight to the arrangement's ratio fields, which `imageResizeOverrides`
+  // recomputes from the image's scale every render anyway and would
+  // otherwise instantly overwrite back. When the drag touches both of its
+  // axes at once (the combined cross handle, on a pane with two resizable
+  // axes), each axis's own raw value would independently imply the same
+  // scale if the drag were following the image's own aspect ratio exactly —
+  // averaging them keeps the box moving smoothly even while the pointer is
+  // slightly off that diagonal.
+  const imageResizeScaleFromPatch = (patch: RatioPatch): number | undefined => {
+    if (!activeImageResize) return undefined
+    const { slotIndex, axes, naturalWidth, naturalHeight } = activeImageResize
+    const fields = [axes.width?.field, axes.height?.field].filter((field): field is RatioField => field !== undefined)
+    const scales = fields
+      .filter((field) => patch[field] !== undefined)
+      .map((field) => imageResizeScaleFromDrag(screen, slotIndex, field, patch[field]!, naturalWidth, naturalHeight, containerSize.width, containerSize.height))
+    if (scales.length === 0) return undefined
+    return scales.reduce((sum, value) => sum + value, 0) / scales.length
+  }
+
+  const handleLiveChange = (patch: RatioPatch) => {
+    const scale = imageResizeScaleFromPatch(patch)
+    if (activeImageResize && scale !== undefined) {
+      const { slotIndex, naturalWidth, naturalHeight } = activeImageResize
+      setLiveRatios((current) => ({ ...current, ...imageResizeRatioPatch(screen, slotIndex, naturalWidth, naturalHeight, containerSize.width, containerSize.height, scale) }))
+      return
+    }
+    setLiveRatios((current) => ({ ...current, ...patch }))
+  }
+
   const handleCommit = (patch: RatioPatch) => {
+    const scale = imageResizeScaleFromPatch(patch)
     setLiveRatios((current) => {
       const next = { ...current }
       for (const field of Object.keys(patch) as (keyof RatioPatch)[]) delete next[field]
       return next
     })
-    onResizeDivider?.(patch)
+    if (activeImageResize && scale !== undefined) {
+      const slot = visibleSlots[activeImageResize.slotIndex]
+      const content = resolvePaneContent(slot)
+      if (content.kind !== 'image') return
+      // Same "only the stage currently being viewed/edited" rule as an
+      // arrangement divider's own checkpoint below — forks a fresh content
+      // checkpoint at `effectiveStage` (even if this image was itself
+      // inherited from an earlier one) carrying the new scale forward from
+      // here on, leaving every earlier stage's own size untouched.
+      const nextSlots = [...screen.slots] as ScreenConfig['slots']
+      nextSlots[activeImageResize.slotIndex] = { ...slot, content: writeStageCheckpoint(slot.content, effectiveStage, { ...content, resizeScale: scale }) }
+      onResizeDivider?.({ slots: nextSlots })
+      return
+    }
+    // Checkpoints the dragged-to value at the effective stage — "moving the
+    // border" only affects whichever stage is currently being viewed/edited.
+    onResizeDivider?.({ ratios: applyRatioOverrides(screen.ratios, effectiveStage, patch) })
   }
 
   const renderDividers = () =>
@@ -215,39 +325,59 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
     )
 
   /**
-   * Renders one pane: its currently-showing slide (animated whenever the
-   * slot's own rotation actually changes it) plus its hover-revealed edit
-   * button. The text-size vars are set on the animated inner element itself,
-   * not the always-mounted pane div — so a rotation to a differently-sized
-   * slide only takes effect once its exit animation finishes and the new
-   * slide actually mounts, instead of resizing the outgoing slide mid-fade.
-   * The slot's own background color, conversely, is set on the always-mounted
-   * pane div itself, not the fading inner one — so only the text/image
-   * crossfades; the backdrop color never fades in or out. A background image
-   * (the slide's own, else its slot's) is its own always-mounted layer
-   * (blurred, scaled to cover) behind the content — never the content div's
-   * own `background`, since blurring that would blur the text/image drawn on
-   * top of it too — but it gets its own `AnimatePresence`, keyed by the
-   * image+overlay themselves rather than the slide index, so it only
-   * crossfades when the effective image (or its overlay) actually changes
-   * between slides, instead of re-fading the same backdrop in and out every
-   * rotation. Its overlay (if any) also forces the text color, overriding
-   * whatever the background color alone would have picked, since a photo's
-   * own contrast can't be measured the way a flat color's can. Divider
-   * borders between panes are drawn once, by the grid container itself (its
-   * own background showing through its `gap`), not per-pane — so a slot's
-   * own background color here never needs to also carry a border color.
-   * When `forcedSlide` names this exact pane, its own resolved (raw, not
-   * rotation-position) index is used both as the shown content and as the
-   * crossfade key instead — so switching a slot's own editor between its
-   * slide tabs animates between them here too, live, regardless of where
-   * the rotation itself happened to freeze when the editor opened.
+   * Renders one pane: its currently-showing content (animated whenever the
+   * slot's own resolved checkpoint actually changes) plus its
+   * hover-revealed edit button. The text-size vars are set on the animated
+   * inner element itself, not the always-mounted pane div — so advancing
+   * to a differently-sized checkpoint only takes effect once its exit
+   * animation finishes and the new one actually mounts, instead of
+   * resizing the outgoing content mid-fade. The slot's own background
+   * color, conversely, is set on the always-mounted pane div itself, not
+   * the fading inner one — so only the text/image crossfades; the backdrop
+   * color never fades in or out. A background image (the content's own,
+   * else its slot's) is its own always-mounted layer (blurred, scaled to
+   * cover) behind the content — never the content div's own `background`,
+   * since blurring that would blur the text/image drawn on top of it too —
+   * but it gets its own `AnimatePresence`, keyed by the image+overlay
+   * themselves rather than the resolved checkpoint, so it only crossfades
+   * when the effective image (or its overlay) actually changes, instead of
+   * re-fading the same backdrop in and out on every stage advance. Its
+   * overlay (if any) also forces the text color, overriding whatever the
+   * background color alone would have picked, since a photo's own contrast
+   * can't be measured the way a flat color's can. Divider borders between
+   * panes are drawn once, by the grid container itself (its own background
+   * showing through its `gap`), not per-pane — so a slot's own background
+   * color here never needs to also carry a border color. The content
+   * pane's own `AnimatePresence` key is the *checkpoint's* stage number
+   * (see `resolvedCheckpointStage`), not the raw current stage — several
+   * consecutive stages can resolve to the same inherited checkpoint, and
+   * keying on the raw stage would crossfade every single stage advance
+   * even when nothing about this particular slot actually changed. A pane
+   * matching `screen.editingFocus` (the admin's editor, possibly running on
+   * an entirely different tab/window/device than this display — see
+   * `ScreenForm`) flashes white on top of everything else, keyed by its own
+   * `pulse` so the flash restarts every time regardless of how fast the
+   * admin switches slots; `'global'` flashes every pane at once.
    */
   const renderPane = (slot: ScreenSlot, index: number, extraClassName = '') => {
-    const { content, contentIndex } = resolvePaneContent(slot, index)
-    const motionKey = forcedSlide?.slotIndex === index ? contentIndex : currentSlotSubIndex(slot, tick)
-    const backgroundImage = resolveContentBackgroundImage(content, slot.backgroundImage)
-    const paneStyle = { ...slotBackgroundColorStyle(slot.backgroundColor), ...backgroundImageTextStyle(backgroundImage?.overlay) }
+    const content = resolvePaneContent(slot)
+    const checkpointStage = resolvedCheckpointStage(slot.content, effectiveStage) ?? effectiveStage
+    const backgroundColor = resolveSlotBackgroundColor(slot, effectiveStage)
+    const slotBackgroundImage = resolveSlotBackgroundImage(slot, effectiveStage)
+    const backgroundImage = resolveContentBackgroundImage(content, slotBackgroundImage)
+    // Only delays this pane's own background/text color transition (rather
+    // than starting it immediately, alongside a live-edited color change)
+    // when its *own* content checkpoint just changed this render — i.e. a
+    // stage advance actually reached one of its own set checkpoints, so its
+    // outgoing content is mid-crossfade and shouldn't have its color pulled
+    // out from under it before that finishes.
+    const contentJustChanged = previousContentCheckpoints[index] !== undefined && previousContentCheckpoints[index] !== checkpointStage
+    const paneColorDelay = contentJustChanged ? transition.duration : 0
+    const paneStyle = {
+      ...slotBackgroundColorStyle(backgroundColor),
+      ...backgroundImageTextStyle(backgroundImage?.overlay),
+      ...(!reducedMotion ? { transition: `background-color 0.4s ease ${paneColorDelay}s, color 0.4s ease ${paneColorDelay}s` } : {}),
+    }
     return (
       <div className={`split-layout__pane${extraClassName}`} key={index} style={paneStyle}>
         <AnimatePresence mode="wait">
@@ -267,9 +397,9 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
         </AnimatePresence>
         <AnimatePresence mode="wait">
           <motion.div
-            key={motionKey}
+            key={checkpointStage}
             className="split-layout__pane-content"
-            style={textSizesToCssVars(resolveTextSizes(index, contentIndex, content))}
+            style={textSizesToCssVars(resolveTextSizes(index, effectiveStage, content))}
             variants={paneVariants(index)}
             initial="initial"
             animate="animate"
@@ -279,7 +409,16 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
             <SlotContent slot={content} />
           </motion.div>
         </AnimatePresence>
-        {onEditSlide && <SlotEditButton onClick={() => onEditSlide(index, contentIndex)} />}
+        {onEditSlide && <SlotEditButton onClick={() => onEditSlide(index)} />}
+        {screen.editingFocus && (screen.editingFocus.tab === 'global' || screen.editingFocus.tab === index) && (
+          <motion.div
+            key={screen.editingFocus.pulse}
+            className="split-layout__pane-pulse"
+            initial={{ opacity: 0.55 }}
+            animate={{ opacity: 0 }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+          />
+        )}
       </div>
     )
   }

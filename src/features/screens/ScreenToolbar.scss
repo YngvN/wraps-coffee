@@ -50,6 +50,12 @@
     box-shadow: inset 0 2px 4px $color-shadow;
   }
 
+  &:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
   // The locked toolbar's own single icon-only button — round instead of a
   // text pill, since there's no label to give it its shape.
   &--icon {
@@ -59,5 +65,13 @@
     width: 32px;
     height: 32px;
     padding: 0;
+  }
+
+  // A toggled-on state (e.g. fast-forward while active) — same visual
+  // language as the admin form's own active pill buttons.
+  &--active {
+    opacity: 1;
+    border-color: $color-accent;
+    color: $color-accent;
   }
 }

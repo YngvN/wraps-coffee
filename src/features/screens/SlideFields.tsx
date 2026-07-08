@@ -3,6 +3,7 @@ import { useLanguage } from '../../i18n'
 import type { ProductCategory } from '../../types/product'
 import type { ScreenSlotContent } from '../../types/screen'
 import { CATEGORY_ORDER } from '../admin/products/categoryMeta'
+import { clampImageResizeScale, IMAGE_RESIZE_MAX_VIEWPORT_FRACTION, MAX_IMAGE_RESIZE_SCALE, MIN_IMAGE_RESIZE_SCALE } from '../../utils/screenLayout'
 import { BackgroundImagePicker } from './BackgroundImagePicker'
 import './SlideFields.scss'
 
@@ -32,20 +33,31 @@ interface SlideFieldsProps {
    * opt out of in the first place.
    */
   showOwnBackgroundImage?: boolean
+  /**
+   * Disables the "Resize slot to fit image" checkbox, with an explanatory
+   * tooltip, when some other slot's content already resolves to a
+   * resize-to-fit image at this same stage — only one is allowed active at
+   * once, to keep a stage from resizing more than one pane at a time. Never
+   * disables an already-checked box, so this slide can always turn its own
+   * back off regardless.
+   */
+  resizeToFitBlocked?: boolean
 }
 
 /**
  * One slide's own fields: what it shows (a content-kind selector), its own
- * URL/fill-container/resize-to-fit fields when set to "Image" (the last of
- * these makes the slide's own *pane* grow or shrink to match the image's
- * aspect ratio, capped at 40% of the screen's viewport, while it's showing
- * — see `SplitLayout`), a checkbox per category when set to "Full menu"
+ * URL/fill-container/resize-to-fit/resize-scale fields when set to "Image"
+ * (resize-to-fit makes the slide's own *pane* grow or shrink to match the
+ * image's aspect ratio, capped at its own resize-scale percentage of the
+ * screen's viewport, defaulting to 40% but also adjustable by dragging the
+ * pane's own border on the live display — see `SplitLayout`), a checkbox
+ * per category when set to "Full menu"
  * (letting the full menu be split across more than one screen — each gets
  * its own subset checked), and — for a slide that's one of several in a
  * slideshow-enabled slot — a toggle to opt out of its slot's own
  * background image and use its own instead.
  */
-export function SlideFields({ id, content, onChange, label, showOwnBackgroundImage }: SlideFieldsProps) {
+export function SlideFields({ id, content, onChange, label, showOwnBackgroundImage, resizeToFitBlocked }: SlideFieldsProps) {
   const { t } = useLanguage()
 
   /** Starts a fresh image slide when switching the selector to "Image"; otherwise just updates the URL in place, keeping this slide's other own fields (fit, resize-to-fit, background image) intact. */
@@ -65,6 +77,12 @@ export function SlideFields({ id, content, onChange, label, showOwnBackgroundIma
   const setImageResizeToFit = (resizeToFit: boolean) => {
     if (content.kind !== 'image') return
     onChange({ ...content, resizeToFit })
+  }
+
+  /** `resizeScale` is stored as a 0-1 fraction of the viewport but edited here as a whole-number percentage, matching how an arrangement's own dividers are edited elsewhere. */
+  const setImageResizeScalePercent = (percent: number) => {
+    if (content.kind !== 'image') return
+    onChange({ ...content, resizeScale: clampImageResizeScale(percent / 100) })
   }
 
   /** Toggles one category in/out of a "Full menu" slide's own `categories` — starting from every category checked (the standard, when `categories` is still absent) so unchecking the first one narrows it down from there, rather than from an empty set. */
@@ -103,7 +121,20 @@ export function SlideFields({ id, content, onChange, label, showOwnBackgroundIma
             label={t('admin.screens.resizeToFitImageLabel')}
             checked={Boolean(content.resizeToFit)}
             onChange={(event) => setImageResizeToFit(event.target.checked)}
+            disabled={resizeToFitBlocked && !content.resizeToFit}
+            title={resizeToFitBlocked && !content.resizeToFit ? t('admin.screens.resizeToFitBlockedTooltip') : undefined}
           />
+          {content.resizeToFit && (
+            <Input
+              id={`${id}-image-resize-scale`}
+              label={t('admin.screens.resizeScaleLabel')}
+              type="number"
+              min={MIN_IMAGE_RESIZE_SCALE * 100}
+              max={MAX_IMAGE_RESIZE_SCALE * 100}
+              value={Math.round((content.resizeScale ?? IMAGE_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}
+              onChange={(event) => setImageResizeScalePercent(Number(event.target.value))}
+            />
+          )}
         </>
       )}
 

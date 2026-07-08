@@ -9,8 +9,12 @@
   width: 100vw;
   height: 100dvh;
   overflow: hidden;
-  background: var(--screen-bg);
+  background-color: var(--screen-bg);
   color: var(--screen-text);
+  // Picking a new background color (live, from the admin editor — see
+  // `handleScreenBackgroundColorChange`) fades into it instead of snapping,
+  // same for the contrast-picked text color that comes along with it.
+  transition: background-color 0.4s ease, color 0.4s ease;
 }
 
 // While locked, every editing affordance is already unmounted (see

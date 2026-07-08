@@ -19,49 +19,74 @@ interface OwnBackgroundImageFields {
 }
 
 /**
- * What a single slide within a slot shows: nothing, a specific menu category,
- * the entire menu (every category with available items, laid out the same
- * way as the public Menu page — or, via `categories`, just a chosen subset
- * of them, e.g. to split the full menu across more than one screen), the
+ * What a slot shows at one of its own content timeline's checkpoints
+ * (see `ScreenSlot.content`): nothing, a specific menu category, the entire
+ * menu (every category with available items, laid out the same way as the
+ * public Menu page — or, via `categories`, just a chosen subset of them,
+ * e.g. to split the full menu across more than one screen), the
  * upcoming-events list, or a single centered image (e.g. a logo or an
- * Instagram photo, pasted in as a URL). A category/menu/events slide
+ * Instagram photo, pasted in as a URL). A category/menu/events checkpoint
  * normally follows its slot's own text size (which itself falls back to the
- * screen's default) — `useOwnTextSizes` lets one slide in a multi-slide
- * (slideshow) slot opt out and keep its own independent `textSizes`
- * instead, e.g. because it needs bigger text than the other slides sharing
- * that slot. An image slide has no text of its own, so it has no
- * text-size fields at all; `fit` instead controls how its picture fills
- * the slide, falling back to `'contain'` when absent. `resizeToFit`
- * (image slides only) instead makes its own *pane* grow or shrink to match
- * the image's own aspect ratio — capped at 40% of the screen's viewport
- * width and height (see `imageResizeRatioPatch`) — while it's the one
- * showing, sliding back to the slot's own set size once a slideshow
- * rotates to a different slide. Every kind can independently opt out of
- * its slot's own `backgroundImage` via `useOwnBackgroundImage`, regardless
- * of whether it has text of its own.
+ * screen's default) — `useOwnTextSizes` lets one checkpoint opt out and
+ * keep its own independent `textSizes` instead, e.g. because it needs
+ * bigger text than the slot's other stages. An image checkpoint has no text
+ * of its own, so it has no text-size fields at all; `fit` instead controls
+ * how its picture fills the slide, falling back to `'contain'` when absent.
+ * `resizeToFit` (image checkpoints only) instead makes its own *pane* grow
+ * or shrink to match the image's own aspect ratio — capped at `resizeScale`
+ * (defaulting to 40%, `IMAGE_RESIZE_MAX_VIEWPORT_FRACTION`) of the screen's
+ * viewport width and height (see `imageResizeRatioPatch`) — while it's the
+ * one showing, sliding back to the slot's own set size once the stage
+ * sequence advances to a checkpoint with different content. `resizeScale`
+ * can be dragged smaller or bigger via the pane's own borders on the live
+ * display, the same handles an arrangement's own dividers use — both axes
+ * always move together from this one shared value, so the image's own
+ * aspect ratio stays locked no matter which border is dragged. Every
+ * kind can independently opt out of its slot's own `backgroundImage` via
+ * `useOwnBackgroundImage`, regardless of whether it has text of its own.
  */
 export type ScreenSlotContent =
   | ({ kind: 'none' } & OwnBackgroundImageFields)
   | ({ kind: 'category'; category: ProductCategory; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({ kind: 'menu'; categories?: ProductCategory[]; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({ kind: 'events'; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
-  | ({ kind: 'image'; imageUrl: string; fit?: ImageFit; resizeToFit?: boolean } & OwnBackgroundImageFields)
+  | ({ kind: 'image'; imageUrl: string; fit?: ImageFit; resizeToFit?: boolean; resizeScale?: number } & OwnBackgroundImageFields)
 
 /**
- * One of a screen's up to 4 content slots. When `isSlideshow` is false, only
- * `contents[0]` is shown (defaulting to `{ kind: 'none' }` if the array is
- * empty). When true, the slot itself rotates through every non-"none" entry
- * in `contents`, using the screen's own `slideDurationSeconds` as the shared
- * timer — independently of every other slot, so one pane can rotate while
- * the others stay fixed.
+ * A sparse per-stage "checkpoint" map for one field's value — only stages
+ * where an explicit value was set have an entry. A field's effective value
+ * at a given stage is the entry at the closest stage number at or below it,
+ * or (if none exists below it) the entry at the highest stage number at
+ * all, wrapping around circularly, since the whole sequence loops back to
+ * stage 1 after the last one. Resolve with the helpers in
+ * `src/utils/screenStages.ts` — never index this map directly, since a
+ * present-but-`undefined` entry (an explicit "nothing at this stage") must
+ * be distinguished from no entry at all (nothing set here, inherit from
+ * elsewhere), which a plain `timeline[stage]` lookup can't tell apart.
+ */
+export type StageTimeline<T> = Record<number, T>
+
+/**
+ * One of a screen's up to 4 content slots. When `ScreenConfig.useStages` is
+ * on, every slot advances through the same shared sequence of numbered
+ * stages together (see `ScreenConfig.stageCount`), using
+ * `slideDurationSeconds` as the shared timer. A slot doesn't need its own
+ * value at every stage — each of its own fields below is an independent
+ * `StageTimeline`, only checkpointed at the stages where the owner actually
+ * changed *that* field, holding its last explicit value until the next one.
+ * The four timelines are deliberately independent of each other: changing a
+ * slot's content at stage 5 doesn't disturb whatever stage its own
+ * background color was last set at. When `useStages` is off, every slot
+ * always resolves as if there's exactly one stage (stage 1).
  */
 export interface ScreenSlot {
-  isSlideshow: boolean
-  contents: ScreenSlotContent[]
-  /** This slot's own background color (hex, from `SCREEN_BACKGROUND_COLORS`), independent of the screen's own. Falls back to transparent (showing the screen's own background through) when absent — the standard, until the owner picks one for this slot specifically. */
-  backgroundColor?: string
-  /** This slot's own background image (blurred, scaled to cover the pane), shown behind whichever slide is currently active. Falls back to none when absent. A slide with `useOwnBackgroundImage` set overrides this one just for itself. */
-  backgroundImage?: BackgroundImage
+  content: StageTimeline<ScreenSlotContent>
+  /** This slot's own background color (hex, from `SCREEN_BACKGROUND_COLORS`) timeline, independent of the screen's own. An entry's value may itself be `undefined` (explicitly transparent at that stage, showing the screen's own background through) — distinct from no entry at all at that stage (inherit from an earlier one). */
+  backgroundColor: StageTimeline<string | undefined>
+  /** This slot's own background image (blurred, scaled to cover the pane) timeline, shown behind whichever content is currently active. A slide with `useOwnBackgroundImage` set overrides this one just for itself. */
+  backgroundImage: StageTimeline<BackgroundImage | undefined>
+  /** This slot's own shared/fallback text size timeline — replaces the old screen-level `slotTextSizes`. Falls back to the screen's own `textSizes` (then `DEFAULT_TEXT_SIZES`) at any stage without an entry. */
+  textSizes: StageTimeline<TextSizes | undefined>
 }
 
 /** How a screen's panes are arranged along their split axis: side by side, or stacked. Only meaningful when `slotCount` is 2. */
@@ -76,6 +101,9 @@ export type SplitDirection = 'row' | 'column'
  * in slot order (Slot 1 before Slot 2, etc).
  */
 export type SplitBigPosition = 'first' | 'second'
+
+/** A screen's own adjustable arrangement dividers — which one governs which split, for a given `slotCount`/`splitDirection`/`splitBigPosition` combo (see `src/utils/screenLayout.ts`). Each is its own independent per-stage timeline on `ScreenConfig.ratios`, so moving a divider only affects the stage currently being viewed. */
+export type RatioField = 'splitRatio' | 'tripleBigRatio' | 'tripleSmallRatio' | 'quadColumnRatio' | 'quadRowRatio'
 
 /** How a slide change is animated for any slot's own in-place rotation. Kept as its own union so more styles can be added later without changing `ScreenConfig`'s shape. */
 export type ScreenTransitionStyle = 'fade' | 'slide'
@@ -142,29 +170,36 @@ export interface ScreenConfig {
    * them again, or the whole screen is deleted.
    */
   slotCount: number
-  /** Up to 4 content slots; unused ones have no non-"none" entries in their `contents`. */
+  /** Up to 4 content slots; unused ones have no non-"none" entries anywhere in their `content` timeline. */
   slots: [ScreenSlot, ScreenSlot, ScreenSlot, ScreenSlot]
-  /** Seconds each slide is shown before rotating to the next, for any individual slot's own rotation (when that slot's `isSlideshow` is true). */
+  /** Whether every slot advances through a shared sequence of numbered stages together (see `stageCount`). Falls back to `false` (a single static stage) when absent — turning it off never deletes checkpoint data beyond stage 1, so turning it back on (or growing `stageCount` back up) restores exactly where the owner left off. */
+  useStages?: boolean
+  /** Total number of shared stages, 1 and up — only relevant/edited while `useStages` is true. Falls back to 1 when absent. Shrinking this never prunes checkpoints beyond the new count; they simply become unreachable until it's grown back. */
+  stageCount?: number
+  /** Seconds each stage is shown before advancing to the next, shared by every slot's own rotation. Only meaningful while `useStages` is on and `stageCount` is more than 1. */
   slideDurationSeconds: number
   transitionStyle: ScreenTransitionStyle
   /** Optional per-screen text size override, set via the display's own "Edit appearance" panel. Falls back to `DEFAULT_TEXT_SIZES` when absent. */
   textSizes?: TextSizes
-  /** Optional per-slot text size override (keyed by slot index, 0-3), set by hovering a slot's pane and clicking its own edit button. Falls back to `textSizes` (then `DEFAULT_TEXT_SIZES`) for any slot without one. */
-  slotTextSizes?: Record<number, TextSizes>
   /** Only used when `slotCount` is 2. Falls back to 'row' (side by side) when absent. */
   splitDirection?: SplitDirection
   /** Only used when `slotCount` is 3. Falls back to 'first' when absent. */
   splitBigPosition?: SplitBigPosition
-  /** Percentage (10-90) of shared space Slot 1 occupies at the single divider in a 2-slot row/column arrangement — draggable on the live display, or nudgeable 1% at a time from the admin form's "Resize" panel. Falls back to 50 (even split) when absent. Unused for other slot counts. */
-  splitRatio?: number
-  /** Percentage (10-90) of space, along the split axis, the "big" pane occupies in a 3-slot arrangement — the position of the divider between it and the two small panes. Falls back to 50 when absent. */
-  tripleBigRatio?: number
-  /** Percentage (10-90) of their own shared space Slot 2 (the first small pane, left/top of the pair) occupies in a 3-slot arrangement — the position of the divider between the two small panes. Falls back to 50 when absent. */
-  tripleSmallRatio?: number
-  /** Percentage (10-90) of width the left column occupies in a 4-slot 2x2 grid — the position of its vertical divider. Falls back to 50 when absent. */
-  quadColumnRatio?: number
-  /** Percentage (10-90) of height the top row occupies in a 4-slot 2x2 grid — the position of its horizontal divider. Falls back to 50 when absent. */
-  quadRowRatio?: number
+  /**
+   * Per-stage timelines (percentage, 10-90) for each of a screen's own
+   * adjustable arrangement dividers — draggable on the live display, or
+   * nudgeable 1% at a time from the admin form's "Resize" panel — only the
+   * field(s) relevant to the current `slotCount`/`splitDirection` are ever
+   * read (see `src/utils/screenLayout.ts`). Moving a divider only writes a
+   * checkpoint at the stage currently being viewed, same as every slot's
+   * own fields; falls back to 50 (even split) for a field/stage with no
+   * entry. `splitRatio`: the single divider in a 2-slot row/column
+   * arrangement. `tripleBigRatio`: the divider between the "big" pane and
+   * the small pair in a 3-slot arrangement. `tripleSmallRatio`: the
+   * divider between the two small panes themselves. `quadColumnRatio`/
+   * `quadRowRatio`: the vertical/horizontal dividers in a 4-slot 2x2 grid.
+   */
+  ratios?: Partial<Record<RatioField, StageTimeline<number>>>
   /** Whether visible borders are drawn between panes. Falls back to `true` (shown) when absent. */
   showSlotBorders?: boolean
   /** Fixed border color (hex, from `SCREEN_BACKGROUND_COLORS`) between panes. Falls back to an automatic contrast-based color (`--screen-border`) when absent. Only relevant while `showSlotBorders` is on and `slotCount` is more than 1. */
@@ -181,6 +216,19 @@ export interface ScreenConfig {
   useScreensaver?: boolean
   /** Live-toggled preview of the screensaver ("Test screensaver"), independent of the actual schedule — shows the same black overlay immediately regardless of the time of day (or whether `useScreensaver` is even on), on this screen and any other open tab of it. Manually turned back off the same way; falls back to `false` when absent. */
   screensaverTestActive?: boolean
+  /**
+   * Which of this screen's own tabs the admin's editor is currently focused
+   * on — an ephemeral, live-synced signal (same mechanism as
+   * `screensaverTestActive`) rather than real screen configuration, so the
+   * actual live display (see `SplitLayout`) can flash the matching pane and
+   * make clear, even when that display is showing somewhere else entirely
+   * (a kiosk, another tab/window), which part is currently being edited.
+   * `pulse` increments on every focus change, even a repeat one on the tab
+   * that's already active, purely so the display can restart its flash
+   * animation from scratch regardless of how fast it's re-triggered. Cleared
+   * to `undefined` when the editor closes.
+   */
+  editingFocus?: { tab: 'global' | number; pulse: number }
 }
 
 /** A named, reusable set of text sizes, saved from one screen's editor and applicable to any screen. */

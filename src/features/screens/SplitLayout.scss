@@ -10,11 +10,16 @@
   // the outside, so this can't produce an outer border no matter the
   // arrangement.
   gap: 4px;
-  background: var(--screen-border);
+  background-color: var(--screen-border);
+  // Also picking up a new color when the screen's own background changes
+  // (`--screen-border` is derived from it) — set inline, alongside the
+  // grid-template-resize transition, since an inline `transition` replaces
+  // rather than merges with this one; see `SplitLayout.tsx`'s own
+  // `gridTransition`.
 
   &--no-borders {
     gap: 0;
-    background: transparent;
+    background-color: transparent;
   }
 
   // Sizing (grid-template-columns/rows) for every arrangement below is set
@@ -69,7 +74,7 @@
   // showing through) so it fully covers the grid container's background —
   // otherwise that divider color (see `.split-layout`'s own `background`)
   // would show through the whole pane, not just the gap around it.
-  background: var(--screen-bg);
+  background-color: var(--screen-bg);
   // Re-declares `color` here (not just inherits it from `.screen-display`)
   // so that when this pane's own background color redefines `--screen-text`
   // (see `slotBackgroundColorStyle`), its text actually picks that up —
@@ -77,6 +82,9 @@
   // change a `color` value already resolved higher up. Falls back to the
   // screen's own text color when the slot has no color of its own.
   color: var(--screen-text);
+  // The actual `transition` (with its own delay, when this pane's own
+  // content just crossfaded to a new checkpoint) is computed and set
+  // inline instead — see `SplitLayout.tsx`'s own `paneColorDelay`.
 
   @media (hover: hover) {
     &:hover .slot-edit-button {
@@ -132,4 +140,15 @@
 .split-layout__pane-content {
   position: absolute;
   inset: 0;
+}
+
+// The admin editor's own click-feedback flash (see `screen.editingFocus`),
+// shown right on this pane on the actual live display — sits above the
+// background/content layers and the edit button alike (last in the DOM),
+// but `pointer-events: none` keeps it from blocking either.
+.split-layout__pane-pulse {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  pointer-events: none;
 }

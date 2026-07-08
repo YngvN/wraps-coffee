@@ -1,7 +1,5 @@
-import type { ScreenConfig, SlideTransitionDirection } from '../types/screen'
-
-/** A screen field holding one adjustable divider's position, as a percentage. */
-export type RatioField = 'splitRatio' | 'tripleBigRatio' | 'tripleSmallRatio' | 'quadColumnRatio' | 'quadRowRatio'
+import type { RatioField, ScreenConfig, SlideTransitionDirection } from '../types/screen'
+import { resolveStageValue, writeStageCheckpoint } from './screenStages'
 
 /** One or more ratio fields' new values at once — a single-divider drag only ever touches one, but a combined cross handle (see `crossHandle`) moves both of an arrangement's dividers together. */
 export type RatioPatch = Partial<Record<RatioField, number>>
@@ -14,31 +12,59 @@ export function clampRatio(value: number): number {
   return Math.min(MAX_RATIO, Math.max(MIN_RATIO, value))
 }
 
-/** A field's current value, clamped, falling back to an even 50/50 split when absent. */
-function ratio(screen: ScreenConfig, field: RatioField): number {
-  return clampRatio(screen[field] ?? 50)
+/** Dead center — the value a divider's own field takes at an even 50/50 split. */
+export const CENTER_RATIO = 50
+/** How close (in percentage points) a value needs to get to `CENTER_RATIO` before it magnetically locks to it exactly — deliberately tight, so the snap only catches a drag/nudge that's already landing right around dead center rather than pulling in anything nearby. */
+const CENTER_SNAP_THRESHOLD = 1.5
+
+/** Locks `value` to dead-center once it's within `CENTER_SNAP_THRESHOLD` of it — used for a continuous pointer drag (see `dividerFieldValue`), where the position is always freshly computed from the real cursor coordinates each frame, so there's no risk of "trapping" further movement: physically dragging the pointer farther away re-escapes the snap zone on its own. */
+function snapToCenter(value: number): number {
+  return Math.abs(value - CENTER_RATIO) <= CENTER_SNAP_THRESHOLD ? CENTER_RATIO : value
 }
 
-/** Resolves the CSS grid-template-columns/rows for a screen's current arrangement, from its own adjustable divider ratios. Pure sizing — `grid-template-areas` (which named pane goes where) is unaffected and stays in `SplitLayout.scss`. */
-export function splitGridTemplate(screen: ScreenConfig): { gridTemplateColumns?: string; gridTemplateRows?: string } {
+/** The same magnetic snap as `snapToCenter`, but for a discrete step-based nudge (the admin form's arrow buttons) rather than a continuous pointer position — only snaps while `next` is actually *closer* to center than `previous` was, so a value already sitting exactly on 50 can still be nudged back away from it one step at a time, instead of `snapToCenter` trapping every subsequent nudge right back at center forever. */
+function snapToCenterOnApproach(previous: number, next: number): number {
+  const distance = Math.abs(next - CENTER_RATIO)
+  if (distance > CENTER_SNAP_THRESHOLD) return next
+  return distance <= Math.abs(previous - CENTER_RATIO) ? CENTER_RATIO : next
+}
+
+/** A field's current value at `stage`, clamped, falling back to an even 50/50 split when absent. */
+function ratio(screen: ScreenConfig, field: RatioField, stage: number): number {
+  return clampRatio(resolveStageValue(screen.ratios?.[field], stage) ?? 50)
+}
+
+/** Returns a copy of `ratios` with every field in `overrides` injected as an exact checkpoint at `stage` — used to layer a live, never-persisted override (a `resizeToFit` image's own pane-fit, or a divider actively being dragged) on top of a screen's real per-stage values for read purposes only, reusing the same timeline-resolution `ratio`/`screenDividers`/etc. already use rather than needing a parallel "flat override" code path. */
+export function applyRatioOverrides(ratios: ScreenConfig['ratios'], stage: number, overrides: RatioPatch): ScreenConfig['ratios'] {
+  let next = ratios
+  for (const field of Object.keys(overrides) as RatioField[]) {
+    const value = overrides[field]
+    if (value === undefined) continue
+    next = { ...next, [field]: writeStageCheckpoint(next?.[field], stage, value) }
+  }
+  return next
+}
+
+/** Resolves the CSS grid-template-columns/rows for a screen's current arrangement at `stage`, from its own adjustable divider ratios. Pure sizing — `grid-template-areas` (which named pane goes where) is unaffected and stays in `SplitLayout.scss`. */
+export function splitGridTemplate(screen: ScreenConfig, stage: number): { gridTemplateColumns?: string; gridTemplateRows?: string } {
   const direction = screen.splitDirection ?? 'row'
   const bigPosition = screen.splitBigPosition ?? 'first'
 
   if (screen.slotCount === 2) {
-    const split = ratio(screen, 'splitRatio')
+    const split = ratio(screen, 'splitRatio', stage)
     const track = `${split}% ${100 - split}%`
     return direction === 'row' ? { gridTemplateColumns: track } : { gridTemplateRows: track }
   }
 
   if (screen.slotCount === 4) {
-    const column = ratio(screen, 'quadColumnRatio')
-    const row = ratio(screen, 'quadRowRatio')
+    const column = ratio(screen, 'quadColumnRatio', stage)
+    const row = ratio(screen, 'quadRowRatio', stage)
     return { gridTemplateColumns: `${column}% ${100 - column}%`, gridTemplateRows: `${row}% ${100 - row}%` }
   }
 
   if (screen.slotCount === 3) {
-    const big = ratio(screen, 'tripleBigRatio')
-    const small = ratio(screen, 'tripleSmallRatio')
+    const big = ratio(screen, 'tripleBigRatio', stage)
+    const small = ratio(screen, 'tripleSmallRatio', stage)
     const bigTrack = bigPosition === 'first' ? `${big}% ${100 - big}%` : `${100 - big}% ${big}%`
     const smallTrack = `${small}% ${100 - small}%`
     return direction === 'row' ? { gridTemplateRows: bigTrack, gridTemplateColumns: smallTrack } : { gridTemplateColumns: bigTrack, gridTemplateRows: smallTrack }
@@ -60,31 +86,31 @@ export interface DividerDescriptor {
   inverted: boolean
 }
 
-/** Converts a raw on-screen position (e.g. from a pointer drag) into the value to actually write to `divider.field`, accounting for `inverted`. */
+/** Converts a raw on-screen position (e.g. from a pointer drag) into the value to actually write to `divider.field`, accounting for `inverted` — and magnetically snapping to dead-center once the position gets close (see `snapToCenter`), so a manual drag settles precisely on an even split instead of landing a percentage point or two off it. Never applied to the automatic `resizeToFit` image pane-fit override (`imageResizeRatioPatch`), which never calls this — that's a content-driven size, not a "moved" one. */
 export function dividerFieldValue(divider: Pick<DividerDescriptor, 'inverted'>, position: number): number {
-  return clampRatio(divider.inverted ? 100 - position : position)
+  return snapToCenter(clampRatio(divider.inverted ? 100 - position : position))
 }
 
-/** Every divider a screen's current arrangement actually has, for rendering their drag handles — `[]` for 1 slot (nothing to divide). */
-export function screenDividers(screen: ScreenConfig): DividerDescriptor[] {
+/** Every divider a screen's current arrangement actually has at `stage`, for rendering their drag handles — `[]` for 1 slot (nothing to divide). */
+export function screenDividers(screen: ScreenConfig, stage: number): DividerDescriptor[] {
   const direction = screen.splitDirection ?? 'row'
   const bigPosition = screen.splitBigPosition ?? 'first'
 
   if (screen.slotCount === 2) {
-    const value = ratio(screen, 'splitRatio')
+    const value = ratio(screen, 'splitRatio', stage)
     return [{ field: 'splitRatio', orientation: direction === 'row' ? 'vertical' : 'horizontal', value, span: {}, inverted: false }]
   }
 
   if (screen.slotCount === 4) {
     return [
-      { field: 'quadColumnRatio', orientation: 'vertical', value: ratio(screen, 'quadColumnRatio'), span: {}, inverted: false },
-      { field: 'quadRowRatio', orientation: 'horizontal', value: ratio(screen, 'quadRowRatio'), span: {}, inverted: false },
+      { field: 'quadColumnRatio', orientation: 'vertical', value: ratio(screen, 'quadColumnRatio', stage), span: {}, inverted: false },
+      { field: 'quadRowRatio', orientation: 'horizontal', value: ratio(screen, 'quadRowRatio', stage), span: {}, inverted: false },
     ]
   }
 
   if (screen.slotCount === 3) {
-    const big = ratio(screen, 'tripleBigRatio')
-    const small = ratio(screen, 'tripleSmallRatio')
+    const big = ratio(screen, 'tripleBigRatio', stage)
+    const small = ratio(screen, 'tripleSmallRatio', stage)
     // The big/small divider always runs the full length of its own axis; the
     // small1/small2 divider only runs across whichever portion the two small
     // panes actually share (the rest is occupied by the big pane). When the
@@ -121,9 +147,9 @@ export interface CrossHandleDescriptor {
   rowInverted: boolean
 }
 
-export function crossHandle(screen: ScreenConfig): CrossHandleDescriptor | null {
+export function crossHandle(screen: ScreenConfig, stage: number): CrossHandleDescriptor | null {
   if (screen.slotCount !== 3 && screen.slotCount !== 4) return null
-  const dividers = screenDividers(screen)
+  const dividers = screenDividers(screen, stage)
   const columnDivider = dividers.find((divider) => divider.orientation === 'vertical')
   const rowDivider = dividers.find((divider) => divider.orientation === 'horizontal')
   if (!columnDivider || !rowDivider) return null
@@ -142,16 +168,18 @@ export type ResizeDirection = 'up' | 'down' | 'left' | 'right'
 
 /**
  * Which field (if any) a given arrow direction adjusts for a screen's
- * current arrangement, and by how much (already signed and clamped) — or
- * `null` if that direction has no divider to move (e.g. up/down for a
- * 2-slot side-by-side row). Shared by the admin form's arrow buttons; the
- * live display's own drag handles don't need this mapping since each one
- * already knows its own field directly (see `screenDividers`).
+ * current arrangement at `stage`, and by how much (already signed, snapped
+ * and clamped) — as a ready-to-spread `ScreenConfig` patch checkpointing
+ * that new value at `stage`, or `null` if that direction has no divider to
+ * move (e.g. up/down for a 2-slot side-by-side row). Shared by the admin
+ * form's arrow buttons; the live display's own drag handles don't need this
+ * mapping since each one already knows its own field directly (see
+ * `screenDividers`).
  */
-export function nudgeRatio(screen: ScreenConfig, direction: ResizeDirection, step = 1): Partial<ScreenConfig> | null {
+export function nudgeRatio(screen: ScreenConfig, direction: ResizeDirection, stage: number, step = 1): Partial<ScreenConfig> | null {
   const isRowAxis = direction === 'up' || direction === 'down' // moves a horizontal divider line
   const sign = direction === 'down' || direction === 'right' ? 1 : -1
-  const divider = screenDividers(screen).find((candidate) => (candidate.orientation === 'horizontal') === isRowAxis)
+  const divider = screenDividers(screen, stage).find((candidate) => (candidate.orientation === 'horizontal') === isRowAxis)
   if (!divider) return null
 
   // A field's own value tracks its *first* track (Slot 1's share for
@@ -165,8 +193,9 @@ export function nudgeRatio(screen: ScreenConfig, direction: ResizeDirection, ste
   const bigPosition = screen.splitBigPosition ?? 'first'
   const fieldSign = divider.field === 'tripleBigRatio' && bigPosition === 'second' ? -sign : sign
 
-  const current = clampRatio(screen[divider.field] ?? 50)
-  return { [divider.field]: clampRatio(current + fieldSign * step) }
+  const current = ratio(screen, divider.field, stage)
+  const next = snapToCenterOnApproach(current, clampRatio(current + fieldSign * step))
+  return { ratios: { ...screen.ratios, [divider.field]: writeStageCheckpoint(screen.ratios?.[divider.field], stage, next) } }
 }
 
 /** One axis (width or height) a pane can actually be resized along — which ratio field governs it, and whether the pane's own share is that field's raw value or its complement (`100 -` it). */
@@ -269,8 +298,16 @@ export function paneDefaultSlideDirection(screen: Pick<ScreenConfig, 'slotCount'
   return 'right'
 }
 
-/** The largest fraction of the screen's own viewport (standing in for `containerWidth`/`containerHeight`, since an arrangement always fills it entirely) a slide's own `resizeToFit` image is ever allowed to grow its pane to, along either axis. */
+/** The default fraction of the screen's own viewport (standing in for `containerWidth`/`containerHeight`, since an arrangement always fills it entirely) a slide's own `resizeToFit` image's box is fit within, along either axis, until its own `resizeScale` says otherwise. */
 export const IMAGE_RESIZE_MAX_VIEWPORT_FRACTION = 0.4
+
+/** The range a `resizeToFit` image's own `resizeScale` is clamped to — same 10-90% band an arrangement's own dividers are clamped to (`MIN_RATIO`/`MAX_RATIO`), expressed as a fraction instead of a percentage, so dragging its box's border can shrink or grow it but never collapse it to nothing or blow it out past the arrangement's own bounds. */
+export const MIN_IMAGE_RESIZE_SCALE = MIN_RATIO / 100
+export const MAX_IMAGE_RESIZE_SCALE = MAX_RATIO / 100
+
+export function clampImageResizeScale(scale: number): number {
+  return Math.min(MAX_IMAGE_RESIZE_SCALE, Math.max(MIN_IMAGE_RESIZE_SCALE, scale))
+}
 
 /** Fits a `naturalWidth`x`naturalHeight` box within `maxWidth`x`maxHeight`, preserving aspect ratio and never exceeding either bound — the same math as CSS `object-fit: contain`. */
 export function fitImageBox(naturalWidth: number, naturalHeight: number, maxWidth: number, maxHeight: number): { width: number; height: number } {
@@ -287,21 +324,22 @@ export function fitImageBox(naturalWidth: number, naturalHeight: number, maxWidt
 
 /**
  * The ratio-field overrides that resize `slotIndex`'s own pane to fit an
- * image of `naturalWidth`x`naturalHeight`, capped at
- * `IMAGE_RESIZE_MAX_VIEWPORT_FRACTION` of the arrangement's own
- * `containerWidth`x`containerHeight` — meant to be applied live (never
+ * image of `naturalWidth`x`naturalHeight`, capped at `scale` (falling back
+ * to `IMAGE_RESIZE_MAX_VIEWPORT_FRACTION`, its own default until dragged to
+ * something else — see `ScreenSlotContent.resizeScale`) of the arrangement's
+ * own `containerWidth`x`containerHeight` — meant to be applied live (never
  * persisted) while that pane's currently-showing slide is an image with
  * `resizeToFit` on, and dropped the instant it isn't (see `SplitLayout`),
  * which is what lets it slide back to the slot's own set size on its own,
  * the same transition a manual resize already animates with.
  *
- * The 40% cap belongs to the *image* (`fitImageBox`, always capped on
- * both axes, regardless of the pane's own role) — never to the pane
- * itself: a pane only ever adopts whichever of that box's two dimensions
- * matches an axis it actually has a field for (see `paneResizableAxes`),
- * with no cap or other size of its own imposed beyond that. A pane with
- * only one resizable axis (a 2-slot pane, or a 3-slot arrangement's "big"
- * one) simply leaves its other axis alone — still the full container
+ * The cap belongs to the *image* (`fitImageBox`, always capped on both axes,
+ * regardless of the pane's own role) — never to the pane itself: a pane
+ * only ever adopts whichever of that box's two dimensions matches an axis
+ * it actually has a field for (see `paneResizableAxes`), with no cap or
+ * other size of its own imposed beyond that. A pane with only one
+ * resizable axis (a 2-slot pane, or a 3-slot arrangement's "big" one)
+ * simply leaves its other axis alone — still the full container
  * edge-to-edge, exactly as before this override — rather than trying to
  * stretch the image to fill it.
  */
@@ -312,12 +350,13 @@ export function imageResizeRatioPatch(
   naturalHeight: number,
   containerWidth: number,
   containerHeight: number,
+  scale: number = IMAGE_RESIZE_MAX_VIEWPORT_FRACTION,
 ): RatioPatch {
   const axes = paneResizableAxes(screen, slotIndex)
   if (!axes.width && !axes.height) return {}
   if (containerWidth <= 0 || containerHeight <= 0) return {}
 
-  const box = fitImageBox(naturalWidth, naturalHeight, containerWidth * IMAGE_RESIZE_MAX_VIEWPORT_FRACTION, containerHeight * IMAGE_RESIZE_MAX_VIEWPORT_FRACTION)
+  const box = fitImageBox(naturalWidth, naturalHeight, containerWidth * scale, containerHeight * scale)
 
   const patch: RatioPatch = {}
   if (axes.width) {
@@ -329,4 +368,41 @@ export function imageResizeRatioPatch(
     patch[axes.height.field] = axes.height.isFirstShare ? share : 100 - share
   }
   return patch
+}
+
+/**
+ * Inverts `imageResizeRatioPatch`'s own math: given the raw ratio value a
+ * pointer drag just computed for one of `slotIndex`'s own resizable axes
+ * (`field`, from `paneResizableAxes`), returns the `resizeScale` that would
+ * make `imageResizeRatioPatch` reproduce that exact value on that axis —
+ * used so dragging the border of a pane currently fit to a `resizeToFit`
+ * image changes the image's own persisted scale instead of writing straight
+ * to the arrangement's own ratio fields, which are recomputed from the
+ * scale every render anyway and would otherwise instantly snap back to
+ * wherever the scale already put them. Both axes are always derived from
+ * the very same `resizeScale` — that's what keeps the box's own aspect
+ * ratio locked no matter which one is dragged — so inverting *either* axis
+ * recovers it equally.
+ */
+export function imageResizeScaleFromDrag(
+  screen: ScreenConfig,
+  slotIndex: number,
+  field: RatioField,
+  rawValue: number,
+  naturalWidth: number,
+  naturalHeight: number,
+  containerWidth: number,
+  containerHeight: number,
+): number {
+  const axes = paneResizableAxes(screen, slotIndex)
+  const isWidthAxis = axes.width?.field === field
+  const axis = isWidthAxis ? axes.width : axes.height?.field === field ? axes.height : undefined
+  if (!axis || containerWidth <= 0 || containerHeight <= 0) return IMAGE_RESIZE_MAX_VIEWPORT_FRACTION
+
+  const unscaledBox = fitImageBox(naturalWidth, naturalHeight, containerWidth, containerHeight)
+  const unscaledSharePercent = isWidthAxis ? (unscaledBox.width / containerWidth) * 100 : (unscaledBox.height / containerHeight) * 100
+  if (unscaledSharePercent <= 0) return IMAGE_RESIZE_MAX_VIEWPORT_FRACTION
+
+  const sharePercent = axis.isFirstShare ? rawValue : 100 - rawValue
+  return clampImageResizeScale(sharePercent / unscaledSharePercent)
 }

@@ -1,0 +1,25 @@
+@use '../../styles/variables' as *;
+
+.stage-playback-controls {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+}
+
+.stage-playback-controls__scrubber {
+  // A plain HTML range input, restyled to sit flush among the toolbar's
+  // other pill-shaped controls rather than looking like a stray native
+  // widget dropped in among them.
+  width: 90px;
+  height: 32px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: $color-accent;
+  background: transparent;
+
+  &:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+}

@@ -17,14 +17,19 @@
 .screen-form__tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: calc($spacing-unit / 2);
+  justify-content: space-between;
+  width: 100%;
+  gap: $spacing-unit;
 }
 
 .screen-form__tab {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: calc($spacing-unit / 2) $spacing-unit;
   border: 1px solid $color-border;
-  border-radius: 999px;
+  border-radius: $spacing-unit;
   background: $color-bg;
   color: $color-text-muted;
   font-size: 0.8125rem;
@@ -49,17 +54,15 @@
     background: $color-surface;
   }
 
-  // A small dot marks a tab whose slot already has content, so it's clear
-  // at a glance which slots are configured without switching to each one.
-  &--filled::after {
-    content: '';
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: $color-accent;
+  // The Global tab plus every slot's own — icon-only (no text label
+  // alongside), so square, fixed-size, and drawn at full text contrast
+  // (rather than the muted default text tabs elsewhere start at) since a
+  // thin 1.5px outline reads poorly at the dimmer shade.
+  &--icon {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    color: $color-text;
   }
 
   // A slot beyond the current slot count still keeps its own content and
@@ -78,6 +81,34 @@
   margin-top: $spacing-unit;
   padding: $spacing-unit * 1.5;
   border-radius: 8px;
+}
+
+// The Global tab's own row of sub-view buttons (Arrangement, Background,
+// Stages, etc.) — a flat list of full-width rows rather than the app's
+// usual bordered/rounded/accent-colored `.btn--secondary` pill, each ending
+// in a `→` pushed to the far right by `justify-content: space-between`.
+// Monochrome (`$color-text`, not the brand accent) since this is a plain
+// navigation row, not an action to take.
+.screen-form__menu-button.btn--secondary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit;
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid $color-text;
+  border-radius: 0;
+  background: transparent;
+  color: $color-text;
+  transition: border-bottom-width 0.15s ease;
+
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background: transparent;
+      color: $color-text;
+      border-bottom-width: 3px;
+    }
+  }
 }
 
 .screen-form__field {

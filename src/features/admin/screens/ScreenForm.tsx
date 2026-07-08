@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { BackButton, Button, Checkbox, Input } from '../../../components'
 import { useScreens } from '../../../hooks/useScreens'
 import { useScreensaverSchedule } from '../../../hooks/useScreensaverSchedule'
@@ -17,16 +17,26 @@ import {
   type TextSizes,
 } from '../../../types/screen'
 import { nudgeRatio, type ResizeDirection } from '../../../utils/screenLayout'
-import { firstActiveContentIndex, hasOwnTextSizeFields, isSlotActive } from '../../../utils/screenSlots'
+import { hasOwnTextSizeFields } from '../../../utils/screenSlots'
+import {
+  isResizeToFitConflict,
+  isSlotActive,
+  resolveSlotBackgroundColor,
+  resolveSlotBackgroundImage,
+  resolveSlotContent,
+  resolveSlotTextSizes,
+  writeStageCheckpoint,
+} from '../../../utils/screenStages'
 import { resolveContentTextSizes } from '../../../utils/textSizeVars'
 import { BackgroundColorPicker } from '../../screens/BackgroundColorPicker'
 import { BackgroundEditor } from '../../screens/BackgroundEditor'
 import { BackgroundImagePicker } from '../../screens/BackgroundImagePicker'
 import { GlobalTextSizeScaler, type SizeSnapshot } from '../../screens/GlobalTextSizeScaler'
 import { SlideFields } from '../../screens/SlideFields'
-import { SlotSlideTabs } from '../../screens/SlotSlideTabs'
+import { StageTabs } from '../../screens/StageTabs'
 import { TextSizeEditor } from '../../screens/TextSizeEditor'
 import { LayoutIcon, type LayoutIconPattern } from './LayoutIcon'
+import { getArrangementPattern } from './screenPreviewPattern'
 import './ScreenForm.scss'
 
 interface ScreenFormProps {
@@ -36,6 +46,18 @@ interface ScreenFormProps {
   onCancel: () => void
   /** Reports this form's own currently open sub-view by name (e.g. "Resize panes"), or `undefined` while showing its main tabbed content — lets the parent's `Modal` show it as a "Edit screen - Resize panes" breadcrumb next to its title. */
   onRouteChange?: (route: string | undefined) => void
+  /**
+   * Reports every switch of the outer tab (see `handleSelectTab`) — including
+   * a repeat click on the tab that's already active — so the parent (the
+   * screen's own card in `ScreensView`) can highlight the matching pane on
+   * its live preview icon and flash it, helping show at a glance which
+   * physical position on the actual screen is being edited right now.
+   * `pulseKey` increments on every single call (even repeats), purely so the
+   * parent can key its own flash element by it and have framer-motion
+   * restart the animation from scratch no matter how fast the tab is
+   * spam-clicked.
+   */
+  onActiveSlotChange?: (slot: 'global' | number, pulseKey: number) => void
 }
 
 /** The 4 arrangements available when exactly 3 of a screen's slots are active. */
@@ -46,8 +68,8 @@ const TRIPLE_ARRANGEMENTS: { pattern: LayoutIconPattern; direction: SplitDirecti
   { pattern: 'triple-column-second', direction: 'column', bigPosition: 'second', labelKey: 'tripleColumnSecondLabel' },
 ]
 
-/** A slot with no selection yet. */
-const EMPTY_SLOT: ScreenSlot = { isSlideshow: false, contents: [{ kind: 'none' }] }
+/** A slot with no checkpoints yet. */
+const EMPTY_SLOT: ScreenSlot = { content: {}, backgroundColor: {}, backgroundImage: {}, textSizes: {} }
 
 /** The next unused "<prefix> N" name (starting at 1), so a new screen never defaults to a name that collides with an existing one. */
 function nextDefaultScreenName(screens: ScreenConfig[], prefix: string): string {
@@ -64,36 +86,36 @@ function nextDefaultScreenName(screens: ScreenConfig[], prefix: string): string 
  * arrows nudging whichever pane divider each one controls 1% at a time (the
  * exact same fields the live display's own draggable dividers adjust, so
  * either one stays in sync with the other), whether/what color the borders
- * between panes use, which animation (fade or slide, plus — for slide —
- * which side it enters from) any rotating slot's own slides use, and — one
- * tab per slot, so each gets its own room — that slot's own "Slideshow"
- * toggle. Once a slot is rotating through more than one slide,
- * its own tab splits further into a "Global" sub-tab (its shared background
- * color/image) and one sub-tab per slide (that slide's own content, its own
- * background-image override, and, once there's more than one active slide,
- * an inline "use own text size" toggle) — mirroring the outer tabs one
- * level deeper. A slot with just one slide skips the sub-tabs and shows
- * that slide's fields, its text size, and its background color/image flat.
- * Everything available from the display's own in-place editors is
- * available here too, so the whole screen can be configured externally
- * without ever opening the live display. Reducing `slotCount` never clears
- * a hidden slot's own content/settings — its tab stays fully editable, just
- * visually marked as not currently shown — so dialing it back up (or
- * mis-saving with it lower than intended) can't lose any data; only
- * deleting the whole screen does.
+ * between panes use, a "Stages" panel (whether/how many shared stages every
+ * slot advances through together, the rotation timer, and the transition
+ * animation), and — one tab per slot, so each gets its own room — that
+ * slot's own content, background color/image, and shared/fallback text
+ * size. Once the screen has shared stages on with more than one, a slot's
+ * own tab gains a stage-tab bar above its fields — mirroring the outer
+ * tabs one level deeper — and every field is resolved from (and edits
+ * write back into) that slot's own independent timeline at whichever stage
+ * is selected (see `src/utils/screenStages.ts`); with stages off (or only
+ * one), the tab bar is hidden and every field is simply the slot's one
+ * static stage-1 checkpoint. Everything available from the display's own
+ * in-place editors is available here too, so the whole screen can be
+ * configured externally without ever opening the live display. Reducing
+ * `slotCount` never clears a hidden slot's own content/settings — its tab
+ * stays fully editable, just visually marked as not currently shown — so
+ * dialing it back up (or mis-saving with it lower than intended) can't
+ * lose any data; only deleting the whole screen does.
  */
-export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFormProps) {
+export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSlotChange }: ScreenFormProps) {
   const { t } = useLanguage()
   const [screens, setScreens] = useScreens()
   const [screensaverSchedule] = useScreensaverSchedule()
-  /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the "Arrangement" editor (layout picker plus its own resize D-pad, and its own nested "Borders" sub-menu — see `arrangementShowingBorders`), the "Background" color/image editor, the "Slideshow" (duration/transition/direction) editor, the "Screen saver" editor, the "Other settings" editor, or neither. */
-  const [editingTarget, setEditingTarget] = useState<'global' | 'arrangement' | 'background' | 'slideshow' | 'screensaver' | 'other' | null>(null)
+  /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the "Arrangement" editor (layout picker plus its own resize D-pad, and its own nested "Borders" sub-menu — see `arrangementShowingBorders`), the "Background" color/image editor, the "Stages" (use-stages/count/duration/transition) editor, the "Screen saver" editor, the "Other settings" editor, or neither. */
+  const [editingTarget, setEditingTarget] = useState<'global' | 'arrangement' | 'background' | 'stages' | 'screensaver' | 'other' | null>(null)
   /** Whether the "Arrangement" sub-view is itself showing its own nested "Borders" sub-menu rather than the layout picker/resize D-pad — reset whenever Arrangement (re)opens. */
   const [arrangementShowingBorders, setArrangementShowingBorders] = useState(false)
   const [liveTextSizes, setLiveTextSizes] = useState<TextSizes>(screen?.textSizes ?? DEFAULT_TEXT_SIZES)
   const [liveUseOwnTextSizes, setLiveUseOwnTextSizes] = useState(false)
-  /** Which of the active slot's own tabs is showing: its "Global" settings, or one specific slide by index — only meaningful once that slot has more than one slide. */
-  const [activeSlideTab, setActiveSlideTab] = useState<'global' | number>('global')
+  /** Which stage a slot's own tab is currently showing fields for — shared across every slot tab (switching which slot you're viewing doesn't change it), since stages are a screen-wide sequence, not a per-slot one. */
+  const [activeStage, setActiveStage] = useState(1)
   const [name, setName] = useState(() => screen?.name ?? nextDefaultScreenName(screens, t('admin.screens.defaultNamePrefix')))
   const [slotCount, setSlotCount] = useState(screen?.slotCount ?? 4)
   const [slot1, setSlot1] = useState<ScreenSlot>(screen?.slots[0] ?? EMPTY_SLOT)
@@ -102,6 +124,10 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
   const [slot4, setSlot4] = useState<ScreenSlot>(screen?.slots[3] ?? EMPTY_SLOT)
   /** Which tab is showing: the screen-wide settings, or one specific slot's own. */
   const [activeTab, setActiveTab] = useState<'global' | number>('global')
+  /** Bumped on every tab switch (see `handleSelectTab`) purely to hand `onActiveSlotChange` a fresh, ever-increasing key — lets the parent's own flash element restart from scratch on a repeat click of the tab that's already active, no matter how fast it's spam-clicked, rather than relying on `activeTab` itself (which wouldn't change at all in that case). */
+  const pulseCounterRef = useRef(0)
+  const [useStages, setUseStages] = useState(screen?.useStages ?? false)
+  const [stageCount, setStageCount] = useState(screen?.stageCount ?? 1)
   const [slideDurationSeconds, setSlideDurationSeconds] = useState(screen?.slideDurationSeconds ?? 10)
   const [splitDirection, setSplitDirection] = useState<SplitDirection>(screen?.splitDirection ?? 'row')
   const [splitBigPosition, setSplitBigPosition] = useState<SplitBigPosition>(screen?.splitBigPosition ?? 'first')
@@ -110,6 +136,10 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
   const [useScreensaver, setUseScreensaver] = useState(screen?.useScreensaver ?? false)
   const [transitionStyle, setTransitionStyle] = useState<ScreenTransitionStyle>(screen?.transitionStyle ?? 'fade')
 
+  const hasMultipleStages = useStages && stageCount > 1
+  /** `activeStage` clamped to whatever's actually selectable right now — shrinking `stageCount` while a higher stage was selected shouldn't leave the tab bar (or any resolver below) pointing at a stage that's no longer offered; growing it back reveals the original selection again, since `activeStage` itself is never reset. */
+  const clampedActiveStage = Math.min(activeStage, useStages ? Math.max(1, stageCount) : 1)
+
   const slotFields: { id: string; label: string; value: ScreenSlot; onChange: (slot: ScreenSlot) => void }[] = [
     { id: 'slot-1', label: t('admin.screens.slot1Label'), value: slot1, onChange: setSlot1 },
     { id: 'slot-2', label: t('admin.screens.slot2Label'), value: slot2, onChange: setSlot2 },
@@ -117,24 +147,52 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
     { id: 'slot-4', label: t('admin.screens.slot4Label'), value: slot4, onChange: setSlot4 },
   ]
   const activeSlot = typeof activeTab === 'number' ? slotFields[activeTab] : null
-  /** Whether the active slot's own editing surface splits into "Global" + one-tab-per-slide (once it's rotating through slides at all) or stays flat (a single slide, same as the slot itself). */
-  const hasSlideTabs = Boolean(activeSlot?.value.isSlideshow)
-  const activeSlideIndex = typeof activeSlideTab === 'number' ? activeSlideTab : 0
+  /** The arrangement shape every slot tab's own icon is drawn against, so each button's `highlightIndex` shows exactly which physical position on the screen it represents. */
+  const arrangementPattern = getArrangementPattern({ slotCount, splitDirection, splitBigPosition })
 
-  const needsDurationField = slotFields.some(({ value }) => value.isSlideshow)
   /** The freshest persisted version of this screen — reflects any live writes already made this session (background color, text sizes) that this form's own local state doesn't separately track, so neither re-seeding a sub-panel nor the final Save can stomp them with stale data. */
   const latestScreen = screen ? (screens.find((candidate) => candidate.screenID === screen.screenID) ?? screen) : null
 
-  /** Switches the outer tab (the screen-wide "Global" settings, or one specific slot), resetting/reseeding the inner slot tab: a slideshow slot lands on its own "Global" sub-tab, a flat (single-slide) one goes straight to its own actually-shown slide's text-size buffer — its first active entry, not necessarily index 0. */
+  /** Kept current after every render purely so the unmount effect below can build an up-to-date patched copy of `screens` without needing it in that effect's own dependency array — which would otherwise fire the cleanup (clearing `editingFocus`) after every single tab switch that writes it, instead of only once, when the form actually closes. */
+  const screensRef = useRef(screens)
+  useEffect(() => {
+    screensRef.current = screens
+  }, [screens])
+
+  // Clears this screen's own live "which tab is the editor focused on" signal
+  // (see `editingFocus`) the moment this form actually closes — otherwise
+  // the live display would keep showing a stale highlight (or even replay
+  // its flash on the next open) for a tab nobody's looking at anymore.
+  // Mount/unmount-only ([screen] never actually changes mid-session): using
+  // `screensRef.current` rather than the `screens` in scope when this effect
+  // itself was set up is what lets it still see this session's very latest
+  // edits, right up to the actual moment of unmounting.
+  useEffect(() => {
+    return () => {
+      if (!screen) return
+      setScreens(screensRef.current.map((existing) => (existing.screenID === screen.screenID ? { ...existing, editingFocus: undefined } : existing)))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately mount/unmount-only, see comment above.
+  }, [screen])
+
+  /**
+   * Switches the outer tab (the screen-wide "Global" settings, or one
+   * specific slot), reseeding the live text-size buffer for whichever stage
+   * is currently active. Reports the switch two ways: `onActiveSlotChange`
+   * for the screen's own card in this same tab (see `ScreensView` — a plain
+   * localStorage write, below, can't reach another component mounted in the
+   * very same window, since the `storage` event that keeps *other* tabs in
+   * sync deliberately never fires in the one that wrote the change), and
+   * `editingFocus`, persisted straight onto the screen itself, for every
+   * other open tab/window of it — including the actual live display,
+   * possibly running on a kiosk with nobody at a keyboard to click anything.
+   */
   const handleSelectTab = (tab: 'global' | number) => {
     setActiveTab(tab)
-    if (typeof tab !== 'number') {
-      setActiveSlideTab('global')
-      return
-    }
-    const innerTab = slotFields[tab].value.isSlideshow ? 'global' : firstActiveContentIndex(slotFields[tab].value.contents)
-    setActiveSlideTab(innerTab)
-    seedLiveTextSizes(tab, innerTab)
+    if (typeof tab === 'number') seedLiveTextSizes(tab, clampedActiveStage)
+    pulseCounterRef.current += 1
+    onActiveSlotChange?.(tab, pulseCounterRef.current)
+    liveUpdateScreen({ editingFocus: { tab, pulse: pulseCounterRef.current } })
   }
 
   /** Opens the whole-screen percentage scaler. */
@@ -170,10 +228,10 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
     onRouteChange?.(t('admin.screens.splitDirectionLabel'))
   }
 
-  /** Opens the slide duration/transition/direction editor. */
-  const openSlideshowEditor = () => {
-    setEditingTarget('slideshow')
-    onRouteChange?.(t('admin.screens.slideshowLabel'))
+  /** Opens the use-stages/count/duration/transition editor. */
+  const openStagesEditor = () => {
+    setEditingTarget('stages')
+    onRouteChange?.(t('admin.screens.stagesLabel'))
   }
 
   /** Opens the "Use screensaver"/"Test screensaver" editor. */
@@ -194,46 +252,26 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
     onRouteChange?.(undefined)
   }
 
-  /** Seeds the live text-size buffer for one slot's own tab — the slot's shared/fallback value for "Global", else that slide's own resolved value (its own override if it has one, else the shared value). */
-  const seedLiveTextSizes = (slotIndex: number, tab: 'global' | number) => {
+  /** Seeds the live text-size buffer for one slot at a given stage — that stage's resolved content's own override if it has one, else the slot's own shared/fallback value at that same stage. */
+  const seedLiveTextSizes = (slotIndex: number, stage: number) => {
     if (!screen || !latestScreen) return
-    const sharedTextSizes = latestScreen.slotTextSizes?.[slotIndex] ?? latestScreen.textSizes ?? DEFAULT_TEXT_SIZES
-    if (tab === 'global') {
-      setLiveTextSizes(sharedTextSizes)
-      setLiveUseOwnTextSizes(false)
-      return
-    }
-    const content = slotFields[slotIndex].value.contents[tab] ?? { kind: 'none' as const }
+    const slot = latestScreen.slots[slotIndex]
+    const sharedTextSizes = resolveSlotTextSizes(slot, stage) ?? latestScreen.textSizes ?? DEFAULT_TEXT_SIZES
+    const content = resolveSlotContent(slot, stage)
     setLiveTextSizes(resolveContentTextSizes(content, sharedTextSizes))
     setLiveUseOwnTextSizes(hasOwnTextSizeFields(content) && Boolean(content.useOwnTextSizes))
   }
 
-  /** Switches the active slot's own active tab (its "Global" settings, or a specific slide by index), reseeding the live text-size buffer to match. */
-  const handleActiveSlideTabChange = (tab: 'global' | number) => {
-    setActiveSlideTab(tab)
-    if (typeof activeTab === 'number') seedLiveTextSizes(activeTab, tab)
+  /** Switches which stage the active slot's own tab bar has selected, reseeding the live text-size buffer to match. */
+  const handleActiveStageChange = (stage: number) => {
+    setActiveStage(stage)
+    if (typeof activeTab === 'number') seedLiveTextSizes(activeTab, stage)
   }
 
-  /** Adds a blank slide to the active slot and jumps straight to its own new tab. */
-  const handleAddSlide = () => {
+  /** Changes the active slot's own content at the currently active stage — writes a checkpoint there, leaving every other stage's own content untouched. */
+  const handleContentChange = (content: ScreenSlotContent) => {
     if (!activeSlot) return
-    const contents = activeSlot.value.contents.length > 0 ? activeSlot.value.contents : [{ kind: 'none' as const }]
-    activeSlot.onChange({ ...activeSlot.value, contents: [...contents, { kind: 'none' }] })
-    handleActiveSlideTabChange(contents.length)
-  }
-
-  /** Removes one of the active slot's slides and returns to its "Global" tab. */
-  const handleRemoveSlide = (index: number) => {
-    if (!activeSlot) return
-    activeSlot.onChange({ ...activeSlot.value, contents: activeSlot.value.contents.filter((_, i) => i !== index) })
-    handleActiveSlideTabChange('global')
-  }
-
-  /** Changes one specific slide's own content within the active slot. */
-  const handleSlideContentChange = (index: number, content: ScreenSlotContent) => {
-    if (!activeSlot) return
-    const contents = activeSlot.value.contents.length > 0 ? activeSlot.value.contents : [{ kind: 'none' as const }]
-    activeSlot.onChange({ ...activeSlot.value, contents: contents.map((existing, i) => (i === index ? content : existing)) })
+    activeSlot.onChange({ ...activeSlot.value, content: writeStageCheckpoint(activeSlot.value.content, clampedActiveStage, content) })
   }
 
   /**
@@ -243,51 +281,49 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
    * shows up live on that screen's display immediately, in any other
    * tab/window of this browser already showing it. This is plain browser
    * storage, not a network call, so it keeps working even if the internet
-   * drops. On a slide's own tab, goes to that slide's own override when its
-   * checkbox is on, else (same as the "Global" tab) the slot's shared size.
-   * Also mirrors the change into this form's own local slot state, so a
-   * subsequent Save can't stomp it with a stale copy.
+   * drops. Goes to the currently active stage's own content override when
+   * its checkbox is on, else that same stage's own shared/fallback
+   * checkpoint. Also mirrors the change into this form's own local slot
+   * state, so a subsequent Save can't stomp it with a stale copy.
    */
   const handleLiveTextSizesChange = (sizes: TextSizes) => {
     setLiveTextSizes(sizes)
     if (!screen || typeof activeTab !== 'number') return
     const slotIndex = activeTab
+    const slot = slotFields[slotIndex].value
 
-    if (activeSlideTab === 'global' || !liveUseOwnTextSizes) {
-      liveUpdateScreen({ slotTextSizes: { ...(latestScreen?.slotTextSizes ?? screen.slotTextSizes), [slotIndex]: sizes } })
+    if (!liveUseOwnTextSizes) {
+      const updatedSlot: ScreenSlot = { ...slot, textSizes: writeStageCheckpoint(slot.textSizes, clampedActiveStage, sizes) }
+      slotFields[slotIndex].onChange(updatedSlot)
+      liveUpdateScreen({ slots: slotFields.map((field, i) => (i === slotIndex ? updatedSlot : field.value)) as ScreenConfig['slots'] })
       return
     }
 
-    const contentIndex = activeSlideTab
-    const updatedSlot: ScreenSlot = {
-      ...slotFields[slotIndex].value,
-      contents: slotFields[slotIndex].value.contents.map((content, ci) => (ci === contentIndex && hasOwnTextSizeFields(content) ? { ...content, useOwnTextSizes: true, textSizes: sizes } : content)),
-    }
+    const content = resolveSlotContent(slot, clampedActiveStage)
+    if (!hasOwnTextSizeFields(content)) return
+    const updatedSlot: ScreenSlot = { ...slot, content: writeStageCheckpoint(slot.content, clampedActiveStage, { ...content, useOwnTextSizes: true, textSizes: sizes }) }
     slotFields[slotIndex].onChange(updatedSlot)
     liveUpdateScreen({ slots: slotFields.map((field, i) => (i === slotIndex ? updatedSlot : field.value)) as ScreenConfig['slots'] })
   }
 
-  /** Toggles whether the slide on the active tab follows its slot's shared size or keeps its own — applied live, same reasoning as `handleLiveTextSizesChange`. Never called from the "Global" tab, which has no such toggle. */
+  /** Toggles whether the active stage's own content follows the slot's shared size or keeps its own — applied live, same reasoning as `handleLiveTextSizesChange`. */
   const handleUseOwnTextSizesChange = (checked: boolean) => {
     setLiveUseOwnTextSizes(checked)
-    if (!screen || typeof activeTab !== 'number' || activeSlideTab === 'global') return
+    if (!screen || typeof activeTab !== 'number') return
     const slotIndex = activeTab
-    const contentIndex = activeSlideTab
-    const updatedSlot: ScreenSlot = {
-      ...slotFields[slotIndex].value,
-      contents: slotFields[slotIndex].value.contents.map((content, ci) => {
-        if (ci !== contentIndex || !hasOwnTextSizeFields(content)) return content
-        return checked ? { ...content, useOwnTextSizes: true, textSizes: liveTextSizes } : { ...content, useOwnTextSizes: false }
-      }),
-    }
+    const slot = slotFields[slotIndex].value
+    const content = resolveSlotContent(slot, clampedActiveStage)
+    if (!hasOwnTextSizeFields(content)) return
+    const updatedContent = checked ? { ...content, useOwnTextSizes: true, textSizes: liveTextSizes } : { ...content, useOwnTextSizes: false }
+    const updatedSlot: ScreenSlot = { ...slot, content: writeStageCheckpoint(slot.content, clampedActiveStage, updatedContent) }
     slotFields[slotIndex].onChange(updatedSlot)
     liveUpdateScreen({ slots: slotFields.map((field, i) => (i === slotIndex ? updatedSlot : field.value)) as ScreenConfig['slots'] })
   }
 
-  /** Writes a whole-screen percentage-scaled change (the default, every slot's own size, and every slide's own override) straight to the persisted screen, live — same reasoning as `handleLiveTextSizesChange`. */
+  /** Writes a whole-screen percentage-scaled change (the default and every slot's own size, across every stage) straight to the persisted screen, live — same reasoning as `handleLiveTextSizesChange`. */
   const handleGlobalTextSizesChange = (next: SizeSnapshot) => {
     if (!screen) return
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, textSizes: next.textSizes, slotTextSizes: next.slotTextSizes, slots: next.slots } : existing)))
+    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, textSizes: next.textSizes, slots: next.slots } : existing)))
   }
 
   /** Writes a partial change straight to the persisted screen, live — same reasoning as the text-size handlers: so it shows up on the display immediately, in any other tab/window of this browser already showing it. */
@@ -330,10 +366,10 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
     liveUpdateScreen({ transitionStyle: style })
   }
 
-  /** Nudges the divider a "Resize" arrow direction controls (for the screen's current arrangement) by 1%, live — the exact same fields the display's own draggable dividers adjust, so the two stay in sync no matter which is used to resize. No-ops (button disabled) for a direction with no divider on that axis. */
+  /** Nudges the divider a "Resize" arrow direction controls (for the screen's current arrangement) by 1%, live, checkpointed at the currently active stage — the exact same fields the display's own draggable dividers adjust, so the two stay in sync no matter which is used to resize. No-ops (button disabled) for a direction with no divider on that axis. */
   const handleNudgeRatio = (direction: ResizeDirection) => {
     if (!latestScreen) return
-    const patch = nudgeRatio(latestScreen, direction)
+    const patch = nudgeRatio(latestScreen, direction, clampedActiveStage)
     if (patch) liveUpdateScreen(patch)
   }
 
@@ -346,7 +382,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
   /**
    * Returning from the whole-screen percentage scaler to the main form —
    * re-seeds the 4 slot fields from the freshest persisted data, since the
-   * scaler writes straight into every slot's own contents/color/text
+   * scaler writes straight into every slot's own content/color/text
    * sizes. Without this, the main form's own (now-stale) local slot state
    * would stomp those live writes the next time "Save" is clicked.
    */
@@ -385,10 +421,21 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
     )
   }
 
-  if (editingTarget === 'slideshow' && screen) {
+  if (editingTarget === 'stages' && screen) {
     return (
       <div className="screen-form__subview">
         <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
+        <Checkbox id="screen-use-stages" label={t('admin.screens.useStagesLabel')} checked={useStages} onChange={(event) => setUseStages(event.target.checked)} />
+        {useStages && (
+          <Input
+            id="screen-stage-count"
+            label={t('admin.screens.stageCountLabel')}
+            type="number"
+            min={1}
+            value={stageCount}
+            onChange={(event) => setStageCount(Number(event.target.value))}
+          />
+        )}
         <Input
           id="screen-slide-duration"
           label={t('admin.screens.slideDurationLabel')}
@@ -534,11 +581,12 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
         <div className="screen-form__field">
           <span>{t('admin.screens.resizeLabel')}</span>
         </div>
+        {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={clampedActiveStage} onActiveStageChange={handleActiveStageChange} />}
         <div className="screen-form__resize-pad" role="group" aria-label={t('admin.screens.resizeLabel')}>
           <button
             type="button"
             className="screen-form__resize-arrow screen-form__resize-arrow--up"
-            disabled={!nudgeRatio(latestScreen, 'up')}
+            disabled={!nudgeRatio(latestScreen, 'up', clampedActiveStage)}
             onClick={() => handleNudgeRatio('up')}
             aria-label={t('admin.screens.resizeUpLabel')}
           >
@@ -547,7 +595,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
           <button
             type="button"
             className="screen-form__resize-arrow screen-form__resize-arrow--left"
-            disabled={!nudgeRatio(latestScreen, 'left')}
+            disabled={!nudgeRatio(latestScreen, 'left', clampedActiveStage)}
             onClick={() => handleNudgeRatio('left')}
             aria-label={t('admin.screens.resizeLeftLabel')}
           >
@@ -556,7 +604,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
           <button
             type="button"
             className="screen-form__resize-arrow screen-form__resize-arrow--right"
-            disabled={!nudgeRatio(latestScreen, 'right')}
+            disabled={!nudgeRatio(latestScreen, 'right', clampedActiveStage)}
             onClick={() => handleNudgeRatio('right')}
             aria-label={t('admin.screens.resizeRightLabel')}
           >
@@ -565,7 +613,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
           <button
             type="button"
             className="screen-form__resize-arrow screen-form__resize-arrow--down"
-            disabled={!nudgeRatio(latestScreen, 'down')}
+            disabled={!nudgeRatio(latestScreen, 'down', clampedActiveStage)}
             onClick={() => handleNudgeRatio('down')}
             aria-label={t('admin.screens.resizeDownLabel')}
           >
@@ -593,6 +641,8 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
       name,
       slotCount,
       slots: [slot1, slot2, slot3, slot4],
+      useStages,
+      stageCount,
       slideDurationSeconds,
       transitionStyle,
       splitDirection,
@@ -610,10 +660,12 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
           type="button"
           role="tab"
           aria-selected={activeTab === 'global'}
-          className={`screen-form__tab${activeTab === 'global' ? ' screen-form__tab--active' : ''}`}
+          aria-label={t('admin.screens.globalTabLabel')}
+          title={t('admin.screens.globalTabLabel')}
+          className={`screen-form__tab screen-form__tab--icon${activeTab === 'global' ? ' screen-form__tab--active' : ''}`}
           onClick={() => handleSelectTab('global')}
         >
-          {t('admin.screens.globalTabLabel')}
+          <LayoutIcon pattern={arrangementPattern} highlightIndex="all" />
         </button>
         {slotFields.map(({ id, label, value }, index) => (
           <button
@@ -621,10 +673,12 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
             type="button"
             role="tab"
             aria-selected={activeTab === index}
-            className={`screen-form__tab${activeTab === index ? ' screen-form__tab--active' : ''}${isSlotActive(value) ? ' screen-form__tab--filled' : ''}${index >= slotCount ? ' screen-form__tab--out-of-range' : ''}`}
+            aria-label={label}
+            title={label}
+            className={`screen-form__tab screen-form__tab--icon${activeTab === index ? ' screen-form__tab--active' : ''}${isSlotActive(value) ? ' screen-form__tab--filled' : ''}${index >= slotCount ? ' screen-form__tab--out-of-range' : ''}`}
             onClick={() => handleSelectTab(index)}
           >
-            {label}
+            <LayoutIcon pattern={arrangementPattern} highlightIndex={index} />
           </button>
         ))}
       </div>
@@ -662,8 +716,9 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
                   transition={{ duration: 0.2, ease: 'easeOut' }}
                   style={{ overflow: 'hidden' }}
                 >
-                  <Button type="button" variant="secondary" onClick={openArrangementEditor}>
+                  <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openArrangementEditor}>
                     {t('admin.screens.splitDirectionLabel')}
+                    <span aria-hidden="true">→</span>
                   </Button>
                 </motion.div>
               )}
@@ -671,130 +726,94 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
 
             {screen && (
               <motion.div layout>
-                <Button type="button" variant="secondary" onClick={openBackgroundEditor}>
+                <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openBackgroundEditor}>
                   {t('admin.screens.backgroundLabel')}
+                  <span aria-hidden="true">→</span>
                 </Button>
               </motion.div>
             )}
 
             {screen && (
               <motion.div layout>
-                <Button type="button" variant="secondary" onClick={openGlobalTextSizeEditor}>
+                <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openGlobalTextSizeEditor}>
                   {t('admin.screens.editTextSize')}
-                </Button>
-              </motion.div>
-            )}
-
-            {needsDurationField && (
-              <motion.div layout>
-                <Button type="button" variant="secondary" onClick={openSlideshowEditor}>
-                  {t('admin.screens.slideshowLabel')}
-                </Button>
-              </motion.div>
-            )}
-
-            {screensaverSchedule && (
-              <motion.div layout>
-                <Button type="button" variant="secondary" onClick={openScreensaverEditor}>
-                  {t('admin.screens.screensaverLabel')}
+                  <span aria-hidden="true">→</span>
                 </Button>
               </motion.div>
             )}
 
             <motion.div layout>
-              <Button type="button" variant="secondary" onClick={openOtherSettingsEditor}>
+              <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openStagesEditor}>
+                {t('admin.screens.stagesLabel')}
+                <span aria-hidden="true">→</span>
+              </Button>
+            </motion.div>
+
+            {screensaverSchedule && (
+              <motion.div layout>
+                <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openScreensaverEditor}>
+                  {t('admin.screens.screensaverLabel')}
+                  <span aria-hidden="true">→</span>
+                </Button>
+              </motion.div>
+            )}
+
+            <motion.div layout>
+              <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openOtherSettingsEditor}>
                 {t('admin.screens.otherSettingsLabel')}
+                <span aria-hidden="true">→</span>
               </Button>
             </motion.div>
           </>
         ) : (
-          activeSlot && (
-            <>
-              <Checkbox
-                id={`${activeSlot.id}-slideshow`}
-                label={t('admin.screens.slotSlideshowLabel')}
-                checked={activeSlot.value.isSlideshow}
-                onChange={(event) => {
-                  const isSlideshow = event.target.checked
-                  activeSlot.onChange({ ...activeSlot.value, isSlideshow })
-                  handleActiveSlideTabChange(isSlideshow ? 'global' : firstActiveContentIndex(activeSlot.value.contents))
-                }}
-              />
+          activeSlot &&
+          (() => {
+            const content = resolveSlotContent(activeSlot.value, clampedActiveStage)
+            return (
+              <>
+                {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={clampedActiveStage} onActiveStageChange={handleActiveStageChange} />}
 
-              {hasSlideTabs && (
-                <SlotSlideTabs
-                  slideCount={activeSlot.value.contents.length}
-                  activeTab={activeSlideTab}
-                  onActiveTabChange={handleActiveSlideTabChange}
-                  onAddSlide={handleAddSlide}
+                <SlideFields
+                  id={activeSlot.id}
+                  content={content}
+                  onChange={handleContentChange}
+                  label={hasMultipleStages ? t('screenDisplay.textSizeEditor.stageTabLabel', { number: clampedActiveStage }) : activeSlot.label}
+                  showOwnBackgroundImage
+                  resizeToFitBlocked={isResizeToFitConflict(
+                    slotFields.map((field) => field.value),
+                    activeTab as number,
+                    clampedActiveStage,
+                  )}
                 />
-              )}
 
-              {hasSlideTabs && activeSlideTab !== 'global' && (
-                <>
-                  <SlideFields
-                    id={`${activeSlot.id}-slide-${activeSlideIndex}`}
-                    content={activeSlot.value.contents[activeSlideIndex] ?? { kind: 'none' }}
-                    onChange={(content) => handleSlideContentChange(activeSlideIndex, content)}
-                    label={`${activeSlot.label} ${activeSlideIndex + 1}`}
-                    showOwnBackgroundImage
+                {screen && hasOwnTextSizeFields(content) && (
+                  <TextSizeEditor
+                    textSizes={liveTextSizes}
+                    onChange={handleLiveTextSizesChange}
+                    ownTextSizes={hasMultipleStages ? { useOwn: liveUseOwnTextSizes, onUseOwnChange: handleUseOwnTextSizesChange } : undefined}
                   />
+                )}
 
-                  {activeSlot.value.contents.length > 1 && (
-                    <button type="button" className="slot-slide-tabs__remove" onClick={() => handleRemoveSlide(activeSlideIndex)}>
-                      {t('admin.screens.removeSlideLabel')}
-                    </button>
-                  )}
+                <BackgroundColorPicker
+                  backgroundColor={resolveSlotBackgroundColor(activeSlot.value, clampedActiveStage)}
+                  onChange={(color) =>
+                    activeSlot.onChange({ ...activeSlot.value, backgroundColor: writeStageCheckpoint(activeSlot.value.backgroundColor, clampedActiveStage, color) })
+                  }
+                  allowTransparent
+                  label={t('screenDisplay.textSizeEditor.slotColorLabel', { number: (activeTab as number) + 1 })}
+                />
 
-                  {screen && hasOwnTextSizeFields(activeSlot.value.contents[activeSlideIndex] ?? { kind: 'none' }) && (
-                    <TextSizeEditor
-                      textSizes={liveTextSizes}
-                      onChange={handleLiveTextSizesChange}
-                      ownTextSizes={
-                        activeSlot.value.contents.filter((content) => content.kind !== 'none').length > 1
-                          ? { useOwn: liveUseOwnTextSizes, onUseOwnChange: handleUseOwnTextSizesChange }
-                          : undefined
-                      }
-                      onDone={() => handleActiveSlideTabChange('global')}
-                    />
-                  )}
-                </>
-              )}
-
-              {!hasSlideTabs && (
-                <>
-                  <SlideFields
-                    id={activeSlot.id}
-                    content={activeSlot.value.contents[activeSlideIndex] ?? { kind: 'none' }}
-                    onChange={(content) => handleSlideContentChange(activeSlideIndex, content)}
-                    label={activeSlot.label}
-                  />
-
-                  {screen && hasOwnTextSizeFields(activeSlot.value.contents[activeSlideIndex] ?? { kind: 'none' }) && (
-                    <TextSizeEditor textSizes={liveTextSizes} onChange={handleLiveTextSizesChange} />
-                  )}
-                </>
-              )}
-
-              {(!hasSlideTabs || activeSlideTab === 'global') && (
-                <>
-                  <BackgroundColorPicker
-                    backgroundColor={activeSlot.value.backgroundColor}
-                    onChange={(color) => activeSlot.onChange({ ...activeSlot.value, backgroundColor: color })}
-                    allowTransparent
-                    label={t('screenDisplay.textSizeEditor.slotColorLabel', { number: (activeTab as number) + 1 })}
-                  />
-
-                  <BackgroundImagePicker
-                    id={`${activeSlot.id}-bg-image`}
-                    backgroundImage={activeSlot.value.backgroundImage}
-                    onChange={(backgroundImage) => activeSlot.onChange({ ...activeSlot.value, backgroundImage })}
-                    label={t('admin.screens.slotBackgroundImageLabel', { number: (activeTab as number) + 1 })}
-                  />
-                </>
-              )}
-            </>
-          )
+                <BackgroundImagePicker
+                  id={`${activeSlot.id}-bg-image`}
+                  backgroundImage={resolveSlotBackgroundImage(activeSlot.value, clampedActiveStage)}
+                  onChange={(backgroundImage) =>
+                    activeSlot.onChange({ ...activeSlot.value, backgroundImage: writeStageCheckpoint(activeSlot.value.backgroundImage, clampedActiveStage, backgroundImage) })
+                  }
+                  label={t('admin.screens.slotBackgroundImageLabel', { number: (activeTab as number) + 1 })}
+                />
+              </>
+            )
+          })()
         )}
       </div>
 

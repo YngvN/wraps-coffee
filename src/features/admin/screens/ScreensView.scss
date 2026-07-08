@@ -46,16 +46,32 @@
 // getScreenColorVars), reflecting each screen's own chosen color so the
 // preview matches what the display actually looks like.
 .screens-view__item-preview {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   width: 72px;
   height: 54px;
+  overflow: hidden;
   border: 1px solid $color-border;
   border-radius: 6px;
   background: var(--screen-bg);
   color: var(--screen-text);
+}
+
+// The click-feedback flash (see `TAB_PULSE_MOTION`) shown on this card's own
+// preview while it's the one currently open in the editor — a circle bigger
+// than the box itself, so growing it via `transform: scale` (set by
+// framer-motion, not here) always reaches past every edge. Clipped to the
+// box's own rounded corners by its `overflow: hidden` above, and never
+// intercepts a click (`pointer-events: none`).
+.screens-view__item-preview-pulse {
+  position: absolute;
+  inset: -50%;
+  border-radius: 50%;
+  background: #fff;
+  pointer-events: none;
 }
 
 .screens-view__item-body {

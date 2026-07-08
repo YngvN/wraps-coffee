@@ -62,26 +62,32 @@ interface LayoutIconProps {
   pattern: LayoutIconPattern
   width?: number
   height?: number
+  /** Index (into this pattern's own rects, in the same slot order `SplitLayout` renders its panes) of the one pane to visually fill in, rather than leaving it as an outline like the rest — e.g. so a slot's own tab button can show, at a glance, which physical position on the screen it corresponds to. `'all'` fills in every pane instead (the screen-wide "Global" tab, which edits all of them at once). Omit to draw every pane the same outline-only way, as when picking the arrangement itself. */
+  highlightIndex?: number | 'all'
 }
 
-/** Small SVG preview of an arrangement, used both as the visual choice in the admin Screens form's layout picker and as each screen card's live preview. */
-export function LayoutIcon({ pattern, width = 32, height = 24 }: LayoutIconProps) {
+/** Small SVG preview of an arrangement, used as the visual choice in the admin Screens form's layout picker, each screen card's live preview, and (with `highlightIndex`) each of the form's own tab buttons. */
+export function LayoutIcon({ pattern, width = 32, height = 24, highlightIndex }: LayoutIconProps) {
   return (
     <svg viewBox="0 0 32 24" width={width} height={height} aria-hidden="true">
-      {RECTS[pattern].map((rect, index) => (
-        <rect
-          key={index}
-          x={rect.x}
-          y={rect.y}
-          width={rect.width}
-          height={rect.height}
-          rx={1.5}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={1.5}
-          strokeDasharray={rect.dashed ? '3 2' : undefined}
-        />
-      ))}
+      {RECTS[pattern].map((rect, index) => {
+        const isHighlighted = highlightIndex === 'all' || index === highlightIndex
+        return (
+          <rect
+            key={index}
+            x={rect.x}
+            y={rect.y}
+            width={rect.width}
+            height={rect.height}
+            rx={1.5}
+            fill={isHighlighted ? 'currentColor' : 'none'}
+            fillOpacity={isHighlighted ? 0.35 : undefined}
+            stroke="currentColor"
+            strokeWidth={1.5}
+            strokeDasharray={rect.dashed ? '3 2' : undefined}
+          />
+        )
+      })}
     </svg>
   )
 }

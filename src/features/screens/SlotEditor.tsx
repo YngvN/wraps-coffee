@@ -1,55 +1,64 @@
-import { Checkbox, Input } from '../../components'
+import { Input } from '../../components'
 import { useLanguage } from '../../i18n'
-import type { ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
-import { firstActiveContentIndex } from '../../utils/screenSlots'
+import type { BackgroundImage, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
+import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, writeStageCheckpoint } from '../../utils/screenStages'
 import { BackgroundImagePicker } from './BackgroundImagePicker'
 import { SlideFields } from './SlideFields'
 import './SlotEditor.scss'
-import { SlotSlideTabs } from './SlotSlideTabs'
+import { StageTabs } from './StageTabs'
 import { TextSizeEditor } from './TextSizeEditor'
 
 interface SlotEditorProps {
   /** Stable identifier for this slot (e.g. "slot-1"), used to build unique field ids. */
   id: string
   slot: ScreenSlot
-  /** Live content/slideshow/color changes for this slot. */
+  /** Live content/color changes for this slot. */
   onSlotChange: (slot: ScreenSlot) => void
-  /** The screen's own shared rotation speed — only shown (and editable here) when this slot actually rotates. */
+  /** Whether the screen has shared stages on at all. */
+  useStages: boolean
+  /** Total shared stages — only meaningful while `useStages` is true. */
+  stageCount: number
+  /** Which stage this editor's own tab bar (shown when `useStages && stageCount > 1`) currently has selected. */
+  activeStage: number
+  onActiveStageChange: (stage: number) => void
+  /** The screen's own shared rotation speed — only shown (and editable here) once there's more than one stage to rotate through. */
   slideDurationSeconds: number
   onSlideDurationChange: (seconds: number) => void
-  /** The currently active slide's own text sizes — outside a slideshow, this is simply the slot's one and only slide. */
+  /** The currently active stage's own resolved content text sizes. */
   textSizes: TextSizes
   onTextSizesChange: (textSizes: TextSizes) => void
   ownTextSizes?: { useOwn: boolean; onUseOwnChange: (useOwn: boolean) => void }
-  /** The slot's own shared (fallback) text sizes, shown on its "Global" tab — only relevant once this slot has more than one slide to share it. */
+  /** The slot's own shared (fallback) text sizes at the active stage. */
   slotTextSizes: TextSizes
   onSlotTextSizesChange: (textSizes: TextSizes) => void
-  /** Which tab is active: the slot's own "Global" settings, or one specific slide by its index in `contents` — only meaningful (and only shown) once this slot has more than one slide. */
-  activeSlideTab: 'global' | number
-  onActiveSlideTabChange: (tab: 'global' | number) => void
+  /** Disables the content editor's "Resize slot to fit image" checkbox when another slot already has one active at this same stage. */
+  resizeToFitBlocked?: boolean
   onRestore: () => void
   onDone: () => void
 }
 
 /**
- * The display's per-slot "Edit slot" panel. A slot with a single slide (not
- * a slideshow) shows one flat set of fields: its content, own background
- * color/image, and text size. Once it's rotating through more than one
- * slide, those settings split into tabs — mirroring the admin dashboard's
- * own "Global + one tab per slot" pattern one level deeper — with a
- * "Global" tab for the slot's own shared settings (its background
- * color/image, the shared rotation timer, and its shared/fallback text
- * size) and one tab per slide for that slide's own content, its own
- * background-image override, and (when it has text of its own) a checkbox
- * to opt out of the slot's shared text size and keep its own. Neither the
- * timer (a screen-wide setting, applied live immediately) nor which tab is
- * active is part of the draft the caller persists once this panel closes —
- * everything else is.
+ * The display's per-slot "Edit slot" panel. Once the screen has shared
+ * stages on with more than one, a stage-tab bar (mirroring the admin
+ * dashboard's own one level deeper) lets the owner jump between stages;
+ * every field below — content, own background color/image, and
+ * shared/fallback text size — is resolved from (and edits write back into)
+ * that slot's own independent timeline at whichever stage is currently
+ * selected (see `src/utils/screenStages.ts`). With stages off (or only one
+ * stage), the tab bar is hidden and every field is simply the slot's one
+ * static stage-1 checkpoint. Neither the rotation timer (a screen-wide
+ * setting, applied live immediately) nor which stage is active is part of
+ * the draft the caller persists once this panel closes — everything else
+ * is.
  */
 export function SlotEditor({
   id,
   slot,
   onSlotChange,
+  useStages,
+  stageCount,
+  activeStage,
+  onActiveStageChange,
   slideDurationSeconds,
   onSlideDurationChange,
   textSizes,
@@ -57,126 +66,56 @@ export function SlotEditor({
   ownTextSizes,
   slotTextSizes,
   onSlotTextSizesChange,
-  activeSlideTab,
-  onActiveSlideTabChange,
+  resizeToFitBlocked,
   onRestore,
   onDone,
 }: SlotEditorProps) {
   const { t } = useLanguage()
-  const contents = slot.contents.length > 0 ? slot.contents : [{ kind: 'none' as const }]
-  const activeCount = contents.filter((content) => content.kind !== 'none').length
-  const hasSlideTabs = slot.isSlideshow
-  const needsDurationField = slot.isSlideshow && activeCount > 1
-  const activeSlideIndex = typeof activeSlideTab === 'number' ? activeSlideTab : 0
+  const hasMultipleStages = useStages && stageCount > 1
+  const content = resolveSlotContent(slot, activeStage)
+  const backgroundColor = resolveSlotBackgroundColor(slot, activeStage)
+  const backgroundImage = resolveSlotBackgroundImage(slot, activeStage)
 
-  const setContentAt = (index: number, content: ScreenSlotContent) => {
-    onSlotChange({ ...slot, contents: contents.map((existing, i) => (i === index ? content : existing)) })
-  }
-
-  const addSlide = () => {
-    onSlotChange({ ...slot, contents: [...contents, { kind: 'none' }] })
-    onActiveSlideTabChange(contents.length)
-  }
-
-  const removeSlide = (index: number) => {
-    onSlotChange({ ...slot, contents: contents.filter((_, i) => i !== index) })
-    onActiveSlideTabChange('global')
-  }
+  const setContent = (nextContent: ScreenSlotContent) => onSlotChange({ ...slot, content: writeStageCheckpoint(slot.content, activeStage, nextContent) })
+  const setBackgroundColor = (nextColor: string | undefined) => onSlotChange({ ...slot, backgroundColor: writeStageCheckpoint(slot.backgroundColor, activeStage, nextColor) })
+  const setBackgroundImage = (nextImage: BackgroundImage | undefined) => onSlotChange({ ...slot, backgroundImage: writeStageCheckpoint(slot.backgroundImage, activeStage, nextImage) })
 
   return (
     <div className="slot-editor">
-      <Checkbox
-        id={`${id}-slideshow`}
-        label={t('screenDisplay.textSizeEditor.slideshowLabel')}
-        checked={slot.isSlideshow}
-        onChange={(event) => {
-          const isSlideshow = event.target.checked
-          onSlotChange({ ...slot, isSlideshow })
-          // Turning it off collapses the editor back to a flat, single-slide
-          // view of whichever slide is actually shown without rotation (its
-          // first active entry, not necessarily index 0) — reseeds the
-          // text-size draft to match, so it can't end up bound to a
-          // different slide than the one the flat view is now showing.
-          if (!isSlideshow) onActiveSlideTabChange(firstActiveContentIndex(contents))
-        }}
+      {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={activeStage} onActiveStageChange={onActiveStageChange} />}
+
+      <SlideFields
+        id={id}
+        content={content}
+        onChange={setContent}
+        label={hasMultipleStages ? t('screenDisplay.textSizeEditor.stageTabLabel', { number: activeStage }) : t('screenDisplay.textSizeEditor.slotContentLabel')}
+        showOwnBackgroundImage
+        resizeToFitBlocked={resizeToFitBlocked}
       />
 
-      {hasSlideTabs && <SlotSlideTabs slideCount={contents.length} activeTab={activeSlideTab} onActiveTabChange={onActiveSlideTabChange} onAddSlide={addSlide} />}
+      <BackgroundImagePicker id={`${id}-bg-image`} backgroundImage={backgroundImage} onChange={setBackgroundImage} />
 
-      {hasSlideTabs && activeSlideTab !== 'global' ? (
-        <>
-          <SlideFields
-            id={`${id}-slide-${activeSlideIndex}`}
-            content={contents[activeSlideIndex] ?? { kind: 'none' }}
-            onChange={(content) => setContentAt(activeSlideIndex, content)}
-            label={t('screenDisplay.textSizeEditor.slideTabLabel', { number: activeSlideIndex + 1 })}
-            showOwnBackgroundImage
-          />
-
-          {contents.length > 1 && (
-            <button type="button" className="slot-slide-tabs__remove" onClick={() => removeSlide(activeSlideIndex)}>
-              {t('admin.screens.removeSlideLabel')}
-            </button>
-          )}
-
-          {/*
-            Without `ownTextSizes` (only one active slide, so there's nothing
-            for it to differ from — see `showOwnTextSizeOption` in
-            `ScreenDisplay`), this slide's own text size *is* the slot's
-            shared one: bind straight to `slotTextSizes` instead of the
-            per-slide `textSizes` draft, which would otherwise sit adjusted
-            but never actually persisted (`closeEditor`'s tabbed branch only
-            ever writes `textSizes` into the content when `useOwn` is true,
-            which it can never become here with no checkbox to set it).
-          */}
-          <TextSizeEditor
-            textSizes={ownTextSizes ? textSizes : slotTextSizes}
-            onChange={ownTextSizes ? onTextSizesChange : onSlotTextSizesChange}
-            ownTextSizes={ownTextSizes}
-            onRestore={onRestore}
-            onDone={onDone}
-          />
-        </>
-      ) : (
-        <>
-          {!hasSlideTabs && (
-            <SlideFields
-              id={id}
-              content={contents[activeSlideIndex] ?? { kind: 'none' }}
-              onChange={(content) => setContentAt(activeSlideIndex, content)}
-              label={t('screenDisplay.textSizeEditor.slotContentLabel')}
-            />
-          )}
-
-          <BackgroundImagePicker
-            id={`${id}-bg-image`}
-            backgroundImage={slot.backgroundImage}
-            onChange={(backgroundImage) => onSlotChange({ ...slot, backgroundImage })}
-          />
-
-          {needsDurationField && (
-            <Input
-              id={`${id}-duration`}
-              label={t('screenDisplay.textSizeEditor.slideDurationLabel')}
-              type="number"
-              min={1}
-              value={slideDurationSeconds}
-              onChange={(event) => onSlideDurationChange(Number(event.target.value))}
-            />
-          )}
-
-          <TextSizeEditor
-            textSizes={hasSlideTabs ? slotTextSizes : textSizes}
-            onChange={hasSlideTabs ? onSlotTextSizesChange : onTextSizesChange}
-            backgroundColor={slot.backgroundColor}
-            onBackgroundColorChange={(backgroundColor) => onSlotChange({ ...slot, backgroundColor })}
-            allowTransparentBackground
-            ownTextSizes={hasSlideTabs ? undefined : ownTextSizes}
-            onRestore={onRestore}
-            onDone={onDone}
-          />
-        </>
+      {hasMultipleStages && (
+        <Input
+          id={`${id}-duration`}
+          label={t('screenDisplay.textSizeEditor.slideDurationLabel')}
+          type="number"
+          min={1}
+          value={slideDurationSeconds}
+          onChange={(event) => onSlideDurationChange(Number(event.target.value))}
+        />
       )}
+
+      <TextSizeEditor
+        textSizes={ownTextSizes?.useOwn ? textSizes : slotTextSizes}
+        onChange={ownTextSizes?.useOwn ? onTextSizesChange : onSlotTextSizesChange}
+        backgroundColor={backgroundColor}
+        onBackgroundColorChange={setBackgroundColor}
+        allowTransparentBackground
+        ownTextSizes={ownTextSizes}
+        onRestore={onRestore}
+        onDone={onDone}
+      />
     </div>
   )
 }

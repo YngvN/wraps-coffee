@@ -7,12 +7,20 @@ import { useScreensaverSchedule } from '../../../hooks/useScreensaverSchedule'
 import { useLanguage } from '../../../i18n'
 import { DEFAULT_SCREEN_BACKGROUND_COLOR, type ScreenConfig, type ScreenSlot, type ScreenSlotContent } from '../../../types/screen'
 import { getScreenColorVars } from '../../../utils/screenColors'
+import { resolveSlotContent } from '../../../utils/screenStages'
 import { CreatePinModal } from './CreatePinModal'
 import { LayoutIcon } from './LayoutIcon'
 import { ScreenForm } from './ScreenForm'
 import { getScreenPreviewPattern } from './screenPreviewPattern'
 import { ScreensaverScheduleModal } from './ScreensaverScheduleModal'
 import './ScreensView.scss'
+
+/** The click-feedback flash on a screen card's own preview icon, while it's the one being edited (see `activeEditingSlot`): a small white circle that pops in at its center and expands out to fill (and fade past) the preview box, clipped to it by that box's own `overflow: hidden`. Framer-motion props rather than a plain CSS animation so a fresh `key` (a new element, as far as React's concerned) reliably restarts it from `initial` however fast a tab is spam-clicked in the editor, instead of a re-triggered CSS animation sometimes being coalesced by the browser into a no-op when it's already mid-run. */
+const TAB_PULSE_MOTION = {
+  initial: { opacity: 0.7, scale: 0.3 },
+  animate: { opacity: 0, scale: 1.8 },
+  transition: { duration: 0.5, ease: 'easeOut' as const },
+}
 
 /** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link, plus the "Create pin" button that sets the one shared PIN every screen's own "Lock screen" button locks behind, and the "Screen saver" button that sets the one shared daily window every screen's own "Use screensaver" checkbox opts into. */
 export function ScreensView() {
@@ -26,8 +34,14 @@ export function ScreensView() {
   const [copiedID, setCopiedID] = useState<string | null>(null)
   /** The screen form's own currently open sub-view (e.g. "Resize panes"), shown next to the modal's title — see `ScreenForm`'s `onRouteChange`. Reset on close so a stale route doesn't flash before the next open's fresh form reports its own. */
   const [formRoute, setFormRoute] = useState<string | undefined>(undefined)
+  /** Which of `editingScreen`'s own tabs the form is currently showing, plus an ever-increasing `pulse` key — see `ScreenForm`'s `onActiveSlotChange` — so the screen's own card preview below can highlight (and flash) the matching pane, helping show at a glance which physical position on the actual screen is being edited right now. Reset alongside `editingScreen` so a stale highlight from a previous session never flashes on the next screen opened. */
+  const [activeEditingSlot, setActiveEditingSlot] = useState<{ tab: 'global' | number; pulse: number }>({ tab: 'global', pulse: 0 })
 
   const isFormOpen = editingScreen !== undefined
+  const openForm = (target: ScreenConfig | null) => {
+    setEditingScreen(target)
+    setActiveEditingSlot({ tab: 'global', pulse: 0 })
+  }
   const closeForm = () => {
     setEditingScreen(undefined)
     setFormRoute(undefined)
@@ -65,10 +79,10 @@ export function ScreensView() {
     return t(`menu.categories.${content.category}.title`)
   }
 
-  /** A slot's summary text: its active slide labels joined with "+" (e.g. "Wraps + Salads" for a rotating slot), or `null` if it has none. */
+  /** A slot's summary text: its stage-1 content's own label (every slot is guaranteed a stage-1 checkpoint), or `null` if it's "none" there. A screen with stages on may show different content at other stages — see the stage-count badge below for that. */
   const slotSummary = (slot: ScreenSlot) => {
-    const active = slot.contents.filter((content) => content.kind !== 'none')
-    return active.length > 0 ? active.map(contentLabel).join(' + ') : null
+    const content = resolveSlotContent(slot, 1)
+    return content.kind === 'none' ? null : contentLabel(content)
   }
 
   const handleCopy = (screen: ScreenConfig, url: string) => {
@@ -89,7 +103,7 @@ export function ScreensView() {
           <Button variant="secondary" onClick={() => setScreensaverModalOpen(true)}>
             {screensaverSchedule ? t('admin.screens.changeScreensaverButton') : t('admin.screens.screensaverButton')}
           </Button>
-          <Button onClick={() => setEditingScreen(null)}>{t('admin.screens.addScreen')}</Button>
+          <Button onClick={() => openForm(null)}>{t('admin.screens.addScreen')}</Button>
         </div>
       </div>
 
@@ -101,6 +115,7 @@ export function ScreensView() {
             {screens.map((screen) => {
               const url = `${window.location.origin}/screens/${screen.screenID}`
               const slotCountLabel = screen.slotCount === 1 ? t('admin.screens.slotCountBadgeOne') : t('admin.screens.slotCountBadge', { count: screen.slotCount })
+              const isEditingThisScreen = isFormOpen && editingScreen?.screenID === screen.screenID
               return (
                 <motion.li
                   key={screen.screenID}
@@ -115,12 +130,21 @@ export function ScreensView() {
                     style={getScreenColorVars(screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR) as CSSProperties}
                     title={slotCountLabel}
                   >
-                    <LayoutIcon pattern={getScreenPreviewPattern(screen)} width={56} height={42} />
+                    <LayoutIcon
+                      pattern={getScreenPreviewPattern(screen)}
+                      width={56}
+                      height={42}
+                      highlightIndex={isEditingThisScreen ? (activeEditingSlot.tab === 'global' ? 'all' : activeEditingSlot.tab) : undefined}
+                    />
+                    {isEditingThisScreen && activeEditingSlot.pulse > 0 && (
+                      <motion.span key={activeEditingSlot.pulse} className="screens-view__item-preview-pulse" {...TAB_PULSE_MOTION} />
+                    )}
                   </div>
                   <div className="screens-view__item-body">
                     <div className="screens-view__item-info">
                       <span className="screens-view__item-name">{screen.name}</span>
                       <Badge variant="info">{slotCountLabel}</Badge>
+                      {screen.useStages && (screen.stageCount ?? 1) > 1 && <Badge variant="info">{t('admin.screens.stageCountBadge', { count: screen.stageCount ?? 1 })}</Badge>}
                       <span className="screens-view__item-slots">
                         {screen.slots
                           .map(slotSummary)
@@ -138,7 +162,7 @@ export function ScreensView() {
                       </a>
                     </div>
                     <div className="screens-view__item-actions">
-                      <Button variant="secondary" onClick={() => setEditingScreen(screen)}>
+                      <Button variant="secondary" onClick={() => openForm(screen)}>
                         {t('admin.common.edit')}
                       </Button>
                       <Button variant="secondary" onClick={() => handleDuplicate(screen)}>
@@ -157,7 +181,15 @@ export function ScreensView() {
       )}
 
       <Modal open={isFormOpen} onClose={closeForm} title={editingScreen ? t('admin.screens.editScreen') : t('admin.screens.addScreen')} route={formRoute}>
-        {isFormOpen && <ScreenForm screen={editingScreen ?? null} onSave={handleSave} onCancel={closeForm} onRouteChange={setFormRoute} />}
+        {isFormOpen && (
+          <ScreenForm
+            screen={editingScreen ?? null}
+            onSave={handleSave}
+            onCancel={closeForm}
+            onRouteChange={setFormRoute}
+            onActiveSlotChange={(tab, pulse) => setActiveEditingSlot({ tab, pulse })}
+          />
+        )}
       </Modal>
 
       <CreatePinModal open={pinModalOpen} onClose={() => setPinModalOpen(false)} />
