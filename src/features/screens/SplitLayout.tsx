@@ -189,7 +189,7 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, paused, for
   const gridDelay = isShrinkingAwayFromImage ? transition.duration : 0
   const gridTemplate = {
     ...splitGridTemplate(layoutScreen),
-    ...(!isDragging && !reducedMotion ? { transition: `grid-template-columns 0.3s ease ${gridDelay}s, grid-template-rows 0.3s ease ${gridDelay}s` } : {}),
+    ...(!isDragging && !reducedMotion ? { transition: `grid-template-columns 0.5s ease ${gridDelay}s, grid-template-rows 0.5s ease ${gridDelay}s` } : {}),
   }
   const dividers = screenDividers(layoutScreen)
   const centerHandle = crossHandle(layoutScreen)
