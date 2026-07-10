@@ -12,6 +12,16 @@ dist
 dist-ssr
 *.local
 
+# Local LAN sync server's own persisted state (users/sessions/synced keys) —
+# regenerated on first boot from src/data/*.json, never committed.
+server/data/*
+!server/data/.gitkeep
+
+# Uploaded images (originals + compressed variants) — live only on this
+# server's own disk, never committed.
+server/uploads/*
+!server/uploads/.gitkeep
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

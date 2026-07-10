@@ -89,11 +89,18 @@ export function SlotEditor({
         content={content}
         onChange={setContent}
         label={hasMultipleStages ? t('screenDisplay.textSizeEditor.stageTabLabel', { number: activeStage }) : t('screenDisplay.textSizeEditor.slotContentLabel')}
-        showOwnBackgroundImage
         resizeToFitBlocked={resizeToFitBlocked}
       />
 
+      <span className="slot-editor__label">{t('screenDisplay.textSizeEditor.backgroundImageLabel')}</span>
       <BackgroundImagePicker id={`${id}-bg-image`} backgroundImage={backgroundImage} onChange={setBackgroundImage} />
+
+      <span className="slot-editor__label">{t('screenDisplay.textSizeEditor.ownBackgroundImageLabel')}</span>
+      <BackgroundImagePicker
+        id={`${id}-own-bg-image`}
+        backgroundImage={content.backgroundImage}
+        onChange={(ownBackgroundImage) => setContent({ ...content, backgroundImage: ownBackgroundImage })}
+      />
 
       {hasMultipleStages && (
         <Input

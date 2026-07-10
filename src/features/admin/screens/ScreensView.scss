@@ -20,6 +20,51 @@
   gap: $spacing-unit;
 }
 
+// The "Edit screen"/"Add screen" view (replacing the list entirely, not a
+// modal on top of it — see ScreensView.tsx) — its own Back button returns to
+// the list.
+.screens-view__form-header {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+}
+
+.screens-view__form-title {
+  font-size: 1.25rem;
+}
+
+.screens-view__form-route {
+  font-weight: 400;
+  color: $color-text-muted;
+}
+
+// Same reasoning as `.screens-view__item-preview` — reflects the screen's
+// own chosen background color, and highlights/pulses whichever pane the
+// form's own tabs currently have active, now that the list (and its own
+// per-card preview) isn't visible behind the form to show that on instead.
+.screens-view__form-preview {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 52px;
+  height: 39px;
+  overflow: hidden;
+  border: 1px solid $color-border;
+  border-radius: 6px;
+  background: var(--screen-bg);
+  color: var(--screen-text);
+}
+
+.screens-view__form-preview-pulse {
+  position: absolute;
+  inset: -50%;
+  border-radius: 50%;
+  background: #fff;
+  pointer-events: none;
+}
+
 .screens-view__empty {
   color: $color-text-muted;
 }

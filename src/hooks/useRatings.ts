@@ -1,5 +1,5 @@
 import ratingsSeed from '../data/ratings.json'
-import type { PlatformRating } from '../components/RatingBadges'
+import type { PlatformRating } from '../types/rating'
 import { useLocalStorage } from './useLocalStorage'
 
 const STORAGE_KEY = 'admin.ratings'

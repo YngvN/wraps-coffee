@@ -6,3 +6,10 @@
   gap: $spacing-unit * 2;
   min-width: min(420px, 80vw);
 }
+
+// Matches `.background-color-picker`'s own label styling immediately above
+// it, so the two read as a matched pair of field labels.
+.slot-editor__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}

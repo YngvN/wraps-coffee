@@ -1,0 +1,48 @@
+@use '../../styles/variables' as *;
+
+.weather-slide {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: $spacing-unit * 6;
+  overflow-x: auto;
+
+  &--empty {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--screen-text-muted);
+  }
+}
+
+.weather-slide__list {
+  display: flex;
+  gap: $spacing-unit * 4;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+  justify-content: space-evenly;
+}
+
+.weather-slide__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+}
+
+.weather-slide__time {
+  color: var(--screen-text-muted);
+  font-size: var(--slide-description-size, 1.25rem);
+}
+
+.weather-slide__icon {
+  font-size: calc(var(--slide-heading-size, 3.5rem) * 0.85);
+  line-height: 1;
+}
+
+.weather-slide__temp {
+  font-size: var(--slide-item-title-size, 1.75rem);
+  font-weight: 700;
+}

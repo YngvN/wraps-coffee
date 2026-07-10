@@ -1,9 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Provider } from 'react-redux'
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
-import App from './App.tsx'
-import { store } from './app/store'
 import { AdminLayout } from './features/admin/layout/AdminLayout'
 import { AdminDashboard } from './features/admin/layout/AdminDashboard'
 import { AdminLogin } from './features/admin/login/AdminLogin'
@@ -14,29 +11,20 @@ import { EventsView as AdminEventsView } from './features/admin/events/EventsVie
 import { ReviewsView } from './features/admin/reviews/ReviewsView'
 import { InstagramView } from './features/admin/instagram/InstagramView'
 import { ContactInfoView } from './features/admin/contact/ContactInfoView'
+import { ImageLibraryView } from './features/admin/imageLibrary/ImageLibraryView'
 import { OrdersView } from './features/admin/orders/OrdersView'
 import { ScreensView } from './features/admin/screens/ScreensView'
+import { ExtensionsView } from './features/admin/extensions/ExtensionsView'
+import { SettingsView } from './features/admin/settings/SettingsView'
 import { LanguageProvider } from './i18n'
-import { Components } from './pages/Components'
-import { Events } from './pages/Events'
-import { Home } from './pages/Home'
-import { Menu } from './pages/Menu'
-import { Profile } from './pages/Profile'
 import { ScreenDisplay } from './pages/ScreenDisplay'
 import './styles/global.scss'
 
+// The public customer-facing site now lives in its own separate project
+// (deployed to Netlify, backed by Neon) — this repo is just the admin
+// dashboard and the kiosk/screens display, run against the local LAN server.
 const router = createBrowserRouter([
-  {
-    path: '/',
-    element: <App />,
-    children: [
-      { index: true, element: <Home /> },
-      { path: 'menu', element: <Menu /> },
-      { path: 'events', element: <Events /> },
-      { path: 'profile', element: <Profile /> },
-      { path: 'components', element: <Components /> },
-    ],
-  },
+  { index: true, element: <Navigate to="/admin/login" replace /> },
   {
     path: '/admin',
     element: <AdminLayout />,
@@ -56,6 +44,9 @@ const router = createBrowserRouter([
           { path: 'contact', element: <ContactInfoView /> },
           { path: 'orders', element: <OrdersView /> },
           { path: 'screens', element: <ScreensView /> },
+          { path: 'extensions', element: <ExtensionsView /> },
+          { path: 'images', element: <ImageLibraryView /> },
+          { path: 'settings', element: <SettingsView /> },
         ],
       },
     ],
@@ -65,10 +56,8 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Provider store={store}>
-      <LanguageProvider>
-        <RouterProvider router={router} />
-      </LanguageProvider>
-    </Provider>
+    <LanguageProvider>
+      <RouterProvider router={router} />
+    </LanguageProvider>
   </StrictMode>,
 )

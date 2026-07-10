@@ -1,0 +1,46 @@
+@use '../../../styles/variables' as *;
+
+.extensions-view {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+  max-width: 700px;
+}
+
+.extensions-view__lookup {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit * 1.5;
+  flex-wrap: wrap;
+}
+
+.extensions-view__coordinates {
+  color: $color-text-muted;
+  font-size: 0.875rem;
+}
+
+.extensions-view__hint {
+  margin: 0;
+  color: $color-text-muted;
+  font-size: 0.875rem;
+}
+
+.extensions-view__stops-label {
+  margin: $spacing-unit 0 0;
+  font-weight: 600;
+}
+
+.extensions-view__stop-list {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.extensions-view .card__body {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+}

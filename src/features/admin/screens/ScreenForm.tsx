@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { BackButton, Button, Checkbox, Input } from '../../../components'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { BackButton, Button, Checkbox, Input, SlideTransition } from '../../../components'
 import { useScreens } from '../../../hooks/useScreens'
 import { useScreensaverSchedule } from '../../../hooks/useScreensaverSchedule'
 import { useLanguage } from '../../../i18n'
@@ -68,6 +68,14 @@ const TRIPLE_ARRANGEMENTS: { pattern: LayoutIconPattern; direction: SplitDirecti
   { pattern: 'triple-column-second', direction: 'column', bigPosition: 'second', labelKey: 'tripleColumnSecondLabel' },
 ]
 
+/** A representative preview pattern for each selectable `slotCount`, shown on the "Layout" picker's own buttons — not necessarily this screen's actual current arrangement (that's the tab bar's own icons, just above), just a stand-in shape for "1 pane"/"2 panes"/etc. */
+const SLOT_COUNT_PREVIEW_PATTERNS: Record<number, LayoutIconPattern> = {
+  1: 'single',
+  2: 'row',
+  3: 'triple-row-first',
+  4: 'quad',
+}
+
 /** A slot with no checkpoints yet. */
 const EMPTY_SLOT: ScreenSlot = { content: {}, backgroundColor: {}, backgroundImage: {}, textSizes: {} }
 
@@ -108,8 +116,10 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
   const { t } = useLanguage()
   const [screens, setScreens] = useScreens()
   const [screensaverSchedule] = useScreensaverSchedule()
-  /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the "Arrangement" editor (layout picker plus its own resize D-pad, and its own nested "Borders" sub-menu — see `arrangementShowingBorders`), the "Background" color/image editor, the "Stages" (use-stages/count/duration/transition) editor, the "Screen saver" editor, the "Other settings" editor, or neither. */
-  const [editingTarget, setEditingTarget] = useState<'global' | 'arrangement' | 'background' | 'stages' | 'screensaver' | 'other' | null>(null)
+  /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the "Arrangement" editor (layout picker plus its own resize D-pad, and its own nested "Borders" sub-menu — see `arrangementShowingBorders`), the screen's own whole-screen "Background" color/image editor, the active slot's own "Background" color/image editor (`slot-background`), the "Stages" (use-stages/count/duration/transition) editor, the "Screen saver" editor, the "Other settings" editor, or neither. */
+  const [editingTarget, setEditingTarget] = useState<'global' | 'arrangement' | 'background' | 'slot-background' | 'stages' | 'screensaver' | 'other' | null>(null)
+  /** `1` while opening a sub-view (slides in from the right, see `SlideTransition`), `-1` while going back (slides in from the left) — including one level of nesting deeper/shallower within Arrangement's own "Borders" sub-menu. Set right before whatever state change actually switches the view. */
+  const [direction, setDirection] = useState<1 | -1>(1)
   /** Whether the "Arrangement" sub-view is itself showing its own nested "Borders" sub-menu rather than the layout picker/resize D-pad — reset whenever Arrangement (re)opens. */
   const [arrangementShowingBorders, setArrangementShowingBorders] = useState(false)
   const [liveTextSizes, setLiveTextSizes] = useState<TextSizes>(screen?.textSizes ?? DEFAULT_TEXT_SIZES)
@@ -153,24 +163,22 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
   /** The freshest persisted version of this screen — reflects any live writes already made this session (background color, text sizes) that this form's own local state doesn't separately track, so neither re-seeding a sub-panel nor the final Save can stomp them with stale data. */
   const latestScreen = screen ? (screens.find((candidate) => candidate.screenID === screen.screenID) ?? screen) : null
 
-  /** Kept current after every render purely so the unmount effect below can build an up-to-date patched copy of `screens` without needing it in that effect's own dependency array — which would otherwise fire the cleanup (clearing `editingFocus`) after every single tab switch that writes it, instead of only once, when the form actually closes. */
-  const screensRef = useRef(screens)
-  useEffect(() => {
-    screensRef.current = screens
-  }, [screens])
-
   // Clears this screen's own live "which tab is the editor focused on" signal
   // (see `editingFocus`) the moment this form actually closes — otherwise
   // the live display would keep showing a stale highlight (or even replay
   // its flash on the next open) for a tab nobody's looking at anymore.
-  // Mount/unmount-only ([screen] never actually changes mid-session): using
-  // `screensRef.current` rather than the `screens` in scope when this effect
-  // itself was set up is what lets it still see this session's very latest
-  // edits, right up to the actual moment of unmounting.
+  // Mount/unmount-only ([screen] never actually changes mid-session): the
+  // functional `setScreens` form reads fresh storage rather than this
+  // component's own (separately-instanced, possibly momentarily stale)
+  // `screens` state — this component and `ScreensView` each hold their own
+  // `useScreens()` copy, only reconciled via the debounced sync round-trip,
+  // so building this patch from `screens` in scope here risks clobbering a
+  // Save this same close just made (that Save's write lands in storage
+  // immediately; this component's own copy of it can lag behind).
   useEffect(() => {
     return () => {
       if (!screen) return
-      setScreens(screensRef.current.map((existing) => (existing.screenID === screen.screenID ? { ...existing, editingFocus: undefined } : existing)))
+      setScreens((current) => current.map((existing) => (existing.screenID === screen.screenID ? { ...existing, editingFocus: undefined } : existing)))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately mount/unmount-only, see comment above.
   }, [screen])
@@ -198,6 +206,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
   /** Opens the whole-screen percentage scaler. */
   const openGlobalTextSizeEditor = () => {
     if (!screen) return
+    setDirection(1)
     setEditingTarget('global')
     onRouteChange?.(t('admin.screens.editTextSize'))
   }
@@ -205,12 +214,24 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
   /** Opens the screen's own background color/image editor. */
   const openBackgroundEditor = () => {
     if (!screen) return
+    setDirection(1)
     setEditingTarget('background')
     onRouteChange?.(t('admin.screens.backgroundLabel'))
   }
 
+  /** Opens the active slot's own background color/image editor — the route breadcrumb names which slot (and, with shared stages on, which stage) is being edited, e.g. "Slot 1 - Stage 2 - Background". */
+  const openSlotBackgroundEditor = () => {
+    if (typeof activeTab !== 'number') return
+    setDirection(1)
+    setEditingTarget('slot-background')
+    const slotLabel = t('screenDisplay.textSizeEditor.slotLabel', { number: activeTab + 1 })
+    const stagePart = hasMultipleStages ? ` - ${t('screenDisplay.textSizeEditor.stageTabLabel', { number: clampedActiveStage })}` : ''
+    onRouteChange?.(`${slotLabel}${stagePart} - ${t('admin.screens.backgroundLabel')}`)
+  }
+
   /** Opens the layout picker/resize D-pad editor. */
   const openArrangementEditor = () => {
+    setDirection(1)
     setEditingTarget('arrangement')
     setArrangementShowingBorders(false)
     onRouteChange?.(t('admin.screens.splitDirectionLabel'))
@@ -218,36 +239,42 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
 
   /** Opens Arrangement's own nested "Borders" sub-menu. */
   const openBordersWithinArrangement = () => {
+    setDirection(1)
     setArrangementShowingBorders(true)
     onRouteChange?.(`${t('admin.screens.splitDirectionLabel')} - ${t('admin.screens.bordersLabel')}`)
   }
 
   /** Returns from Arrangement's own nested "Borders" sub-menu back to the layout picker/resize D-pad — one level up, not all the way out to the main form. */
   const closeBordersWithinArrangement = () => {
+    setDirection(-1)
     setArrangementShowingBorders(false)
     onRouteChange?.(t('admin.screens.splitDirectionLabel'))
   }
 
   /** Opens the use-stages/count/duration/transition editor. */
   const openStagesEditor = () => {
+    setDirection(1)
     setEditingTarget('stages')
     onRouteChange?.(t('admin.screens.stagesLabel'))
   }
 
   /** Opens the "Use screensaver"/"Test screensaver" editor. */
   const openScreensaverEditor = () => {
+    setDirection(1)
     setEditingTarget('screensaver')
     onRouteChange?.(t('admin.screens.screensaverLabel'))
   }
 
   /** Opens the catch-all "Other settings" editor. */
   const openOtherSettingsEditor = () => {
+    setDirection(1)
     setEditingTarget('other')
     onRouteChange?.(t('admin.screens.otherSettingsLabel'))
   }
 
   /** Closes whichever sub-view is currently open, back to the main tabbed form. */
   const closeSubview = () => {
+    setDirection(-1)
     setEditingTarget(null)
     onRouteChange?.(undefined)
   }
@@ -323,13 +350,13 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
   /** Writes a whole-screen percentage-scaled change (the default and every slot's own size, across every stage) straight to the persisted screen, live — same reasoning as `handleLiveTextSizesChange`. */
   const handleGlobalTextSizesChange = (next: SizeSnapshot) => {
     if (!screen) return
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, textSizes: next.textSizes, slots: next.slots } : existing)))
+    setScreens((current) => current.map((existing) => (existing.screenID === screen.screenID ? { ...existing, textSizes: next.textSizes, slots: next.slots } : existing)))
   }
 
-  /** Writes a partial change straight to the persisted screen, live — same reasoning as the text-size handlers: so it shows up on the display immediately, in any other tab/window of this browser already showing it. */
+  /** Writes a partial change straight to the persisted screen, live — same reasoning as the text-size handlers: so it shows up on the display immediately, in any other tab/window of this browser already showing it. Reads fresh from storage (the functional `setScreens` form) rather than this component's own `screens` state, which — being a separate `useScreens()` instance from `ScreensView`'s — can otherwise lag behind a write the other one just made. */
   const liveUpdateScreen = (patch: Partial<ScreenConfig>) => {
     if (!screen) return
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, ...patch } : existing)))
+    setScreens((current) => current.map((existing) => (existing.screenID === screen.screenID ? { ...existing, ...patch } : existing)))
   }
 
   /** Writes the screen's own background color straight to the persisted screen, live. */
@@ -387,6 +414,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
    * would stomp those live writes the next time "Save" is clicked.
    */
   const closeGlobalTextSizeEditor = () => {
+    setDirection(-1)
     const latest = screens.find((candidate) => candidate.screenID === screen?.screenID)
     if (latest) {
       setSlot1(latest.slots[0])
@@ -398,17 +426,20 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
     onRouteChange?.(undefined)
   }
 
+  let viewKey: string
+  let formContent: ReactNode
+
   if (editingTarget === 'global' && screen) {
-    return (
+    viewKey = 'global'
+    formContent = (
       <div className="screen-form__subview">
         <BackButton onClick={closeGlobalTextSizeEditor}>{t('admin.common.back')}</BackButton>
         <GlobalTextSizeScaler screen={latestScreen ?? screen} onChange={handleGlobalTextSizesChange} onDone={closeGlobalTextSizeEditor} />
       </div>
     )
-  }
-
-  if (editingTarget === 'background' && latestScreen) {
-    return (
+  } else if (editingTarget === 'background' && latestScreen) {
+    viewKey = 'background'
+    formContent = (
       <div className="screen-form__subview">
         <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
         <BackgroundEditor
@@ -419,10 +450,38 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
         />
       </div>
     )
-  }
-
-  if (editingTarget === 'stages' && screen) {
-    return (
+  } else if (editingTarget === 'slot-background' && activeSlot) {
+    const slotBackgroundContent = resolveSlotContent(activeSlot.value, clampedActiveStage)
+    viewKey = 'slot-background'
+    formContent = (
+      <div className="screen-form__subview">
+        <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
+        <BackgroundColorPicker
+          backgroundColor={resolveSlotBackgroundColor(activeSlot.value, clampedActiveStage)}
+          onChange={(color) =>
+            activeSlot.onChange({ ...activeSlot.value, backgroundColor: writeStageCheckpoint(activeSlot.value.backgroundColor, clampedActiveStage, color) })
+          }
+          allowTransparent
+        />
+        <span className="screen-form__subview-label">{t('screenDisplay.textSizeEditor.backgroundImageLabel')}</span>
+        <BackgroundImagePicker
+          id={`${activeSlot.id}-bg-image`}
+          backgroundImage={resolveSlotBackgroundImage(activeSlot.value, clampedActiveStage)}
+          onChange={(backgroundImage) =>
+            activeSlot.onChange({ ...activeSlot.value, backgroundImage: writeStageCheckpoint(activeSlot.value.backgroundImage, clampedActiveStage, backgroundImage) })
+          }
+        />
+        <span className="screen-form__subview-label">{t('screenDisplay.textSizeEditor.ownBackgroundImageLabel')}</span>
+        <BackgroundImagePicker
+          id={`${activeSlot.id}-own-bg-image`}
+          backgroundImage={slotBackgroundContent.backgroundImage}
+          onChange={(backgroundImage) => handleContentChange({ ...slotBackgroundContent, backgroundImage })}
+        />
+      </div>
+    )
+  } else if (editingTarget === 'stages' && screen) {
+    viewKey = 'stages'
+    formContent = (
       <div className="screen-form__subview">
         <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
         <Checkbox id="screen-use-stages" label={t('admin.screens.useStagesLabel')} checked={useStages} onChange={(event) => setUseStages(event.target.checked)} />
@@ -465,10 +524,9 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
         </div>
       </div>
     )
-  }
-
-  if (editingTarget === 'other') {
-    return (
+  } else if (editingTarget === 'other') {
+    viewKey = 'other'
+    formContent = (
       <div className="screen-form__subview">
         <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
         <Checkbox
@@ -479,10 +537,9 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
         />
       </div>
     )
-  }
-
-  if (editingTarget === 'screensaver' && screen) {
-    return (
+  } else if (editingTarget === 'screensaver' && screen) {
+    viewKey = 'screensaver'
+    formContent = (
       <div className="screen-form__subview">
         <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
         <Checkbox
@@ -498,10 +555,9 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
         )}
       </div>
     )
-  }
-
-  if (editingTarget === 'arrangement' && latestScreen && arrangementShowingBorders) {
-    return (
+  } else if (editingTarget === 'arrangement' && latestScreen && arrangementShowingBorders) {
+    viewKey = 'arrangement-borders'
+    formContent = (
       <div className="screen-form__subview">
         <BackButton onClick={closeBordersWithinArrangement}>{t('admin.common.back')}</BackButton>
         <Checkbox
@@ -521,10 +577,9 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
         )}
       </div>
     )
-  }
-
-  if (editingTarget === 'arrangement' && latestScreen) {
-    return (
+  } else if (editingTarget === 'arrangement' && latestScreen) {
+    viewKey = 'arrangement'
+    formContent = (
       <div className="screen-form__subview">
         <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
 
@@ -626,203 +681,201 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
         </Button>
       </div>
     )
-  }
+  } else {
+    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
+      onSave({
+        // Carries forward fields this form has no controls of its own for
+        // (right now, none — kept as a safety net for any screen-level field
+        // this form doesn't explicitly track) from the freshest persisted
+        // data, so a Save right after a live sub-panel edit can't revert it.
+        ...(latestScreen ?? screen),
+        screenID: screen?.screenID ?? `${Date.now()}`,
+        name,
+        slotCount,
+        slots: [slot1, slot2, slot3, slot4],
+        useStages,
+        stageCount,
+        slideDurationSeconds,
+        transitionStyle,
+        splitDirection,
+        splitBigPosition,
+        showSlotBorders,
+        hideScrollbar,
+        useScreensaver,
+      })
+    }
 
-    onSave({
-      // Carries forward fields this form has no controls of its own for
-      // (right now, none — kept as a safety net for any screen-level field
-      // this form doesn't explicitly track) from the freshest persisted
-      // data, so a Save right after a live sub-panel edit can't revert it.
-      ...(latestScreen ?? screen),
-      screenID: screen?.screenID ?? `${Date.now()}`,
-      name,
-      slotCount,
-      slots: [slot1, slot2, slot3, slot4],
-      useStages,
-      stageCount,
-      slideDurationSeconds,
-      transitionStyle,
-      splitDirection,
-      splitBigPosition,
-      showSlotBorders,
-      hideScrollbar,
-      useScreensaver,
-    })
-  }
-
-  return (
-    <form className="screen-form" onSubmit={handleSubmit}>
-      <div className="screen-form__tabs" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'global'}
-          aria-label={t('admin.screens.globalTabLabel')}
-          title={t('admin.screens.globalTabLabel')}
-          className={`screen-form__tab screen-form__tab--icon${activeTab === 'global' ? ' screen-form__tab--active' : ''}`}
-          onClick={() => handleSelectTab('global')}
-        >
-          <LayoutIcon pattern={arrangementPattern} highlightIndex="all" />
-        </button>
-        {slotFields.map(({ id, label, value }, index) => (
+    viewKey = 'main'
+    formContent = (
+      <form className="screen-form" onSubmit={handleSubmit}>
+        <div className="screen-form__tabs" role="tablist">
           <button
-            key={id}
             type="button"
             role="tab"
-            aria-selected={activeTab === index}
-            aria-label={label}
-            title={label}
-            className={`screen-form__tab screen-form__tab--icon${activeTab === index ? ' screen-form__tab--active' : ''}${isSlotActive(value) ? ' screen-form__tab--filled' : ''}${index >= slotCount ? ' screen-form__tab--out-of-range' : ''}`}
-            onClick={() => handleSelectTab(index)}
+            aria-selected={activeTab === 'global'}
+            aria-label={t('admin.screens.globalTabLabel')}
+            title={t('admin.screens.globalTabLabel')}
+            className={`screen-form__tab screen-form__tab--icon${activeTab === 'global' ? ' screen-form__tab--active' : ''}`}
+            onClick={() => handleSelectTab('global')}
           >
-            <LayoutIcon pattern={arrangementPattern} highlightIndex={index} />
+            <LayoutIcon pattern={arrangementPattern} highlightIndex="all" />
           </button>
-        ))}
-      </div>
+          {slotFields.map(({ id, label, value }, index) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === index}
+              aria-label={label}
+              title={label}
+              className={`screen-form__tab screen-form__tab--icon${activeTab === index ? ' screen-form__tab--active' : ''}${isSlotActive(value) ? ' screen-form__tab--filled' : ''}${index >= slotCount ? ' screen-form__tab--out-of-range' : ''}`}
+              onClick={() => handleSelectTab(index)}
+            >
+              <LayoutIcon pattern={arrangementPattern} highlightIndex={index} />
+            </button>
+          ))}
+        </div>
 
-      <div className="screen-form__tab-panel">
-        {activeTab === 'global' ? (
-          <>
-            <Input id="screen-name" label={t('admin.screens.nameLabel')} value={name} onChange={(event) => setName(event.target.value)} required />
+        <div className="screen-form__tab-panel">
+          {activeTab === 'global' ? (
+            <>
+              <Input id="screen-name" label={t('admin.screens.nameLabel')} value={name} onChange={(event) => setName(event.target.value)} required />
 
-            <div className="screen-form__field">
-              <span>{t('admin.screens.slotCountLabel')}</span>
-              <div className="screen-form__layout-picker">
-                {[1, 2, 3, 4].map((count) => (
-                  <button
-                    key={count}
-                    type="button"
-                    className={`screen-form__layout-option${slotCount === count ? ' screen-form__layout-option--active' : ''}`}
-                    onClick={() => handleSlotCountChange(count)}
-                  >
-                    {count}
-                  </button>
-                ))}
+              <div className="screen-form__field">
+                <span>{t('admin.screens.slotCountLabel')}</span>
+                <div className="screen-form__layout-picker">
+                  {[1, 2, 3, 4].map((count) => {
+                    const countLabel = count === 1 ? t('admin.screens.slotCountBadgeOne') : t('admin.screens.slotCountBadge', { count })
+                    return (
+                      <button
+                        key={count}
+                        type="button"
+                        aria-label={countLabel}
+                        title={countLabel}
+                        className={`screen-form__layout-option${slotCount === count ? ' screen-form__layout-option--active' : ''}`}
+                        onClick={() => handleSlotCountChange(count)}
+                      >
+                        <LayoutIcon pattern={SLOT_COUNT_PREVIEW_PATTERNS[count]} highlightIndex="all" />
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
 
-            {/* Fades and slides in/out as slotCount crosses 1 (`initial={false}` skips this on first mount, since it's not really "appearing"). Animating its own `height` (0 to/from its natural size, `layout` enables interpolating that "auto" value) — rather than just `opacity`/`y` — is what actually makes every field below it glide smoothly into its new position instead of snapping the instant this one's removed from the document flow; those fields only need `layout` themselves to pick up that progressive reflow. `overflow: hidden` keeps the button from spilling out while its own height is still animating. */}
-            <AnimatePresence initial={false}>
-              {slotCount > 1 && latestScreen && (
-                <motion.div
-                  key="arrangement"
-                  layout
-                  initial={{ opacity: 0, y: -12, height: 0 }}
-                  animate={{ opacity: 1, y: 0, height: 'auto' }}
-                  exit={{ opacity: 0, y: -12, height: 0 }}
-                  transition={{ duration: 0.2, ease: 'easeOut' }}
-                  style={{ overflow: 'hidden' }}
-                >
-                  <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openArrangementEditor}>
-                    {t('admin.screens.splitDirectionLabel')}
+              {/* Fades and slides in/out as slotCount crosses 1 (`initial={false}` skips this on first mount, since it's not really "appearing"). Animating its own `height` (0 to/from its natural size, `layout` enables interpolating that "auto" value) — rather than just `opacity`/`y` — is what actually makes every field below it glide smoothly into its new position instead of snapping the instant this one's removed from the document flow; those fields only need `layout` themselves to pick up that progressive reflow. `overflow: hidden` keeps the button from spilling out while its own height is still animating. */}
+              <AnimatePresence initial={false}>
+                {slotCount > 1 && latestScreen && (
+                  <motion.div
+                    key="arrangement"
+                    layout
+                    initial={{ opacity: 0, y: -12, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: -12, height: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    style={{ overflow: 'hidden' }}
+                  >
+                    <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openArrangementEditor}>
+                      {t('admin.screens.splitDirectionLabel')}
+                      <span aria-hidden="true">→</span>
+                    </Button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {screen && (
+                <motion.div layout>
+                  <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openBackgroundEditor}>
+                    {t('admin.screens.backgroundLabel')}
                     <span aria-hidden="true">→</span>
                   </Button>
                 </motion.div>
               )}
-            </AnimatePresence>
 
-            {screen && (
+              {screen && (
+                <motion.div layout>
+                  <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openGlobalTextSizeEditor}>
+                    {t('admin.screens.editTextSize')}
+                    <span aria-hidden="true">→</span>
+                  </Button>
+                </motion.div>
+              )}
+
               <motion.div layout>
-                <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openBackgroundEditor}>
-                  {t('admin.screens.backgroundLabel')}
+                <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openStagesEditor}>
+                  {t('admin.screens.stagesLabel')}
                   <span aria-hidden="true">→</span>
                 </Button>
               </motion.div>
-            )}
 
-            {screen && (
+              {screensaverSchedule && (
+                <motion.div layout>
+                  <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openScreensaverEditor}>
+                    {t('admin.screens.screensaverLabel')}
+                    <span aria-hidden="true">→</span>
+                  </Button>
+                </motion.div>
+              )}
+
               <motion.div layout>
-                <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openGlobalTextSizeEditor}>
-                  {t('admin.screens.editTextSize')}
+                <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openOtherSettingsEditor}>
+                  {t('admin.screens.otherSettingsLabel')}
                   <span aria-hidden="true">→</span>
                 </Button>
               </motion.div>
-            )}
+            </>
+          ) : (
+            activeSlot &&
+            (() => {
+              const content = resolveSlotContent(activeSlot.value, clampedActiveStage)
+              return (
+                <>
+                  {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={clampedActiveStage} onActiveStageChange={handleActiveStageChange} />}
 
-            <motion.div layout>
-              <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openStagesEditor}>
-                {t('admin.screens.stagesLabel')}
-                <span aria-hidden="true">→</span>
-              </Button>
-            </motion.div>
-
-            {screensaverSchedule && (
-              <motion.div layout>
-                <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openScreensaverEditor}>
-                  {t('admin.screens.screensaverLabel')}
-                  <span aria-hidden="true">→</span>
-                </Button>
-              </motion.div>
-            )}
-
-            <motion.div layout>
-              <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openOtherSettingsEditor}>
-                {t('admin.screens.otherSettingsLabel')}
-                <span aria-hidden="true">→</span>
-              </Button>
-            </motion.div>
-          </>
-        ) : (
-          activeSlot &&
-          (() => {
-            const content = resolveSlotContent(activeSlot.value, clampedActiveStage)
-            return (
-              <>
-                {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={clampedActiveStage} onActiveStageChange={handleActiveStageChange} />}
-
-                <SlideFields
-                  id={activeSlot.id}
-                  content={content}
-                  onChange={handleContentChange}
-                  label={hasMultipleStages ? t('screenDisplay.textSizeEditor.stageTabLabel', { number: clampedActiveStage }) : activeSlot.label}
-                  showOwnBackgroundImage
-                  resizeToFitBlocked={isResizeToFitConflict(
-                    slotFields.map((field) => field.value),
-                    activeTab as number,
-                    clampedActiveStage,
-                  )}
-                />
-
-                {screen && hasOwnTextSizeFields(content) && (
-                  <TextSizeEditor
-                    textSizes={liveTextSizes}
-                    onChange={handleLiveTextSizesChange}
-                    ownTextSizes={hasMultipleStages ? { useOwn: liveUseOwnTextSizes, onUseOwnChange: handleUseOwnTextSizesChange } : undefined}
+                  <SlideFields
+                    id={activeSlot.id}
+                    content={content}
+                    onChange={handleContentChange}
+                    label={hasMultipleStages ? t('screenDisplay.textSizeEditor.stageTabLabel', { number: clampedActiveStage }) : activeSlot.label}
+                    resizeToFitBlocked={isResizeToFitConflict(
+                      slotFields.map((field) => field.value),
+                      activeTab as number,
+                      clampedActiveStage,
+                    )}
                   />
-                )}
 
-                <BackgroundColorPicker
-                  backgroundColor={resolveSlotBackgroundColor(activeSlot.value, clampedActiveStage)}
-                  onChange={(color) =>
-                    activeSlot.onChange({ ...activeSlot.value, backgroundColor: writeStageCheckpoint(activeSlot.value.backgroundColor, clampedActiveStage, color) })
-                  }
-                  allowTransparent
-                  label={t('screenDisplay.textSizeEditor.slotColorLabel', { number: (activeTab as number) + 1 })}
-                />
+                  {screen && hasOwnTextSizeFields(content) && (
+                    <TextSizeEditor
+                      textSizes={liveTextSizes}
+                      onChange={handleLiveTextSizesChange}
+                      ownTextSizes={hasMultipleStages ? { useOwn: liveUseOwnTextSizes, onUseOwnChange: handleUseOwnTextSizesChange } : undefined}
+                    />
+                  )}
 
-                <BackgroundImagePicker
-                  id={`${activeSlot.id}-bg-image`}
-                  backgroundImage={resolveSlotBackgroundImage(activeSlot.value, clampedActiveStage)}
-                  onChange={(backgroundImage) =>
-                    activeSlot.onChange({ ...activeSlot.value, backgroundImage: writeStageCheckpoint(activeSlot.value.backgroundImage, clampedActiveStage, backgroundImage) })
-                  }
-                  label={t('admin.screens.slotBackgroundImageLabel', { number: (activeTab as number) + 1 })}
-                />
-              </>
-            )
-          })()
-        )}
-      </div>
+                  <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openSlotBackgroundEditor}>
+                    {t('admin.screens.backgroundLabel')}
+                    <span aria-hidden="true">→</span>
+                  </Button>
+                </>
+              )
+            })()
+          )}
+        </div>
 
-      <div className="screen-form__actions">
-        <Button type="button" variant="secondary" onClick={onCancel}>
-          {t('admin.common.cancel')}
-        </Button>
-        <Button type="submit">{t('admin.common.save')}</Button>
-      </div>
-    </form>
+        <div className="screen-form__actions">
+          <Button type="button" variant="secondary" onClick={onCancel}>
+            {t('admin.common.cancel')}
+          </Button>
+          <Button type="submit">{t('admin.common.save')}</Button>
+        </div>
+      </form>
+    )
+  }
+
+  return (
+    <SlideTransition viewKey={viewKey} direction={direction}>
+      {formContent}
+    </SlideTransition>
   )
 }

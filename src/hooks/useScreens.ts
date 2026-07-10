@@ -123,8 +123,23 @@ function normalizeScreen(screen: ScreenConfig): ScreenConfig {
   return normalized
 }
 
-/** Returns the live list of configured screens and a setter that persists edits to localStorage, overlaying `screens.json` until a real backend exists. */
+/**
+ * Returns the live list of configured screens and a setter that persists
+ * edits to localStorage, overlaying `screens.json` until a real backend
+ * exists. The setter also accepts an updater function (`(current) => next`,
+ * matching React's own `setState`) — `current` is normalized the same way
+ * the returned list is, since `useLocalStorage`'s own functional-update
+ * support reads a fresh but *raw* value straight from storage, which
+ * callers here (e.g. `ScreenForm`'s unmount cleanup) shouldn't have to
+ * re-normalize themselves.
+ */
 export function useScreens() {
   const [screens, setScreens] = useLocalStorage<ScreenConfig[]>(STORAGE_KEY, screensSeed as ScreenConfig[])
-  return [screens.map(normalizeScreen), setScreens] as const
+
+  const setNormalizedScreens = (update: ScreenConfig[] | ((current: ScreenConfig[]) => ScreenConfig[])) => {
+    if (typeof update === 'function') setScreens((current) => update(current.map(normalizeScreen)))
+    else setScreens(update)
+  }
+
+  return [screens.map(normalizeScreen), setNormalizedScreens] as const
 }

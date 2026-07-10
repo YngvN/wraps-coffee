@@ -1,21 +1,23 @@
-import { Checkbox, Input } from '../../components'
+import { Checkbox, ImageUploadField } from '../../components'
+import { useExtensionsConfig } from '../../hooks/useExtensionsConfig'
 import { useLanguage } from '../../i18n'
 import type { ProductCategory } from '../../types/product'
 import type { ScreenSlotContent } from '../../types/screen'
 import { CATEGORY_ORDER } from '../admin/products/categoryMeta'
 import { clampImageResizeScale, IMAGE_RESIZE_MAX_VIEWPORT_FRACTION, MAX_IMAGE_RESIZE_SCALE, MIN_IMAGE_RESIZE_SCALE } from '../../utils/screenLayout'
-import { BackgroundImagePicker } from './BackgroundImagePicker'
+import { getSmallUrl } from '../../utils/responsiveImage'
 import './SlideFields.scss'
 
-/** Encodes a slide's content as a `<select>` option value: "none", "menu", "events", "image", or "category:<key>". */
+/** Encodes a slide's content as a `<select>` option value: "none", "menu", "events", "image", "transit", "weather", or "category:<key>". */
 function contentToOptionValue(content: ScreenSlotContent): string {
   return content.kind === 'category' ? `category:${content.category}` : content.kind
 }
 
-/** Decodes a `<select>` option value back into a `ScreenSlotContent`. An "image" slide starts with an empty URL, filled in via its own field below the selector. */
+/** Decodes a `<select>` option value back into a `ScreenSlotContent`. An "image"/"transit" slide starts with an empty URL/stop id, filled in via its own field below the selector. */
 function optionValueToContent(value: string): ScreenSlotContent {
-  if (value === 'none' || value === 'menu' || value === 'events') return { kind: value }
+  if (value === 'none' || value === 'menu' || value === 'events' || value === 'weather') return { kind: value }
   if (value === 'image') return { kind: 'image', imageUrl: '' }
+  if (value === 'transit') return { kind: 'transit', stopId: '' }
   return { kind: 'category', category: value.slice('category:'.length) as ProductCategory }
 }
 
@@ -26,13 +28,6 @@ interface SlideFieldsProps {
   onChange: (content: ScreenSlotContent) => void
   /** Accessible label for the content-kind selector. */
   label: string
-  /**
-   * Shows a "use own background image" checkbox (and, when checked, its
-   * picker) — only meaningful when this slide is one of several sharing a
-   * slideshow-enabled slot, so it has its slot's own background image to
-   * opt out of in the first place.
-   */
-  showOwnBackgroundImage?: boolean
   /**
    * Disables the "Resize slot to fit image" checkbox, with an explanatory
    * tooltip, when some other slot's content already resolves to a
@@ -51,14 +46,14 @@ interface SlideFieldsProps {
  * image's aspect ratio, capped at its own resize-scale percentage of the
  * screen's viewport, defaulting to 40% but also adjustable by dragging the
  * pane's own border on the live display — see `SplitLayout`), a checkbox
- * per category when set to "Full menu"
- * (letting the full menu be split across more than one screen — each gets
- * its own subset checked), and — for a slide that's one of several in a
- * slideshow-enabled slot — a toggle to opt out of its slot's own
- * background image and use its own instead.
+ * per category when set to "Full menu" (letting the full menu be split
+ * across more than one screen — each gets its own subset checked). This
+ * slide's own background image (an override of its slot's shared one) is
+ * edited alongside the slot's own, in the "Background" sub-menu, not here.
  */
-export function SlideFields({ id, content, onChange, label, showOwnBackgroundImage, resizeToFitBlocked }: SlideFieldsProps) {
+export function SlideFields({ id, content, onChange, label, resizeToFitBlocked }: SlideFieldsProps) {
   const { t } = useLanguage()
+  const [extensionsConfig] = useExtensionsConfig()
 
   /** Starts a fresh image slide when switching the selector to "Image"; otherwise just updates the URL in place, keeping this slide's other own fields (fit, resize-to-fit, background image) intact. */
   const setImageUrl = (imageUrl: string) => {
@@ -85,6 +80,11 @@ export function SlideFields({ id, content, onChange, label, showOwnBackgroundIma
     onChange({ ...content, resizeScale: clampImageResizeScale(percent / 100) })
   }
 
+  const setTransitStopId = (stopId: string) => {
+    if (content.kind !== 'transit') return
+    onChange({ ...content, stopId })
+  }
+
   /** Toggles one category in/out of a "Full menu" slide's own `categories` — starting from every category checked (the standard, when `categories` is still absent) so unchecking the first one narrows it down from there, rather than from an empty set. */
   const toggleMenuCategory = (category: ProductCategory, checked: boolean) => {
     if (content.kind !== 'menu') return
@@ -100,6 +100,8 @@ export function SlideFields({ id, content, onChange, label, showOwnBackgroundIma
         <option value="menu">{t('admin.screens.slotMenuLabel')}</option>
         <option value="events">{t('admin.screens.slotEventsLabel')}</option>
         <option value="image">{t('admin.screens.slotImageLabel')}</option>
+        <option value="transit">{t('admin.screens.slotTransitLabel')}</option>
+        <option value="weather">{t('admin.screens.slotWeatherLabel')}</option>
         {CATEGORY_ORDER.map((category) => (
           <option key={category} value={`category:${category}`}>
             {t(`menu.categories.${category}.title`)}
@@ -109,7 +111,7 @@ export function SlideFields({ id, content, onChange, label, showOwnBackgroundIma
 
       {content.kind === 'image' && (
         <>
-          <Input id={`${id}-image-url`} label={t('admin.screens.imageUrlLabel')} value={content.imageUrl} onChange={(event) => setImageUrl(event.target.value)} />
+          <ImageUploadField id={`${id}-image-url`} value={content.imageUrl} onChange={setImageUrl} />
           <Checkbox
             id={`${id}-image-fill`}
             label={t('admin.screens.imageFillContainerLabel')}
@@ -125,15 +127,40 @@ export function SlideFields({ id, content, onChange, label, showOwnBackgroundIma
             title={resizeToFitBlocked && !content.resizeToFit ? t('admin.screens.resizeToFitBlockedTooltip') : undefined}
           />
           {content.resizeToFit && (
-            <Input
-              id={`${id}-image-resize-scale`}
-              label={t('admin.screens.resizeScaleLabel')}
-              type="number"
-              min={MIN_IMAGE_RESIZE_SCALE * 100}
-              max={MAX_IMAGE_RESIZE_SCALE * 100}
-              value={Math.round((content.resizeScale ?? IMAGE_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}
-              onChange={(event) => setImageResizeScalePercent(Number(event.target.value))}
-            />
+            <label className="slide-fields__slider">
+              <span>
+                {t('admin.screens.resizeScaleLabel')} — {Math.round((content.resizeScale ?? IMAGE_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}%
+              </span>
+              <input
+                type="range"
+                min={MIN_IMAGE_RESIZE_SCALE * 100}
+                max={MAX_IMAGE_RESIZE_SCALE * 100}
+                value={Math.round((content.resizeScale ?? IMAGE_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}
+                onChange={(event) => setImageResizeScalePercent(Number(event.target.value))}
+              />
+            </label>
+          )}
+
+          {content.imageUrl && (
+            <div className="slide-fields__preview">
+              <span className="slide-fields__preview-label">{t('admin.screens.imagePreviewLabel')}</span>
+              <div className="slide-fields__preview-screen">
+                <img
+                  src={getSmallUrl(content.imageUrl)}
+                  alt=""
+                  className="slide-fields__preview-image"
+                  style={
+                    content.resizeToFit
+                      ? {
+                          maxWidth: `${Math.round((content.resizeScale ?? IMAGE_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}%`,
+                          maxHeight: `${Math.round((content.resizeScale ?? IMAGE_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}%`,
+                          objectFit: 'contain',
+                        }
+                      : { width: '100%', height: '100%', objectFit: content.fit === 'cover' ? 'cover' : 'contain' }
+                  }
+                />
+              </div>
+            </div>
           )}
         </>
       )}
@@ -153,19 +180,21 @@ export function SlideFields({ id, content, onChange, label, showOwnBackgroundIma
         </div>
       )}
 
-      {showOwnBackgroundImage && (
-        <>
-          <Checkbox
-            id={`${id}-own-bg-image`}
-            label={t('admin.screens.useOwnBackgroundImageLabel')}
-            checked={Boolean(content.useOwnBackgroundImage)}
-            onChange={(event) => onChange({ ...content, useOwnBackgroundImage: event.target.checked })}
-          />
-          {content.useOwnBackgroundImage && (
-            <BackgroundImagePicker id={`${id}-bg-image`} backgroundImage={content.backgroundImage} onChange={(backgroundImage) => onChange({ ...content, backgroundImage })} />
-          )}
-        </>
-      )}
+      {content.kind === 'transit' &&
+        (extensionsConfig.transit.selectedStops.length > 0 ? (
+          <select aria-label={t('admin.screens.transitStopLabel')} value={content.stopId ?? ''} onChange={(event) => setTransitStopId(event.target.value)}>
+            <option value="" disabled>
+              {t('admin.screens.transitStopLabel')}
+            </option>
+            {extensionsConfig.transit.selectedStops.map((stop) => (
+              <option key={stop.id} value={stop.id}>
+                {stop.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <p className="slide-fields__hint">{t('admin.screens.transitNoStopsConfiguredLabel')}</p>
+        ))}
     </div>
   )
 }

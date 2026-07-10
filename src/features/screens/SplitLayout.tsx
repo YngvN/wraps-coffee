@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLanguage } from '../../i18n'
 import type { RatioField, ScreenConfig, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
 import { backgroundImageTextStyle, slotBackgroundColorStyle } from '../../utils/screenColors'
+import { pickImageVariant } from '../../utils/responsiveImage'
 import {
   applyRatioOverrides,
   CENTER_RATIO,
@@ -390,7 +391,7 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forc
               exit={{ opacity: 0 }}
               transition={transition}
             >
-              <div className="split-layout__pane-bg-image" style={{ backgroundImage: `url(${backgroundImage.imageUrl})` }} />
+              <div className="split-layout__pane-bg-image" style={{ backgroundImage: `url(${pickImageVariant(backgroundImage.imageUrl)})` }} />
               {backgroundImage.overlay !== 'none' && <div className={`split-layout__pane-bg-overlay split-layout__pane-bg-overlay--${backgroundImage.overlay}`} />}
             </motion.div>
           )}

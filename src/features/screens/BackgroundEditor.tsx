@@ -1,3 +1,4 @@
+import { useLanguage } from '../../i18n'
 import type { BackgroundImage } from '../../types/screen'
 import { BackgroundColorPicker } from './BackgroundColorPicker'
 import { BackgroundImagePicker } from './BackgroundImagePicker'
@@ -20,9 +21,12 @@ interface BackgroundEditorProps {
  * the way the text-size scaler's own edits have.
  */
 export function BackgroundEditor({ backgroundColor, onBackgroundColorChange, backgroundImage, onBackgroundImageChange }: BackgroundEditorProps) {
+  const { t } = useLanguage()
+
   return (
     <div className="background-editor">
       <BackgroundColorPicker backgroundColor={backgroundColor} onChange={(color) => color !== undefined && onBackgroundColorChange(color)} />
+      <span className="background-editor__image-label">{t('screenDisplay.textSizeEditor.backgroundImageLabel')}</span>
       <BackgroundImagePicker id="screen-background-image" backgroundImage={backgroundImage} onChange={onBackgroundImageChange} />
     </div>
   )

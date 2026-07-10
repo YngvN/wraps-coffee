@@ -18,7 +18,9 @@
 }
 
 .admin-sidebar-nav__link {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
   padding: $spacing-unit calc($spacing-unit * 1.5);
   border-radius: 8px;
   color: $color-text-muted;
@@ -43,6 +45,12 @@
   }
 }
 
+.admin-sidebar-nav__icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
 .admin-sidebar-nav__footer {
   display: flex;
   align-items: center;
@@ -53,9 +61,15 @@
 }
 
 .admin-sidebar-nav__back {
+  border: none;
+  background: none;
+  padding: 0;
   color: $color-text-muted;
   text-decoration: none;
+  font-family: inherit;
   font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
 
   @media (hover: hover) {
     &:hover {

@@ -37,7 +37,6 @@ function standardSnapshotFrom(slots: ScreenConfig['slots']): SizeSnapshot {
     content:
       mapTimelineValues(slot.content, (content) => ({
         ...(hasOwnTextSizeFields(content) && content.useOwnTextSizes ? { ...content, textSizes: DEFAULT_TEXT_SIZES } : content),
-        useOwnBackgroundImage: false,
         backgroundImage: undefined,
       })) ?? slot.content,
   })) as unknown as ScreenConfig['slots']

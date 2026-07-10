@@ -30,3 +30,54 @@
   font-size: 0.875rem;
   font-weight: 600;
 }
+
+.slide-fields__slider {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  font-size: 0.875rem;
+  font-weight: 600;
+
+  input[type='range'] {
+    width: 100%;
+  }
+}
+
+.slide-fields__preview {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+}
+
+.slide-fields__preview-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+// Represents the whole screen (16:9, matching the kiosk display's own
+// typical shape) — the image inside is sized/fit exactly as it would be on
+// the real display, so this box is what "how big"/"fill or not" are shown
+// relative to.
+.slide-fields__preview-screen {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 280px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  background: $color-surface;
+}
+
+.slide-fields__preview-image {
+  display: block;
+}
+
+.slide-fields__hint {
+  margin: 0;
+  color: $color-text-muted;
+  font-size: 0.875rem;
+}

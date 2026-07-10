@@ -12,9 +12,8 @@ export interface BackgroundImage {
   overlay: BackgroundImageOverlay
 }
 
-/** Shared by every `ScreenSlotContent` variant: lets one slide opt out of its slot's own `backgroundImage` and use its own instead. */
+/** Shared by every `ScreenSlotContent` variant: lets one slide opt out of its slot's own `backgroundImage` and use its own instead — set, simply by providing one, no separate opt-in flag needed. */
 interface OwnBackgroundImageFields {
-  useOwnBackgroundImage?: boolean
   backgroundImage?: BackgroundImage
 }
 
@@ -42,8 +41,15 @@ interface OwnBackgroundImageFields {
  * display, the same handles an arrangement's own dividers use — both axes
  * always move together from this one shared value, so the image's own
  * aspect ratio stays locked no matter which border is dragged. Every
- * kind can independently opt out of its slot's own `backgroundImage` via
- * `useOwnBackgroundImage`, regardless of whether it has text of its own.
+ * kind can independently opt out of its slot's own `backgroundImage` by
+ * setting its own `backgroundImage`, regardless of whether it has text of
+ * its own. Two further kinds are backed by live external data rather than
+ * admin-authored content, configured from the admin's Extensions tab (see
+ * `useExtensionsConfig`): `'transit'` shows real-time departures from one
+ * of the cafe's configured nearby stops (`stopId`, referencing
+ * `ExtensionsConfig['transit']['selectedStops']`), and `'weather'` shows an
+ * hourly forecast for the cafe's own address — neither renders anything
+ * (see `TransitSlide`/`WeatherSlide`) unless its integration is enabled.
  */
 export type ScreenSlotContent =
   | ({ kind: 'none' } & OwnBackgroundImageFields)
@@ -51,6 +57,8 @@ export type ScreenSlotContent =
   | ({ kind: 'menu'; categories?: ProductCategory[]; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({ kind: 'events'; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({ kind: 'image'; imageUrl: string; fit?: ImageFit; resizeToFit?: boolean; resizeScale?: number } & OwnBackgroundImageFields)
+  | ({ kind: 'transit'; stopId?: string; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
+  | ({ kind: 'weather'; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
 
 /**
  * A sparse per-stage "checkpoint" map for one field's value — only stages
@@ -83,7 +91,7 @@ export interface ScreenSlot {
   content: StageTimeline<ScreenSlotContent>
   /** This slot's own background color (hex, from `SCREEN_BACKGROUND_COLORS`) timeline, independent of the screen's own. An entry's value may itself be `undefined` (explicitly transparent at that stage, showing the screen's own background through) — distinct from no entry at all at that stage (inherit from an earlier one). */
   backgroundColor: StageTimeline<string | undefined>
-  /** This slot's own background image (blurred, scaled to cover the pane) timeline, shown behind whichever content is currently active. A slide with `useOwnBackgroundImage` set overrides this one just for itself. */
+  /** This slot's own background image (blurred, scaled to cover the pane) timeline, shown behind whichever content is currently active. A slide with its own `backgroundImage` set overrides this one just for itself. */
   backgroundImage: StageTimeline<BackgroundImage | undefined>
   /** This slot's own shared/fallback text size timeline — replaces the old screen-level `slotTextSizes`. Falls back to the screen's own `textSizes` (then `DEFAULT_TEXT_SIZES`) at any stage without an entry. */
   textSizes: StageTimeline<TextSizes | undefined>

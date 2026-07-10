@@ -1,18 +1,23 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
-import { useLocation, useOutlet } from 'react-router-dom'
+import { Navigate, useLocation, useOutlet } from 'react-router-dom'
+import { useAdminSession } from '../../../hooks/useAdminSession'
 import { AdminSidebarNav } from './AdminSidebarNav'
 import './AdminDashboard.scss'
 
 /**
  * Shell for the whole `/admin/dashboard/*` section: a sidebar nav (persistent
  * on desktop, a hamburger-triggered slide-in overlay on mobile) and the
- * matched child view, cross-fading between views on navigation.
+ * matched child view, cross-fading between views on navigation. Redirects to
+ * the login screen if there's no valid session.
  */
 export function AdminDashboard() {
+  const { session } = useAdminSession()
   const location = useLocation()
   const outlet = useOutlet()
   const [isSidebarOpen, setSidebarOpen] = useState(false)
+
+  if (!session) return <Navigate to="/admin/login" replace />
 
   return (
     <div className="admin-dashboard">

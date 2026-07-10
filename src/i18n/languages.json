@@ -408,7 +408,10 @@
           "title": "Owner login",
           "usernameLabel": "Username",
           "passwordLabel": "Password",
-          "submit": "Sign in"
+          "submit": "Sign in",
+          "submitting": "Signing in...",
+          "error": "Invalid username or password.",
+          "serverUnreachable": "Could not reach the local server. Is it running?"
         },
         "nav": {
           "overview": "Overview",
@@ -420,7 +423,10 @@
           "contact": "Contact info",
           "orders": "Orders",
           "screens": "Screens",
-          "backToSite": "Back to site"
+          "extensions": "Extensions",
+          "logout": "Log out",
+          "images": "Images",
+          "settings": "Settings"
         },
         "overview": {
           "title": "Overview",
@@ -473,8 +479,7 @@
           "priceLabel": "Price",
           "repeatsWeeklyLabel": "Repeats weekly",
           "dayOfWeekLabel": "Day of week",
-          "statusLabel": "Status",
-          "imageUrlLabel": "Image URL"
+          "statusLabel": "Status"
         },
         "reviews": {
           "title": "Reviews",
@@ -530,7 +535,7 @@
           "nameLabel": "Name",
           "defaultNamePrefix": "Screen",
           "globalTabLabel": "Global",
-          "slotCountLabel": "Number of slots",
+          "slotCountLabel": "Layout",
           "slotCountBadgeOne": "1 slot",
           "slotCountBadge": "{{count}} slots",
           "slot1Label": "Slot 1",
@@ -542,13 +547,17 @@
           "menuCategoriesLabel": "Categories to include",
           "slotEventsLabel": "Upcoming events",
           "slotImageLabel": "Image",
-          "imageUrlLabel": "Image URL",
           "imageFillContainerLabel": "Fill container (crop to fit)",
           "resizeToFitImageLabel": "Resize slot to fit image",
           "resizeToFitBlockedTooltip": "Already used to fit another slot at this stage",
           "resizeScaleLabel": "Image size (% of screen)",
-          "useOwnBackgroundImageLabel": "Use own background image for this slide",
-          "slotBackgroundImageLabel": "Slot {{number}} background image",
+          "slotTransitLabel": "Transit departures",
+          "transitStopLabel": "Stop",
+          "transitNoStopsConfiguredLabel": "No stops configured — set them up in Extensions",
+          "transitNoDeparturesLabel": "No upcoming departures right now.",
+          "transitMinutesLabel": "in {{minutes}} min",
+          "slotWeatherLabel": "Weather",
+          "weatherNotConfiguredLabel": "Weather isn't configured yet — set it up in Extensions.",
           "slideDurationLabel": "Seconds per stage",
           "transitionStyleLabel": "Transition",
           "transitionFadeLabel": "Fade",
@@ -583,7 +592,8 @@
           "openInNewTab": "Open",
           "urlCopied": "Link copied",
           "noScreens": "No screens yet.",
-          "duplicateName": "{{name}} copy"
+          "duplicateName": "{{name}} copy",
+          "imagePreviewLabel": "Preview"
         },
         "common": {
           "save": "Save",
@@ -595,6 +605,38 @@
           "done": "Done",
           "back": "Back",
           "confirmDelete": "Are you sure you want to delete this?"
+        },
+        "imageLibrary": {
+          "title": "Image library",
+          "empty": "No images uploaded yet.",
+          "error": "Could not load the image library.",
+          "addButton": "Add image",
+          "dropHint": "Drop images to upload",
+          "uploadError": "One or more images failed to upload."
+        },
+        "settings": {
+          "title": "Settings",
+          "languageLabel": "Language",
+          "sidebarItemsTitle": "Sidebar items",
+          "sidebarItemsHint": "Turn off anything this cafe doesn't use — hidden items are removed from the sidebar entirely, for everyone, until turned back on here."
+        },
+        "extensions": {
+          "title": "Extensions",
+          "lookupButton": "Look up address",
+          "lookupButtonLoading": "Looking up...",
+          "lookupError": "Could not look up this address. Check the local server is running and try again.",
+          "addressChangedNotice": "The Contact info address has changed since this was last looked up — look it up again to refresh nearby stops and coordinates.",
+          "noLookupYetHint": "Look up the cafe's address (set in Contact info) to enable weather and transit.",
+          "coordinatesLabel": "Coordinates: {{lat}}, {{lon}}",
+          "weatherTitle": "Weather (Yr)",
+          "weatherEnableLabel": "Enable weather forecast",
+          "forecastHoursLabel": "Forecast hours ahead",
+          "needsLookupHint": "Look up the address above first.",
+          "transitTitle": "Transit departures (Ruter)",
+          "transitEnableLabel": "Enable transit departures",
+          "departureCountLabel": "Departures to show",
+          "nearbyStopsLabel": "Nearby stops",
+          "noStopsFoundHint": "No nearby stops found for this address."
         }
       },
       "screenDisplay": {
@@ -625,7 +667,6 @@
           "title": "Appearance",
           "backgroundColorLabel": "Background color",
           "transparentLabel": "Transparent",
-          "slotColorLabel": "Slot {{number}} color",
           "colors": {
             "white": "White",
             "cream": "Cream",
@@ -635,7 +676,6 @@
             "burgundy": "Burgundy",
             "lime": "Lime"
           },
-          "backgroundImageLabel": "Background image",
           "backgroundImageOverlay": {
             "none": "None",
             "light": "Lighten",
@@ -658,8 +698,24 @@
           "presetSaved": "Preset saved",
           "reset": "Reset",
           "restorePrevious": "Restore previous",
-          "done": "Done"
+          "done": "Done",
+          "backgroundImageLabel": "Background image",
+          "slotLabel": "Slot {{number}}",
+          "ownBackgroundImageLabel": "This slide's own background image"
         }
+      },
+      "imageUpload": {
+        "uploadButton": "Upload image",
+        "uploading": "Uploading...",
+        "replaceButton": "Replace",
+        "error": "Upload failed. Please try again.",
+        "noSession": "Log in to upload images.",
+        "sessionExpired": "Your session has expired. Please log in again.",
+        "useStoredButton": "Use stored image",
+        "useUrlButton": "Use URL",
+        "dropHint": "Drop image to upload",
+        "removeButton": "Remove",
+        "dragToReplace": "Drag and drop to replace"
       }
     }
   },
@@ -1072,7 +1128,10 @@
           "title": "Eierinnlogging",
           "usernameLabel": "Brukernavn",
           "passwordLabel": "Passord",
-          "submit": "Logg inn"
+          "submit": "Logg inn",
+          "submitting": "Logger inn...",
+          "error": "Feil brukernavn eller passord.",
+          "serverUnreachable": "Fant ikke den lokale serveren. Kjører den?"
         },
         "nav": {
           "overview": "Oversikt",
@@ -1084,7 +1143,10 @@
           "contact": "Kontaktinfo",
           "orders": "Bestillinger",
           "screens": "Skjermer",
-          "backToSite": "Tilbake til nettsiden"
+          "extensions": "Utvidelser",
+          "logout": "Logg ut",
+          "images": "Bilder",
+          "settings": "Innstillinger"
         },
         "overview": {
           "title": "Oversikt",
@@ -1137,8 +1199,7 @@
           "priceLabel": "Pris",
           "repeatsWeeklyLabel": "Gjentas ukentlig",
           "dayOfWeekLabel": "Ukedag",
-          "statusLabel": "Status",
-          "imageUrlLabel": "Bilde-URL"
+          "statusLabel": "Status"
         },
         "reviews": {
           "title": "Anmeldelser",
@@ -1194,7 +1255,7 @@
           "nameLabel": "Navn",
           "defaultNamePrefix": "Skjerm",
           "globalTabLabel": "Generelt",
-          "slotCountLabel": "Antall felt",
+          "slotCountLabel": "Oppsett",
           "slotCountBadgeOne": "1 felt",
           "slotCountBadge": "{{count}} felt",
           "slot1Label": "Plass 1",
@@ -1206,13 +1267,17 @@
           "menuCategoriesLabel": "Kategorier som skal vises",
           "slotEventsLabel": "Kommende arrangementer",
           "slotImageLabel": "Bilde",
-          "imageUrlLabel": "Bilde-URL",
           "imageFillContainerLabel": "Fyll beholder (beskjær for å tilpasse)",
           "resizeToFitImageLabel": "Tilpass feltet til bildet",
           "resizeToFitBlockedTooltip": "Allerede brukt til å tilpasse et annet felt på dette stadiet",
           "resizeScaleLabel": "Bildestørrelse (% av skjermen)",
-          "useOwnBackgroundImageLabel": "Bruk eget bakgrunnsbilde for dette lysbildet",
-          "slotBackgroundImageLabel": "Bakgrunnsbilde for felt {{number}}",
+          "slotTransitLabel": "Avganger",
+          "transitStopLabel": "Stopp",
+          "transitNoStopsConfiguredLabel": "Ingen stopp konfigurert — sett dem opp under Utvidelser",
+          "transitNoDeparturesLabel": "Ingen kommende avganger akkurat nå.",
+          "transitMinutesLabel": "om {{minutes}} min",
+          "slotWeatherLabel": "Vær",
+          "weatherNotConfiguredLabel": "Vær er ikke satt opp ennå — sett det opp under Utvidelser.",
           "slideDurationLabel": "Sekunder per stadie",
           "transitionStyleLabel": "Overgang",
           "transitionFadeLabel": "Ton",
@@ -1247,7 +1312,8 @@
           "openInNewTab": "Åpne",
           "urlCopied": "Lenke kopiert",
           "noScreens": "Ingen skjermer ennå.",
-          "duplicateName": "{{name}} kopi"
+          "duplicateName": "{{name}} kopi",
+          "imagePreviewLabel": "Forhåndsvisning"
         },
         "common": {
           "save": "Lagre",
@@ -1259,6 +1325,38 @@
           "done": "Ferdig",
           "back": "Tilbake",
           "confirmDelete": "Er du sikker på at du vil slette dette?"
+        },
+        "imageLibrary": {
+          "title": "Bildebibliotek",
+          "empty": "Ingen bilder er lastet opp ennå.",
+          "error": "Kunne ikke laste inn bildebiblioteket.",
+          "addButton": "Legg til bilde",
+          "dropHint": "Slipp bilder for å laste opp",
+          "uploadError": "Ett eller flere bilder kunne ikke lastes opp."
+        },
+        "settings": {
+          "title": "Innstillinger",
+          "languageLabel": "Språk",
+          "sidebarItemsTitle": "Elementer i sidemenyen",
+          "sidebarItemsHint": "Skru av det denne kafeen ikke bruker — skjulte elementer fjernes helt fra sidemenyen, for alle, helt til de skrus på igjen her."
+        },
+        "extensions": {
+          "title": "Utvidelser",
+          "lookupButton": "Slå opp adresse",
+          "lookupButtonLoading": "Slår opp...",
+          "lookupError": "Kunne ikke slå opp denne adressen. Sjekk at den lokale serveren kjører, og prøv igjen.",
+          "addressChangedNotice": "Adressen i Kontaktinfo er endret siden sist dette ble slått opp — slå opp på nytt for å oppdatere koordinater og stopp i nærheten.",
+          "noLookupYetHint": "Slå opp kafeens adresse (satt i Kontaktinfo) for å aktivere vær og kollektivtransport.",
+          "coordinatesLabel": "Koordinater: {{lat}}, {{lon}}",
+          "weatherTitle": "Vær (Yr)",
+          "weatherEnableLabel": "Aktiver værmelding",
+          "forecastHoursLabel": "Antall timer fremover",
+          "needsLookupHint": "Slå opp adressen over først.",
+          "transitTitle": "Avganger (Ruter)",
+          "transitEnableLabel": "Aktiver avganger",
+          "departureCountLabel": "Antall avganger å vise",
+          "nearbyStopsLabel": "Stopp i nærheten",
+          "noStopsFoundHint": "Fant ingen stopp i nærheten av denne adressen."
         }
       },
       "screenDisplay": {
@@ -1289,7 +1387,6 @@
           "title": "Utseende",
           "backgroundColorLabel": "Bakgrunnsfarge",
           "transparentLabel": "Gjennomsiktig",
-          "slotColorLabel": "Farge for felt {{number}}",
           "colors": {
             "white": "Hvit",
             "cream": "Krem",
@@ -1299,7 +1396,6 @@
             "burgundy": "Bordeaux",
             "lime": "Lime"
           },
-          "backgroundImageLabel": "Bakgrunnsbilde",
           "backgroundImageOverlay": {
             "none": "Ingen",
             "light": "Lysne",
@@ -1322,8 +1418,24 @@
           "presetSaved": "Forhåndsinnstilling lagret",
           "reset": "Tilbakestill",
           "restorePrevious": "Gjenopprett forrige",
-          "done": "Ferdig"
+          "done": "Ferdig",
+          "backgroundImageLabel": "Bakgrunnsbilde",
+          "slotLabel": "Felt {{number}}",
+          "ownBackgroundImageLabel": "Eget bakgrunnsbilde for dette lysbildet"
         }
+      },
+      "imageUpload": {
+        "uploadButton": "Last opp bilde",
+        "uploading": "Laster opp...",
+        "replaceButton": "Erstatt",
+        "error": "Opplasting feilet. Prøv igjen.",
+        "noSession": "Logg inn for å laste opp bilder.",
+        "sessionExpired": "Økten din har utløpt. Vennligst logg inn igjen.",
+        "useStoredButton": "Bruk lagret bilde",
+        "useUrlButton": "Bruk URL",
+        "dropHint": "Slipp bilde for å laste opp",
+        "removeButton": "Fjern",
+        "dragToReplace": "Dra og slipp for å erstatte"
       }
     }
   }

@@ -8,6 +8,15 @@ interface ModalProps {
   title?: string
   /** The current sub-view's own name, shown right after `title` in regular weight (vs. the title's bold), separated by " - " — e.g. "Edit screen - Resize panes". Omit while showing the modal's own top-level content, with no sub-view open. */
   route?: string
+  /**
+   * Whether dragging a slider inside this modal turns it (and the backdrop)
+   * transparent — on by default, since that's what lets the on-screen
+   * text-size editor's sliders be watched live against the actual display
+   * behind the sheet. Set to `false` for a modal with nothing relevant
+   * behind it to peek through to (e.g. the admin dashboard's own screen
+   * editor, which just sits over a list of other screens).
+   */
+  transparentOnSliderDrag?: boolean
   children: ReactNode
 }
 
@@ -29,12 +38,16 @@ const CLOSE_VELOCITY_THRESHOLD = 500
  * bottom edge can never leave the bottom of the screen, so no gap ever
  * opens up beneath it while it's being dragged. While the user is actively
  * dragging any `<input type="range">` inside it (detected by listening for
- * a pointer going down on one, not by any prop a caller has to pass in),
- * both the backdrop and the sheet's own background turn transparent, so a
- * slider that's changing something on the page behind the modal (e.g. the
- * on-screen text-size editor) can be watched live instead of hidden behind
- * it — snapping back to normal as soon as the pointer's released, wherever
- * that happens to be. The sheet itself (`.modal`) only clips to its own
+ * a pointer going down on one, not by any prop other than
+ * `transparentOnSliderDrag` itself), both the backdrop and the sheet's own
+ * background turn transparent, so a slider that's changing something on the
+ * page behind the modal (e.g. the on-screen text-size editor) can be
+ * watched live instead of hidden behind it — snapping back to normal as
+ * soon as the pointer's released, wherever that happens to be. A caller
+ * with nothing relevant behind its own modal to peek through to (e.g. the
+ * admin dashboard's screen editor, which just sits over a list of other
+ * screens) passes `transparentOnSliderDrag={false}` to skip this entirely.
+ * The sheet itself (`.modal`) only clips to its own
  * rounded shape (`overflow: hidden`) and never scrolls directly — scrolling
  * happens on an inner wrapper (`.modal__scroll`) below the header instead,
  * so the native scrollbar renders as a plain rectangle inset from the
@@ -54,7 +67,7 @@ const CLOSE_VELOCITY_THRESHOLD = 500
  * currently open one right after the title in regular weight, e.g. "Edit
  * screen - Resize panes".
  */
-export function Modal({ open, onClose, title, route, children }: ModalProps) {
+export function Modal({ open, onClose, title, route, transparentOnSliderDrag = true, children }: ModalProps) {
   const [isDraggingSlider, setIsDraggingSlider] = useState(false)
   const dragControls = useDragControls()
 
@@ -82,6 +95,7 @@ export function Modal({ open, onClose, title, route, children }: ModalProps) {
   }, [isDraggingSlider])
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (!transparentOnSliderDrag) return
     const target = event.target as HTMLElement
     if (target instanceof HTMLInputElement && target.type === 'range') setIsDraggingSlider(true)
   }

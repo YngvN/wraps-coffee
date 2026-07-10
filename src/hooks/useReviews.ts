@@ -1,5 +1,5 @@
 import reviewsSeed from '../data/reviews.json'
-import type { Review } from '../components/ReviewCarousel'
+import type { Review } from '../types/review'
 import { useLocalStorage } from './useLocalStorage'
 
 const STORAGE_KEY = 'admin.reviews'

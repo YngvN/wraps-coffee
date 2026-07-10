@@ -1,4 +1,4 @@
-import { Input } from '../../components'
+import { ImageUploadField } from '../../components'
 import { useLanguage } from '../../i18n'
 import type { BackgroundImage, BackgroundImageOverlay } from '../../types/screen'
 import './BackgroundImagePicker.scss'
@@ -10,8 +10,6 @@ interface BackgroundImagePickerProps {
   id: string
   backgroundImage: BackgroundImage | undefined
   onChange: (backgroundImage: BackgroundImage | undefined) => void
-  /** Overrides the generic "Background image" label — used to distinguish a specific slot's own picker from a slide's own. */
-  label?: string
 }
 
 /**
@@ -23,7 +21,7 @@ interface BackgroundImagePickerProps {
  * text, darkening with white (see `backgroundImageTextStyle`). Clearing the
  * URL field removes the image entirely instead of leaving an empty one.
  */
-export function BackgroundImagePicker({ id, backgroundImage, onChange, label }: BackgroundImagePickerProps) {
+export function BackgroundImagePicker({ id, backgroundImage, onChange }: BackgroundImagePickerProps) {
   const { t } = useLanguage()
 
   const setImageUrl = (imageUrl: string) => {
@@ -41,12 +39,7 @@ export function BackgroundImagePicker({ id, backgroundImage, onChange, label }: 
 
   return (
     <div className="background-image-picker">
-      <Input
-        id={`${id}-url`}
-        label={label ?? t('screenDisplay.textSizeEditor.backgroundImageLabel')}
-        value={backgroundImage?.imageUrl ?? ''}
-        onChange={(event) => setImageUrl(event.target.value)}
-      />
+      <ImageUploadField id={`${id}-url`} value={backgroundImage?.imageUrl ?? ''} onChange={setImageUrl} />
       {backgroundImage && (
         <div className="background-image-picker__overlays">
           {OVERLAYS.map((overlay) => (

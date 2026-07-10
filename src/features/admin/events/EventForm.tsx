@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Button, Checkbox, Input, Textarea } from '../../../components'
+import { Button, Checkbox, ImageUploadField, Input, Textarea } from '../../../components'
 import { useLanguage } from '../../../i18n'
 import type { EventRecord } from '../../../utils/events'
 import './EventForm.scss'
@@ -107,7 +107,7 @@ export function EventForm({ event, onSave, onCancel }: EventFormProps) {
           onChange={(e) => setCapacity(Number(e.target.value))}
         />
         <Input id="event-price" label={t('admin.events.priceLabel')} type="number" min={0} value={price} onChange={(e) => setPrice(Number(e.target.value))} />
-        <Input id="event-image-url" label={t('admin.events.imageUrlLabel')} value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+        <ImageUploadField id="event-image-url" value={imageUrl} onChange={setImageUrl} />
       </div>
 
       <div className="event-form__recurrence">

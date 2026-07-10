@@ -1,4 +1,5 @@
 import type { ImageFit } from '../../types/screen'
+import { pickImageVariant } from '../../utils/responsiveImage'
 import './ImageSlide.scss'
 
 interface ImageSlideProps {
@@ -13,7 +14,7 @@ interface ImageSlideProps {
 export function ImageSlide({ imageUrl, fit = 'contain', resizeToFit }: ImageSlideProps) {
   return (
     <div className={`image-slide${fit === 'cover' ? ' image-slide--cover' : ''}${resizeToFit ? ' image-slide--resize-to-fit' : ''}`}>
-      {imageUrl && <img className="image-slide__image" src={imageUrl} alt="" />}
+      {imageUrl && <img className="image-slide__image" src={pickImageVariant(imageUrl)} alt="" />}
     </div>
   )
 }
