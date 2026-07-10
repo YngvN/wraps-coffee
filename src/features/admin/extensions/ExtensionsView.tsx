@@ -1,11 +1,27 @@
 import { useState } from 'react'
-import { Alert, Button, Card, Checkbox, Input, TranslatedText } from '../../../components'
+import { Alert, Button, Card, Checkbox, Input, Modal, TranslatedText } from '../../../components'
 import { useContactInfo } from '../../../hooks/useContactInfo'
 import { useExtensionsConfig } from '../../../hooks/useExtensionsConfig'
 import { useLanguage } from '../../../i18n'
 import { lookupAddress } from '../../../lib/localServer'
 import type { NearbyStop } from '../../../types/extensions'
+import { TransitModeIcon } from '../../screens/TransitModeIcon'
 import './ExtensionsView.scss'
+
+/** Every Entur `TransportMode` value `TransitModeIcon` recognizes, paired with its own i18n label — shown as a legend in the "View transit icons" modal so the admin can see what each glyph on a live departures slide means. */
+const TRANSIT_MODES: { mode: string; labelKey: string }[] = [
+  { mode: 'bus', labelKey: 'admin.extensions.transitModeBus' },
+  { mode: 'coach', labelKey: 'admin.extensions.transitModeCoach' },
+  { mode: 'tram', labelKey: 'admin.extensions.transitModeTram' },
+  { mode: 'rail', labelKey: 'admin.extensions.transitModeRail' },
+  { mode: 'metro', labelKey: 'admin.extensions.transitModeMetro' },
+  { mode: 'water', labelKey: 'admin.extensions.transitModeWater' },
+  { mode: 'air', labelKey: 'admin.extensions.transitModeAir' },
+  { mode: 'cableway', labelKey: 'admin.extensions.transitModeCableway' },
+  { mode: 'funicular', labelKey: 'admin.extensions.transitModeFunicular' },
+  { mode: 'lift', labelKey: 'admin.extensions.transitModeLift' },
+  { mode: 'unknown', labelKey: 'admin.extensions.transitModeUnknown' },
+]
 
 /**
  * Admin view for the two live-data screen-slot kinds: real-time transit
@@ -26,6 +42,7 @@ export function ExtensionsView() {
   const [config, setConfig] = useExtensionsConfig()
   const [isLookingUp, setIsLookingUp] = useState(false)
   const [lookupError, setLookupError] = useState<string | null>(null)
+  const [transitIconsOpen, setTransitIconsOpen] = useState(false)
 
   const addressLookup = config.addressLookup
   const isStale = addressLookup !== undefined && addressLookup.address !== contactInfo.address
@@ -93,6 +110,9 @@ export function ExtensionsView() {
           onChange={(event) => setConfig({ ...config, transit: { ...config.transit, enabled: event.target.checked } })}
         />
         {!addressLookup?.nearbyStops.length && <p className="extensions-view__hint">{t('admin.extensions.needsLookupHint')}</p>}
+        <Button type="button" variant="secondary" onClick={() => setTransitIconsOpen(true)}>
+          {t('admin.extensions.transitIconsButton')}
+        </Button>
         {config.transit.enabled && (
           <>
             <Input
@@ -124,6 +144,17 @@ export function ExtensionsView() {
           </>
         )}
       </Card>
+
+      <Modal open={transitIconsOpen} onClose={() => setTransitIconsOpen(false)} title={t('admin.extensions.transitIconsTitle')} transparentOnSliderDrag={false}>
+        <ul className="extensions-view__mode-icons">
+          {TRANSIT_MODES.map(({ mode, labelKey }) => (
+            <li key={mode} className="extensions-view__mode-icon-item">
+              <TransitModeIcon mode={mode} className="extensions-view__mode-icon" />
+              <span>{t(labelKey)}</span>
+            </li>
+          ))}
+        </ul>
+      </Modal>
     </div>
   )
 }

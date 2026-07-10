@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useExtensionsConfig } from '../../hooks/useExtensionsConfig'
 import { useTransitDepartures } from '../../hooks/useTransitDepartures'
 import { useLanguage } from '../../i18n'
+import { TransitModeIcon } from './TransitModeIcon'
 import './TransitSlide.scss'
 
 interface TransitSlideProps {
@@ -43,6 +44,7 @@ export function TransitSlide({ stopId }: TransitSlideProps) {
             const minutesUntil = Math.max(0, Math.round((new Date(departure.expectedDepartureTime).getTime() - now) / 60_000))
             return (
               <li key={`${departure.line}-${departure.destination}-${departure.expectedDepartureTime}`} className="transit-slide__item">
+                <TransitModeIcon mode={departure.mode} className="transit-slide__mode-icon" />
                 <span className="transit-slide__line">{departure.line}</span>
                 <span className="transit-slide__destination">{departure.destination}</span>
                 <span className="transit-slide__time">{t('admin.screens.transitMinutesLabel', { minutes: minutesUntil })}</span>

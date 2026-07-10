@@ -51,6 +51,13 @@
   gap: $spacing-unit * 2;
 }
 
+.transit-slide__mode-icon {
+  flex-shrink: 0;
+  align-self: center;
+  font-size: 1.2em;
+  color: var(--screen-text-muted);
+}
+
 .transit-slide__line {
   min-width: 3ch;
   padding: calc($spacing-unit / 4) calc($spacing-unit * 0.75);

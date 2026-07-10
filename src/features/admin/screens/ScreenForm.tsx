@@ -44,7 +44,7 @@ interface ScreenFormProps {
   screen: ScreenConfig | null
   onSave: (screen: ScreenConfig) => void
   onCancel: () => void
-  /** Reports this form's own currently open sub-view by name (e.g. "Resize panes"), or `undefined` while showing its main tabbed content — lets the parent's `Modal` show it as a "Edit screen - Resize panes" breadcrumb next to its title. */
+  /** Reports this form's own currently open sub-view by name (e.g. "Resize slots"), or `undefined` while showing its main tabbed content — lets the parent's `Modal` show it as a "Edit screen - Resize slots" breadcrumb next to its title. */
   onRouteChange?: (route: string | undefined) => void
   /**
    * Reports every switch of the outer tab (see `handleSelectTab`) — including
@@ -94,7 +94,7 @@ function nextDefaultScreenName(screens: ScreenConfig[], prefix: string): string 
  * arrows nudging whichever pane divider each one controls 1% at a time (the
  * exact same fields the live display's own draggable dividers adjust, so
  * either one stays in sync with the other), whether/what color the borders
- * between panes use, a "Stages" panel (whether/how many shared stages every
+ * between panes use, a "Steps" panel (whether/how many shared stages every
  * slot advances through together, the rotation timer, and the transition
  * animation), and — one tab per slot, so each gets its own room — that
  * slot's own content, background color/image, and shared/fallback text
@@ -116,11 +116,11 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
   const { t } = useLanguage()
   const [screens, setScreens] = useScreens()
   const [screensaverSchedule] = useScreensaverSchedule()
-  /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the "Arrangement" editor (layout picker plus its own resize D-pad, and its own nested "Borders" sub-menu — see `arrangementShowingBorders`), the screen's own whole-screen "Background" color/image editor, the active slot's own "Background" color/image editor (`slot-background`), the "Stages" (use-stages/count/duration/transition) editor, the "Screen saver" editor, the "Other settings" editor, or neither. */
+  /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the "Split direction" editor (layout picker plus its own resize D-pad, and its own nested "Borders" sub-menu — see `arrangementShowingBorders`), the screen's own whole-screen "Background" color/image editor, the active slot's own "Background" color/image editor (`slot-background`), the "Steps" (use-stages/count/duration/transition) editor, the "Screen saver" editor, the "Other settings" editor, or neither. */
   const [editingTarget, setEditingTarget] = useState<'global' | 'arrangement' | 'background' | 'slot-background' | 'stages' | 'screensaver' | 'other' | null>(null)
   /** `1` while opening a sub-view (slides in from the right, see `SlideTransition`), `-1` while going back (slides in from the left) — including one level of nesting deeper/shallower within Arrangement's own "Borders" sub-menu. Set right before whatever state change actually switches the view. */
   const [direction, setDirection] = useState<1 | -1>(1)
-  /** Whether the "Arrangement" sub-view is itself showing its own nested "Borders" sub-menu rather than the layout picker/resize D-pad — reset whenever Arrangement (re)opens. */
+  /** Whether the "Split direction" sub-view is itself showing its own nested "Borders" sub-menu rather than the layout picker/resize D-pad — reset whenever this sub-view (re)opens. */
   const [arrangementShowingBorders, setArrangementShowingBorders] = useState(false)
   const [liveTextSizes, setLiveTextSizes] = useState<TextSizes>(screen?.textSizes ?? DEFAULT_TEXT_SIZES)
   const [liveUseOwnTextSizes, setLiveUseOwnTextSizes] = useState(false)
@@ -219,7 +219,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
     onRouteChange?.(t('admin.screens.backgroundLabel'))
   }
 
-  /** Opens the active slot's own background color/image editor — the route breadcrumb names which slot (and, with shared stages on, which stage) is being edited, e.g. "Slot 1 - Stage 2 - Background". */
+  /** Opens the active slot's own background color/image editor — the route breadcrumb names which slot (and, with shared stages on, which stage) is being edited, e.g. "Slot 1 - Step 2 - Background". */
   const openSlotBackgroundEditor = () => {
     if (typeof activeTab !== 'number') return
     setDirection(1)

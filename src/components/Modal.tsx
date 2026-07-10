@@ -63,9 +63,9 @@ const CLOSE_VELOCITY_THRESHOLD = 500
  * that, so it only ever separates content that's actually there to scroll
  * under it — and the × lines up with the title since they're side by side
  * in that same row. When a caller has its own sub-view navigation (e.g.
- * the admin screen editor's "Resize panes" panel), `route` names the
+ * the admin screen editor's "Resize slots" panel), `route` names the
  * currently open one right after the title in regular weight, e.g. "Edit
- * screen - Resize panes".
+ * screen - Resize slots".
  */
 export function Modal({ open, onClose, title, route, transparentOnSliderDrag = true, children }: ModalProps) {
   const [isDraggingSlider, setIsDraggingSlider] = useState(false)

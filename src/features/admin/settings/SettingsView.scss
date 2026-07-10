@@ -66,3 +66,15 @@
   height: 18px;
   color: $color-text-muted;
 }
+
+.settings-view__developers-hint {
+  margin: 0 0 $spacing-unit;
+  color: $color-text-muted;
+  font-size: 0.875rem;
+}
+
+.settings-view__docs-header {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+}

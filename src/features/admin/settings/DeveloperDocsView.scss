@@ -1,0 +1,77 @@
+@use '../../../styles/variables' as *;
+
+.developer-docs {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+  max-width: 800px;
+
+  .card__body {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-unit;
+  }
+
+  p {
+    margin: 0;
+    color: $color-text-muted;
+  }
+
+  h3 {
+    margin: $spacing-unit 0 0;
+    font-size: 1rem;
+    color: $color-text;
+  }
+
+  pre {
+    margin: 0;
+    padding: $spacing-unit calc($spacing-unit * 1.5);
+    border: 1px solid $color-border;
+    border-radius: 8px;
+    background: $color-surface;
+    overflow-x: auto;
+  }
+
+  code {
+    font-family: $font-mono, monospace;
+    font-size: 0.8125rem;
+    color: $color-text;
+    white-space: pre;
+  }
+}
+
+.developer-docs__endpoint {
+  code {
+    padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
+    border-radius: 4px;
+    background: $color-surface;
+  }
+}
+
+.developer-docs__key-list {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: calc($spacing-unit / 2) $spacing-unit;
+  }
+
+  code {
+    padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
+    border-radius: 4px;
+    background: $color-surface;
+    white-space: nowrap;
+  }
+
+  span {
+    color: $color-text-muted;
+  }
+}

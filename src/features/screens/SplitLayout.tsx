@@ -39,6 +39,8 @@ interface SplitLayoutProps {
   forcedStage?: number
   /** Persists a divider's new position once it's been dragged to it. Omit to render the panes without any draggable dividers at all. */
   onResizeDivider?: (patch: Partial<ScreenConfig>) => void
+  /** Reports when a divider drag starts and stops — lets the caller (e.g. pausing the shared stage rotation for the duration, see `ScreenDisplay`) react to a drag in progress without needing to track `liveRatios` itself. */
+  onDragStateChange?: (isDragging: boolean) => void
 }
 
 /**
@@ -74,7 +76,7 @@ interface SplitLayoutProps {
  * slides back to its own set size on its own, the same transition a manual
  * resize already animates with.
  */
-export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forcedStage, onResizeDivider }: SplitLayoutProps) {
+export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forcedStage, onResizeDivider, onDragStateChange }: SplitLayoutProps) {
   const { t } = useLanguage()
   const reducedMotion = useReducedMotion()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -280,6 +282,10 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forc
   }
 
   const handleLiveChange = (patch: RatioPatch) => {
+    // The rising edge of a drag — `liveRatios` was empty before this call,
+    // so this is the first live-change since the last commit (or ever).
+    if (Object.keys(liveRatios).length === 0) onDragStateChange?.(true)
+
     const scale = imageResizeScaleFromPatch(patch)
     if (activeImageResize && scale !== undefined) {
       const { slotIndex, naturalWidth, naturalHeight } = activeImageResize
@@ -291,6 +297,11 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forc
 
   const handleCommit = (patch: RatioPatch) => {
     const scale = imageResizeScaleFromPatch(patch)
+    // The falling edge — only report "drag finished" once every field this
+    // component was tracking (not just this one commit's own fields, in
+    // case something else is still mid-drag) has been cleared.
+    const stillDragging = Object.keys(liveRatios).some((field) => !(field in patch))
+    if (!stillDragging) onDragStateChange?.(false)
     setLiveRatios((current) => {
       const next = { ...current }
       for (const field of Object.keys(patch) as (keyof RatioPatch)[]) delete next[field]

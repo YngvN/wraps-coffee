@@ -34,7 +34,7 @@ export function ScreensView() {
   const [copiedID, setCopiedID] = useState<string | null>(null)
   /** `1` while opening the form (slides in from the right, see `SlideTransition`), `-1` while closing it back to the list (slides in from the left). Set right before whatever state change actually switches the view. */
   const [direction, setDirection] = useState<1 | -1>(1)
-  /** The screen form's own currently open sub-view (e.g. "Resize panes"), shown next to the form view's own title — see `ScreenForm`'s `onRouteChange`. Reset on close so a stale route doesn't flash before the next open's fresh form reports its own. */
+  /** The screen form's own currently open sub-view (e.g. "Resize slots"), shown next to the form view's own title — see `ScreenForm`'s `onRouteChange`. Reset on close so a stale route doesn't flash before the next open's fresh form reports its own. */
   const [formRoute, setFormRoute] = useState<string | undefined>(undefined)
   /** Which of `editingScreen`'s own tabs the form is currently showing, plus an ever-increasing `pulse` key — see `ScreenForm`'s `onActiveSlotChange` — so the form view's own header preview can highlight (and flash) the matching pane, helping show at a glance which physical position on the actual screen is being edited right now. Reset alongside `editingScreen` so a stale highlight from a previous session never flashes on the next screen opened. */
   const [activeEditingSlot, setActiveEditingSlot] = useState<{ tab: 'global' | number; pulse: number }>({ tab: 'global', pulse: 0 })

@@ -14,7 +14,7 @@ interface StageTabsProps {
  * from. Unlike the old per-slot slide tabs this replaces, there's no
  * "Global" tab (every stage is the same kind of thing) and no add/remove
  * button (the stage count itself is edited separately, in the screen's own
- * "Stages" settings) — this is purely a fixed `1..stageCount` picker.
+ * "Steps" settings) — this is purely a fixed `1..stageCount` picker.
  */
 export function StageTabs({ stageCount, activeStage, onActiveStageChange }: StageTabsProps) {
   const { t } = useLanguage()

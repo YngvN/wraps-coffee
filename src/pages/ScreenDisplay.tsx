@@ -146,14 +146,24 @@ export function ScreenDisplay() {
   const [unlockModalOpen, setUnlockModalOpen] = useState(false)
   const [screensaverTestLabelPosition, setScreensaverTestLabelPosition] = useState(randomScreensaverTestLabelPosition)
   const [tick, setTick] = useState(0)
-  /** The toolbar's own play/pause toggle — independent of (and on top of) the editor/unlock-modal pausing below, so the owner can freeze playback for a moment without opening anything. */
+  /**
+   * The toolbar's own play/pause toggle — independent of (and on top of)
+   * the editor/unlock-modal pausing below, so the owner can freeze playback
+   * for a moment without opening anything. Also force-set to `true` the
+   * moment any editing interaction starts (`openScreenEditor`,
+   * `openSlotEditor`, `handleDragStateChange`'s rising edge) — unlike
+   * `editingTarget`/a divider drag, which only pause rotation for as long
+   * as they're actually in progress, editing should stay paused once it's
+   * *done* too, until the owner explicitly presses Play again, so the
+   * screen doesn't leap to a different stage the moment an edit/drag ends.
+   */
   const [manuallyPaused, setManuallyPaused] = useState(false)
   /** The toolbar's own fast-forward toggle — while on, stages advance every 2 seconds instead of the screen's own configured `slideDurationSeconds`. */
   const [fastForward, setFastForward] = useState(false)
 
   const paused = editingTarget !== null || unlockModalOpen || manuallyPaused
 
-  /** Advances the shared stage sequence, paused while any editor (or the unlock modal, or the toolbar's own play/pause toggle) is open so the preview isn't pulled out from under it — mirrors the same rotation timer `SplitLayout` used to own directly, lifted up here so `ScreenToolbar`'s stage indicator and playback controls can read/drive the same clock. */
+  /** Advances the shared stage sequence, paused while any editor (or a divider drag, or the unlock modal, or the toolbar's own play/pause toggle) is open/active so the preview isn't pulled out from under it — mirrors the same rotation timer `SplitLayout` used to own directly, lifted up here so `ScreenToolbar`'s stage indicator and playback controls can read/drive the same clock. */
   useEffect(() => {
     if (paused || !screen?.useStages || (screen?.stageCount ?? 1) <= 1) return
     const timer = setInterval(() => setTick((current) => current + 1), fastForward ? 2000 : screen.slideDurationSeconds * 1000)
@@ -246,6 +256,7 @@ export function ScreenDisplay() {
     setScreenDraftSnapshot(null)
     setScreenSubview(null)
     setEditingTarget('screen')
+    setManuallyPaused(true)
   }
 
   const openSlotEditor = (slotIndex: number) => {
@@ -266,6 +277,12 @@ export function ScreenDisplay() {
     setActiveStage(openStage)
     setInitialStage(openStage)
     setEditingTarget({ slotIndex })
+    setManuallyPaused(true)
+  }
+
+  /** A divider drag starting also counts as "editing the screen" for pause purposes (see `paused`) — only the rising edge forces a pause; the falling edge (drag finished) deliberately leaves it paused, same as closing an editor, until the toolbar's own Play is pressed. */
+  const handleDragStateChange = (isDragging: boolean) => {
+    if (isDragging) setManuallyPaused(true)
   }
 
   /**
@@ -448,6 +465,7 @@ export function ScreenDisplay() {
         stage={stage}
         forcedStage={forcedStage}
         onResizeDivider={screen.locked ? undefined : handleResizeDivider}
+        onDragStateChange={handleDragStateChange}
       />
 
       {screensaverActive && (

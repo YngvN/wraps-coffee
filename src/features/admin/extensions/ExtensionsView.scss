@@ -44,3 +44,25 @@
   flex-direction: column;
   gap: $spacing-unit;
 }
+
+.extensions-view__mode-icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: $spacing-unit * 2;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.extensions-view__mode-icon-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  text-align: center;
+}
+
+.extensions-view__mode-icon {
+  font-size: 2rem;
+  color: $color-text;
+}
