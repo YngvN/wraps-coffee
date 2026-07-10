@@ -1,0 +1,131 @@
+@use '../../../styles/variables' as *;
+
+.message-board-view {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 3;
+  max-width: 900px;
+}
+
+.message-board-view__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  padding-bottom: $spacing-unit;
+  border-bottom: 1px solid $color-border;
+}
+
+.message-board-view__tab-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+  align-items: center;
+}
+
+.message-board-view__tab {
+  padding: calc($spacing-unit / 2) calc($spacing-unit * 1.5);
+  border: 1px solid $color-border;
+  border-radius: 999px;
+  background: $color-bg;
+  color: $color-text-muted;
+  font-size: 0.875rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      color: $color-text;
+      border-color: $color-accent;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+
+  &--active {
+    border-color: $color-accent;
+    color: $color-text;
+    background: $color-surface;
+    font-weight: 600;
+  }
+}
+
+.message-board-view__tab-manage {
+  display: flex;
+  gap: calc($spacing-unit / 2);
+}
+
+.message-board-view__tab-manage-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  color: $color-text-muted;
+  font-size: 0.75rem;
+  font-family: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      color: $color-text;
+    }
+  }
+}
+
+.message-board-view__add-board {
+  padding: calc($spacing-unit / 2) calc($spacing-unit * 1.5);
+  border: 1px dashed $color-border;
+  border-radius: 999px;
+  background: none;
+  color: $color-text-muted;
+  font-size: 0.875rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      color: $color-text;
+      border-color: $color-accent;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
+.message-board-view__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: $spacing-unit * 2;
+}
+
+.message-board-view__empty {
+  color: $color-text-muted;
+}
+
+.message-board-view__list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+}
+
+.message-board-view__board-form {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+}
+
+.message-board-view__board-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-unit;
+}

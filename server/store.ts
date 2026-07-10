@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -35,10 +35,8 @@ interface SessionInfo {
 /** Bundled seed file (relative to `src/data/`) for each synced key, or `null` for a key with no seed file — see `HARDCODED_DEFAULTS`. */
 const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.products': 'products.json',
-  'admin.ratings': 'ratings.json',
   'admin.categoryPrices': 'categoryPrices.json',
   'admin.messages': 'messages.json',
-  'admin.reviews': 'reviews.json',
   'admin.events': 'events.json',
   'admin.contactInfo': 'contactInfo.json',
   'admin.textSizePresets': 'textSizePresets.json',
@@ -48,6 +46,9 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.screens': 'screens.json',
   'admin.extensions': null,
   'admin.sidebarSettings': null,
+  'admin.orders': null,
+  'admin.messageBoards': null,
+  'admin.messageBoardPosts': null,
 }
 
 /** Hardcoded defaults for the synced keys with no bundled seed file. */
@@ -57,6 +58,12 @@ const HARDCODED_DEFAULTS: Partial<Record<SyncedKey, unknown>> = {
   'admin.screensaverClockFormat': '24h',
   'admin.extensions': DEFAULT_EXTENSIONS_CONFIG,
   'admin.sidebarSettings': DEFAULT_SIDEBAR_SETTINGS,
+  // No bundled seed — orders only ever arrive via the Neon bridge pulling
+  // real submissions down from the public website (see `neonBridge.ts`).
+  'admin.orders': [],
+  // One default board so a fresh install has somewhere to post immediately.
+  'admin.messageBoards': [{ id: 'general', name: 'General' }],
+  'admin.messageBoardPosts': [],
 }
 
 function dataFilePath(key: SyncedKey): string {
@@ -157,4 +164,26 @@ export function getSession(token: string): SessionInfo | undefined {
 export function destroySession(token: string) {
   sessions.delete(token)
   persistSessions()
+}
+
+// --- Developer API key -------------------------------------------------------
+//
+// A shared secret the public website's own Netlify Functions check on their
+// public write endpoints (see the "Website integration" plan) — a lightweight
+// deterrent against blind bot traffic, not a strong secret (it has to be
+// embedded in that project's own public client bundle to be usable by real
+// visitors). Plain value on disk, same "start simple" precedent as
+// `admin-users.json`'s own plain-text passwords above.
+
+const API_KEY_FILE = join(DATA_DIR, 'website-api-key.json')
+
+export function getDeveloperApiKey(): string | null {
+  if (!existsSync(API_KEY_FILE)) return null
+  return (JSON.parse(readFileSync(API_KEY_FILE, 'utf-8')) as { key: string }).key
+}
+
+export function regenerateDeveloperApiKey(): string {
+  const key = randomBytes(24).toString('hex')
+  writeFileSync(API_KEY_FILE, JSON.stringify({ key }), 'utf-8')
+  return key
 }

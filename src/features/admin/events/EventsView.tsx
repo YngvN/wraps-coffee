@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Badge, Button, Modal, TranslatedText } from '../../../components'
 import { useEvents } from '../../../hooks/useEvents'
 import { useLanguage } from '../../../i18n'
-import type { EventRecord } from '../../../utils/events'
+import type { EventRecord } from '../../../types/event'
 import { EventForm } from './EventForm'
 import './EventsView.scss'
 

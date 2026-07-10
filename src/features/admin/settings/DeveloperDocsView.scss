@@ -75,3 +75,33 @@
     color: $color-text-muted;
   }
 }
+
+.developer-docs__key-display {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  flex-wrap: wrap;
+
+  code {
+    padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
+    border-radius: 4px;
+    background: $color-surface;
+    word-break: break-all;
+  }
+}
+
+.developer-docs__key-label {
+  font-weight: 600;
+  color: $color-text;
+}
+
+.developer-docs__hint {
+  color: $color-text-muted;
+  font-size: 0.875rem;
+}
+
+.developer-docs__error {
+  margin: 0;
+  color: $color-error;
+  font-size: 0.875rem;
+}

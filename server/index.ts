@@ -3,6 +3,7 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import { SYNCED_KEYS, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
 import { handleDepartures, handleLookup, handleWeather } from './extensions'
 import { bearerToken, CORS_HEADERS, readJsonBody, sendJson } from './http'
+import * as neonBridge from './neonBridge'
 import * as store from './store'
 import { handleDeleteUpload, handleServeUpload, handleUpload, listUploads } from './uploads'
 
@@ -14,8 +15,6 @@ const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
   'admin.products': 'products',
   'admin.categoryPrices': 'products',
   'admin.events': 'events',
-  'admin.reviews': 'reviews',
-  'admin.ratings': 'reviews',
   'admin.contactInfo': 'contact',
   'admin.screens': 'screens',
   'admin.textSizePresets': 'screens',
@@ -23,6 +22,9 @@ const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
   'admin.screensaverSchedule': 'screens',
   'admin.screensaverClockFormat': 'screens',
   'admin.extensions': 'extensions',
+  'admin.orders': 'orders',
+  'admin.messageBoards': 'messageboard',
+  'admin.messageBoardPosts': 'messageboard',
 }
 
 function isSyncedKey(value: unknown): value is SyncedKey {
@@ -129,6 +131,33 @@ const httpServer = createServer((req, res) => {
     return
   }
 
+  // Developer API key (see "Website integration" in the sync-server plan) —
+  // read by any authenticated session, regenerated only by admin/subadmin,
+  // matching the Users-management posture elsewhere.
+  if (req.method === 'GET' && url.pathname === '/developer-key') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    sendJson(res, 200, { key: store.getDeveloperApiKey() })
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/developer-key/regenerate') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can regenerate the developer API key' })
+      return
+    }
+    sendJson(res, 200, { key: store.regenerateDeveloperApiKey() })
+    return
+  }
+
   sendJson(res, 404, { error: 'Not found' })
 })
 
@@ -145,6 +174,17 @@ function broadcastUpdate(key: SyncedKey, value: unknown) {
   for (const [socket, keys] of interestSets) {
     if (keys.has(key)) send(socket, { type: 'update', key, value })
   }
+}
+
+/** Surfaces a background/operational problem (e.g. the Neon bridge losing its connection) to every open admin tab, regardless of that connection's own interest set — see `ErrorMessage`/`ErrorToast`. */
+function broadcastError(message: string, detail?: string) {
+  for (const socket of interestSets.keys()) send(socket, { type: 'error', message, detail })
+}
+
+/** Persists a synced-key write and broadcasts it to every interested LAN client — the one path both a client's own WS `write` and the Neon bridge's own pulls go through, so neither has to duplicate the other's plumbing. */
+function applyUpdate(key: SyncedKey, value: unknown) {
+  store.set(key, value)
+  broadcastUpdate(key, value)
 }
 
 wss.on('connection', (socket) => {
@@ -187,9 +227,9 @@ wss.on('connection', (socket) => {
         }
       }
 
-      store.set(key, value)
+      applyUpdate(key, value)
+      neonBridge.pushIfRelevant(key, value)
       console.log(`[ws] ${session.username} wrote ${key}`)
-      broadcastUpdate(key, value)
       return
     }
   })
@@ -231,6 +271,7 @@ process.on('unhandledRejection', (error) => {
 })
 
 store.load()
+neonBridge.start(applyUpdate, broadcastError)
 httpServer.listen(PORT, () => {
   console.log(`[server] listening on http://0.0.0.0:${PORT}`)
 })

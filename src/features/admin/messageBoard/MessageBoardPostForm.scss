@@ -1,0 +1,25 @@
+@use '../../../styles/variables' as *;
+
+.message-board-post-form {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+}
+
+.message-board-post-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+}
+
+.message-board-post-form__counter {
+  align-self: flex-end;
+  color: $color-text-muted;
+  font-size: 0.75rem;
+}
+
+.message-board-post-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-unit;
+}

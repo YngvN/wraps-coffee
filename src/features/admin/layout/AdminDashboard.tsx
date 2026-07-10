@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
 import { Navigate, useLocation, useOutlet } from 'react-router-dom'
+import { ErrorToast } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { AdminSidebarNav } from './AdminSidebarNav'
 import './AdminDashboard.scss'
@@ -21,6 +22,7 @@ export function AdminDashboard() {
 
   return (
     <div className="admin-dashboard">
+      <ErrorToast />
       <button
         type="button"
         className={`admin-dashboard__toggle${isSidebarOpen ? ' admin-dashboard__toggle--open' : ''}`}

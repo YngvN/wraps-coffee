@@ -1,5 +1,5 @@
 import eventsSeed from '../data/events.json'
-import type { EventRecord } from '../utils/events'
+import type { EventRecord } from '../types/event'
 import { useLocalStorage } from './useLocalStorage'
 
 const STORAGE_KEY = 'admin.events'

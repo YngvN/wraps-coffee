@@ -6,3 +6,96 @@
   gap: $spacing-unit * 2;
   max-width: 700px;
 }
+
+.orders-view__empty {
+  color: $color-text-muted;
+}
+
+.orders-view__list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 1.5;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-unit;
+  }
+}
+
+.orders-view__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: $spacing-unit;
+}
+
+.orders-view__customer {
+  display: block;
+  font-weight: 600;
+}
+
+.orders-view__phone {
+  display: block;
+  color: $color-text-muted;
+  font-size: 0.875rem;
+}
+
+.orders-view__items {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9375rem;
+
+  li {
+    display: flex;
+    justify-content: space-between;
+    gap: $spacing-unit;
+  }
+}
+
+.orders-view__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-unit * 1.5;
+  color: $color-text-muted;
+  font-size: 0.875rem;
+}
+
+.orders-view__total {
+  font-weight: 600;
+  color: $color-text;
+}
+
+.orders-view__notes {
+  margin: 0;
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  border-radius: 6px;
+  background: $color-surface;
+  font-size: 0.875rem;
+  white-space: pre-wrap;
+}
+
+.orders-view__status-field {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  font-size: 0.875rem;
+  font-weight: 600;
+
+  select {
+    padding: calc($spacing-unit / 2) $spacing-unit;
+    border: 1px solid $color-border;
+    border-radius: 6px;
+    background: $color-bg;
+    color: $color-text;
+    font-family: inherit;
+    font-size: 0.875rem;
+  }
+}

@@ -1,0 +1,55 @@
+@use '../../../styles/variables' as *;
+
+.message-board-post-item {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+
+  &--expired {
+    opacity: 0.6;
+  }
+}
+
+.message-board-post-item__badges {
+  display: flex;
+  gap: calc($spacing-unit / 2);
+
+  &:empty {
+    display: none;
+  }
+}
+
+.message-board-post-item__title {
+  margin: 0;
+}
+
+.message-board-post-item__image {
+  width: 100%;
+  max-height: 220px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.message-board-post-item__body {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.message-board-post-item__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: $spacing-unit;
+  margin-top: calc($spacing-unit / 2);
+}
+
+.message-board-post-item__meta {
+  color: $color-text-muted;
+  font-size: 0.875rem;
+}
+
+.message-board-post-item__actions {
+  display: flex;
+  gap: calc($spacing-unit / 2);
+}

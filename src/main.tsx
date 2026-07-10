@@ -8,13 +8,13 @@ import { OverviewView } from './features/admin/overview/OverviewView'
 import { MessagesView } from './features/admin/messages/MessagesView'
 import { ProductsView } from './features/admin/products/ProductsView'
 import { EventsView as AdminEventsView } from './features/admin/events/EventsView'
-import { ReviewsView } from './features/admin/reviews/ReviewsView'
 import { InstagramView } from './features/admin/instagram/InstagramView'
 import { ContactInfoView } from './features/admin/contact/ContactInfoView'
 import { ImageLibraryView } from './features/admin/imageLibrary/ImageLibraryView'
 import { OrdersView } from './features/admin/orders/OrdersView'
 import { ScreensView } from './features/admin/screens/ScreensView'
 import { ExtensionsView } from './features/admin/extensions/ExtensionsView'
+import { MessageBoardView } from './features/admin/messageBoard/MessageBoardView'
 import { SettingsView } from './features/admin/settings/SettingsView'
 import { LanguageProvider } from './i18n'
 import { ScreenDisplay } from './pages/ScreenDisplay'
@@ -39,12 +39,12 @@ const router = createBrowserRouter([
           { path: 'messages', element: <MessagesView /> },
           { path: 'products', element: <ProductsView /> },
           { path: 'events', element: <AdminEventsView /> },
-          { path: 'reviews', element: <ReviewsView /> },
           { path: 'instagram', element: <InstagramView /> },
           { path: 'contact', element: <ContactInfoView /> },
           { path: 'orders', element: <OrdersView /> },
           { path: 'screens', element: <ScreensView /> },
           { path: 'extensions', element: <ExtensionsView /> },
+          { path: 'messageboard', element: <MessageBoardView /> },
           { path: 'images', element: <ImageLibraryView /> },
           { path: 'settings', element: <SettingsView /> },
         ],

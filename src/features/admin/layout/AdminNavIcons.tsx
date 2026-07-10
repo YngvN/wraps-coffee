@@ -51,14 +51,6 @@ export function EventsIcon(props: IconProps) {
   )
 }
 
-export function ReviewsIcon(props: IconProps) {
-  return (
-    <Icon {...props}>
-      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-    </Icon>
-  )
-}
-
 export function InstagramIcon(props: IconProps) {
   return (
     <Icon {...props}>
@@ -113,6 +105,16 @@ export function ImagesIcon(props: IconProps) {
       <rect x="3" y="4" width="18" height="16" rx="2" />
       <circle cx="9" cy="10" r="2" />
       <polyline points="5,18 10,13 14,17 17,14 19,16" />
+    </Icon>
+  )
+}
+
+export function MessageBoardIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 4 H20 V16 H10 L5 20 V16 H4 Z" />
+      <line x1="8" y1="9" x2="16" y2="9" />
+      <line x1="8" y1="12.5" x2="14" y2="12.5" />
     </Icon>
   )
 }

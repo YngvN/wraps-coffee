@@ -4,11 +4,11 @@ import {
   ExtensionsIcon,
   ImagesIcon,
   InstagramIcon,
+  MessageBoardIcon,
   MessagesIcon,
   OrdersIcon,
   OverviewIcon,
   ProductsIcon,
-  ReviewsIcon,
   ScreensIcon,
   SettingsIcon,
 } from './AdminNavIcons'
@@ -27,12 +27,12 @@ export const NAV_ITEMS = [
   { to: 'messages', id: 'admin.nav.messages', adminOnly: false, toggleable: true },
   { to: 'products', id: 'admin.nav.products', adminOnly: false, toggleable: true },
   { to: 'events', id: 'admin.nav.events', adminOnly: false, toggleable: true },
-  { to: 'reviews', id: 'admin.nav.reviews', adminOnly: false, toggleable: true },
   { to: 'instagram', id: 'admin.nav.instagram', adminOnly: false, toggleable: true },
   { to: 'contact', id: 'admin.nav.contact', adminOnly: false, toggleable: true },
   { to: 'orders', id: 'admin.nav.orders', adminOnly: false, toggleable: true },
   { to: 'screens', id: 'admin.nav.screens', adminOnly: false, toggleable: true },
   { to: 'extensions', id: 'admin.nav.extensions', adminOnly: false, toggleable: true },
+  { to: 'messageboard', id: 'admin.nav.messageBoard', adminOnly: false, toggleable: true },
   // Spans uploads from every section rather than belonging to one, so —
   // like a future "Users" tab — it's admin/subadmin-only rather than part of
   // a `limited` account's own scoped sections.
@@ -48,12 +48,12 @@ export const ADMIN_NAV_ICONS = {
   messages: MessagesIcon,
   products: ProductsIcon,
   events: EventsIcon,
-  reviews: ReviewsIcon,
   instagram: InstagramIcon,
   contact: ContactIcon,
   orders: OrdersIcon,
   screens: ScreensIcon,
   extensions: ExtensionsIcon,
+  messageboard: MessageBoardIcon,
   images: ImagesIcon,
   settings: SettingsIcon,
 }

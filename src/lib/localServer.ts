@@ -145,3 +145,24 @@ export async function fetchWeather(lat: number, lon: number, hours: number): Pro
   if (!response.ok) throw new Error('Could not fetch a forecast')
   return response.json() as Promise<{ hourly: WeatherHour[] }>
 }
+
+/** The current developer API key (see "For developers" in Settings), or `null` if none has been generated yet. */
+export async function getDeveloperKey(token: string): Promise<string | null> {
+  const response = await fetch(`${serverBaseUrl()}/developer-key`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) throw new Error('Could not load the developer API key')
+  const { key } = (await response.json()) as { key: string | null }
+  return key
+}
+
+/** Generates a new developer API key, replacing any existing one — `admin`/`subadmin` only, matching the Users-management posture elsewhere. */
+export async function regenerateDeveloperKey(token: string): Promise<string> {
+  const response = await fetch(`${serverBaseUrl()}/developer-key/regenerate`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not regenerate the developer API key')
+  }
+  const { key } = (await response.json()) as { key: string }
+  return key
+}

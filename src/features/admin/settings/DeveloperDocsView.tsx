@@ -1,14 +1,15 @@
-import { Card } from '../../../components'
+import { useEffect, useState } from 'react'
+import { Button, Card } from '../../../components'
+import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
+import { getDeveloperKey, regenerateDeveloperKey } from '../../../lib/localServer'
 import './DeveloperDocsView.scss'
 
 /** Every `SYNCED_KEY` (see `src/types/sync.ts`) paired with its own one-line description key — kept in sync with that list by hand; see CLAUDE.md's "Keep docs in sync" rule. */
 const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.products', descKey: 'admin.settings.developerDocs.keyProducts' },
-  { key: 'admin.ratings', descKey: 'admin.settings.developerDocs.keyRatings' },
   { key: 'admin.categoryPrices', descKey: 'admin.settings.developerDocs.keyCategoryPrices' },
   { key: 'admin.messages', descKey: 'admin.settings.developerDocs.keyMessages' },
-  { key: 'admin.reviews', descKey: 'admin.settings.developerDocs.keyReviews' },
   { key: 'admin.events', descKey: 'admin.settings.developerDocs.keyEvents' },
   { key: 'admin.contactInfo', descKey: 'admin.settings.developerDocs.keyContactInfo' },
   { key: 'admin.textSizePresets', descKey: 'admin.settings.developerDocs.keyTextSizePresets' },
@@ -18,6 +19,9 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.screens', descKey: 'admin.settings.developerDocs.keyScreens' },
   { key: 'admin.extensions', descKey: 'admin.settings.developerDocs.keyExtensions' },
   { key: 'admin.sidebarSettings', descKey: 'admin.settings.developerDocs.keySidebarSettings' },
+  { key: 'admin.orders', descKey: 'admin.settings.developerDocs.keyOrders' },
+  { key: 'admin.messageBoards', descKey: 'admin.settings.developerDocs.keyMessageBoards' },
+  { key: 'admin.messageBoardPosts', descKey: 'admin.settings.developerDocs.keyMessageBoardPosts' },
 ]
 
 /**
@@ -31,6 +35,29 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
  */
 export function DeveloperDocsView() {
   const { t } = useLanguage()
+  const { session } = useAdminSession()
+  const [apiKey, setApiKey] = useState<string | null>(null)
+  const [isLoadingKey, setIsLoadingKey] = useState(true)
+  const [isRegenerating, setIsRegenerating] = useState(false)
+  const [keyError, setKeyError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!session) return
+    getDeveloperKey(session.token)
+      .then(setApiKey)
+      .catch(() => setKeyError(t('admin.settings.developerDocs.keyLoadError')))
+      .finally(() => setIsLoadingKey(false))
+  }, [session, t])
+
+  const handleRegenerate = () => {
+    if (!session) return
+    setIsRegenerating(true)
+    setKeyError(null)
+    regenerateDeveloperKey(session.token)
+      .then(setApiKey)
+      .catch(() => setKeyError(t('admin.settings.developerDocs.keyRegenerateError')))
+      .finally(() => setIsRegenerating(false))
+  }
 
   return (
     <div className="developer-docs">
@@ -127,6 +154,45 @@ GET /extensions/departures?stopId=<id>&count=<n>
 
 GET /extensions/weather?lat=<lat>&lon=<lon>&hours=<n>
 → 200 { "hourly": [{ "time", "temperatureC", "precipitationMm", "symbolCode" }] }`}</code>
+        </pre>
+      </Card>
+
+      <Card title={t('admin.settings.developerDocs.websiteTitle')}>
+        <p>{t('admin.settings.developerDocs.websiteIntro')}</p>
+        <p>{t('admin.settings.developerDocs.websiteNoTunnel')}</p>
+
+        <div className="developer-docs__key-display">
+          <span className="developer-docs__key-label">{t('admin.settings.developerDocs.apiKeyLabel')}</span>
+          {isLoadingKey ? (
+            <span className="developer-docs__hint">{t('admin.settings.developerDocs.keyLoading')}</span>
+          ) : apiKey ? (
+            <code>{apiKey}</code>
+          ) : (
+            <span className="developer-docs__hint">{t('admin.settings.developerDocs.noKeyYet')}</span>
+          )}
+        </div>
+        {keyError && <p className="developer-docs__error">{keyError}</p>}
+        {session?.role !== 'limited' && (
+          <Button type="button" variant="secondary" onClick={handleRegenerate} disabled={isRegenerating}>
+            {apiKey ? t('admin.settings.developerDocs.regenerateButton') : t('admin.settings.developerDocs.generateButton')}
+          </Button>
+        )}
+
+        <p>{t('admin.settings.developerDocs.apiKeyUsage')}</p>
+        <pre>
+          <code>{`API_KEY=<the key above>          (Website repo's own env, checked server-side by its Netlify Functions)
+VITE_API_KEY=<the key above>     (same value, baked into that project's client bundle so its contact/order forms can send it)`}</code>
+        </pre>
+        <p className="developer-docs__hint">{t('admin.settings.developerDocs.apiKeyCaveat')}</p>
+
+        <h3>{t('admin.settings.developerDocs.developerKeyRoutesTitle')}</h3>
+        <pre>
+          <code>{`GET /developer-key                (Authorization: Bearer <token>)
+→ 200 { "key": string | null }
+
+POST /developer-key/regenerate    (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "key": string }
+→ 403 { "error": "..." }   (a "limited" account's own token)`}</code>
         </pre>
       </Card>
     </div>

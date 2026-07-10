@@ -51,10 +51,7 @@
         "menu": {
           "title": "Good food that fills you up",
           "summary": "You'll find fresh and satisfying salads loaded with crisp greens and your choice of topping such as shrimp salad, tuna salad or classic Caesar salad. Wraps provide another option for those looking to dine on the go; filled with rice and veggies, wraps feature various choices including chicken and feta, tandoori chicken, and vegetarian selections. Additionally, there are tasty baguettes like the chicken one with garlic, tomato and cucumber or mozzarella baguette that are perfect for a fulfilling meal.\n\nMoreover, if you're craving something heartier but still want to maintain your dietary choices, nachos served with rice, cheese, vegetables, and an assortment of meat-flavored options can be shared among friends – they make for hearty portions without feeling overly heavy.\n\nAll these meals offer balanced nutrition while being delicious, making it easy to leave the café satisfied yet healthy. The cafe menu ensures that there's something suitable for everyone's preference or dietary needs, maintaining a balance between taste and health consciousness.",
-          "cta": "Order now",
-          "ratings": {
-            "score": "Rated {{rating}} out of 5 on {{platform}}"
-          }
+          "cta": "Order now"
         },
         "events": {
           "title": "Not only eating",
@@ -418,7 +415,6 @@
           "messages": "Messages",
           "products": "Products",
           "events": "Events",
-          "reviews": "Reviews & ratings",
           "instagram": "Instagram",
           "contact": "Contact info",
           "orders": "Orders",
@@ -426,7 +422,8 @@
           "extensions": "Extensions",
           "logout": "Log out",
           "images": "Images",
-          "settings": "Settings"
+          "settings": "Settings",
+          "messageBoard": "Message board"
         },
         "overview": {
           "title": "Overview",
@@ -481,15 +478,6 @@
           "dayOfWeekLabel": "Day of week",
           "statusLabel": "Status"
         },
-        "reviews": {
-          "title": "Reviews",
-          "ratingsTitle": "Platform ratings",
-          "addReview": "Add review",
-          "nameLabel": "Name",
-          "reviewLabel": "Review",
-          "platformLabel": "Platform",
-          "ratingLabel": "Rating"
-        },
         "instagram": {
           "title": "Instagram posts",
           "addPost": "Add post",
@@ -509,7 +497,19 @@
         },
         "orders": {
           "title": "Orders",
-          "comingSoon": "Order management isn't available yet — check back once online ordering is connected."
+          "noOrders": "No orders yet — online orders placed on the website will show up here.",
+          "pickupTimeLabel": "Pickup",
+          "placedLabel": "Placed",
+          "totalLabel": "Total",
+          "statusLabel": "Status",
+          "status": {
+            "received": "Received",
+            "accepted": "Accepted",
+            "preparing": "Preparing",
+            "ready": "Ready",
+            "completed": "Completed",
+            "cancelled": "Cancelled"
+          }
         },
         "screens": {
           "title": "Screens",
@@ -593,7 +593,25 @@
           "urlCopied": "Link copied",
           "noScreens": "No screens yet.",
           "duplicateName": "{{name}} copy",
-          "imagePreviewLabel": "Preview"
+          "imagePreviewLabel": "Preview",
+          "slotMessageBoardLabel": "Message board",
+          "messageBoardLabel": "Board",
+          "messageBoardDisplayModeLabel": "Display mode",
+          "messageBoardDisplayMode": {
+            "rotating": "Rotating",
+            "list": "List",
+            "single": "Single post"
+          },
+          "messageBoardPostLabel": "Post",
+          "messageBoardNoPostsLabel": "This board has no posts yet",
+          "messageBoardOrderLabel": "Order",
+          "messageBoardOrder": {
+            "newestFirst": "Newest first",
+            "oldestFirst": "Oldest first"
+          },
+          "messageBoardRotateSecondsLabel": "Seconds per post",
+          "messageBoardCountLabel": "Max posts shown",
+          "messageBoardNoBoardsLabel": "No message boards yet — create one from the Message board tab"
         },
         "common": {
           "save": "Save",
@@ -638,10 +656,8 @@
             "syncWriteText": "To make a change yourself, send a write with your login token:",
             "syncKeysTitle": "Available keys",
             "keyProducts": "The full menu — categories and items.",
-            "keyRatings": "Platform rating numbers shown on the Home page.",
             "keyCategoryPrices": "Per-category default prices.",
             "keyMessages": "Contact-form submissions inbox.",
-            "keyReviews": "Home page review carousel content.",
             "keyEvents": "Cafe events — recurring, postponed, cancelled occurrences.",
             "keyContactInfo": "Phone, email, address, opening hours.",
             "keyTextSizePresets": "Saved named text-size presets for screens.",
@@ -651,10 +667,26 @@
             "keyScreens": "Every configured kiosk screen — layout, slots, content.",
             "keyExtensions": "Ruter/Yr integration setup — chosen stops, forecast hours.",
             "keySidebarSettings": "Which admin sidebar items are shown.",
+            "keyOrders": "Online orders placed on the public website, pulled down live.",
+            "keyMessageBoards": "The named message boards themselves (name, publish-to-website flag).",
+            "keyMessageBoardPosts": "Every message-board post, across every board.",
             "uploadsTitle": "Image uploads",
             "uploadsIntro": "Uploading also generates two compressed WebP companions (a \"small\" and a \"thumb\" variant) alongside the original, requestable via a ?size= query param.",
             "extensionsTitle": "Extensions proxy (transit + weather)",
-            "extensionsIntro": "Thin proxies over Entur's and MET Norway's own public APIs, with a short server-side cache — no token needed."
+            "extensionsIntro": "Thin proxies over Entur's and MET Norway's own public APIs, with a short server-side cache — no token needed.",
+            "websiteTitle": "Website integration",
+            "websiteIntro": "This server can optionally bridge to a separate public website's own database (Neon Postgres), pushing menu/price/event/contact-info edits made here up to it, and pulling contact messages and online orders placed there back down into this dashboard's own Messages/Orders tabs. Configured via the NEON_DATABASE_URL environment variable — see the README.",
+            "websiteNoTunnel": "No tunnel or port-forwarding is needed for this: the connection only ever goes outbound, from this server to the website's database, the same direction any ordinary browser request already goes. Nothing on the internet ever needs to reach into this network — the only requirement is that outbound traffic on Postgres's own port (5432) is allowed, true of virtually every normal internet connection.",
+            "apiKeyLabel": "API key",
+            "keyLoading": "Loading…",
+            "noKeyYet": "Not generated yet.",
+            "keyLoadError": "Could not load the API key.",
+            "keyRegenerateError": "Could not regenerate the API key.",
+            "generateButton": "Generate",
+            "regenerateButton": "Regenerate",
+            "apiKeyUsage": "The public website's own contact/order forms need this key to submit — set it on that project's own side:",
+            "apiKeyCaveat": "This is a lightweight deterrent against blind bot traffic, not a strong secret — it has to be embedded in the website's own public client bundle to be usable by real visitors, so treat it as extractable, not confidential.",
+            "developerKeyRoutesTitle": "Developer key routes"
           }
         },
         "extensions": {
@@ -687,6 +719,25 @@
           "transitModeFunicular": "Funicular",
           "transitModeLift": "Lift",
           "transitModeUnknown": "Other"
+        },
+        "messageBoard": {
+          "title": "Message board",
+          "addBoard": "New board",
+          "renameBoard": "Rename board",
+          "boardNameLabel": "Board name",
+          "publishToWebsiteLabel": "Publish to website",
+          "addPost": "New post",
+          "editPost": "Edit post",
+          "titleLabel": "Title",
+          "bodyLabel": "Message",
+          "pinnedLabel": "Pin to top",
+          "expiresAtLabel": "Expires on",
+          "pinnedBadge": "Pinned",
+          "expiredBadge": "Expired",
+          "editedLabel": "edited",
+          "noPosts": "No posts yet.",
+          "noBoards": "No boards yet.",
+          "boardMissingError": "This board no longer exists."
         }
       },
       "screenDisplay": {
@@ -821,10 +872,7 @@
         "menu": {
           "title": "God mat som metter",
           "summary": "Hos oss finner du ferske og mettende salater med sprø salat og ditt valg av topping, som reke-, tunfisk- eller klassisk cæsarsalat. Wraps er et annet alternativ for de som vil ha noe å spise på farten; fylt med ris og grønnsaker, med varianter som kylling og fetaost, tandoorikylling og vegetariske valg. I tillegg har vi smakfulle baguetter, som kyllingbaguetten med hvitløk, tomat og agurk eller mozzarellabaguetten – perfekte for et mettende måltid.\n\nHvis du har lyst på noe enda mer matfylt, men fortsatt vil ta hensyn til kostholdet ditt, kan nachos servert med ris, ost, grønnsaker og et utvalg kjøttvarianter deles mellom venner – de gir store porsjoner uten å bli for tungt.\n\nAlle disse rettene gir balansert ernæring samtidig som de er deilige, slik at du kan gå mett, men sunn ut av kafeen. Menyen sørger for at det er noe for alle preferanser og kostholdsbehov, med en god balanse mellom smak og helsebevissthet.",
-          "cta": "Bestill",
-          "ratings": {
-            "score": "Vurdert {{rating}} av 5 på {{platform}}"
-          }
+          "cta": "Bestill"
         },
         "events": {
           "title": "Ikke bare mat",
@@ -1188,7 +1236,6 @@
           "messages": "Meldinger",
           "products": "Produkter",
           "events": "Arrangementer",
-          "reviews": "Anmeldelser & vurderinger",
           "instagram": "Instagram",
           "contact": "Kontaktinfo",
           "orders": "Bestillinger",
@@ -1196,7 +1243,8 @@
           "extensions": "Utvidelser",
           "logout": "Logg ut",
           "images": "Bilder",
-          "settings": "Innstillinger"
+          "settings": "Innstillinger",
+          "messageBoard": "Oppslagstavle"
         },
         "overview": {
           "title": "Oversikt",
@@ -1251,15 +1299,6 @@
           "dayOfWeekLabel": "Ukedag",
           "statusLabel": "Status"
         },
-        "reviews": {
-          "title": "Anmeldelser",
-          "ratingsTitle": "Plattformvurderinger",
-          "addReview": "Legg til anmeldelse",
-          "nameLabel": "Navn",
-          "reviewLabel": "Anmeldelse",
-          "platformLabel": "Plattform",
-          "ratingLabel": "Vurdering"
-        },
         "instagram": {
           "title": "Instagram-innlegg",
           "addPost": "Legg til innlegg",
@@ -1279,7 +1318,19 @@
         },
         "orders": {
           "title": "Bestillinger",
-          "comingSoon": "Bestillingshåndtering er ikke tilgjengelig ennå — kom tilbake når nettbestilling er koblet til."
+          "noOrders": "Ingen bestillinger ennå — nettbestillinger fra nettsiden vises her.",
+          "pickupTimeLabel": "Henting",
+          "placedLabel": "Bestilt",
+          "totalLabel": "Totalt",
+          "statusLabel": "Status",
+          "status": {
+            "received": "Mottatt",
+            "accepted": "Godtatt",
+            "preparing": "Tilberedes",
+            "ready": "Klar",
+            "completed": "Fullført",
+            "cancelled": "Kansellert"
+          }
         },
         "screens": {
           "title": "Skjermer",
@@ -1363,7 +1414,25 @@
           "urlCopied": "Lenke kopiert",
           "noScreens": "Ingen skjermer ennå.",
           "duplicateName": "{{name}} kopi",
-          "imagePreviewLabel": "Forhåndsvisning"
+          "imagePreviewLabel": "Forhåndsvisning",
+          "slotMessageBoardLabel": "Oppslagstavle",
+          "messageBoardLabel": "Tavle",
+          "messageBoardDisplayModeLabel": "Visningsmodus",
+          "messageBoardDisplayMode": {
+            "rotating": "Roterende",
+            "list": "Liste",
+            "single": "Ett innlegg"
+          },
+          "messageBoardPostLabel": "Innlegg",
+          "messageBoardNoPostsLabel": "Denne tavlen har ingen innlegg ennå",
+          "messageBoardOrderLabel": "Rekkefølge",
+          "messageBoardOrder": {
+            "newestFirst": "Nyeste først",
+            "oldestFirst": "Eldste først"
+          },
+          "messageBoardRotateSecondsLabel": "Sekunder per innlegg",
+          "messageBoardCountLabel": "Maks antall innlegg",
+          "messageBoardNoBoardsLabel": "Ingen oppslagstavler ennå — opprett en fra Oppslagstavle-fanen"
         },
         "common": {
           "save": "Lagre",
@@ -1408,10 +1477,8 @@
             "syncWriteText": "For å gjøre en endring selv, send en write med ditt eget innloggingstoken:",
             "syncKeysTitle": "Tilgjengelige nøkler",
             "keyProducts": "Hele menyen — kategorier og produkter.",
-            "keyRatings": "Vurderingstallene som vises på forsiden.",
             "keyCategoryPrices": "Standardpriser per kategori.",
             "keyMessages": "Innboks for innsendte kontaktskjemaer.",
-            "keyReviews": "Innholdet i forsidens anmeldelseskarusell.",
             "keyEvents": "Kafeens arrangementer — gjentakende, utsatte, avlyste forekomster.",
             "keyContactInfo": "Telefon, e-post, adresse, åpningstider.",
             "keyTextSizePresets": "Lagrede, navngitte tekststørrelse-forhåndsinnstillinger for skjermer.",
@@ -1421,10 +1488,26 @@
             "keyScreens": "Hver konfigurerte kioskskjerm — oppsett, felt, innhold.",
             "keyExtensions": "Oppsett for Ruter/Yr-integrasjonen — valgte stopp, antall timer værmelding.",
             "keySidebarSettings": "Hvilke elementer som vises i sidemenyen.",
+            "keyOrders": "Nettbestillinger fra den offentlige nettsiden, hentet ned live.",
+            "keyMessageBoards": "Selve de navngitte oppslagstavlene (navn, publiser-til-nettside-valg).",
+            "keyMessageBoardPosts": "Alle innlegg på oppslagstavlen, på tvers av alle tavler.",
             "uploadsTitle": "Bildeopplasting",
             "uploadsIntro": "Opplasting genererer også to komprimerte WebP-varianter (en «small» og en «thumb») ved siden av originalen, hentbare via en ?size=-parameter.",
             "extensionsTitle": "Extensions-proxy (kollektivtransport + vær)",
-            "extensionsIntro": "Tynne proxyer over Enturs og Meteorologisk institutts egne offentlige API-er, med en kort server-side cache — ingen token nødvendig."
+            "extensionsIntro": "Tynne proxyer over Enturs og Meteorologisk institutts egne offentlige API-er, med en kort server-side cache — ingen token nødvendig.",
+            "websiteTitle": "Integrasjon med nettsiden",
+            "websiteIntro": "Denne serveren kan valgfritt kobles til en separat offentlig nettsides egen database (Neon Postgres) — den pusher meny-/pris-/arrangement-/kontaktinfo-endringer gjort her opp dit, og henter kontaktmeldinger og nettbestillinger derfra ned igjen til dette dashbordets egne Meldinger-/Bestillinger-faner. Settes opp via miljøvariabelen NEON_DATABASE_URL — se README.",
+            "websiteNoTunnel": "Ingen tunnel eller portviderekobling trengs for dette: forbindelsen går bare utover, fra denne serveren til nettsidens database, samme retning som en vanlig nettleserforespørsel allerede går. Ingenting på internett trenger noensinne å nå inn i dette nettverket — det eneste kravet er at utgående trafikk på Postgres sin egen port (5432) er tillatt, noe som gjelder for så godt som enhver vanlig internettforbindelse.",
+            "apiKeyLabel": "API-nøkkel",
+            "keyLoading": "Laster…",
+            "noKeyYet": "Ikke generert ennå.",
+            "keyLoadError": "Kunne ikke laste API-nøkkelen.",
+            "keyRegenerateError": "Kunne ikke generere ny API-nøkkel.",
+            "generateButton": "Generer",
+            "regenerateButton": "Generer ny",
+            "apiKeyUsage": "Den offentlige nettsidens egne kontakt-/bestillingsskjemaer trenger denne nøkkelen for å sende inn — sett den opp på det prosjektets egen side:",
+            "apiKeyCaveat": "Dette er et enkelt hinder mot blind bot-trafikk, ikke en sterk hemmelighet — den må bakes inn i nettsidens egen offentlige klientkode for å kunne brukes av ekte besøkende, så behandle den som synlig, ikke konfidensiell.",
+            "developerKeyRoutesTitle": "Ruter for utviklernøkkel"
           }
         },
         "extensions": {
@@ -1457,6 +1540,25 @@
           "transitModeFunicular": "Kabelbane",
           "transitModeLift": "Heis",
           "transitModeUnknown": "Annet"
+        },
+        "messageBoard": {
+          "title": "Oppslagstavle",
+          "addBoard": "Ny tavle",
+          "renameBoard": "Gi tavle nytt navn",
+          "boardNameLabel": "Tavlenavn",
+          "publishToWebsiteLabel": "Publiser på nettsiden",
+          "addPost": "Nytt innlegg",
+          "editPost": "Rediger innlegg",
+          "titleLabel": "Tittel",
+          "bodyLabel": "Melding",
+          "pinnedLabel": "Fest øverst",
+          "expiresAtLabel": "Utløpsdato",
+          "pinnedBadge": "Festet",
+          "expiredBadge": "Utløpt",
+          "editedLabel": "redigert",
+          "noPosts": "Ingen innlegg ennå.",
+          "noBoards": "Ingen tavler ennå.",
+          "boardMissingError": "Denne tavlen finnes ikke lenger."
         }
       },
       "screenDisplay": {

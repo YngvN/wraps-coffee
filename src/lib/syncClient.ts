@@ -3,6 +3,7 @@ import type { ClientMessage, ServerMessage, SyncedKey } from '../types/sync'
 
 type Listener = (value: unknown) => void
 type SnapshotEntry = { seeded: boolean; value: unknown }
+type ErrorListener = (message: string, detail?: string) => void
 
 const INITIAL_RECONNECT_DELAY_MS = 500
 const MAX_RECONNECT_DELAY_MS = 10_000
@@ -10,6 +11,9 @@ const WRITE_DEBOUNCE_MS = 400
 
 /** Per-key subscriber registry — every mounted `useLocalStorage` instance for a synced key registers here. */
 const listeners = new Map<SyncedKey, Set<Listener>>()
+
+/** Subscribers to server-broadcast operational errors (see `ErrorMessage`) — not tied to any key, so kept separate from the per-key registry above. */
+const errorListeners = new Set<ErrorListener>()
 
 /** Keys this tab has ever declared to the server via `hello`, re-sent in full on every reconnect (the server's own interest map for this connection was just recreated empty). */
 const declaredKeys = new Set<SyncedKey>()
@@ -96,6 +100,7 @@ function ensureSocket(): WebSocket {
     }
     if (message.type === 'snapshot') handleSnapshot(message.state)
     else if (message.type === 'update') notify(message.key, message.value)
+    else if (message.type === 'error') for (const listener of errorListeners) listener(message.message, message.detail)
   })
 
   ws.addEventListener('close', scheduleReconnect)
@@ -132,6 +137,15 @@ export function subscribe(key: SyncedKey, listener: Listener): () => void {
 
   return () => {
     keyListeners.delete(listener)
+  }
+}
+
+/** Subscribes to server-broadcast operational errors (e.g. the Neon bridge losing its connection — see `ErrorMessage`) — connects (or reuses) the shared socket same as `subscribe`, but isn't scoped to any key. Returns an unsubscribe function. */
+export function subscribeToErrors(listener: ErrorListener): () => void {
+  errorListeners.add(listener)
+  ensureSocket()
+  return () => {
+    errorListeners.delete(listener)
   }
 }
 

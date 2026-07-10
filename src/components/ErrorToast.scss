@@ -1,0 +1,64 @@
+@use '../styles/variables' as *;
+
+.error-toast {
+  position: fixed;
+  top: $spacing-unit * 2;
+  right: $spacing-unit * 2;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  max-width: 320px;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: 1px solid $color-error-border;
+  border-radius: 8px;
+  background: $color-error-bg;
+  color: $color-error;
+  font-family: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 4px 16px $color-shadow;
+
+  @media (hover: hover) {
+    &:hover {
+      opacity: 0.9;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
+.error-toast__summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.error-toast__close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 1.125rem;
+  line-height: 1;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-error-border;
+    }
+  }
+}
+
+.error-toast__detail {
+  margin: 0;
+  white-space: pre-wrap;
+}

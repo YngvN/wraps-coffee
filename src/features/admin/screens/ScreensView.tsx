@@ -85,6 +85,7 @@ export function ScreensView() {
     if (content.kind === 'image') return t('admin.screens.slotImageLabel')
     if (content.kind === 'transit') return t('admin.screens.slotTransitLabel')
     if (content.kind === 'weather') return t('admin.screens.slotWeatherLabel')
+    if (content.kind === 'messageboard') return t('admin.screens.slotMessageBoardLabel')
     return t(`menu.categories.${content.category}.title`)
   }
 

@@ -1,7 +1,0 @@
-@use '../../../styles/variables' as *;
-
-.ratings-editor {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: $spacing-unit * 2;
-}

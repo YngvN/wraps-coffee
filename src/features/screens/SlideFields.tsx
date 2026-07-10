@@ -1,23 +1,29 @@
 import { Checkbox, ImageUploadField } from '../../components'
 import { useExtensionsConfig } from '../../hooks/useExtensionsConfig'
+import { useMessageBoardPosts } from '../../hooks/useMessageBoardPosts'
+import { useMessageBoards } from '../../hooks/useMessageBoards'
 import { useLanguage } from '../../i18n'
 import type { ProductCategory } from '../../types/product'
-import type { ScreenSlotContent } from '../../types/screen'
+import { DEFAULT_MESSAGE_BOARD_COUNT, DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS, type MessageBoardDisplayMode, type MessageBoardOrder, type ScreenSlotContent } from '../../types/screen'
 import { CATEGORY_ORDER } from '../admin/products/categoryMeta'
 import { clampImageResizeScale, IMAGE_RESIZE_MAX_VIEWPORT_FRACTION, MAX_IMAGE_RESIZE_SCALE, MIN_IMAGE_RESIZE_SCALE } from '../../utils/screenLayout'
 import { getSmallUrl } from '../../utils/responsiveImage'
 import './SlideFields.scss'
 
-/** Encodes a slide's content as a `<select>` option value: "none", "menu", "events", "image", "transit", "weather", or "category:<key>". */
+const MESSAGE_BOARD_DISPLAY_MODES: MessageBoardDisplayMode[] = ['rotating', 'list', 'single']
+const MESSAGE_BOARD_ORDERS: MessageBoardOrder[] = ['newestFirst', 'oldestFirst']
+
+/** Encodes a slide's content as a `<select>` option value: "none", "menu", "events", "image", "transit", "weather", "messageboard", or "category:<key>". */
 function contentToOptionValue(content: ScreenSlotContent): string {
   return content.kind === 'category' ? `category:${content.category}` : content.kind
 }
 
-/** Decodes a `<select>` option value back into a `ScreenSlotContent`. An "image"/"transit" slide starts with an empty URL/stop id, filled in via its own field below the selector. */
+/** Decodes a `<select>` option value back into a `ScreenSlotContent`. An "image"/"transit"/"messageboard" slide starts with an empty URL/stop id/board id, filled in via its own field below the selector. */
 function optionValueToContent(value: string): ScreenSlotContent {
   if (value === 'none' || value === 'menu' || value === 'events' || value === 'weather') return { kind: value }
   if (value === 'image') return { kind: 'image', imageUrl: '' }
   if (value === 'transit') return { kind: 'transit', stopId: '' }
+  if (value === 'messageboard') return { kind: 'messageboard' }
   return { kind: 'category', category: value.slice('category:'.length) as ProductCategory }
 }
 
@@ -54,6 +60,8 @@ interface SlideFieldsProps {
 export function SlideFields({ id, content, onChange, label, resizeToFitBlocked }: SlideFieldsProps) {
   const { t } = useLanguage()
   const [extensionsConfig] = useExtensionsConfig()
+  const [messageBoards] = useMessageBoards()
+  const [messageBoardPosts] = useMessageBoardPosts()
 
   /** Starts a fresh image slide when switching the selector to "Image"; otherwise just updates the URL in place, keeping this slide's other own fields (fit, resize-to-fit, background image) intact. */
   const setImageUrl = (imageUrl: string) => {
@@ -93,6 +101,37 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked }
     onChange({ ...content, categories: CATEGORY_ORDER.filter((existing) => next.includes(existing)) })
   }
 
+  /** Switching boards clears `postId` — a post picked under the old board almost never belongs to the new one. */
+  const setMessageBoardId = (boardId: string) => {
+    if (content.kind !== 'messageboard') return
+    onChange({ ...content, boardId: boardId || undefined, postId: undefined })
+  }
+
+  const setMessageBoardDisplayMode = (displayMode: MessageBoardDisplayMode) => {
+    if (content.kind !== 'messageboard') return
+    onChange({ ...content, displayMode })
+  }
+
+  const setMessageBoardPostId = (postId: string) => {
+    if (content.kind !== 'messageboard') return
+    onChange({ ...content, postId: postId || undefined })
+  }
+
+  const setMessageBoardOrder = (order: MessageBoardOrder) => {
+    if (content.kind !== 'messageboard') return
+    onChange({ ...content, order })
+  }
+
+  const setMessageBoardRotateSeconds = (rotateSeconds: number) => {
+    if (content.kind !== 'messageboard') return
+    onChange({ ...content, rotateSeconds })
+  }
+
+  const setMessageBoardCount = (count: number) => {
+    if (content.kind !== 'messageboard') return
+    onChange({ ...content, count })
+  }
+
   return (
     <div className="slide-fields">
       <select aria-label={label} value={contentToOptionValue(content)} onChange={(event) => onChange(optionValueToContent(event.target.value))}>
@@ -102,6 +141,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked }
         <option value="image">{t('admin.screens.slotImageLabel')}</option>
         <option value="transit">{t('admin.screens.slotTransitLabel')}</option>
         <option value="weather">{t('admin.screens.slotWeatherLabel')}</option>
+        <option value="messageboard">{t('admin.screens.slotMessageBoardLabel')}</option>
         {CATEGORY_ORDER.map((category) => (
           <option key={category} value={`category:${category}`}>
             {t(`menu.categories.${category}.title`)}
@@ -194,6 +234,88 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked }
           </select>
         ) : (
           <p className="slide-fields__hint">{t('admin.screens.transitNoStopsConfiguredLabel')}</p>
+        ))}
+
+      {content.kind === 'messageboard' &&
+        (messageBoards.length > 0 ? (
+          <>
+            <select aria-label={t('admin.screens.messageBoardLabel')} value={content.boardId ?? ''} onChange={(event) => setMessageBoardId(event.target.value)}>
+              <option value="" disabled>
+                {t('admin.screens.messageBoardLabel')}
+              </option>
+              {messageBoards.map((board) => (
+                <option key={board.id} value={board.id}>
+                  {board.name}
+                </option>
+              ))}
+            </select>
+
+            {content.boardId && (
+              <>
+                <select
+                  aria-label={t('admin.screens.messageBoardDisplayModeLabel')}
+                  value={content.displayMode ?? 'rotating'}
+                  onChange={(event) => setMessageBoardDisplayMode(event.target.value as MessageBoardDisplayMode)}
+                >
+                  {MESSAGE_BOARD_DISPLAY_MODES.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {t(`admin.screens.messageBoardDisplayMode.${mode}`)}
+                    </option>
+                  ))}
+                </select>
+
+                {(content.displayMode ?? 'rotating') === 'single' &&
+                  (() => {
+                    const boardPosts = messageBoardPosts.filter((post) => post.boardId === content.boardId)
+                    return boardPosts.length > 0 ? (
+                      <select aria-label={t('admin.screens.messageBoardPostLabel')} value={content.postId ?? ''} onChange={(event) => setMessageBoardPostId(event.target.value)}>
+                        <option value="" disabled>
+                          {t('admin.screens.messageBoardPostLabel')}
+                        </option>
+                        {boardPosts.map((post) => (
+                          <option key={post.id} value={post.id}>
+                            {post.title}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="slide-fields__hint">{t('admin.screens.messageBoardNoPostsLabel')}</p>
+                    )
+                  })()}
+
+                {content.displayMode === 'list' && (
+                  <select aria-label={t('admin.screens.messageBoardOrderLabel')} value={content.order ?? 'newestFirst'} onChange={(event) => setMessageBoardOrder(event.target.value as MessageBoardOrder)}>
+                    {MESSAGE_BOARD_ORDERS.map((order) => (
+                      <option key={order} value={order}>
+                        {t(`admin.screens.messageBoardOrder.${order}`)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {(content.displayMode ?? 'rotating') === 'rotating' && (
+                  <label className="slide-fields__number-field">
+                    <span>{t('admin.screens.messageBoardRotateSecondsLabel')}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={content.rotateSeconds ?? DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS}
+                      onChange={(event) => setMessageBoardRotateSeconds(Number(event.target.value))}
+                    />
+                  </label>
+                )}
+
+                {((content.displayMode ?? 'rotating') === 'rotating' || content.displayMode === 'list') && (
+                  <label className="slide-fields__number-field">
+                    <span>{t('admin.screens.messageBoardCountLabel')}</span>
+                    <input type="number" min={1} value={content.count ?? DEFAULT_MESSAGE_BOARD_COUNT} onChange={(event) => setMessageBoardCount(Number(event.target.value))} />
+                  </label>
+                )}
+              </>
+            )}
+          </>
+        ) : (
+          <p className="slide-fields__hint">{t('admin.screens.messageBoardNoBoardsLabel')}</p>
         ))}
     </div>
   )

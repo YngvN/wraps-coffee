@@ -59,6 +59,35 @@ export type ScreenSlotContent =
   | ({ kind: 'image'; imageUrl: string; fit?: ImageFit; resizeToFit?: boolean; resizeScale?: number } & OwnBackgroundImageFields)
   | ({ kind: 'transit'; stopId?: string; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({ kind: 'weather'; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
+  | ({
+      kind: 'messageboard'
+      /** Which `MessageBoard` (see `src/types/messageBoard.ts`) this slot shows — unset renders nothing, same posture as an unset transit `stopId`. */
+      boardId?: string
+      /** Falls back to `'rotating'` when unset. */
+      displayMode?: MessageBoardDisplayMode
+      /** Used only when `displayMode` is `'single'` — which of `boardId`'s own posts to show. */
+      postId?: string
+      /** Used only when `displayMode` is `'list'`. Falls back to `'newestFirst'`. */
+      order?: MessageBoardOrder
+      /** Used only when `displayMode` is `'rotating'` — seconds between posts. Falls back to `DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS`. */
+      rotateSeconds?: number
+      /** Caps how many posts feed `'rotating'`/`'list'`. Falls back to `DEFAULT_MESSAGE_BOARD_COUNT`. */
+      count?: number
+      useOwnTextSizes?: boolean
+      textSizes?: TextSizes
+    } & OwnBackgroundImageFields)
+
+/** How a `'messageboard'` slide shows its board's posts: one admin-picked post, an auto-rotating carousel, or every post stacked in a scrollable column. */
+export type MessageBoardDisplayMode = 'single' | 'rotating' | 'list'
+
+/** Sort direction for a `'messageboard'` slide's own `'list'` display mode. */
+export type MessageBoardOrder = 'newestFirst' | 'oldestFirst'
+
+/** Used when a `'messageboard'` slide's own `rotateSeconds` is unset. */
+export const DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS = 8
+
+/** Used when a `'messageboard'` slide's own `count` is unset. */
+export const DEFAULT_MESSAGE_BOARD_COUNT = 10
 
 /**
  * A sparse per-stage "checkpoint" map for one field's value — only stages
