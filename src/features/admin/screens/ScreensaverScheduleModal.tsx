@@ -19,15 +19,16 @@ const DEFAULT_END = '06:00'
  * — live-written straight to the two time fields as they're changed, same
  * as the rest of this admin form's own fields, so there's no separate save
  * step. Clearing it removes the "Use screensaver" checkbox from every
- * screen's own editor entirely, not just turns it off. The 24h/12h toggle
- * only changes how the two `TimeField`s below it are entered/displayed —
- * the persisted schedule itself is always plain 24-hour `"HH:MM"`, so
- * switching the toggle back and forth never changes the actual times.
+ * screen's own editor entirely, not just turns it off. The two `TimeField`s
+ * below are entered/displayed per the shared clock-format preference (see
+ * `useClockFormatPreference`, edited from Settings, not here) — the
+ * persisted schedule itself is always plain 24-hour `"HH:MM"`, unaffected
+ * by that preference either way.
  */
 export function ScreensaverScheduleModal({ open, onClose }: ScreensaverScheduleModalProps) {
   const { t } = useLanguage()
   const [schedule, setSchedule] = useScreensaverSchedule()
-  const [clockFormat, setClockFormat] = useClockFormatPreference()
+  const [clockFormat] = useClockFormatPreference()
   const start = schedule?.start ?? DEFAULT_START
   const end = schedule?.end ?? DEFAULT_END
 
@@ -35,22 +36,6 @@ export function ScreensaverScheduleModal({ open, onClose }: ScreensaverScheduleM
     <Modal open={open} onClose={onClose} title={t('admin.screens.screensaverTitle')}>
       <div className="screensaver-schedule-modal">
         <p>{t('admin.screens.screensaverDescription')}</p>
-        <div className="screensaver-schedule-modal__clock-format" role="group" aria-label={t('admin.screens.clockFormatLabel')}>
-          <button
-            type="button"
-            className={`screensaver-schedule-modal__clock-format-option${clockFormat === '24h' ? ' screensaver-schedule-modal__clock-format-option--active' : ''}`}
-            onClick={() => setClockFormat('24h')}
-          >
-            {t('admin.screens.clockFormat24hLabel')}
-          </button>
-          <button
-            type="button"
-            className={`screensaver-schedule-modal__clock-format-option${clockFormat === '12h' ? ' screensaver-schedule-modal__clock-format-option--active' : ''}`}
-            onClick={() => setClockFormat('12h')}
-          >
-            {t('admin.screens.clockFormat12hLabel')}
-          </button>
-        </div>
         <TimeField
           id="screensaver-start"
           format={clockFormat}

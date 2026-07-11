@@ -5,33 +5,52 @@ import { BackButton, Modal } from '../components'
 import { BackgroundEditor } from '../features/screens/BackgroundEditor'
 import { FullscreenToggle } from '../features/screens/FullscreenToggle'
 import { GlobalTextSizeScaler, type SizeSnapshot } from '../features/screens/GlobalTextSizeScaler'
+import { KeepEditPrompt, type SlotEditChanges } from '../features/screens/KeepEditPrompt'
 import { LockIcon } from '../features/screens/LockIcon'
 import { ScreenToolbar } from '../features/screens/ScreenToolbar'
 import { SlotEditor } from '../features/screens/SlotEditor'
 import { SplitLayout } from '../features/screens/SplitLayout'
 import { StagePlaybackControls } from '../features/screens/StagePlaybackControls'
 import { UnlockScreenModal } from '../features/screens/UnlockScreenModal'
+import { useAdminSession } from '../hooks/useAdminSession'
 import { useScreenLockPin } from '../hooks/useScreenLockPin'
 import { useScreens } from '../hooks/useScreens'
 import { useScreensaverSchedule } from '../hooks/useScreensaverSchedule'
 import { useLanguage } from '../i18n'
+import { reportError } from '../lib/errorNotifications'
+import { deleteUpload, isOwnUploadUrl, SessionExpiredError, uploadImage } from '../lib/localServer'
 import { DEFAULT_SCREEN_BACKGROUND_COLOR, DEFAULT_TEXT_SIZES, type BackgroundImage, type ScreenConfig, type ScreenSlot, type ScreenSlotContent, type TextSizes } from '../types/screen'
 import { backgroundImageTextStyle, borderColorStyle, getScreenColorVars } from '../utils/screenColors'
 import { isWithinScreensaverWindow } from '../utils/screensaver'
 import { hasOwnTextSizeFields } from '../utils/screenSlots'
-import { currentStage, isResizeToFitConflict, resolveSlotContent, resolveSlotTextSizes, writeStageCheckpoint } from '../utils/screenStages'
+import {
+  currentStage,
+  isResizeToFitConflict,
+  resolveSlotBackgroundColor,
+  resolveSlotBackgroundImage,
+  resolveSlotContent,
+  resolveSlotTextSizes,
+  writeStageCheckpoint,
+} from '../utils/screenStages'
 import { resolveContentTextSizes, textSizesToCssVars } from '../utils/textSizeVars'
 import './ScreenDisplay.scss'
 
 /** A slot with no checkpoints yet — the starting draft before a slot's own data has been seeded in. */
 const EMPTY_SLOT: ScreenSlot = { content: {}, backgroundColor: {}, backgroundImage: {}, textSizes: {} }
 
-/** Folds a stage's own live text-size draft into `slot`'s content timeline, at `stage` — used both when switching away from that stage (so its edits aren't lost) and when the whole editor closes. */
-function flushStageTextSizeIntoSlot(slot: ScreenSlot, stage: number, textSizes: TextSizes, useOwn: boolean): ScreenSlot {
+/** Folds a stage's own live text-size draft into `slot`'s content timeline, at `stage` — used both when switching away from that stage (so its edits aren't lost) and when the whole editor closes. Only meaningful with more than one stage — with just one, editing "this pane" and editing "the slot's own shared size" are the same action (see `SlotEditor`'s own single-stage fallback), so this is a no-op. */
+function flushStageTextSizeIntoSlot(slot: ScreenSlot, stage: number, textSizes: TextSizes, hasMultipleStages: boolean): ScreenSlot {
+  if (!hasMultipleStages) return slot
   const content = resolveSlotContent(slot, stage)
   if (!hasOwnTextSizeFields(content)) return slot
-  const updatedContent = useOwn ? { ...content, useOwnTextSizes: true, textSizes } : { ...content, useOwnTextSizes: false }
-  return { ...slot, content: writeStageCheckpoint(slot.content, stage, updatedContent) }
+  return { ...slot, content: writeStageCheckpoint(slot.content, stage, { ...content, textSizes }) }
+}
+
+/** A content checkpoint's own signature for change-detection, deliberately excluding `textSizes` — that field is tracked (and diffed) separately via the live `draftTextSizes`/`originalTextSizes` state, since it isn't folded into the content object itself until the editor actually closes (see `flushStageTextSizeIntoSlot`). */
+function contentSignature(content: ScreenSlotContent): string {
+  const withoutTextSizes = { ...content } as Record<string, unknown>
+  delete withoutTextSizes.textSizes
+  return JSON.stringify(withoutTextSizes)
 }
 
 /** Maps a screen's text sizes, background color, (if set) its own fixed border color, and (if its own whole-screen background image has a light/dark overlay) the contrast-forced text color that overlay picks, to the CSS custom properties the whole display (and, by inheritance, any slot without its own override) reads from. */
@@ -89,7 +108,13 @@ function randomScreensaverTestLabelPosition(): { top: number; left: number } {
  * draft is written to the persisted screen as soon as it closes (whether
  * via its own "Done" button, the modal's × / Escape, or clicking outside
  * it), and a "Restore previous" button resets the draft back to the values
- * it had when the editor was opened. While a slot's editor is open, the
+ * it had when the editor was opened. On a slot with more than one stage,
+ * closing it after a real change instead shows `KeepEditPrompt` first — a
+ * summary of what was touched (content, text size, background color/image)
+ * plus the choice to keep it just for the stage being edited, overwrite
+ * every later stage's own checkpoint for that same slot with it too, or
+ * discard the whole session's edits outright (see `requestCloseEditor`).
+ * While a slot's editor is open, the
  * whole live display (every pane, not just the one being edited, since
  * every slot shares the same stage sequence) freezes on whichever stage its
  * tab bar currently has selected, instead of continuing its natural
@@ -97,17 +122,17 @@ function randomScreensaverTestLabelPosition(): { top: number; left: number } {
  *
  * The toolbar's "Lock screen" button (shown only once a PIN's been set from
  * the admin dashboard) collapses the whole toolbar down to a single lock
- * icon button — hiding the screen name, the stage indicator, the
- * fullscreen toggle, the "Edit appearance" button, and (via `SplitLayout`)
- * every pane's own hover-revealed edit button plus its draggable resize
- * dividers. Tapping that icon opens `UnlockScreenModal` to ask for that
- * same PIN before restoring all of it. While locked, text/image selection,
- * dragging and the right-click menu are also disabled
- * (`.screen-display--locked`), leaving scrolling as the only thing still
- * possible — and a `fullscreenchange` listener makes a best-effort attempt
- * to hop straight back into fullscreen if it's exited, though it can't
- * actually stop Escape from exiting in the first place; no website can
- * override that.
+ * icon button — hiding the screen name, the stage indicator, the playback
+ * transport, the fullscreen toggle, the "Edit appearance" button, and (via
+ * `SplitLayout`) every pane's own hover-revealed edit button, its draggable
+ * resize dividers, and dropping an image file onto a pane. Tapping that icon
+ * opens `UnlockScreenModal` to ask for that same PIN before restoring all of
+ * it. While locked, text/image selection, dragging and the right-click menu
+ * are also disabled (`.screen-display--locked`), leaving scrolling as the
+ * only thing still possible — and a `fullscreenchange` listener makes a
+ * best-effort attempt to hop straight back into fullscreen if it's exited,
+ * though it can't actually stop Escape from exiting in the first place; no
+ * website can override that.
  *
  * A screen with its own "Use screensaver" checkbox on (only offered once a
  * shared daily window's been set from the admin dashboard's "Screen saver"
@@ -121,6 +146,7 @@ function randomScreensaverTestLabelPosition(): { top: number; left: number } {
 export function ScreenDisplay() {
   const { t } = useLanguage()
   const { screenId } = useParams<{ screenId: string }>()
+  const { session, clearSession } = useAdminSession()
   const [screens, setScreens] = useScreens()
   const [screensaverSchedule] = useScreensaverSchedule()
   const screen = screens.find((candidate) => candidate.screenID === screenId)
@@ -132,12 +158,12 @@ export function ScreenDisplay() {
   const [draftSlot, setDraftSlot] = useState<ScreenSlot>(EMPTY_SLOT)
   const [originalSlot, setOriginalSlot] = useState<ScreenSlot>(EMPTY_SLOT)
   const [draftTextSizes, setDraftTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
-  const [draftUseOwnTextSizes, setDraftUseOwnTextSizes] = useState(false)
   const [originalTextSizes, setOriginalTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
-  const [originalUseOwnTextSizes, setOriginalUseOwnTextSizes] = useState(false)
   /** The slot's own shared/fallback text sizes at the currently active stage — shown once a screen has more than one stage (see `SlotEditor`). */
   const [draftSlotTextSizes, setDraftSlotTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
   const [originalSlotTextSizes, setOriginalSlotTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
+  /** Whether `KeepEditPrompt` is currently showing in place of `SlotEditor` — see `requestCloseEditor`. Reset to `false` every time a slot editor (re)opens. */
+  const [showKeepEditPrompt, setShowKeepEditPrompt] = useState(false)
   /** Which stage the slot editor's own tab bar currently has selected. */
   const [activeStage, setActiveStage] = useState(1)
   /** The stage the slot editor was opened on — what "Restore previous" returns the tab bar to. */
@@ -156,8 +182,12 @@ export function ScreenDisplay() {
    * as they're actually in progress, editing should stay paused once it's
    * *done* too, until the owner explicitly presses Play again, so the
    * screen doesn't leap to a different stage the moment an edit/drag ends.
+   * Starts `true` — a freshly opened display (e.g. a kiosk device just
+   * booting up and loading this page) sits on its first stage until someone
+   * explicitly presses Play, rather than immediately cycling through
+   * content unattended.
    */
-  const [manuallyPaused, setManuallyPaused] = useState(false)
+  const [manuallyPaused, setManuallyPaused] = useState(true)
   /** The toolbar's own fast-forward toggle — while on, stages advance every 2 seconds instead of the screen's own configured `slideDurationSeconds`. */
   const [fastForward, setFastForward] = useState(false)
 
@@ -224,24 +254,21 @@ export function ScreenDisplay() {
   /** While a slot's editor is open, forces the *whole* display (every pane, not just the one being edited — every slot shares the same stage sequence) to the stage its own tab bar currently has selected, instead of letting it keep naturally rotating. */
   const forcedStage = typeof editingTarget === 'object' && editingTarget !== null ? activeStage : undefined
 
-  /** Whether the slot editor is currently offering (and, if `draftUseOwnTextSizes` is also on, actually using) a per-content override distinct from the slot's own shared/fallback size — only meaningful with more than one stage, since with just one there's nothing for a per-content override to differ from (see `SlotEditor`'s own `ownTextSizes` prop, which mirrors this exact condition). */
-  const showOwnTextSizeOption = typeof editingTarget === 'object' && editingTarget !== null && Boolean(screen.useStages) && (screen.stageCount ?? 1) > 1
+  /** Whether the slot currently being edited has more than one stage — the deciding factor for whether a text-size edit goes to that stage's own content (`draftTextSizes`) or the slot's shared/fallback size (`draftSlotTextSizes`), both while editing (see `resolveTextSizes` below) and in `SlotEditor` itself. */
+  const hasMultipleStages = typeof editingTarget === 'object' && editingTarget !== null && Boolean(screen.useStages) && (screen.stageCount ?? 1) > 1
 
   /**
    * Resolves the sizes a given slot should render with right now, at
-   * `stage`. While editing this exact slot: the live draft — `draftTextSizes`
-   * only if the "use own size" option is both offered and actually checked
-   * (matching exactly which one `SlotEditor`'s slider is bound to), else
-   * `draftSlotTextSizes`, so a live edit to the *shared* size while "use
-   * own" is off actually shows up here instead of the (untouched in that
-   * case) per-content draft. While the whole screen is being edited: the
-   * percentage scaler's own resolved value for this exact slot/stage.
-   * Otherwise: its own persisted override if it has one at this stage,
-   * else the slot's persisted effective value.
+   * `stage`. While editing this exact slot: the live draft —
+   * `draftTextSizes` with more than one stage (matching exactly which one
+   * `SlotEditor`'s slider is bound to), else `draftSlotTextSizes`. While the
+   * whole screen is being edited: the percentage scaler's own resolved
+   * value for this exact slot/stage. Otherwise: its own persisted value if
+   * it has one at this stage, else the slot's persisted effective value.
    */
   const resolveTextSizes = (slotIndex: number, stage: number, content: ScreenSlotContent): TextSizes => {
     const isEditingThisSlot = typeof editingTarget === 'object' && editingTarget !== null && editingTarget.slotIndex === slotIndex
-    if (isEditingThisSlot) return showOwnTextSizeOption && draftUseOwnTextSizes ? draftTextSizes : draftSlotTextSizes
+    if (isEditingThisSlot) return hasMultipleStages ? draftTextSizes : draftSlotTextSizes
 
     if (editingTarget === 'screen' && screenDraftSnapshot) {
       const draftSlotSnapshot = screenDraftSnapshot.slots[slotIndex]
@@ -264,18 +291,16 @@ export function ScreenDisplay() {
     const openStage = stage
     const content = resolveSlotContent(slot, openStage)
     const sharedTextSizes = getPersistedSlotTextSizes(screen, slotIndex, openStage)
-    const useOwn = hasOwnTextSizeFields(content) && Boolean(content.useOwnTextSizes)
     const effective = resolveContentTextSizes(content, sharedTextSizes)
     setDraftSlot(slot)
     setOriginalSlot(slot)
     setDraftTextSizes(effective)
     setOriginalTextSizes(effective)
-    setDraftUseOwnTextSizes(useOwn)
-    setOriginalUseOwnTextSizes(useOwn)
     setDraftSlotTextSizes(sharedTextSizes)
     setOriginalSlotTextSizes(sharedTextSizes)
     setActiveStage(openStage)
     setInitialStage(openStage)
+    setShowKeepEditPrompt(false)
     setEditingTarget({ slotIndex })
     setManuallyPaused(true)
   }
@@ -291,7 +316,7 @@ export function ScreenDisplay() {
    * into `draftSlot`'s content timeline, *and* the shared/fallback draft
    * into that same stage's own `textSizes` checkpoint — both independent
    * timelines, both need flushing, or whichever one wasn't currently bound
-   * to the visible slider (see `SlotEditor`'s own `ownTextSizes?.useOwn`
+   * to the visible slider (see `SlotEditor`'s own single-vs-multi-stage
    * branch) would otherwise sit edited only in this component's local
    * state, never actually reaching `draftSlot`, and so get silently
    * dropped the next time the stage is switched again before the editor
@@ -299,14 +324,13 @@ export function ScreenDisplay() {
    * to, against the slot's own (possibly just-flushed) values there.
    */
   const handleActiveStageChange = (nextStage: number) => {
-    const flushedSlot = flushStageTextSizeIntoSlot(draftSlot, activeStage, draftTextSizes, draftUseOwnTextSizes)
+    const flushedSlot = flushStageTextSizeIntoSlot(draftSlot, activeStage, draftTextSizes, hasMultipleStages)
     const flushedSlotWithSharedSize: ScreenSlot = { ...flushedSlot, textSizes: writeStageCheckpoint(flushedSlot.textSizes, activeStage, draftSlotTextSizes) }
     if (flushedSlotWithSharedSize !== draftSlot) setDraftSlot(flushedSlotWithSharedSize)
 
     const content = resolveSlotContent(flushedSlotWithSharedSize, nextStage)
     const sharedTextSizes = resolveSlotTextSizes(flushedSlotWithSharedSize, nextStage) ?? screen.textSizes ?? DEFAULT_TEXT_SIZES
     setDraftTextSizes(resolveContentTextSizes(content, sharedTextSizes))
-    setDraftUseOwnTextSizes(hasOwnTextSizeFields(content) && Boolean(content.useOwnTextSizes))
     setDraftSlotTextSizes(sharedTextSizes)
     setActiveStage(nextStage)
   }
@@ -322,6 +346,52 @@ export function ScreenDisplay() {
   /** A divider's new position, dragged right on this display — applies (and persists) immediately, same reasoning as `handleSlideDurationChange`, and mirrors the admin dashboard's own arrow-nudge "Resize" panel writing to the very same fields. */
   const handleResizeDivider = (patch: Partial<ScreenConfig>) => {
     setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, ...patch } : existing)))
+  }
+
+  /**
+   * A file dropped directly onto a pane (see `SplitLayout`'s own
+   * `onDropImage`) — uploads it and sets that slot's content straight to
+   * the result at `fit: 'cover'` (a drag-and-drop is a "fill this pane"
+   * gesture, unlike the slot editor's own image field, which defaults to
+   * `'contain'`), applied and persisted immediately, same as
+   * `handleResizeDivider`. Targets whichever stage is currently being
+   * shown/edited (`forcedStage ?? stage`), same rule every other direct
+   * pane edit already follows. Requires a logged-in admin session in this
+   * same browser (uploads are authenticated — see `ImageUploadField`, which
+   * this mirrors); reports a toast instead of silently doing nothing when
+   * there isn't one, since a drop is a much more deliberate action than a
+   * field simply being disabled.
+   */
+  const handleDropImage = async (slotIndex: number, file: File) => {
+    if (!session) {
+      reportError(t('imageUpload.noSession'))
+      return
+    }
+
+    const targetStage = forcedStage ?? stage
+    const slot = screen.slots[slotIndex] ?? EMPTY_SLOT
+    const previousContent = resolveSlotContent(slot, targetStage)
+
+    try {
+      const imageUrl = await uploadImage(file, session.token)
+      const nextContent: ScreenSlotContent = { kind: 'image', imageUrl, fit: 'cover' }
+      const nextSlot: ScreenSlot = { ...slot, content: writeStageCheckpoint(slot.content, targetStage, nextContent) }
+      setScreens(
+        screens.map((existing) =>
+          existing.screenID === screen.screenID
+            ? { ...existing, slots: existing.slots.map((existingSlot, index) => (index === slotIndex ? nextSlot : existingSlot)) as ScreenConfig['slots'] }
+            : existing,
+        ),
+      )
+      if (previousContent.kind === 'image' && previousContent.imageUrl && isOwnUploadUrl(previousContent.imageUrl)) void deleteUpload(previousContent.imageUrl, session.token)
+    } catch (error) {
+      if (error instanceof SessionExpiredError) {
+        reportError(t('imageUpload.sessionExpired'))
+        clearSession()
+      } else {
+        reportError(error instanceof Error ? error.message : t('imageUpload.error'))
+      }
+    }
   }
 
   /** Hides this screen's own editing controls behind the shared PIN — only offered once one's actually been set from the admin dashboard, since there'd otherwise be no way back in. */
@@ -359,22 +429,25 @@ export function ScreenDisplay() {
   const handleRestore = () => {
     setDraftSlot(originalSlot)
     setDraftTextSizes(originalTextSizes)
-    setDraftUseOwnTextSizes(originalUseOwnTextSizes)
     setDraftSlotTextSizes(originalSlotTextSizes)
     setActiveStage(initialStage)
   }
 
-  /**
-   * Persists whatever the draft currently holds, then closes the editor.
-   * Wired to every way the modal can exit (its own "Done" button, ×,
-   * Escape, and clicking outside it), so there's no separate save step to
-   * remember. The currently active stage's own content checkpoint (its
-   * text-size fields specifically) is folded in first — same as switching
-   * stages does — and the slot's shared/fallback text size is written to
-   * that same stage's own checkpoint unconditionally, since it's the tier
-   * any of that stage's content falls back to whenever it doesn't opt for
-   * its own override.
-   */
+  /** The slot as it should be persisted right now: the active stage's own live text-size draft folded into its content checkpoint (when there's more than one stage) and into the slot's own shared/fallback checkpoint unconditionally — the same "fold in the active stage" step `handleActiveStageChange` also does before switching away. */
+  const finalizeDraftSlot = (): ScreenSlot => {
+    const flushedSlot = flushStageTextSizeIntoSlot(draftSlot, activeStage, draftTextSizes, hasMultipleStages)
+    return { ...flushedSlot, textSizes: writeStageCheckpoint(flushedSlot.textSizes, activeStage, draftSlotTextSizes) }
+  }
+
+  /** Compares `originalSlot`/`draftSlot` at the currently active stage (plus the separately-tracked text-size drafts) into a plain-language summary of what this editing session actually touched — drives `KeepEditPrompt`, and gates whether `requestCloseEditor` shows it at all (nothing to report means nothing to ask about). */
+  const detectSlotEditChanges = (): SlotEditChanges => ({
+    content: contentSignature(resolveSlotContent(originalSlot, activeStage)) !== contentSignature(resolveSlotContent(draftSlot, activeStage)),
+    textSizes: JSON.stringify(originalTextSizes) !== JSON.stringify(draftTextSizes),
+    backgroundColor: resolveSlotBackgroundColor(originalSlot, activeStage) !== resolveSlotBackgroundColor(draftSlot, activeStage),
+    backgroundImage: JSON.stringify(resolveSlotBackgroundImage(originalSlot, activeStage)) !== JSON.stringify(resolveSlotBackgroundImage(draftSlot, activeStage)),
+  })
+
+  /** Persists whatever the draft currently holds — just the active stage's own checkpoint — then closes the editor. Also what `KeepEditPrompt`'s own "keep here only" resolves to. */
   const closeEditor = () => {
     setScreens(
       screens.map((existing) => {
@@ -385,15 +458,73 @@ export function ScreenDisplay() {
         }
         if (editingTarget) {
           const { slotIndex } = editingTarget
-          const flushedSlot = flushStageTextSizeIntoSlot(draftSlot, activeStage, draftTextSizes, draftUseOwnTextSizes)
-          const finalSlot: ScreenSlot = { ...flushedSlot, textSizes: writeStageCheckpoint(flushedSlot.textSizes, activeStage, draftSlotTextSizes) }
-          const slots = existing.slots.map((slot, index) => (index === slotIndex ? finalSlot : slot)) as ScreenConfig['slots']
+          const slots = existing.slots.map((slot, index) => (index === slotIndex ? finalizeDraftSlot() : slot)) as ScreenConfig['slots']
           return { ...existing, slots }
         }
         return existing
       }),
     )
     setEditingTarget(null)
+    setShowKeepEditPrompt(false)
+  }
+
+  /**
+   * What every way the slot editor's modal can exit (its own "Done"
+   * button, ×, Escape, clicking outside it) is actually wired to now. With
+   * more than one stage and at least one real change to report, shows
+   * `KeepEditPrompt` instead of closing outright. Dismissing the prompt
+   * itself (its own ×/Escape/outside-click) falls through to `closeEditor`
+   * — the same "keep here only" outcome closing always had before this
+   * prompt existed — so a stray dismissal never silently discards work.
+   * The whole-screen editor, a single-stage screen, and an edit-free
+   * session all skip the prompt and close straight away, same as before.
+   */
+  const requestCloseEditor = () => {
+    if (showKeepEditPrompt) {
+      closeEditor()
+      return
+    }
+    if (typeof editingTarget === 'object' && editingTarget !== null && hasMultipleStages && Object.values(detectSlotEditChanges()).some(Boolean)) {
+      setShowKeepEditPrompt(true)
+      return
+    }
+    closeEditor()
+  }
+
+  /** `KeepEditPrompt`'s own "keep for next step(s) too" — persists the active stage's edit same as `closeEditor`, then overwrites every later stage's own checkpoint for this exact slot (content, its text size, background color, background image) with that identical, just-edited result. */
+  const handleKeepForNextSteps = () => {
+    if (typeof editingTarget !== 'object' || editingTarget === null) return
+    const { slotIndex } = editingTarget
+    const finalSlot = finalizeDraftSlot()
+    const contentAtStage = resolveSlotContent(finalSlot, activeStage)
+    const backgroundColorAtStage = resolveSlotBackgroundColor(finalSlot, activeStage)
+    const backgroundImageAtStage = resolveSlotBackgroundImage(finalSlot, activeStage)
+
+    let propagatedSlot = finalSlot
+    for (let futureStage = activeStage + 1; futureStage <= (screen.stageCount ?? 1); futureStage++) {
+      propagatedSlot = {
+        ...propagatedSlot,
+        content: writeStageCheckpoint(propagatedSlot.content, futureStage, contentAtStage),
+        backgroundColor: writeStageCheckpoint(propagatedSlot.backgroundColor, futureStage, backgroundColorAtStage),
+        backgroundImage: writeStageCheckpoint(propagatedSlot.backgroundImage, futureStage, backgroundImageAtStage),
+      }
+    }
+
+    setScreens(
+      screens.map((existing) =>
+        existing.screenID === screen.screenID
+          ? { ...existing, slots: existing.slots.map((slot, index) => (index === slotIndex ? propagatedSlot : slot)) as ScreenConfig['slots'] }
+          : existing,
+      ),
+    )
+    setEditingTarget(null)
+    setShowKeepEditPrompt(false)
+  }
+
+  /** `KeepEditPrompt`'s own "remove edits" — discards every change made this editing session. Unlike `closeEditor`, never writes anything back, since the persisted screen already matches `originalSlot`. */
+  const handleRemoveEdits = () => {
+    setEditingTarget(null)
+    setShowKeepEditPrompt(false)
   }
 
   const resizeToFitBlocked = typeof editingTarget === 'object' && editingTarget !== null && isResizeToFitConflict(screen.slots, editingTarget.slotIndex, activeStage)
@@ -466,6 +597,7 @@ export function ScreenDisplay() {
         forcedStage={forcedStage}
         onResizeDivider={screen.locked ? undefined : handleResizeDivider}
         onDragStateChange={handleDragStateChange}
+        onDropImage={screen.locked ? undefined : handleDropImage}
       />
 
       {screensaverActive && (
@@ -485,8 +617,14 @@ export function ScreenDisplay() {
 
       <Modal
         open={editingTarget !== null}
-        onClose={closeEditor}
-        title={editingTarget === 'screen' ? t('screenDisplay.textSizeEditor.title') : t('screenDisplay.slotEditorTitle')}
+        onClose={requestCloseEditor}
+        title={
+          editingTarget === 'screen'
+            ? t('screenDisplay.textSizeEditor.title')
+            : showKeepEditPrompt
+              ? t('screenDisplay.keepEditPrompt.title')
+              : t('screenDisplay.slotEditorTitle')
+        }
         route={editingTarget === 'screen' && screenSubview === 'background' ? t('admin.screens.backgroundLabel') : undefined}
       >
         {editingTarget === 'screen' ? (
@@ -515,9 +653,16 @@ export function ScreenDisplay() {
                   : undefined
               }
               onOpenBackground={() => setScreenSubview('background')}
-              onDone={closeEditor}
+              onDone={requestCloseEditor}
             />
           )
+        ) : showKeepEditPrompt ? (
+          <KeepEditPrompt
+            changes={detectSlotEditChanges()}
+            onKeepHere={closeEditor}
+            onKeepForNextSteps={handleKeepForNextSteps}
+            onRemoveEdits={handleRemoveEdits}
+          />
         ) : (
           <SlotEditor
             id={typeof editingTarget === 'object' && editingTarget !== null ? `slot-${editingTarget.slotIndex}` : 'slot'}
@@ -531,12 +676,11 @@ export function ScreenDisplay() {
             onSlideDurationChange={handleSlideDurationChange}
             textSizes={draftTextSizes}
             onTextSizesChange={setDraftTextSizes}
-            ownTextSizes={showOwnTextSizeOption ? { useOwn: draftUseOwnTextSizes, onUseOwnChange: setDraftUseOwnTextSizes } : undefined}
             slotTextSizes={draftSlotTextSizes}
             onSlotTextSizesChange={setDraftSlotTextSizes}
             resizeToFitBlocked={resizeToFitBlocked}
             onRestore={handleRestore}
-            onDone={closeEditor}
+            onDone={requestCloseEditor}
           />
         )}
       </Modal>

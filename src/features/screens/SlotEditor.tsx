@@ -24,11 +24,10 @@ interface SlotEditorProps {
   /** The screen's own shared rotation speed — only shown (and editable here) once there's more than one stage to rotate through. */
   slideDurationSeconds: number
   onSlideDurationChange: (seconds: number) => void
-  /** The currently active stage's own resolved content text sizes. */
+  /** The currently active stage's own resolved content text sizes — what's actually edited once there's more than one stage. */
   textSizes: TextSizes
   onTextSizesChange: (textSizes: TextSizes) => void
-  ownTextSizes?: { useOwn: boolean; onUseOwnChange: (useOwn: boolean) => void }
-  /** The slot's own shared (fallback) text sizes at the active stage. */
+  /** The slot's own shared (fallback) text sizes at the active stage — what's edited instead while there's only one stage, since there's nothing else for a per-content override to differ from. */
   slotTextSizes: TextSizes
   onSlotTextSizesChange: (textSizes: TextSizes) => void
   /** Disables the content editor's "Resize slot to fit image" checkbox when another slot already has one active at this same stage. */
@@ -63,7 +62,6 @@ export function SlotEditor({
   onSlideDurationChange,
   textSizes,
   onTextSizesChange,
-  ownTextSizes,
   slotTextSizes,
   onSlotTextSizesChange,
   resizeToFitBlocked,
@@ -114,12 +112,11 @@ export function SlotEditor({
       )}
 
       <TextSizeEditor
-        textSizes={ownTextSizes?.useOwn ? textSizes : slotTextSizes}
-        onChange={ownTextSizes?.useOwn ? onTextSizesChange : onSlotTextSizesChange}
+        textSizes={hasMultipleStages ? textSizes : slotTextSizes}
+        onChange={hasMultipleStages ? onTextSizesChange : onSlotTextSizesChange}
         backgroundColor={backgroundColor}
         onBackgroundColorChange={setBackgroundColor}
         allowTransparentBackground
-        ownTextSizes={ownTextSizes}
         onRestore={onRestore}
         onDone={onDone}
       />

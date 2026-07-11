@@ -250,24 +250,27 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked }
               ))}
             </select>
 
-            {content.boardId && (
-              <>
-                <select
-                  aria-label={t('admin.screens.messageBoardDisplayModeLabel')}
-                  value={content.displayMode ?? 'rotating'}
-                  onChange={(event) => setMessageBoardDisplayMode(event.target.value as MessageBoardDisplayMode)}
-                >
-                  {MESSAGE_BOARD_DISPLAY_MODES.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {t(`admin.screens.messageBoardDisplayMode.${mode}`)}
-                    </option>
-                  ))}
-                </select>
+            {content.boardId &&
+              (() => {
+                const boardPosts = messageBoardPosts.filter((post) => post.boardId === content.boardId)
+                return (
+                  <>
+                    <select
+                      aria-label={t('admin.screens.messageBoardDisplayModeLabel')}
+                      value={content.displayMode ?? 'rotating'}
+                      onChange={(event) => setMessageBoardDisplayMode(event.target.value as MessageBoardDisplayMode)}
+                    >
+                      {MESSAGE_BOARD_DISPLAY_MODES.map((mode) => (
+                        <option key={mode} value={mode}>
+                          {t(`admin.screens.messageBoardDisplayMode.${mode}`)}
+                        </option>
+                      ))}
+                    </select>
 
-                {(content.displayMode ?? 'rotating') === 'single' &&
-                  (() => {
-                    const boardPosts = messageBoardPosts.filter((post) => post.boardId === content.boardId)
-                    return boardPosts.length > 0 ? (
+                    {/* Shown for every mode, not just "single" — a board with no posts yet renders blank on the live display in every mode, which otherwise looks like a bug rather than "not populated yet". */}
+                    {boardPosts.length === 0 && <p className="slide-fields__hint">{t('admin.screens.messageBoardNoPostsLabel')}</p>}
+
+                    {(content.displayMode ?? 'rotating') === 'single' && boardPosts.length > 0 && (
                       <select aria-label={t('admin.screens.messageBoardPostLabel')} value={content.postId ?? ''} onChange={(event) => setMessageBoardPostId(event.target.value)}>
                         <option value="" disabled>
                           {t('admin.screens.messageBoardPostLabel')}
@@ -278,41 +281,43 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked }
                           </option>
                         ))}
                       </select>
-                    ) : (
-                      <p className="slide-fields__hint">{t('admin.screens.messageBoardNoPostsLabel')}</p>
-                    )
-                  })()}
+                    )}
 
-                {content.displayMode === 'list' && (
-                  <select aria-label={t('admin.screens.messageBoardOrderLabel')} value={content.order ?? 'newestFirst'} onChange={(event) => setMessageBoardOrder(event.target.value as MessageBoardOrder)}>
-                    {MESSAGE_BOARD_ORDERS.map((order) => (
-                      <option key={order} value={order}>
-                        {t(`admin.screens.messageBoardOrder.${order}`)}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                    {content.displayMode === 'list' && (
+                      <select
+                        aria-label={t('admin.screens.messageBoardOrderLabel')}
+                        value={content.order ?? 'newestFirst'}
+                        onChange={(event) => setMessageBoardOrder(event.target.value as MessageBoardOrder)}
+                      >
+                        {MESSAGE_BOARD_ORDERS.map((order) => (
+                          <option key={order} value={order}>
+                            {t(`admin.screens.messageBoardOrder.${order}`)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
 
-                {(content.displayMode ?? 'rotating') === 'rotating' && (
-                  <label className="slide-fields__number-field">
-                    <span>{t('admin.screens.messageBoardRotateSecondsLabel')}</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={content.rotateSeconds ?? DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS}
-                      onChange={(event) => setMessageBoardRotateSeconds(Number(event.target.value))}
-                    />
-                  </label>
-                )}
+                    {(content.displayMode ?? 'rotating') === 'rotating' && (
+                      <label className="slide-fields__number-field">
+                        <span>{t('admin.screens.messageBoardRotateSecondsLabel')}</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={content.rotateSeconds ?? DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS}
+                          onChange={(event) => setMessageBoardRotateSeconds(Number(event.target.value))}
+                        />
+                      </label>
+                    )}
 
-                {((content.displayMode ?? 'rotating') === 'rotating' || content.displayMode === 'list') && (
-                  <label className="slide-fields__number-field">
-                    <span>{t('admin.screens.messageBoardCountLabel')}</span>
-                    <input type="number" min={1} value={content.count ?? DEFAULT_MESSAGE_BOARD_COUNT} onChange={(event) => setMessageBoardCount(Number(event.target.value))} />
-                  </label>
-                )}
-              </>
-            )}
+                    {((content.displayMode ?? 'rotating') === 'rotating' || content.displayMode === 'list') && (
+                      <label className="slide-fields__number-field">
+                        <span>{t('admin.screens.messageBoardCountLabel')}</span>
+                        <input type="number" min={1} value={content.count ?? DEFAULT_MESSAGE_BOARD_COUNT} onChange={(event) => setMessageBoardCount(Number(event.target.value))} />
+                      </label>
+                    )}
+                  </>
+                )
+              })()}
           </>
         ) : (
           <p className="slide-fields__hint">{t('admin.screens.messageBoardNoBoardsLabel')}</p>

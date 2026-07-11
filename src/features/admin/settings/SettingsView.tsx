@@ -1,15 +1,19 @@
 import { useState } from 'react'
 import { BackButton, Button, Card, Checkbox, SlideTransition, TranslatedText } from '../../../components'
 import { availableLanguages, useLanguage } from '../../../i18n'
+import { useClockFormatPreference, type ClockFormat } from '../../../hooks/useClockFormatPreference'
 import { useSidebarSettings } from '../../../hooks/useSidebarSettings'
 import type { ToggleableSidebarItem } from '../../../types/sidebarSettings'
 import { ADMIN_NAV_ICONS, NAV_ITEMS } from '../layout/adminNavItems'
 import { DeveloperDocsView } from './DeveloperDocsView'
 import './SettingsView.scss'
 
-/** Admin-wide settings: the interface language, which sidebar items this cafe's dashboard shows (different cafes use different features — a cafe with no online ordering or no digital signage can hide those tabs entirely), and a "For developers" sub-view documenting the local server's own API. More device/account-level preferences land here over time. */
+const CLOCK_FORMATS: ClockFormat[] = ['24h', '12h']
+
+/** Admin-wide settings: the interface language, the shared clock format (24-hour or 12-hour AM/PM — used everywhere a wall-clock time is shown: the weather forecast, admin timestamps, and the screensaver schedule's own time pickers), which sidebar items this cafe's dashboard shows (different cafes use different features — a cafe with no online ordering or no digital signage can hide those tabs entirely), and a "For developers" sub-view documenting the local server's own API. More device/account-level preferences land here over time. */
 export function SettingsView() {
   const { t, language, setLanguage } = useLanguage()
+  const [clockFormat, setClockFormat] = useClockFormatPreference()
   const [sidebarSettings, setSidebarSettings] = useSidebarSettings()
   const toggleableItems = NAV_ITEMS.filter((item) => item.toggleable)
   /** Whether the "For developers" sub-view (replacing the whole settings list until its own Back button is pressed) is open. */
@@ -55,6 +59,20 @@ export function SettingsView() {
                   onClick={() => setLanguage(option.code)}
                 >
                   {option.label}
+                </button>
+              ))}
+            </div>
+          </Card>
+          <Card title={t('admin.settings.clockFormatLabel')}>
+            <div className="settings-view__clock-format-options">
+              {CLOCK_FORMATS.map((format) => (
+                <button
+                  key={format}
+                  type="button"
+                  className={`settings-view__clock-format-option${format === clockFormat ? ' settings-view__clock-format-option--active' : ''}`}
+                  onClick={() => setClockFormat(format)}
+                >
+                  {t(format === '24h' ? 'admin.settings.clockFormat24hLabel' : 'admin.settings.clockFormat12hLabel')}
                 </button>
               ))}
             </div>

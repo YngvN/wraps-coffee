@@ -38,18 +38,14 @@
   }
 }
 
-// Hidden by default — a physical keyboard (see `PinInput.tsx`'s own
-// `keydown` listener) covers larger screens; this on-screen keypad only
-// appears where there's unlikely to be one, so a phone/tablet gets it
-// instead of the browser's own native keyboard.
+// Always shown, on every screen size — a physical keyboard (see
+// `PinInput.tsx`'s own `keydown` listener) still works alongside it, but a
+// kiosk display's own touchscreen has no guarantee of one, regardless of
+// how large that screen is.
 .pin-input__keypad {
-  display: none;
+  display: grid;
   grid-template-columns: repeat(3, 56px);
   gap: $spacing-unit;
-
-  @media (max-width: 640px) {
-    display: grid;
-  }
 }
 
 .pin-input__key {

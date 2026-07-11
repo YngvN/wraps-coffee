@@ -1,0 +1,32 @@
+@use '../../styles/variables' as *;
+
+.keep-edit-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  min-width: min(380px, 80vw);
+}
+
+.keep-edit-prompt__intro,
+.keep-edit-prompt__question {
+  margin: 0;
+  color: $color-text;
+}
+
+.keep-edit-prompt__summary {
+  margin: 0;
+  padding-left: $spacing-unit * 1.25;
+  color: $color-text-muted;
+  font-size: 0.9rem;
+
+  li {
+    margin-bottom: calc($spacing-unit / 4);
+  }
+}
+
+.keep-edit-prompt__actions {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  margin-top: calc($spacing-unit / 2);
+}

@@ -16,9 +16,10 @@ interface PinInputProps {
  * A `length`-digit PIN entry: a row of filled/empty dots showing progress,
  * driven either by a physical keyboard (digits 0-9, Backspace — works
  * anywhere, since there's no real `<input>` here for it to conflict with)
- * or, only shown on small screens via `PinInput.scss`'s own media query, an
- * on-screen numeric keypad — so a phone/tablet gets big tappable buttons
- * instead of the browser's native keyboard popping up over half the modal.
+ * or an always-shown on-screen numeric keypad, at every screen size — a
+ * kiosk display's own touchscreen has no guarantee of a physical keyboard
+ * regardless of how large that screen is, so the keypad can't be limited to
+ * small viewports the way a phone/tablet check would suggest.
  */
 export function PinInput({ value, onChange, length = 4, error }: PinInputProps) {
   useEffect(() => {

@@ -24,12 +24,14 @@ interface OwnBackgroundImageFields {
  * public Menu page — or, via `categories`, just a chosen subset of them,
  * e.g. to split the full menu across more than one screen), the
  * upcoming-events list, or a single centered image (e.g. a logo or an
- * Instagram photo, pasted in as a URL). A category/menu/events checkpoint
- * normally follows its slot's own text size (which itself falls back to the
- * screen's default) — `useOwnTextSizes` lets one checkpoint opt out and
- * keep its own independent `textSizes` instead, e.g. because it needs
- * bigger text than the slot's other stages. An image checkpoint has no text
- * of its own, so it has no text-size fields at all; `fit` instead controls
+ * Instagram photo, pasted in as a URL). A category/menu/events checkpoint's
+ * own `textSizes` is independent of its slot's other stages — e.g. it can
+ * be bigger than the slot's other checkpoints — since editing one step's
+ * pane is only ever meant to change how that one step looks. It falls back
+ * to the slot's own shared/fallback size (then the screen's default) only
+ * until it's first edited, at which point it starts writing here instead.
+ * An image checkpoint has no text of its own, so it has no text-size fields
+ * at all; `fit` instead controls
  * how its picture fills the slide, falling back to `'contain'` when absent.
  * `resizeToFit` (image checkpoints only) instead makes its own *pane* grow
  * or shrink to match the image's own aspect ratio — capped at `resizeScale`
@@ -53,12 +55,12 @@ interface OwnBackgroundImageFields {
  */
 export type ScreenSlotContent =
   | ({ kind: 'none' } & OwnBackgroundImageFields)
-  | ({ kind: 'category'; category: ProductCategory; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
-  | ({ kind: 'menu'; categories?: ProductCategory[]; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
-  | ({ kind: 'events'; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
+  | ({ kind: 'category'; category: ProductCategory; textSizes?: TextSizes } & OwnBackgroundImageFields)
+  | ({ kind: 'menu'; categories?: ProductCategory[]; textSizes?: TextSizes } & OwnBackgroundImageFields)
+  | ({ kind: 'events'; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({ kind: 'image'; imageUrl: string; fit?: ImageFit; resizeToFit?: boolean; resizeScale?: number } & OwnBackgroundImageFields)
-  | ({ kind: 'transit'; stopId?: string; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
-  | ({ kind: 'weather'; useOwnTextSizes?: boolean; textSizes?: TextSizes } & OwnBackgroundImageFields)
+  | ({ kind: 'transit'; stopId?: string; textSizes?: TextSizes } & OwnBackgroundImageFields)
+  | ({ kind: 'weather'; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({
       kind: 'messageboard'
       /** Which `MessageBoard` (see `src/types/messageBoard.ts`) this slot shows — unset renders nothing, same posture as an unset transit `stopId`. */
@@ -73,7 +75,6 @@ export type ScreenSlotContent =
       rotateSeconds?: number
       /** Caps how many posts feed `'rotating'`/`'list'`. Falls back to `DEFAULT_MESSAGE_BOARD_COUNT`. */
       count?: number
-      useOwnTextSizes?: boolean
       textSizes?: TextSizes
     } & OwnBackgroundImageFields)
 

@@ -166,3 +166,29 @@ export async function regenerateDeveloperKey(token: string): Promise<string> {
   const { key } = (await response.json()) as { key: string }
   return key
 }
+
+/** The Neon database URL override (see "For developers" in Settings), or `null` if none has been saved — falls back to the server's own `NEON_DATABASE_URL` environment variable when unset. `admin`/`subadmin` only. */
+export async function getNeonUrl(token: string): Promise<string | null> {
+  const response = await fetch(`${serverBaseUrl()}/neon-url`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 403) throw new Error('Only admin/subadmin accounts can view the Neon database URL')
+  if (!response.ok) throw new Error('Could not load the Neon database URL')
+  const { url } = (await response.json()) as { url: string | null }
+  return url
+}
+
+/** Sets (or, passing `null`/an empty string, clears) the Neon database URL override — the local server reconnects its website bridge immediately, no restart needed. `admin`/`subadmin` only. */
+export async function setNeonUrl(token: string, url: string | null): Promise<string | null> {
+  const response = await fetch(`${serverBaseUrl()}/neon-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ url }),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not save the Neon database URL')
+  }
+  const { url: savedUrl } = (await response.json()) as { url: string | null }
+  return savedUrl
+}

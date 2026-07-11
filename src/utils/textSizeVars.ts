@@ -25,11 +25,11 @@ export function normalizeTextSizes(textSizes: TextSizes): TextSizes {
 }
 
 /**
- * Effective text sizes for a specific slide: its own override when it has
- * opted into one (`useOwnTextSizes`), else `fallback` — typically the
- * slide's slot's own size, or (absent that) the screen's default.
+ * Effective text sizes for a specific slide: its own value once it has one,
+ * else `fallback` — typically the slide's slot's own size, or (absent that)
+ * the screen's default.
  */
 export function resolveContentTextSizes(content: ScreenSlotContent, fallback: TextSizes): TextSizes {
-  if (hasOwnTextSizeFields(content) && content.useOwnTextSizes && content.textSizes) return normalizeTextSizes(content.textSizes)
+  if (hasOwnTextSizeFields(content) && content.textSizes) return normalizeTextSizes(content.textSizes)
   return fallback
 }

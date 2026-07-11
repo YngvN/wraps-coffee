@@ -123,7 +123,6 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
   /** Whether the "Split direction" sub-view is itself showing its own nested "Borders" sub-menu rather than the layout picker/resize D-pad — reset whenever this sub-view (re)opens. */
   const [arrangementShowingBorders, setArrangementShowingBorders] = useState(false)
   const [liveTextSizes, setLiveTextSizes] = useState<TextSizes>(screen?.textSizes ?? DEFAULT_TEXT_SIZES)
-  const [liveUseOwnTextSizes, setLiveUseOwnTextSizes] = useState(false)
   /** Which stage a slot's own tab is currently showing fields for — shared across every slot tab (switching which slot you're viewing doesn't change it), since stages are a screen-wide sequence, not a per-slot one. */
   const [activeStage, setActiveStage] = useState(1)
   const [name, setName] = useState(() => screen?.name ?? nextDefaultScreenName(screens, t('admin.screens.defaultNamePrefix')))
@@ -279,14 +278,13 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
     onRouteChange?.(undefined)
   }
 
-  /** Seeds the live text-size buffer for one slot at a given stage — that stage's resolved content's own override if it has one, else the slot's own shared/fallback value at that same stage. */
+  /** Seeds the live text-size buffer for one slot at a given stage — that stage's resolved content's own value if it has one, else the slot's own shared/fallback value at that same stage. */
   const seedLiveTextSizes = (slotIndex: number, stage: number) => {
     if (!screen || !latestScreen) return
     const slot = latestScreen.slots[slotIndex]
     const sharedTextSizes = resolveSlotTextSizes(slot, stage) ?? latestScreen.textSizes ?? DEFAULT_TEXT_SIZES
     const content = resolveSlotContent(slot, stage)
     setLiveTextSizes(resolveContentTextSizes(content, sharedTextSizes))
-    setLiveUseOwnTextSizes(hasOwnTextSizeFields(content) && Boolean(content.useOwnTextSizes))
   }
 
   /** Switches which stage the active slot's own tab bar has selected, reseeding the live text-size buffer to match. */
@@ -308,10 +306,13 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
    * shows up live on that screen's display immediately, in any other
    * tab/window of this browser already showing it. This is plain browser
    * storage, not a network call, so it keeps working even if the internet
-   * drops. Goes to the currently active stage's own content override when
-   * its checkbox is on, else that same stage's own shared/fallback
-   * checkpoint. Also mirrors the change into this form's own local slot
-   * state, so a subsequent Save can't stomp it with a stale copy.
+   * drops. With more than one stage, goes to the currently active stage's
+   * own content checkpoint, since editing one step's pane is only ever
+   * meant to change how that step looks; with just one stage, there's
+   * nothing else for a per-content value to differ from, so it goes to the
+   * slot's own shared/fallback checkpoint instead. Also mirrors the change
+   * into this form's own local slot state, so a subsequent Save can't
+   * stomp it with a stale copy.
    */
   const handleLiveTextSizesChange = (sizes: TextSizes) => {
     setLiveTextSizes(sizes)
@@ -319,7 +320,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
     const slotIndex = activeTab
     const slot = slotFields[slotIndex].value
 
-    if (!liveUseOwnTextSizes) {
+    if (!hasMultipleStages) {
       const updatedSlot: ScreenSlot = { ...slot, textSizes: writeStageCheckpoint(slot.textSizes, clampedActiveStage, sizes) }
       slotFields[slotIndex].onChange(updatedSlot)
       liveUpdateScreen({ slots: slotFields.map((field, i) => (i === slotIndex ? updatedSlot : field.value)) as ScreenConfig['slots'] })
@@ -328,21 +329,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
 
     const content = resolveSlotContent(slot, clampedActiveStage)
     if (!hasOwnTextSizeFields(content)) return
-    const updatedSlot: ScreenSlot = { ...slot, content: writeStageCheckpoint(slot.content, clampedActiveStage, { ...content, useOwnTextSizes: true, textSizes: sizes }) }
-    slotFields[slotIndex].onChange(updatedSlot)
-    liveUpdateScreen({ slots: slotFields.map((field, i) => (i === slotIndex ? updatedSlot : field.value)) as ScreenConfig['slots'] })
-  }
-
-  /** Toggles whether the active stage's own content follows the slot's shared size or keeps its own — applied live, same reasoning as `handleLiveTextSizesChange`. */
-  const handleUseOwnTextSizesChange = (checked: boolean) => {
-    setLiveUseOwnTextSizes(checked)
-    if (!screen || typeof activeTab !== 'number') return
-    const slotIndex = activeTab
-    const slot = slotFields[slotIndex].value
-    const content = resolveSlotContent(slot, clampedActiveStage)
-    if (!hasOwnTextSizeFields(content)) return
-    const updatedContent = checked ? { ...content, useOwnTextSizes: true, textSizes: liveTextSizes } : { ...content, useOwnTextSizes: false }
-    const updatedSlot: ScreenSlot = { ...slot, content: writeStageCheckpoint(slot.content, clampedActiveStage, updatedContent) }
+    const updatedSlot: ScreenSlot = { ...slot, content: writeStageCheckpoint(slot.content, clampedActiveStage, { ...content, textSizes: sizes }) }
     slotFields[slotIndex].onChange(updatedSlot)
     liveUpdateScreen({ slots: slotFields.map((field, i) => (i === slotIndex ? updatedSlot : field.value)) as ScreenConfig['slots'] })
   }
@@ -845,13 +832,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
                     )}
                   />
 
-                  {screen && hasOwnTextSizeFields(content) && (
-                    <TextSizeEditor
-                      textSizes={liveTextSizes}
-                      onChange={handleLiveTextSizesChange}
-                      ownTextSizes={hasMultipleStages ? { useOwn: liveUseOwnTextSizes, onUseOwnChange: handleUseOwnTextSizesChange } : undefined}
-                    />
-                  )}
+                  {screen && hasOwnTextSizeFields(content) && <TextSizeEditor textSizes={liveTextSizes} onChange={handleLiveTextSizesChange} />}
 
                   <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openSlotBackgroundEditor}>
                     {t('admin.screens.backgroundLabel')}

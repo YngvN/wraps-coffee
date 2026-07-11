@@ -1,14 +1,17 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
 import { Card, TranslatedText } from '../../../components'
+import { useClockFormatPreference } from '../../../hooks/useClockFormatPreference'
 import { useMessages } from '../../../hooks/useMessages'
 import { useLanguage } from '../../../i18n'
+import { formatDateTime } from '../../../utils/clockFormat'
 import { MessageListItem } from './MessageListItem'
 import './MessagesView.scss'
 
 /** Admin inbox of mock customer inquiries. Selecting a message marks it as read. There's no real send/receive backend yet. */
 export function MessagesView() {
   const { t, language } = useLanguage()
+  const [clockFormat] = useClockFormatPreference()
   const [messages, setMessages] = useMessages()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected = messages.find((message) => message.id === selectedId) ?? null
@@ -40,7 +43,7 @@ export function MessagesView() {
                   {t('admin.messages.fromLabel')}: {selected.name} ({selected.email})
                 </p>
                 <p className="messages-view__meta">
-                  {t('admin.messages.receivedLabel')}: {new Date(selected.receivedAt).toLocaleString(language)}
+                  {t('admin.messages.receivedLabel')}: {formatDateTime(new Date(selected.receivedAt), language, clockFormat)}
                 </p>
                 <p className="messages-view__body">{selected.message}</p>
               </motion.div>

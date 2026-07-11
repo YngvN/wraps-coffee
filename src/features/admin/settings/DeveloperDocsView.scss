@@ -95,6 +95,18 @@
   color: $color-text;
 }
 
+.developer-docs__neon-url-input {
+  width: min(420px, 100%);
+  font-family: $font-mono, monospace;
+  font-size: 0.8125rem;
+}
+
+.developer-docs__actions {
+  display: flex;
+  gap: $spacing-unit;
+  flex-wrap: wrap;
+}
+
 .developer-docs__hint {
   color: $color-text-muted;
   font-size: 0.875rem;

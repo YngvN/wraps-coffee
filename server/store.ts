@@ -40,7 +40,7 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.events': 'events.json',
   'admin.contactInfo': 'contactInfo.json',
   'admin.textSizePresets': 'textSizePresets.json',
-  'admin.screensaverClockFormat': null,
+  'admin.clockFormat': null,
   'admin.screenLockPin': null,
   'admin.screensaverSchedule': null,
   'admin.screens': 'screens.json',
@@ -55,7 +55,7 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
 const HARDCODED_DEFAULTS: Partial<Record<SyncedKey, unknown>> = {
   'admin.screenLockPin': null,
   'admin.screensaverSchedule': null,
-  'admin.screensaverClockFormat': '24h',
+  'admin.clockFormat': '24h',
   'admin.extensions': DEFAULT_EXTENSIONS_CONFIG,
   'admin.sidebarSettings': DEFAULT_SIDEBAR_SETTINGS,
   // No bundled seed — orders only ever arrive via the Neon bridge pulling
@@ -186,4 +186,26 @@ export function regenerateDeveloperApiKey(): string {
   const key = randomBytes(24).toString('hex')
   writeFileSync(API_KEY_FILE, JSON.stringify({ key }), 'utf-8')
   return key
+}
+
+// --- Neon database URL -------------------------------------------------------
+//
+// An editable override for the `NEON_DATABASE_URL` environment variable (see
+// `neonBridge.ts`), settable from Settings → For developers instead of
+// requiring a server restart with a new env var. Once this file exists — even
+// holding an explicit `null`, i.e. after hitting "Clear" — it takes
+// precedence over the environment variable, so a clear reliably disables the
+// bridge even if the env var is still set in the shell that launched `tsx`.
+
+const NEON_URL_FILE = join(DATA_DIR, 'neon-database-url.json')
+
+export function getNeonDatabaseUrl(): string | null {
+  if (existsSync(NEON_URL_FILE)) {
+    return (JSON.parse(readFileSync(NEON_URL_FILE, 'utf-8')) as { url: string | null }).url
+  }
+  return process.env.NEON_DATABASE_URL ?? null
+}
+
+export function setNeonDatabaseUrl(url: string | null) {
+  writeFileSync(NEON_URL_FILE, JSON.stringify({ url }), 'utf-8')
 }

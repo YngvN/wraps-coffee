@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Button, Card } from '../../../components'
+import { Button, Card, Input } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
-import { getDeveloperKey, regenerateDeveloperKey } from '../../../lib/localServer'
+import { getDeveloperKey, getNeonUrl, regenerateDeveloperKey, setNeonUrl } from '../../../lib/localServer'
 import './DeveloperDocsView.scss'
+
+/** Masks the password segment of a `postgres://user:password@host/db` connection string for display, leaving the user/host/db visible so an admin can confirm it points at the right project without exposing the actual secret. Falls back to returning `url` unchanged if it doesn't match the expected shape. */
+function maskNeonUrl(url: string): string {
+  return url.replace(/:\/\/([^:/@]+):([^@]+)@/, '://$1:••••••••@')
+}
 
 /** Every `SYNCED_KEY` (see `src/types/sync.ts`) paired with its own one-line description key — kept in sync with that list by hand; see CLAUDE.md's "Keep docs in sync" rule. */
 const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
@@ -13,7 +18,7 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.events', descKey: 'admin.settings.developerDocs.keyEvents' },
   { key: 'admin.contactInfo', descKey: 'admin.settings.developerDocs.keyContactInfo' },
   { key: 'admin.textSizePresets', descKey: 'admin.settings.developerDocs.keyTextSizePresets' },
-  { key: 'admin.screensaverClockFormat', descKey: 'admin.settings.developerDocs.keyScreensaverClockFormat' },
+  { key: 'admin.clockFormat', descKey: 'admin.settings.developerDocs.keyClockFormat' },
   { key: 'admin.screenLockPin', descKey: 'admin.settings.developerDocs.keyScreenLockPin' },
   { key: 'admin.screensaverSchedule', descKey: 'admin.settings.developerDocs.keyScreensaverSchedule' },
   { key: 'admin.screens', descKey: 'admin.settings.developerDocs.keyScreens' },
@@ -41,12 +46,27 @@ export function DeveloperDocsView() {
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [keyError, setKeyError] = useState<string | null>(null)
 
+  const [neonUrl, setNeonUrlValue] = useState<string | null>(null)
+  const [isLoadingNeonUrl, setIsLoadingNeonUrl] = useState(() => session?.role !== 'limited')
+  const [isEditingNeonUrl, setIsEditingNeonUrl] = useState(false)
+  const [neonUrlDraft, setNeonUrlDraft] = useState('')
+  const [isSavingNeonUrl, setIsSavingNeonUrl] = useState(false)
+  const [neonUrlError, setNeonUrlError] = useState<string | null>(null)
+
   useEffect(() => {
     if (!session) return
     getDeveloperKey(session.token)
       .then(setApiKey)
       .catch(() => setKeyError(t('admin.settings.developerDocs.keyLoadError')))
       .finally(() => setIsLoadingKey(false))
+  }, [session, t])
+
+  useEffect(() => {
+    if (!session || session.role === 'limited') return
+    getNeonUrl(session.token)
+      .then(setNeonUrlValue)
+      .catch(() => setNeonUrlError(t('admin.settings.developerDocs.neonUrlLoadError')))
+      .finally(() => setIsLoadingNeonUrl(false))
   }, [session, t])
 
   const handleRegenerate = () => {
@@ -57,6 +77,29 @@ export function DeveloperDocsView() {
       .then(setApiKey)
       .catch(() => setKeyError(t('admin.settings.developerDocs.keyRegenerateError')))
       .finally(() => setIsRegenerating(false))
+  }
+
+  const startEditingNeonUrl = () => {
+    setNeonUrlDraft(neonUrl ?? '')
+    setNeonUrlError(null)
+    setIsEditingNeonUrl(true)
+  }
+
+  const saveNeonUrl = (value: string | null) => {
+    if (!session) return
+    setIsSavingNeonUrl(true)
+    setNeonUrlError(null)
+    setNeonUrl(session.token, value)
+      .then((saved) => {
+        setNeonUrlValue(saved)
+        setIsEditingNeonUrl(false)
+      })
+      .catch(() => setNeonUrlError(t('admin.settings.developerDocs.neonUrlSaveError')))
+      .finally(() => setIsSavingNeonUrl(false))
+  }
+
+  const handleClearNeonUrl = () => {
+    if (window.confirm(t('admin.settings.developerDocs.neonUrlClearConfirm'))) saveNeonUrl(null)
   }
 
   return (
@@ -161,6 +204,56 @@ GET /extensions/weather?lat=<lat>&lon=<lon>&hours=<n>
         <p>{t('admin.settings.developerDocs.websiteIntro')}</p>
         <p>{t('admin.settings.developerDocs.websiteNoTunnel')}</p>
 
+        {session?.role !== 'limited' && (
+          <>
+            <div className="developer-docs__key-display">
+              <span className="developer-docs__key-label">{t('admin.settings.developerDocs.neonUrlLabel')}</span>
+              {isLoadingNeonUrl ? (
+                <span className="developer-docs__hint">{t('admin.settings.developerDocs.keyLoading')}</span>
+              ) : isEditingNeonUrl ? (
+                <Input
+                  className="developer-docs__neon-url-input"
+                  type="text"
+                  value={neonUrlDraft}
+                  onChange={(event) => setNeonUrlDraft(event.target.value)}
+                  placeholder="postgres://user:password@host/db?sslmode=require"
+                  autoFocus
+                />
+              ) : neonUrl ? (
+                <code>{maskNeonUrl(neonUrl)}</code>
+              ) : (
+                <span className="developer-docs__hint">{t('admin.settings.developerDocs.noNeonUrlYet')}</span>
+              )}
+            </div>
+            {neonUrlError && <p className="developer-docs__error">{neonUrlError}</p>}
+            {!isLoadingNeonUrl && (
+              <div className="developer-docs__actions">
+                {isEditingNeonUrl ? (
+                  <>
+                    <Button type="button" variant="secondary" onClick={() => saveNeonUrl(neonUrlDraft)} disabled={isSavingNeonUrl}>
+                      {t('admin.common.save')}
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => setIsEditingNeonUrl(false)} disabled={isSavingNeonUrl}>
+                      {t('admin.common.cancel')}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button type="button" variant="secondary" onClick={startEditingNeonUrl} disabled={isSavingNeonUrl}>
+                      {neonUrl ? t('admin.settings.developerDocs.editButton') : t('admin.settings.developerDocs.addButton')}
+                    </Button>
+                    {neonUrl && (
+                      <Button type="button" variant="secondary" onClick={handleClearNeonUrl} disabled={isSavingNeonUrl}>
+                        {t('admin.settings.developerDocs.clearButton')}
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
         <div className="developer-docs__key-display">
           <span className="developer-docs__key-label">{t('admin.settings.developerDocs.apiKeyLabel')}</span>
           {isLoadingKey ? (
@@ -192,7 +285,14 @@ VITE_API_KEY=<the key above>     (same value, baked into that project's client b
 
 POST /developer-key/regenerate    (Authorization: Bearer <token>, admin/subadmin only)
 → 200 { "key": string }
-→ 403 { "error": "..." }   (a "limited" account's own token)`}</code>
+→ 403 { "error": "..." }   (a "limited" account's own token)
+
+GET /neon-url                     (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "url": string | null }
+
+POST /neon-url                    (Authorization: Bearer <token>, admin/subadmin only)
+{ "url": string | null }          (null or "" clears it — reconnects the bridge immediately either way)
+→ 200 { "url": string | null }`}</code>
         </pre>
       </Card>
     </div>

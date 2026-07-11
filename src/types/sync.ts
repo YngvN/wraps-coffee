@@ -6,7 +6,7 @@ export const SYNCED_KEYS = [
   'admin.events',
   'admin.contactInfo',
   'admin.textSizePresets',
-  'admin.screensaverClockFormat',
+  'admin.clockFormat',
   'admin.screenLockPin',
   'admin.screensaverSchedule',
   'admin.screens',

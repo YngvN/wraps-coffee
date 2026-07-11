@@ -105,6 +105,31 @@
   }
 }
 
+// Shown while a file is being dragged over this pane specifically — a
+// dashed inset ring, matching `ImageUploadField`'s own drop-overlay styling
+// so the interaction reads the same wherever a drop target appears.
+.split-layout__pane-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px dashed $color-accent;
+  border-radius: 4px;
+  background: $color-overlay;
+  pointer-events: none;
+
+  p {
+    margin: 0;
+    padding: calc($spacing-unit / 2) $spacing-unit;
+    border-radius: 6px;
+    background: $color-bg;
+    color: $color-accent;
+    font-weight: 600;
+  }
+}
+
 // Sized to exactly cover the pane (its own positioning context for the
 // overscanned, blurred image below) so it can crossfade as a unit whenever
 // the effective background image changes between slides.
@@ -140,6 +165,28 @@
 .split-layout__pane-content {
   position: absolute;
   inset: 0;
+}
+
+// While a pane-resize CSS transition is animating (a stage advance, a
+// `resizeToFit` image growing/shrinking, the admin's own arrow-nudge
+// "Resize" panel, etc. — see `SplitLayout.tsx`'s own `isPaneResizing`,
+// which never applies during a live divider drag), every slide's own
+// heading/title text is kept on one line instead of visibly wrapping and
+// unwrapping through several line counts while its pane's width is still
+// animating toward its final size — ellipsized rather than left to
+// overflow raw. Scoped to `h1`/`h2` only, the tag every slide's own
+// title-level heading uses — body/description text (`p`) keeps wrapping
+// normally throughout, since multi-line prose reflowing mid-transition
+// reads far less jarring than a short title doing it. Reverts the instant
+// the transition settles and this class is removed, restoring each
+// heading's own `overflow-wrap: break-word` for genuinely long titles.
+.split-layout--resizing .split-layout__pane-content {
+  h1,
+  h2 {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
 }
 
 // The admin editor's own click-feedback flash (see `screen.editingFocus`),

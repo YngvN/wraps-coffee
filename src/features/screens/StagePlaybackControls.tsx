@@ -1,7 +1,9 @@
 import { useLanguage } from '../../i18n'
 import { FastForwardIcon } from './FastForwardIcon'
+import { NextStepIcon } from './NextStepIcon'
 import { PauseIcon } from './PauseIcon'
 import { PlayIcon } from './PlayIcon'
+import { PreviousStepIcon } from './PreviousStepIcon'
 import './StagePlaybackControls.scss'
 
 interface StagePlaybackControlsProps {
@@ -20,13 +22,16 @@ interface StagePlaybackControlsProps {
 }
 
 /**
- * The live display's own stage transport controls: a snapping slider that
- * jumps straight to any stage, a play/pause toggle for the shared rotation
- * timer, and a fast-forward toggle that swaps the screen's own configured
- * `slideDurationSeconds` for a fixed 2 seconds while it's on (clicking it
- * again restores the configured speed). Shown in `ScreenToolbar` next to
- * the stage indicator, only while `screen.useStages` is on with more than
- * one stage — with just one stage there's nothing to transport between.
+ * The live display's own stage transport controls: a previous/next-stage
+ * button pair (wrapping around at either end of the sequence, matching how
+ * the shared rotation itself loops back to stage 1 after the last one), a
+ * snapping slider that jumps straight to any stage, a play/pause toggle for
+ * the shared rotation timer, and a fast-forward toggle that swaps the
+ * screen's own configured `slideDurationSeconds` for a fixed 2 seconds
+ * while it's on (clicking it again restores the configured speed). Shown in
+ * `ScreenToolbar` next to the stage indicator, only while `screen.useStages`
+ * is on with more than one stage — with just one stage there's nothing to
+ * transport between.
  */
 export function StagePlaybackControls({ stageCount, stage, onScrub, playing, onTogglePlaying, fastForward, onToggleFastForward, disabled }: StagePlaybackControlsProps) {
   const { t } = useLanguage()
@@ -36,12 +41,32 @@ export function StagePlaybackControls({ stageCount, stage, onScrub, playing, onT
       <button
         type="button"
         className="screen-toolbar__button screen-toolbar__button--icon"
+        onClick={() => onScrub(stage === 1 ? stageCount : stage - 1)}
+        disabled={disabled}
+        aria-label={t('screenDisplay.previousStage')}
+        title={t('screenDisplay.previousStage')}
+      >
+        <PreviousStepIcon />
+      </button>
+      <button
+        type="button"
+        className="screen-toolbar__button screen-toolbar__button--icon"
         onClick={onTogglePlaying}
         disabled={disabled}
         aria-label={playing ? t('screenDisplay.pauseStages') : t('screenDisplay.playStages')}
         title={playing ? t('screenDisplay.pauseStages') : t('screenDisplay.playStages')}
       >
         {playing ? <PauseIcon /> : <PlayIcon />}
+      </button>
+      <button
+        type="button"
+        className="screen-toolbar__button screen-toolbar__button--icon"
+        onClick={() => onScrub(stage === stageCount ? 1 : stage + 1)}
+        disabled={disabled}
+        aria-label={t('screenDisplay.nextStage')}
+        title={t('screenDisplay.nextStage')}
+      >
+        <NextStepIcon />
       </button>
       <input
         type="range"

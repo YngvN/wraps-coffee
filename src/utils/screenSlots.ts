@@ -1,6 +1,6 @@
 import type { BackgroundImage, ScreenSlotContent } from '../types/screen'
 
-/** A content kind that has text of its own, and so can carry a `useOwnTextSizes`/`textSizes` override — unlike `'none'` (nothing to show) or `'image'` (no text at all). */
+/** A content kind that has text of its own, and so can carry its own `textSizes` — unlike `'none'` (nothing to show) or `'image'` (no text at all). */
 export function hasOwnTextSizeFields(
   content: ScreenSlotContent,
 ): content is Extract<ScreenSlotContent, { kind: 'category' } | { kind: 'menu' } | { kind: 'events' } | { kind: 'transit' } | { kind: 'weather' } | { kind: 'messageboard' }> {

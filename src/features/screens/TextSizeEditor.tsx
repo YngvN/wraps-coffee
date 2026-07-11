@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Checkbox, Input } from '../../components'
+import { Button, Input } from '../../components'
 import { useTextSizePresets } from '../../hooks/useTextSizePresets'
 import { useLanguage } from '../../i18n'
 import type { TextSizes } from '../../types/screen'
@@ -23,15 +23,7 @@ interface TextSizeEditorProps {
   onBackgroundColorChange?: (backgroundColor: string | undefined) => void
   /** Shows a "Transparent" swatch in the color picker — used for a slot's own color, whose standard/default is transparent. */
   allowTransparentBackground?: boolean
-  /**
-   * Shows a checkbox letting the current slide opt out of following its
-   * slot's/screen's shared text size and use its own instead. Only
-   * meaningful for one slide within a slideshow-enabled slot that has more
-   * than one slide — omit to hide the checkbox everywhere else (a single
-   * slide has nothing else to differ from).
-   */
-  ownTextSizes?: { useOwn: boolean; onUseOwnChange: (useOwn: boolean) => void }
-  /** Resets the sizes (and, when shown, the background color/own-size checkbox) back to what they were when this editor was opened. Omit to hide the button — there's nothing to restore to when changes are already written live with no "previous" snapshot of their own (the admin form's slot editor). */
+  /** Resets the sizes (and, when shown, the background color) back to what they were when this editor was opened. Omit to hide the button — there's nothing to restore to when changes are already written live with no "previous" snapshot of their own (the admin form's slot editor). */
   onRestore?: () => void
   /** Called by the "Done" button — typically closes a modal, or (the admin form's inline per-slide editor) returns to the slot's own "Global" tab. Omit to hide the button entirely, for a usage with no such notion of "finishing" (e.g. a flat, always-inline editor with nothing to return to). */
   onDone?: () => void
@@ -48,7 +40,7 @@ interface TextSizeEditorProps {
  * separate "Save" step, so the caller is expected to persist it (e.g. on the
  * wrapping modal being closed).
  */
-export function TextSizeEditor({ textSizes, onChange, backgroundColor, onBackgroundColorChange, allowTransparentBackground, ownTextSizes, onRestore, onDone }: TextSizeEditorProps) {
+export function TextSizeEditor({ textSizes, onChange, backgroundColor, onBackgroundColorChange, allowTransparentBackground, onRestore, onDone }: TextSizeEditorProps) {
   const { t } = useLanguage()
   const [presets, setPresets] = useTextSizePresets()
   const [presetName, setPresetName] = useState('')
@@ -88,15 +80,6 @@ export function TextSizeEditor({ textSizes, onChange, backgroundColor, onBackgro
   return (
     <div className="text-size-editor">
       {onBackgroundColorChange && <BackgroundColorPicker backgroundColor={backgroundColor} onChange={onBackgroundColorChange} allowTransparent={allowTransparentBackground} />}
-
-      {ownTextSizes && (
-        <Checkbox
-          id="use-own-text-sizes"
-          label={t('screenDisplay.textSizeEditor.useOwnTextSizesLabel')}
-          checked={ownTextSizes.useOwn}
-          onChange={(event) => ownTextSizes.onUseOwnChange(event.target.checked)}
-        />
-      )}
 
       <label className="text-size-editor__slider text-size-editor__slider--all">
         <span>

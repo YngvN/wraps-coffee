@@ -27,9 +27,11 @@ import * as store from './store'
 /**
  * Optional bridge to the public website's own Neon Postgres database (a
  * separate project — see the "Website integration" plan). Entirely
- * additive: with `NEON_DATABASE_URL` unset, `start()` is a no-op and
- * nothing else in this app is affected, same graceful-degradation posture
- * as every other optional piece of the local server.
+ * additive: with no connection string configured (see `store.getNeonDatabaseUrl`
+ * — either the `NEON_DATABASE_URL` env var, or an override saved from
+ * Settings → For developers), `start()` is a no-op and nothing else in this
+ * app is affected, same graceful-degradation posture as every other optional
+ * piece of the local server.
  *
  * Two directions:
  * - **Outbound** (`OUTBOUND_KEYS`): this repo owns the content — a client
@@ -195,7 +197,7 @@ function scheduleReconnect() {
 }
 
 async function connect() {
-  const connectionString = process.env.NEON_DATABASE_URL
+  const connectionString = store.getNeonDatabaseUrl()
   if (!connectionString) return
 
   const newClient = new Client({ connectionString })
@@ -254,14 +256,29 @@ async function connect() {
   }
 }
 
-/** Starts the bridge (a no-op if `NEON_DATABASE_URL` isn't set). Call once at server boot, after `store.load()`. */
+/** Starts the bridge (a no-op if no connection string is configured, via either the env var or Settings → For developers). Call once at server boot, after `store.load()`. */
 export function start(applyUpdate: ApplyUpdate, reportError: ReportError) {
   applyUpdateRef = applyUpdate
   reportErrorRef = reportError
 
-  if (!process.env.NEON_DATABASE_URL) {
-    console.log('[neon] NEON_DATABASE_URL not set — website sync is disabled')
+  if (!store.getNeonDatabaseUrl()) {
+    console.log('[neon] no Neon database URL configured — website sync is disabled')
     return
+  }
+
+  void connect()
+}
+
+/** Disconnects (if connected) and reconnects using whatever `store.getNeonDatabaseUrl()` returns right now — called after an admin edits or clears it from Settings, so the change takes effect immediately without a server restart. If the new value is unset, `connect()` itself just no-ops, leaving the bridge disconnected. */
+export function restart() {
+  reconnectDelay = INITIAL_RECONNECT_DELAY_MS
+  for (const timer of debounceTimers.values()) clearTimeout(timer)
+  debounceTimers.clear()
+
+  if (client) {
+    const oldClient = client
+    client = null
+    oldClient.end().catch(() => {})
   }
 
   void connect()

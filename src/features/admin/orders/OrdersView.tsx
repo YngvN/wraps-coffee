@@ -1,7 +1,9 @@
 import { Badge, Card, TranslatedText } from '../../../components'
+import { useClockFormatPreference } from '../../../hooks/useClockFormatPreference'
 import { useOrders } from '../../../hooks/useOrders'
 import { useLanguage } from '../../../i18n'
 import type { OrderRecord, OrderStatus } from '../../../types/order'
+import { formatDateTime } from '../../../utils/clockFormat'
 import './OrdersView.scss'
 
 const STATUS_OPTIONS: OrderStatus[] = ['received', 'accepted', 'preparing', 'ready', 'completed', 'cancelled']
@@ -18,6 +20,7 @@ const STATUS_BADGE_VARIANT: Record<OrderStatus, 'info' | 'warning' | 'success' |
 /** Admin view of online orders placed on the public website — pulled down live via the Neon bridge (see `server/neonBridge.ts`). Only `status` is editable here; every other field belongs to the customer's original submission. A status change pushes back up to the website the same way it arrived, so its own order-status page reflects it. */
 export function OrdersView() {
   const { t, language } = useLanguage()
+  const [clockFormat] = useClockFormatPreference()
   const [orders, setOrders] = useOrders()
 
   const updateStatus = (id: string, status: OrderStatus) => {
@@ -59,7 +62,7 @@ export function OrdersView() {
                     {t('admin.orders.pickupTimeLabel')}: {order.pickupTime}
                   </span>
                   <span>
-                    {t('admin.orders.placedLabel')}: {new Date(order.createdAt).toLocaleString(language)}
+                    {t('admin.orders.placedLabel')}: {formatDateTime(new Date(order.createdAt), language, clockFormat)}
                   </span>
                   <span className="orders-view__total">
                     {t('admin.orders.totalLabel')}: {order.totalPrice.toFixed(0)} kr

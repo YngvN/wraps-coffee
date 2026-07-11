@@ -20,7 +20,6 @@ const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
   'admin.textSizePresets': 'screens',
   'admin.screenLockPin': 'screens',
   'admin.screensaverSchedule': 'screens',
-  'admin.screensaverClockFormat': 'screens',
   'admin.extensions': 'extensions',
   'admin.orders': 'orders',
   'admin.messageBoards': 'messageboard',
@@ -155,6 +154,49 @@ const httpServer = createServer((req, res) => {
       return
     }
     sendJson(res, 200, { key: store.regenerateDeveloperApiKey() })
+    return
+  }
+
+  // Neon database URL override (see "Website integration" in Settings → For
+  // developers) — lets an admin configure/fix/clear the connection string
+  // without editing the server's own environment and restarting it. Contains
+  // a real database password, so admin/subadmin only, same posture as the
+  // developer API key's own regenerate route above.
+  if (req.method === 'GET' && url.pathname === '/neon-url') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view the Neon database URL' })
+      return
+    }
+    sendJson(res, 200, { url: store.getNeonDatabaseUrl() })
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/neon-url') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can edit the Neon database URL' })
+      return
+    }
+    readJsonBody(req)
+      .then((body) => {
+        const { url: rawUrl } = body as { url?: string | null }
+        const trimmed = typeof rawUrl === 'string' ? rawUrl.trim() : ''
+        const newUrl = trimmed || null
+        store.setNeonDatabaseUrl(newUrl)
+        neonBridge.restart()
+        console.log(`[neon] ${session.username} ${newUrl ? 'updated' : 'cleared'} the Neon database URL`)
+        sendJson(res, 200, { url: newUrl })
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
     return
   }
 

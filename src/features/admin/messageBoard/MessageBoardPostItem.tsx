@@ -1,6 +1,8 @@
 import { Badge, Button, Card } from '../../../components'
+import { useClockFormatPreference } from '../../../hooks/useClockFormatPreference'
 import { useLanguage } from '../../../i18n'
 import type { MessageBoardPost } from '../../../types/messageBoard'
+import { formatDateTime } from '../../../utils/clockFormat'
 import { isPostExpired } from '../../../utils/messageBoard'
 import { getSmallUrl } from '../../../utils/responsiveImage'
 import './MessageBoardPostItem.scss'
@@ -16,6 +18,7 @@ interface MessageBoardPostItemProps {
 /** One message-board post card: pin/expired badges, title, body, optional image, and a footer with the poster's name and timestamp. */
 export function MessageBoardPostItem({ post, canManage, onEdit, onDelete }: MessageBoardPostItemProps) {
   const { t, language } = useLanguage()
+  const [clockFormat] = useClockFormatPreference()
   const expired = isPostExpired(post)
 
   return (
@@ -29,7 +32,7 @@ export function MessageBoardPostItem({ post, canManage, onEdit, onDelete }: Mess
       <p className="message-board-post-item__body">{post.body}</p>
       <div className="message-board-post-item__footer">
         <span className="message-board-post-item__meta">
-          {post.authorUsername} · {new Date(post.createdAt).toLocaleString(language)}
+          {post.authorUsername} · {formatDateTime(new Date(post.createdAt), language, clockFormat)}
           {post.updatedAt && ` · ${t('admin.messageBoard.editedLabel')}`}
         </span>
         {canManage && (

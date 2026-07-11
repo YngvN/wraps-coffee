@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { useLanguage } from '../../i18n'
 import type { RatioField, ScreenConfig, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
 import { backgroundImageTextStyle, slotBackgroundColorStyle } from '../../utils/screenColors'
@@ -41,6 +41,8 @@ interface SplitLayoutProps {
   onResizeDivider?: (patch: Partial<ScreenConfig>) => void
   /** Reports when a divider drag starts and stops — lets the caller (e.g. pausing the shared stage rotation for the duration, see `ScreenDisplay`) react to a drag in progress without needing to track `liveRatios` itself. */
   onDragStateChange?: (isDragging: boolean) => void
+  /** Called when an image file is dropped directly onto a pane, with that slot's own index (0-3) and the dropped file — the caller owns uploading it and deciding what to do with the result (see `ScreenDisplay`'s own handler, which sets that slot's content to the uploaded image at `fit: 'cover'`). Omit (like `onEditSlide`/`onResizeDivider`) to disable entirely, e.g. while the screen is locked. */
+  onDropImage?: (slotIndex: number, file: File) => void
 }
 
 /**
@@ -76,10 +78,14 @@ interface SplitLayoutProps {
  * slides back to its own set size on its own, the same transition a manual
  * resize already animates with.
  */
-export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forcedStage, onResizeDivider, onDragStateChange }: SplitLayoutProps) {
+export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forcedStage, onResizeDivider, onDragStateChange, onDropImage }: SplitLayoutProps) {
   const { t } = useLanguage()
   const reducedMotion = useReducedMotion()
   const containerRef = useRef<HTMLDivElement>(null)
+  /** Per-pane drag-enter/leave counters (keyed by slot index) — nested elements inside a pane (its content, the edit button) each fire their own enter/leave as the pointer crosses them, so a counter (rather than a boolean) is what keeps the drop overlay from flickering, same technique `ImageUploadField` already uses for its own single dropzone. */
+  const dragDepthRef = useRef<Map<number, number>>(new Map())
+  /** Panes currently showing the "drop to set image" overlay. */
+  const [dragOverPanes, setDragOverPanes] = useState<Set<number>>(new Set())
   /** A divider's own value while it's actively being dragged — overrides the persisted screen's own for live visual feedback, cleared again once the drag commits. */
   const [liveRatios, setLiveRatios] = useState<RatioPatch>({})
   /** The container's own measured pixel size — stands in for the viewport (this arrangement always fills it entirely), needed to turn a `resizeToFit` image's natural size into a percentage ratio. */
@@ -175,6 +181,62 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forc
     naturalHeight: resizeImageEntry.naturalSize.height,
   }
 
+  // A non-empty `liveRatios` means a divider's actively being dragged right
+  // here — computed early (not just where it's otherwise used, further
+  // below) so the resize-transition tracking right after can tell a live
+  // drag (the pointer is tracked 1:1, with no CSS transition at all — see
+  // `gridTransition`) apart from a *programmatic* ratio change (a stage
+  // advance, a `resizeToFit` image growing/shrinking, the admin's own
+  // arrow-nudge "Resize" panel, or a live sync from another tab), which
+  // does animate via a real CSS transition and so is the only case the
+  // wrap-suppression below is meant for.
+  const isDragging = Object.keys(liveRatios).length > 0
+  const isSnappingToCenterWhileDragging = isDragging && Object.values(liveRatios).some((value) => value === CENTER_RATIO)
+
+  // Computed here (not just where it's otherwise used, further below) for
+  // the same reason `isDragging` was just moved up — the resize-transition
+  // tracking right after needs this render's own resolved grid template to
+  // compare against the previous one.
+  const layoutScreen: ScreenConfig = { ...screen, ratios: applyRatioOverrides(screen.ratios, effectiveStage, { ...imageResizeOverrides, ...liveRatios }) }
+  const gridTemplateBase = splitGridTemplate(layoutScreen, effectiveStage)
+
+  /**
+   * Whether a pane-resize CSS transition (as opposed to a live divider
+   * drag, which is excluded above) is currently animating — set the instant
+   * this render's own resolved grid template differs from the previous
+   * one, cleared again once that transition's own duration has elapsed
+   * (`transition.duration`, the same value the CSS itself uses). While
+   * true, `.split-layout--resizing` (see `SplitLayout.scss`) suppresses
+   * word-wrapping on every slide's own heading/title text, so a title
+   * doesn't visibly wrap and unwrap through several line counts while its
+   * pane is still mid-resize — the moment it settles, normal wrapping (see
+   * each slide's own `overflow-wrap: break-word`) fully applies again.
+   * Comparing raw template strings (not e.g. `screen.ratios` directly)
+   * catches every source of a resize at once, including ones with no
+   * dedicated ratio field of their own (`resizeToFit`'s own computed
+   * override).
+   */
+  const [previousGridTemplate, setPreviousGridTemplate] = useState(gridTemplateBase)
+  const [isPaneResizing, setIsPaneResizing] = useState(false)
+  const gridTemplateChanged =
+    !isDragging && (gridTemplateBase.gridTemplateColumns !== previousGridTemplate.gridTemplateColumns || gridTemplateBase.gridTemplateRows !== previousGridTemplate.gridTemplateRows)
+  if (gridTemplateChanged) {
+    setIsPaneResizing(true)
+    setPreviousGridTemplate(gridTemplateBase)
+  } else if (gridTemplateBase.gridTemplateColumns !== previousGridTemplate.gridTemplateColumns || gridTemplateBase.gridTemplateRows !== previousGridTemplate.gridTemplateRows) {
+    // A live-drag frame — keeps the "previous" snapshot current so a real,
+    // CSS-transitioned change right after the drag ends is still detected
+    // (comparing against the pointer's own last dragged-to position, not a
+    // stale pre-drag one), without itself flagging as a resize transition.
+    setPreviousGridTemplate(gridTemplateBase)
+  }
+
+  useEffect(() => {
+    if (!isPaneResizing) return
+    const timer = setTimeout(() => setIsPaneResizing(false), transition.duration * 1000)
+    return () => clearTimeout(timer)
+  }, [isPaneResizing, transition.duration])
+
   // A pane that just stopped showing a `resizeToFit` image (it had one as of
   // the previous render, not this one) needs its own *shrink* held off until
   // its outgoing slide has actually finished crossfading out — otherwise the
@@ -212,31 +274,13 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forc
 
   const borderModifier = screen.showSlotBorders === false ? ' split-layout--no-borders' : ''
 
-  // The live overlay (a divider actively being dragged, or a `resizeToFit`
-  // image's own pane-fit) is injected as an exact checkpoint at the
-  // *effective* stage, in a copy of `screen.ratios` — read-only, never
-  // itself persisted — so `splitGridTemplate`/`screenDividers`/`crossHandle`
-  // below can resolve it through the exact same per-stage machinery as any
-  // real, saved ratio, rather than needing a parallel "flat override" path.
-  const layoutScreen: ScreenConfig = { ...screen, ratios: applyRatioOverrides(screen.ratios, effectiveStage, { ...imageResizeOverrides, ...liveRatios }) }
+  // `layoutScreen` (the live overlay — a divider actively being dragged, or
+  // a `resizeToFit` image's own pane-fit — injected as an exact checkpoint
+  // at the *effective* stage, in a copy of `screen.ratios`, read-only,
+  // never itself persisted) and `isDragging`/`isSnappingToCenterWhileDragging`
+  // were both computed earlier, alongside the resize-transition tracking
+  // that also needs them — see the comments up there.
   const paneVariants = (slotIndex: number) => resolveTransitionVariants(screen.transitionStyle, paneDefaultSlideDirection(screen, slotIndex))
-  // A non-empty `liveRatios` means a divider's actively being dragged right
-  // here — that needs to track the pointer instantly, with no transition
-  // lag, EXCEPT the one instant it magnetically locks to dead center (see
-  // `dividerFieldValue`'s own snap): that moment gets a quick glide instead
-  // of a hard teleport from wherever the raw pointer position was, straight
-  // to the exact center value — detected simply by the live value already
-  // being exactly `CENTER_RATIO`, since an organically-dragged raw position
-  // landing there by sheer coincidence (rather than the snap) is never
-  // going to happen. Any other ratio change (the admin dashboard's own
-  // arrow-nudge "Resize" panel, live-synced in from another tab, or a
-  // `resizeToFit` image's own pane growing/shrinking to fit it) has no such
-  // live pointer to keep up with, so it gets the same full CSS transition
-  // as always, sliding the divider into its new position rather than
-  // snapping there — delayed until the crossfade finishes for a shrink (see
-  // `isShrinkingAwayFromImage`).
-  const isDragging = Object.keys(liveRatios).length > 0
-  const isSnappingToCenterWhileDragging = isDragging && Object.values(liveRatios).some((value) => value === CENTER_RATIO)
   const gridDelay = isShrinkingAwayFromImage ? transition.duration : 0
   const dragSnapGlideSeconds = 0.15
   // The divider gap's own color (`--screen-border`, derived from the
@@ -253,7 +297,7 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forc
     ? isSnappingToCenterWhileDragging && `grid-template-columns ${dragSnapGlideSeconds}s ease, grid-template-rows ${dragSnapGlideSeconds}s ease`
     : `grid-template-columns 0.5s ease ${gridDelay}s, grid-template-rows 0.5s ease ${gridDelay}s, background-color 0.4s ease`
   const gridTemplate = {
-    ...splitGridTemplate(layoutScreen, effectiveStage),
+    ...gridTemplateBase,
     ...(!reducedMotion && gridTransition ? { transition: gridTransition } : {}),
   }
   const dividers = screenDividers(layoutScreen, effectiveStage)
@@ -326,6 +370,45 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forc
     onResizeDivider?.({ ratios: applyRatioOverrides(screen.ratios, effectiveStage, patch) })
   }
 
+  const handlePaneDragEnter = (index: number) => (event: DragEvent<HTMLDivElement>) => {
+    if (!onDropImage) return
+    event.preventDefault()
+    dragDepthRef.current.set(index, (dragDepthRef.current.get(index) ?? 0) + 1)
+    setDragOverPanes((current) => new Set(current).add(index))
+  }
+
+  const handlePaneDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!onDropImage) return
+    event.preventDefault()
+  }
+
+  const handlePaneDragLeave = (index: number) => (event: DragEvent<HTMLDivElement>) => {
+    if (!onDropImage) return
+    event.preventDefault()
+    const depth = Math.max(0, (dragDepthRef.current.get(index) ?? 0) - 1)
+    dragDepthRef.current.set(index, depth)
+    if (depth === 0) {
+      setDragOverPanes((current) => {
+        const next = new Set(current)
+        next.delete(index)
+        return next
+      })
+    }
+  }
+
+  const handlePaneDrop = (index: number) => (event: DragEvent<HTMLDivElement>) => {
+    if (!onDropImage) return
+    event.preventDefault()
+    dragDepthRef.current.set(index, 0)
+    setDragOverPanes((current) => {
+      const next = new Set(current)
+      next.delete(index)
+      return next
+    })
+    const file = event.dataTransfer.files[0]
+    if (file?.type.startsWith('image/')) onDropImage(index, file)
+  }
+
   const renderDividers = () =>
     onResizeDivider && (
       <>
@@ -391,7 +474,20 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forc
       ...(!reducedMotion ? { transition: `background-color 0.4s ease ${paneColorDelay}s, color 0.4s ease ${paneColorDelay}s` } : {}),
     }
     return (
-      <div className={`split-layout__pane${extraClassName}`} key={index} style={paneStyle}>
+      <div
+        className={`split-layout__pane${extraClassName}`}
+        key={index}
+        style={paneStyle}
+        onDragEnter={handlePaneDragEnter(index)}
+        onDragOver={handlePaneDragOver}
+        onDragLeave={handlePaneDragLeave(index)}
+        onDrop={handlePaneDrop(index)}
+      >
+        {dragOverPanes.has(index) && (
+          <div className="split-layout__pane-drop-overlay">
+            <p>{t('screenDisplay.dropImageHint')}</p>
+          </div>
+        )}
         <AnimatePresence mode="wait">
           {backgroundImage && (
             <motion.div
@@ -441,7 +537,7 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forc
 
   if (screen.slotCount === 3) {
     return (
-      <div ref={containerRef} className={`split-layout split-layout--triple-${direction}-${bigPosition}${borderModifier}`} style={gridTemplate}>
+      <div ref={containerRef} className={`split-layout split-layout--triple-${direction}-${bigPosition}${borderModifier}${isPaneResizing ? ' split-layout--resizing' : ''}`} style={gridTemplate}>
         {renderPane(visibleSlots[0], 0, ' split-layout__pane--big')}
         {renderPane(visibleSlots[1], 1, ' split-layout__pane--small1')}
         {renderPane(visibleSlots[2], 2, ' split-layout__pane--small2')}
@@ -451,7 +547,7 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forc
   }
 
   return (
-    <div ref={containerRef} className={`split-layout split-layout--${screen.slotCount === 4 ? 'quad' : direction}${borderModifier}`} style={gridTemplate}>
+    <div ref={containerRef} className={`split-layout split-layout--${screen.slotCount === 4 ? 'quad' : direction}${borderModifier}${isPaneResizing ? ' split-layout--resizing' : ''}`} style={gridTemplate}>
       {visibleSlots.map((slot, index) => renderPane(slot, index))}
       {renderDividers()}
     </div>
