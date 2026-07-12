@@ -1,0 +1,111 @@
+@use '../../styles/variables' as *;
+
+.event-month-slide {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 3;
+  height: 100%;
+  padding: $spacing-unit * 6;
+  overflow: hidden;
+
+  > h1 {
+    flex-shrink: 0;
+    margin: 0;
+    font-family: $font-heading;
+    font-size: var(--slide-heading-size, 3.5rem);
+    text-transform: capitalize;
+    overflow-wrap: break-word;
+  }
+}
+
+.event-month-slide__empty {
+  margin: 0;
+  color: var(--screen-text-muted);
+  font-size: var(--slide-description-size, 1.25rem);
+}
+
+.event-month-slide__list {
+  // `flex: 1` (plus `min-height: 0`, overriding a flex item's default
+  // `min-height: auto` which would otherwise let it grow to fit its own
+  // content instead of shrinking to the space actually available) gives
+  // this a concrete, bounded height — what `column-fill: auto` needs to
+  // know where one column ends and the next begins. Real CSS multi-column
+  // layout (not `display: grid`, which fills row-major — across, then
+  // down) is what "fill this column top-to-bottom, then start a new one"
+  // actually is.
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  // `font-size` here (not inherited by children — they set their own via
+  // the same var) makes `ch` below resolve relative to the item-title
+  // size, matching `EventCalendarSlide`/`FullMenuSlide`'s own auto-fit
+  // lists.
+  font-size: var(--slide-item-title-size, 1.75rem);
+  column-width: max(320px, 26ch);
+  column-gap: $spacing-unit * 4;
+  column-fill: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  // However many columns fit still isn't guaranteed to hold every event in
+  // the month — a horizontal scrollbar is the fallback once they don't,
+  // same "content taller/wider than the pane stays reachable" posture the
+  // other slide lists use, just on the other axis (since a fixed-height
+  // multi-column container overflows sideways, not downward).
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  .screen-display--hide-scrollbar & {
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}
+
+.event-month-slide__item {
+  display: flex;
+  align-items: baseline;
+  gap: $spacing-unit * 2;
+  // Multi-column layout has no "row gap" of its own within a column —
+  // items are just document-flow-stacked one after another — so spacing
+  // between them is a plain margin instead. `break-inside: avoid` keeps
+  // one event's own date+title+price+description block from being split
+  // across a column break.
+  margin-bottom: $spacing-unit * 3;
+  break-inside: avoid;
+
+  &--cancelled {
+    opacity: 0.6;
+  }
+}
+
+.event-month-slide__date {
+  flex-shrink: 0;
+  min-width: 5ch;
+  color: var(--screen-text-muted);
+  font-size: var(--slide-description-size, 1.25rem);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.event-month-slide__body {
+  min-width: 0;
+
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: $spacing-unit;
+    margin: 0;
+    font-size: var(--slide-item-title-size, 1.75rem);
+    overflow-wrap: break-word;
+  }
+}
+
+.event-month-slide__price,
+.event-month-slide__description {
+  margin: calc($spacing-unit / 2) 0 0;
+  color: var(--screen-text-muted);
+  font-size: var(--slide-description-size, 1.25rem);
+  overflow-wrap: break-word;
+}

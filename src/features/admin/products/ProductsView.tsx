@@ -64,6 +64,11 @@ export function ProductsView() {
                             {code}
                           </span>
                         ))}
+                        {product.dietaryTags.map((tag) => (
+                          <Badge key={tag} variant="info">
+                            {t(`menu.dietaryTags.items.${tag}.title`)}
+                          </Badge>
+                        ))}
                         <Badge variant={product.available ? 'success' : 'neutral'}>
                           {product.available ? t('admin.products.availableLabel') : t('admin.products.hiddenLabel')}
                         </Badge>

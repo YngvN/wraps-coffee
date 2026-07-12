@@ -1,0 +1,30 @@
+@use '../../styles/variables' as *;
+
+.qr-code-slide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  // A small gap so the code doesn't touch its pane's own borders — much
+  // slimmer than a normal slide's own padding (e.g. `ImageSlide`'s), since
+  // the code should still fill as much of the pane as it reasonably can.
+  padding: $spacing-unit * 2;
+  color: var(--screen-text);
+}
+
+.qr-code-slide__code {
+  display: block;
+  // `width`/`height` (a percentage of this, its flex-centered container —
+  // the admin's own adjustable `size`) are set inline by `QrCodeSlide`
+  // itself, capped at `max-width`/`max-height: 100%` so a `size` of 100
+  // still respects the small gap above rather than overflowing it.
+  // `qrcode.react` sets `preserveAspectRatio="none"` internally, which
+  // would otherwise stretch the code out of square to match a non-square
+  // box; `object-fit: contain` is what overrides that (an SVG's intrinsic
+  // 1:1 ratio, from its own `viewBox`, still applies for CSS sizing
+  // purposes even with that attribute set) and keeps it square, centered
+  // within whatever box it ends up as.
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}

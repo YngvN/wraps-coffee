@@ -1,17 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { Button, Checkbox, Input, Textarea } from '../../../components'
 import { useLanguage } from '../../../i18n'
-import type { AllergenCode, Price, Product, ProductCategory } from '../../../types/product'
+import { ALLERGEN_OPTIONS, DIETARY_TAG_ORDER, type AllergenCode, type DietaryTag, type Price, type Product, type ProductCategory } from '../../../types/product'
 import { CATEGORY_ORDER } from './categoryMeta'
 import './ProductForm.scss'
-
-/** Canonical allergen checkboxes shown in the product form, matching the legend on the public Menu page. */
-const ALLERGEN_OPTIONS: { key: AllergenCode; i18nKey: string }[] = [
-  { key: 'G', i18nKey: 'gluten' },
-  { key: 'M', i18nKey: 'milk' },
-  { key: 'F', i18nKey: 'fishShellfish' },
-  { key: 'N', i18nKey: 'cashews' },
-]
 
 type PriceMode = 'inherit' | 'flat' | 'dual'
 
@@ -30,7 +22,7 @@ interface ProductFormProps {
   onCancel: () => void
 }
 
-/** Create/edit form for a single menu product: bilingual name/description, category, price, allergen checkboxes and availability. */
+/** Create/edit form for a single menu product: bilingual name/description, category, price, allergen and dietary-tag checkboxes, and availability. */
 export function ProductForm({ product, defaultCategory, onSave, onCancel }: ProductFormProps) {
   const { t } = useLanguage()
   const [category, setCategory] = useState<ProductCategory>(product?.category ?? defaultCategory)
@@ -43,10 +35,15 @@ export function ProductForm({ product, defaultCategory, onSave, onCancel }: Prod
   const [takeawayPrice, setTakeawayPrice] = useState(typeof product?.price === 'object' ? product.price.takeaway : 0)
   const [eatInPrice, setEatInPrice] = useState(typeof product?.price === 'object' ? product.price.eatIn : 0)
   const [allergens, setAllergens] = useState<AllergenCode[]>(product?.allergens ?? [])
+  const [dietaryTags, setDietaryTags] = useState<DietaryTag[]>(product?.dietaryTags ?? [])
   const [available, setAvailable] = useState(product?.available ?? true)
 
   const toggleAllergen = (code: AllergenCode) => {
     setAllergens((current) => (current.includes(code) ? current.filter((c) => c !== code) : [...current, code]))
+  }
+
+  const toggleDietaryTag = (tag: DietaryTag) => {
+    setDietaryTags((current) => (current.includes(tag) ? current.filter((existing) => existing !== tag) : [...current, tag]))
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -61,6 +58,7 @@ export function ProductForm({ product, defaultCategory, onSave, onCancel }: Prod
       description: { en: descriptionEn, no: descriptionNo },
       price,
       allergens,
+      dietaryTags,
       available,
     })
   }
@@ -139,8 +137,21 @@ export function ProductForm({ product, defaultCategory, onSave, onCancel }: Prod
 
       <fieldset className="product-form__allergens">
         <legend>{t('admin.products.allergensLabel')}</legend>
-        {ALLERGEN_OPTIONS.map(({ key, i18nKey }) => (
-          <Checkbox key={key} id={`allergen-${key}`} label={t(`menu.allergens.items.${i18nKey}.title`)} checked={allergens.includes(key)} onChange={() => toggleAllergen(key)} />
+        {ALLERGEN_OPTIONS.map(({ code, i18nKey }) => (
+          <Checkbox key={code} id={`allergen-${code}`} label={t(`menu.allergens.items.${i18nKey}.title`)} checked={allergens.includes(code)} onChange={() => toggleAllergen(code)} />
+        ))}
+      </fieldset>
+
+      <fieldset className="product-form__allergens">
+        <legend>{t('admin.products.dietaryTagsLabel')}</legend>
+        {DIETARY_TAG_ORDER.map((tag) => (
+          <Checkbox
+            key={tag}
+            id={`dietary-tag-${tag}`}
+            label={t(`menu.dietaryTags.items.${tag}.title`)}
+            checked={dietaryTags.includes(tag)}
+            onChange={() => toggleDietaryTag(tag)}
+          />
         ))}
       </fieldset>
 

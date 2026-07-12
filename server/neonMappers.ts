@@ -56,6 +56,8 @@ export async function pullProducts(client: Client): Promise<Product[]> {
     description: { no: row.description_no, en: row.description_en },
     price: priceFromColumns(row.price, row.price_takeaway, row.price_eat_in),
     allergens: (row.allergens ?? []) as AllergenCode[],
+    // The public website's own `products` table has no dietary-tags column yet — this repo's own value never round-trips through it.
+    dietaryTags: [],
     available: row.available,
   }))
 }

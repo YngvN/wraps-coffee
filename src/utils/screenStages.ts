@@ -1,3 +1,4 @@
+import type { LanguageCode } from '../i18n'
 import type { BackgroundImage, ScreenConfig, ScreenSlot, ScreenSlotContent, StageTimeline, TextSizes } from '../types/screen'
 import { isResizeToFitImage } from './screenSlots'
 
@@ -39,6 +40,11 @@ export function resolveSlotBackgroundImage(slot: ScreenSlot, stage: number): Bac
 
 export function resolveSlotTextSizes(slot: ScreenSlot, stage: number): TextSizes | undefined {
   return resolveStageValue(slot.textSizes, stage)
+}
+
+/** This slot's own language override at `stage` — `undefined` means "use the cafe's own Standard pane language" (see `useDefaultPaneLanguage`), whether because nothing was ever set or because it was explicitly reset back to it. */
+export function resolveSlotLanguage(slot: ScreenSlot, stage: number): LanguageCode | undefined {
+  return resolveStageValue(slot.language, stage)
 }
 
 /** Returns a copy of `timeline` with `value` checkpointed at `stage`, overwriting any existing entry there. */

@@ -12,6 +12,8 @@ interface StagePlaybackControlsProps {
   stage: number
   /** Drags/snaps straight to a specific stage, independent of `playing` — the timer (if running) just continues advancing from there next. */
   onScrub: (stage: number) => void
+  /** The previous/next-stage button pair's own discrete jump — kept separate from `onScrub` so the caller can gate just these two (e.g. asking about an unresolved pane resize first, see `ScreenDisplay`) without interrupting a continuous scrubber drag with the same check on every step. */
+  onStep: (stage: number) => void
   playing: boolean
   onTogglePlaying: () => void
   /** Whether stages are currently advancing every 2 seconds instead of the screen's own configured duration. */
@@ -33,7 +35,7 @@ interface StagePlaybackControlsProps {
  * is on with more than one stage — with just one stage there's nothing to
  * transport between.
  */
-export function StagePlaybackControls({ stageCount, stage, onScrub, playing, onTogglePlaying, fastForward, onToggleFastForward, disabled }: StagePlaybackControlsProps) {
+export function StagePlaybackControls({ stageCount, stage, onScrub, onStep, playing, onTogglePlaying, fastForward, onToggleFastForward, disabled }: StagePlaybackControlsProps) {
   const { t } = useLanguage()
 
   return (
@@ -41,7 +43,7 @@ export function StagePlaybackControls({ stageCount, stage, onScrub, playing, onT
       <button
         type="button"
         className="screen-toolbar__button screen-toolbar__button--icon"
-        onClick={() => onScrub(stage === 1 ? stageCount : stage - 1)}
+        onClick={() => onStep(stage === 1 ? stageCount : stage - 1)}
         disabled={disabled}
         aria-label={t('screenDisplay.previousStage')}
         title={t('screenDisplay.previousStage')}
@@ -61,7 +63,7 @@ export function StagePlaybackControls({ stageCount, stage, onScrub, playing, onT
       <button
         type="button"
         className="screen-toolbar__button screen-toolbar__button--icon"
-        onClick={() => onScrub(stage === stageCount ? 1 : stage + 1)}
+        onClick={() => onStep(stage === stageCount ? 1 : stage + 1)}
         disabled={disabled}
         aria-label={t('screenDisplay.nextStage')}
         title={t('screenDisplay.nextStage')}

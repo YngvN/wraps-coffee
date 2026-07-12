@@ -1,0 +1,47 @@
+@use '../../styles/variables' as *;
+
+.pane-editor,
+.pane-editor__subview {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+  min-width: min(420px, 80vw);
+}
+
+// Matches `.background-color-picker`'s own label styling immediately above
+// it, so the two read as a matched pair of field labels.
+.pane-editor__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+// Same flat, full-width, monochrome navigation-row look as
+// `.screen-form__menu-button` — deliberately duplicated rather than shared
+// across the two files, since a submenu button here needs to look identical
+// no matter which of the two editors it's rendered inside.
+.pane-editor__menu-button.btn--secondary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit;
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid $color-text;
+  border-radius: 0;
+  background: transparent;
+  color: $color-text;
+  transition: border-bottom-width 0.15s ease;
+
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background: transparent;
+      color: $color-text;
+      border-bottom-width: 3px;
+    }
+  }
+}
+
+.pane-editor__actions {
+  display: flex;
+  gap: $spacing-unit;
+}

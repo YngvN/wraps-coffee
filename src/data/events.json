@@ -1213,5 +1213,70 @@
     },
     "imageUrl": "https://images.pexels.com/photos/5722874/pexels-photo-5722874.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
     "registrationRequired": true
+  },
+  {
+    "eventID": "18",
+    "title": {
+      "en": "Pop-up Bakery Sale",
+      "no": "Pop-up Bakery Sale"
+    },
+    "category": "Market",
+    "date": "2026-07-09",
+    "time": "10:00",
+    "endTime": "13:00",
+    "recurring": false,
+    "recurrence": null,
+    "location": {
+      "name": {
+        "en": "Wraps & Coffee",
+        "no": "Wraps & Coffee"
+      },
+      "address": "Ulvenveien 82 E, 0581 Oslo"
+    },
+    "description": {
+      "en": "A local baker sets up shop with fresh sourdough, cinnamon buns and seasonal pastries, alongside our regular coffee menu.",
+      "no": "A local baker sets up shop with fresh sourdough, cinnamon buns and seasonal pastries, alongside our regular coffee menu."
+    },
+    "capacity": 40,
+    "attendeesCount": 15,
+    "price": 0,
+    "currency": "NOK",
+    "tags": [
+      "market",
+      "bakery",
+      "morning"
+    ],
+    "participants": [
+      {
+        "name": "Live Solstad",
+        "email": "live.solstad@example.com",
+        "roleAtEvent": "Vendor"
+      }
+    ],
+    "contactPerson": {
+      "name": "Live Solstad",
+      "phone": "98123456",
+      "email": "live@wrapsandcoffee.no"
+    },
+    "menuItems": [
+      {
+        "itemID": "45",
+        "name": "Cappuccino",
+        "price": 50
+      },
+      {
+        "itemID": "51",
+        "name": "Tea",
+        "price": 50
+      }
+    ],
+    "status": "postponed",
+    "postponedDetails": {
+      "newDate": "2026-07-23",
+      "newTime": "10:00",
+      "newEndTime": "13:00"
+    },
+    "imageUrl": "https://images.pexels.com/photos/1387075/pexels-photo-1387075.jpeg?auto=compress&cs=tinysrgb&w=800&h=800&fit=crop",
+    "registrationRequired": false
   }
 ]

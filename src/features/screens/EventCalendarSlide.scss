@@ -46,6 +46,14 @@
   display: flex;
   align-items: center;
   gap: $spacing-unit * 2;
+
+  // A cancelled event stays in its own list position (see
+  // `getUpcomingEvents`) rather than being dropped — dimmed here, alongside
+  // its own `EventCancelledBadge`, to read as "still listed, but not
+  // happening" rather than a normal upcoming item.
+  &--cancelled {
+    opacity: 0.6;
+  }
 }
 
 .events-slide__image {

@@ -13,23 +13,28 @@ import { SplitLayout } from '../features/screens/SplitLayout'
 import { StagePlaybackControls } from '../features/screens/StagePlaybackControls'
 import { UnlockScreenModal } from '../features/screens/UnlockScreenModal'
 import { useAdminSession } from '../hooks/useAdminSession'
+import { useDefaultPaneLanguage } from '../hooks/useDefaultPaneLanguage'
 import { useScreenLockPin } from '../hooks/useScreenLockPin'
 import { useScreens } from '../hooks/useScreens'
 import { useScreensaverSchedule } from '../hooks/useScreensaverSchedule'
 import { useLanguage } from '../i18n'
 import { reportError } from '../lib/errorNotifications'
 import { deleteUpload, isOwnUploadUrl, SessionExpiredError, uploadImage } from '../lib/localServer'
-import { DEFAULT_SCREEN_BACKGROUND_COLOR, DEFAULT_TEXT_SIZES, type BackgroundImage, type ScreenConfig, type ScreenSlot, type ScreenSlotContent, type TextSizes } from '../types/screen'
+import { DEFAULT_SCREEN_BACKGROUND_COLOR, DEFAULT_TEXT_SIZES, type BackgroundImage, type RatioField, type ScreenConfig, type ScreenSlot, type ScreenSlotContent, type TextSizes } from '../types/screen'
+import { findSiblingEventOrdinal } from '../utils/eventOrdinals'
 import { backgroundImageTextStyle, borderColorStyle, getScreenColorVars } from '../utils/screenColors'
+import { applyRatioOverrides } from '../utils/screenLayout'
 import { isWithinScreensaverWindow } from '../utils/screensaver'
-import { hasOwnTextSizeFields } from '../utils/screenSlots'
+import { hasOwnTextSizeFields, resolveContentBackgroundImage } from '../utils/screenSlots'
 import {
   currentStage,
   isResizeToFitConflict,
   resolveSlotBackgroundColor,
   resolveSlotBackgroundImage,
   resolveSlotContent,
+  resolveSlotLanguage,
   resolveSlotTextSizes,
+  resolveStageValue,
   writeStageCheckpoint,
 } from '../utils/screenStages'
 import { resolveContentTextSizes, textSizesToCssVars } from '../utils/textSizeVars'
@@ -37,6 +42,9 @@ import './ScreenDisplay.scss'
 
 /** A slot with no checkpoints yet — the starting draft before a slot's own data has been seeded in. */
 const EMPTY_SLOT: ScreenSlot = { content: {}, backgroundColor: {}, backgroundImage: {}, textSizes: {} }
+
+/** The fixed `KeepEditPrompt` change-summary for the pane-resize fallback prompt below — a divider drag only ever touches the arrangement's own ratios, never a slot's content/text size/background. */
+const RESIZE_CHANGES: SlotEditChanges = { content: false, textSizes: false, backgroundColor: false, backgroundImage: false, language: false, layout: true }
 
 /** Folds a stage's own live text-size draft into `slot`'s content timeline, at `stage` — used both when switching away from that stage (so its edits aren't lost) and when the whole editor closes. Only meaningful with more than one stage — with just one, editing "this pane" and editing "the slot's own shared size" are the same action (see `SlotEditor`'s own single-stage fallback), so this is a no-op. */
 function flushStageTextSizeIntoSlot(slot: ScreenSlot, stage: number, textSizes: TextSizes, hasMultipleStages: boolean): ScreenSlot {
@@ -149,6 +157,7 @@ export function ScreenDisplay() {
   const { session, clearSession } = useAdminSession()
   const [screens, setScreens] = useScreens()
   const [screensaverSchedule] = useScreensaverSchedule()
+  const [defaultPaneLanguage] = useDefaultPaneLanguage()
   const screen = screens.find((candidate) => candidate.screenID === screenId)
   const [now, setNow] = useState(() => new Date())
   const [editingTarget, setEditingTarget] = useState<EditingTarget>(null)
@@ -164,10 +173,28 @@ export function ScreenDisplay() {
   const [originalSlotTextSizes, setOriginalSlotTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
   /** Whether `KeepEditPrompt` is currently showing in place of `SlotEditor` — see `requestCloseEditor`. Reset to `false` every time a slot editor (re)opens. */
   const [showKeepEditPrompt, setShowKeepEditPrompt] = useState(false)
+  /** `SlotEditor`'s own currently open sub-view (e.g. "Background"), reported via its `onRouteChange` — shown as the modal's own breadcrumb next to its title. Reset whenever a slot editor (re)opens. */
+  const [slotEditorRoute, setSlotEditorRoute] = useState<string | undefined>(undefined)
   /** Which stage the slot editor's own tab bar currently has selected. */
   const [activeStage, setActiveStage] = useState(1)
   /** The stage the slot editor was opened on — what "Restore previous" returns the tab bar to. */
   const [initialStage, setInitialStage] = useState(1)
+  /**
+   * The screen's own arrangement ratios as they were right before the
+   * currently-unresolved pane-resize "session" began — `undefined` means
+   * there's nothing pending to ask about. Captured once, on the rising edge
+   * of a divider drag (see `handleDragStateChange`), and cleared again once
+   * `requestPendingResizeAction` has asked about (or found nothing to ask
+   * about in) whatever's changed since. A divider drag has no modal step of
+   * its own to catch this in the way the slot editor's session does, so this
+   * is the fallback: the next time the owner steps to another stage or locks
+   * the screen, `KeepEditPrompt` (see `RESIZE_CHANGES`) offers the same
+   * "keep here / keep for next steps too / remove edits" choice for whatever
+   * pane sizes were just dragged.
+   */
+  const [resizeSessionOriginalRatios, setResizeSessionOriginalRatios] = useState<ScreenConfig['ratios'] | undefined>(undefined)
+  /** The next/previous-stage step or lock action waiting on the resize fallback prompt's own resolution — see `requestPendingResizeAction`. */
+  const [pendingResizeAction, setPendingResizeAction] = useState<(() => void) | null>(null)
   const [pin] = useScreenLockPin()
   const [unlockModalOpen, setUnlockModalOpen] = useState(false)
   const [screensaverTestLabelPosition, setScreensaverTestLabelPosition] = useState(randomScreensaverTestLabelPosition)
@@ -301,13 +328,25 @@ export function ScreenDisplay() {
     setActiveStage(openStage)
     setInitialStage(openStage)
     setShowKeepEditPrompt(false)
+    setSlotEditorRoute(undefined)
     setEditingTarget({ slotIndex })
     setManuallyPaused(true)
   }
 
-  /** A divider drag starting also counts as "editing the screen" for pause purposes (see `paused`) — only the rising edge forces a pause; the falling edge (drag finished) deliberately leaves it paused, same as closing an editor, until the toolbar's own Play is pressed. */
+  /**
+   * A divider drag starting also counts as "editing the screen" for pause
+   * purposes (see `paused`) — only the rising edge forces a pause; the
+   * falling edge (drag finished) deliberately leaves it paused, same as
+   * closing an editor, until the toolbar's own Play is pressed. The rising
+   * edge also seeds `resizeSessionOriginalRatios`, but only if nothing's
+   * already pending — a second drag before the owner has navigated away (and
+   * so been asked about the first one) extends the same session rather than
+   * resetting its "before" snapshot.
+   */
   const handleDragStateChange = (isDragging: boolean) => {
-    if (isDragging) setManuallyPaused(true)
+    if (!isDragging) return
+    setManuallyPaused(true)
+    setResizeSessionOriginalRatios((current) => current ?? screen.ratios)
   }
 
   /**
@@ -335,15 +374,13 @@ export function ScreenDisplay() {
     setActiveStage(nextStage)
   }
 
-  /** Jumps the shared stage sequence straight to `targetStage`, dragged from the toolbar's own scrubber — sets `tick` to whichever value resolves to exactly that stage (see `currentStage`), so it snaps into position instantly regardless of where the natural rotation currently is. If playback is running, the timer just keeps advancing from here next; scrubbing doesn't itself start or stop it. */
+  /** Jumps the shared stage sequence straight to `targetStage`, dragged from the toolbar's own scrubber — sets `tick` to whichever value resolves to exactly that stage (see `currentStage`), so it snaps into position instantly regardless of where the natural rotation currently is. If playback is running, the timer just keeps advancing from here next; scrubbing doesn't itself start or stop it. Deliberately ungated by `requestPendingResizeAction` — a continuous scrubber drag firing that check on every step it passes through would interrupt the drag itself; the previous/next-stage buttons (`handleStepStage`) get the check instead, since those are the discrete "I'm done with this stage" gesture. */
   const handleScrubToStage = (targetStage: number) => setTick(targetStage - 1)
 
-  /** The screen's shared rotation timer is a live setting, not part of any slot's draft — it applies (and persists) immediately, same as any other admin-dashboard edit. */
-  const handleSlideDurationChange = (seconds: number) => {
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, slideDurationSeconds: seconds } : existing)))
-  }
+  /** The previous/next-stage button pair's own discrete jump — same destination as `handleScrubToStage`, but routed through `requestPendingResizeAction` first, since clicking away from a stage is exactly the moment an unresolved pane resize on it should be asked about. */
+  const handleStepStage = (targetStage: number) => requestPendingResizeAction(() => setTick(targetStage - 1))
 
-  /** A divider's new position, dragged right on this display — applies (and persists) immediately, same reasoning as `handleSlideDurationChange`, and mirrors the admin dashboard's own arrow-nudge "Resize" panel writing to the very same fields. */
+  /** A divider's new position, dragged right on this display — applies (and persists) immediately, mirroring the admin dashboard's own arrow-nudge "Resize" panel writing to the very same fields. The screen's shared rotation timer (seconds per step) is edited from that same admin dashboard's own "Steps" panel, not from this display. */
   const handleResizeDivider = (patch: Partial<ScreenConfig>) => {
     setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, ...patch } : existing)))
   }
@@ -394,9 +431,74 @@ export function ScreenDisplay() {
     }
   }
 
-  /** Hides this screen's own editing controls behind the shared PIN — only offered once one's actually been set from the admin dashboard, since there'd otherwise be no way back in. */
+  /**
+   * Runs `action` immediately if there's no unresolved pane-resize edit to
+   * ask about (see `resizeSessionOriginalRatios`), else stashes it and shows
+   * the resize fallback prompt first — the same "ask before leaving an edit
+   * behind" safety net the slot editor's own session already has via
+   * `requestCloseEditor`, but for a divider drag made directly on the live
+   * view, which has no modal step of its own to normally catch it in. Used
+   * by both `handleStepStage` and `handleLockScreen`. Only actually asks on
+   * a screen with more than one stage — with just one, "keep for next
+   * step(s) too" is meaningless (there's nothing to propagate to), and a
+   * divider drag has already fully persisted the moment it was released
+   * either way.
+   */
+  const requestPendingResizeAction = (action: () => void) => {
+    const screenHasMultipleStages = Boolean(screen.useStages) && (screen.stageCount ?? 1) > 1
+    if (screenHasMultipleStages && resizeSessionOriginalRatios !== undefined && JSON.stringify(resizeSessionOriginalRatios) !== JSON.stringify(screen.ratios)) {
+      setPendingResizeAction(() => action)
+      return
+    }
+    setResizeSessionOriginalRatios(undefined)
+    action()
+  }
+
+  /** The resize fallback prompt's own "keep here only" — nothing further to persist, since a divider drag already writes straight to the active stage's own ratio checkpoint the moment it's released; just clears the pending session and runs whatever navigation/lock action was waiting on it. */
+  const resolveResizeKeepHere = () => {
+    setResizeSessionOriginalRatios(undefined)
+    const proceed = pendingResizeAction
+    setPendingResizeAction(null)
+    proceed?.()
+  }
+
+  /** The resize fallback prompt's own "keep for next step(s) too" — propagates every ratio field whose value at the current stage differs from `resizeSessionOriginalRatios` forward onto every later stage's own checkpoint, same idea as `handleKeepForNextSteps`, but for the arrangement's dividers instead of one pane's own content/background/text size. */
+  const resolveResizeKeepForNextSteps = () => {
+    if (resizeSessionOriginalRatios === undefined) return
+    const changedFields = (Object.keys(screen.ratios ?? {}) as RatioField[]).filter(
+      (field) => resolveStageValue(screen.ratios?.[field], stage) !== resolveStageValue(resizeSessionOriginalRatios[field], stage),
+    )
+    let nextRatios = screen.ratios
+    for (const field of changedFields) {
+      const value = resolveStageValue(screen.ratios?.[field], stage)
+      if (value === undefined) continue
+      for (let futureStage = stage + 1; futureStage <= (screen.stageCount ?? 1); futureStage++) {
+        nextRatios = applyRatioOverrides(nextRatios, futureStage, { [field]: value })
+      }
+    }
+    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, ratios: nextRatios } : existing)))
+    setResizeSessionOriginalRatios(undefined)
+    const proceed = pendingResizeAction
+    setPendingResizeAction(null)
+    proceed?.()
+  }
+
+  /** The resize fallback prompt's own "remove edits" — reverts the screen's ratios back to `resizeSessionOriginalRatios`, undoing every divider drag made this session, then runs whatever navigation/lock action was waiting on it. */
+  const resolveResizeRemoveEdits = () => {
+    if (resizeSessionOriginalRatios !== undefined) {
+      setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, ratios: resizeSessionOriginalRatios } : existing)))
+    }
+    setResizeSessionOriginalRatios(undefined)
+    const proceed = pendingResizeAction
+    setPendingResizeAction(null)
+    proceed?.()
+  }
+
+  /** Hides this screen's own editing controls behind the shared PIN — only offered once one's actually been set from the admin dashboard, since there'd otherwise be no way back in. Routed through `requestPendingResizeAction` first, same reasoning as `handleStepStage`: locking is another way of stepping away from whatever stage a pane was just resized on. */
   const handleLockScreen = () => {
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, locked: true } : existing)))
+    requestPendingResizeAction(() => {
+      setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, locked: true } : existing)))
+    })
   }
 
   /** Restores this screen's own editing controls, once `UnlockScreenModal` confirms the right PIN was entered. */
@@ -439,12 +541,17 @@ export function ScreenDisplay() {
     return { ...flushedSlot, textSizes: writeStageCheckpoint(flushedSlot.textSizes, activeStage, draftSlotTextSizes) }
   }
 
+  /** A slot's own single consolidated background image at a stage — the content's own override if it has one, else the slot's shared one — same resolution `PaneEditor`'s own `backgroundImage` prop is fed everywhere else. */
+  const effectiveBackgroundImage = (slot: ScreenSlot, atStage: number) => resolveContentBackgroundImage(resolveSlotContent(slot, atStage), resolveSlotBackgroundImage(slot, atStage))
+
   /** Compares `originalSlot`/`draftSlot` at the currently active stage (plus the separately-tracked text-size drafts) into a plain-language summary of what this editing session actually touched — drives `KeepEditPrompt`, and gates whether `requestCloseEditor` shows it at all (nothing to report means nothing to ask about). */
   const detectSlotEditChanges = (): SlotEditChanges => ({
     content: contentSignature(resolveSlotContent(originalSlot, activeStage)) !== contentSignature(resolveSlotContent(draftSlot, activeStage)),
     textSizes: JSON.stringify(originalTextSizes) !== JSON.stringify(draftTextSizes),
     backgroundColor: resolveSlotBackgroundColor(originalSlot, activeStage) !== resolveSlotBackgroundColor(draftSlot, activeStage),
-    backgroundImage: JSON.stringify(resolveSlotBackgroundImage(originalSlot, activeStage)) !== JSON.stringify(resolveSlotBackgroundImage(draftSlot, activeStage)),
+    backgroundImage: JSON.stringify(effectiveBackgroundImage(originalSlot, activeStage)) !== JSON.stringify(effectiveBackgroundImage(draftSlot, activeStage)),
+    language: resolveSlotLanguage(originalSlot, activeStage) !== resolveSlotLanguage(draftSlot, activeStage),
+    layout: false,
   })
 
   /** Persists whatever the draft currently holds — just the active stage's own checkpoint — then closes the editor. Also what `KeepEditPrompt`'s own "keep here only" resolves to. */
@@ -491,14 +598,25 @@ export function ScreenDisplay() {
     closeEditor()
   }
 
-  /** `KeepEditPrompt`'s own "keep for next step(s) too" — persists the active stage's edit same as `closeEditor`, then overwrites every later stage's own checkpoint for this exact slot (content, its text size, background color, background image) with that identical, just-edited result. */
+  /**
+   * `KeepEditPrompt`'s own "keep for next step(s) too" — persists the active
+   * stage's edit same as `closeEditor`, then overwrites every later stage's
+   * own checkpoint for this exact slot (content, its text size, background
+   * color, language override) with that identical, just-edited result.
+   * Background image isn't propagated separately — with more than one stage
+   * (the only case this ever runs in), `PaneEditor`'s single consolidated
+   * picker always writes it onto `content` (see `SlotEditor`'s own
+   * `setBackgroundImage`), so the `content` propagation below already
+   * carries it forward, same as text size needs no propagation line of its
+   * own here.
+   */
   const handleKeepForNextSteps = () => {
     if (typeof editingTarget !== 'object' || editingTarget === null) return
     const { slotIndex } = editingTarget
     const finalSlot = finalizeDraftSlot()
     const contentAtStage = resolveSlotContent(finalSlot, activeStage)
     const backgroundColorAtStage = resolveSlotBackgroundColor(finalSlot, activeStage)
-    const backgroundImageAtStage = resolveSlotBackgroundImage(finalSlot, activeStage)
+    const languageAtStage = resolveSlotLanguage(finalSlot, activeStage)
 
     let propagatedSlot = finalSlot
     for (let futureStage = activeStage + 1; futureStage <= (screen.stageCount ?? 1); futureStage++) {
@@ -506,7 +624,7 @@ export function ScreenDisplay() {
         ...propagatedSlot,
         content: writeStageCheckpoint(propagatedSlot.content, futureStage, contentAtStage),
         backgroundColor: writeStageCheckpoint(propagatedSlot.backgroundColor, futureStage, backgroundColorAtStage),
-        backgroundImage: writeStageCheckpoint(propagatedSlot.backgroundImage, futureStage, backgroundImageAtStage),
+        language: writeStageCheckpoint(propagatedSlot.language, futureStage, languageAtStage),
       }
     }
 
@@ -528,6 +646,15 @@ export function ScreenDisplay() {
   }
 
   const resizeToFitBlocked = typeof editingTarget === 'object' && editingTarget !== null && isResizeToFitConflict(screen.slots, editingTarget.slotIndex, activeStage)
+
+  /** What a fresh switch to "Event image"/"Event details" in the currently open slot editor should default its own `eventOrdinal` to — see `findSiblingEventOrdinal`. */
+  const suggestedEventOrdinal =
+    typeof editingTarget === 'object' && editingTarget !== null
+      ? (findSiblingEventOrdinal(
+          screen.slots.filter((_, index) => index !== editingTarget.slotIndex),
+          activeStage,
+        ) ?? 1)
+      : 1
 
   const screensaverActive = Boolean(screen.useScreensaver && (screen.screensaverTestActive || isWithinScreensaverWindow(screensaverSchedule, now)))
 
@@ -556,6 +683,7 @@ export function ScreenDisplay() {
                   stageCount={screen.stageCount ?? 1}
                   stage={forcedStage ?? stage}
                   onScrub={handleScrubToStage}
+                  onStep={handleStepStage}
                   playing={!manuallyPaused}
                   onTogglePlaying={() => setManuallyPaused((current) => !current)}
                   fastForward={fastForward}
@@ -598,6 +726,7 @@ export function ScreenDisplay() {
         onResizeDivider={screen.locked ? undefined : handleResizeDivider}
         onDragStateChange={handleDragStateChange}
         onDropImage={screen.locked ? undefined : handleDropImage}
+        defaultPaneLanguage={defaultPaneLanguage}
       />
 
       {screensaverActive && (
@@ -615,6 +744,10 @@ export function ScreenDisplay() {
 
       <UnlockScreenModal open={unlockModalOpen} onClose={() => setUnlockModalOpen(false)} onUnlock={handleUnlock} />
 
+      <Modal open={pendingResizeAction !== null} onClose={resolveResizeKeepHere} title={t('screenDisplay.keepEditPrompt.title')}>
+        <KeepEditPrompt changes={RESIZE_CHANGES} onKeepHere={resolveResizeKeepHere} onKeepForNextSteps={resolveResizeKeepForNextSteps} onRemoveEdits={resolveResizeRemoveEdits} />
+      </Modal>
+
       <Modal
         open={editingTarget !== null}
         onClose={requestCloseEditor}
@@ -625,7 +758,15 @@ export function ScreenDisplay() {
               ? t('screenDisplay.keepEditPrompt.title')
               : t('screenDisplay.slotEditorTitle')
         }
-        route={editingTarget === 'screen' && screenSubview === 'background' ? t('admin.screens.backgroundLabel') : undefined}
+        route={
+          editingTarget === 'screen'
+            ? screenSubview === 'background'
+              ? t('admin.screens.backgroundLabel')
+              : undefined
+            : typeof editingTarget === 'object' && editingTarget !== null && !showKeepEditPrompt
+              ? slotEditorRoute
+              : undefined
+        }
       >
         {editingTarget === 'screen' ? (
           screenSubview === 'background' ? (
@@ -672,13 +813,14 @@ export function ScreenDisplay() {
             stageCount={screen.stageCount ?? 1}
             activeStage={activeStage}
             onActiveStageChange={handleActiveStageChange}
-            slideDurationSeconds={screen.slideDurationSeconds}
-            onSlideDurationChange={handleSlideDurationChange}
             textSizes={draftTextSizes}
             onTextSizesChange={setDraftTextSizes}
             slotTextSizes={draftSlotTextSizes}
             onSlotTextSizesChange={setDraftSlotTextSizes}
             resizeToFitBlocked={resizeToFitBlocked}
+            suggestedEventOrdinal={suggestedEventOrdinal}
+            defaultLanguage={defaultPaneLanguage}
+            onRouteChange={setSlotEditorRoute}
             onRestore={handleRestore}
             onDone={requestCloseEditor}
           />

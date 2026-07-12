@@ -38,8 +38,7 @@
   // below — so it stays put at a fixed spot on the header no matter how
   // long the category's own title/description happen to be, rather than
   // being a normal flex sibling that gets pushed down onto its own line
-  // once the heading block grows too wide to share a row with it (the same
-  // fix, for the same reason, as `CategorySlide.scss`'s own header/price).
+  // once the heading block grows too wide to share a row with it.
   position: relative;
   display: flex;
   align-items: center;
@@ -114,6 +113,16 @@
     color: var(--screen-text-muted);
     font-size: var(--slide-description-size, 1.25rem);
     overflow-wrap: break-word;
+
+    // Scales with the description's own admin-adjustable size above (rather
+    // than a flat rem value) so it stays legibly proportioned at any
+    // text-size setting, while still reading smaller than the description.
+    &.full-menu-slide__item-allergens {
+      font-size: calc(var(--slide-description-size, 1.25rem) * 0.65);
+      opacity: 0.8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
   }
 }
 

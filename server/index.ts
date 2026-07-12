@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
-import { SYNCED_KEYS, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
+import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
 import { handleDepartures, handleLookup, handleWeather } from './extensions'
 import { bearerToken, CORS_HEADERS, readJsonBody, sendJson } from './http'
 import * as neonBridge from './neonBridge'
@@ -198,6 +198,109 @@ const httpServer = createServer((req, res) => {
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
     return
+  }
+
+  // Account management (the admin dashboard's own "Users" tab) —
+  // admin/subadmin only, same posture as the developer API key/Neon URL
+  // routes above. Three extra rules beyond the plain role gate, enforced
+  // here rather than in `store.ts` (which stays a dumb data layer): an
+  // `admin`-role account can't be created or deleted by a `subadmin`
+  // session (only deleted by another `admin`), the very last `admin`
+  // account can never be deleted (there'd be no one left who could manage
+  // users at all), and an account can't delete itself (self-lockout).
+  if (url.pathname === '/users' || url.pathname.startsWith('/users/')) {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can manage users' })
+      return
+    }
+
+    if (req.method === 'GET' && url.pathname === '/users') {
+      sendJson(res, 200, store.listUsers())
+      return
+    }
+
+    if (req.method === 'POST' && url.pathname === '/users') {
+      readJsonBody(req)
+        .then((body) => {
+          const { username, password, role, allowedSections } = body as {
+            username?: string
+            password?: string
+            role?: AdminRole
+            allowedSections?: DashboardSection[]
+          }
+          const trimmedUsername = username?.trim()
+          if (!trimmedUsername || !password || (role !== 'admin' && role !== 'subadmin' && role !== 'limited')) {
+            sendJson(res, 400, { error: 'Missing or invalid username, password, or role' })
+            return
+          }
+          if (role === 'admin' && session.role !== 'admin') {
+            sendJson(res, 403, { error: 'Only admin accounts can create another admin account' })
+            return
+          }
+          const created = store.createUser({ username: trimmedUsername, password, role, allowedSections: role === 'limited' ? allowedSections : undefined })
+          if (!created) {
+            sendJson(res, 409, { error: 'That username is already taken' })
+            return
+          }
+          console.log(`[users] ${session.username} created ${created.username} (${created.role})`)
+          sendJson(res, 200, created)
+        })
+        .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+      return
+    }
+
+    const segments = url.pathname.slice('/users/'.length).split('/').filter(Boolean)
+    const userId = segments[0]
+
+    if (req.method === 'DELETE' && segments.length === 1 && userId) {
+      const target = store.findUserById(userId)
+      if (!target) {
+        sendJson(res, 404, { error: 'User not found' })
+        return
+      }
+      if (target.username === session.username) {
+        sendJson(res, 400, { error: "You can't delete your own account" })
+        return
+      }
+      if (target.role === 'admin' && session.role !== 'admin') {
+        sendJson(res, 403, { error: "Sub-admin accounts can't delete an admin account" })
+        return
+      }
+      if (target.role === 'admin' && store.adminUserCount() <= 1) {
+        sendJson(res, 400, { error: "Can't delete the last remaining admin account" })
+        return
+      }
+      store.deleteUser(userId)
+      console.log(`[users] ${session.username} deleted ${target.username}`)
+      sendJson(res, 200, { ok: true })
+      return
+    }
+
+    if (req.method === 'POST' && segments.length === 2 && segments[1] === 'password' && userId) {
+      readJsonBody(req)
+        .then((body) => {
+          const { password } = body as { password?: string }
+          if (!password) {
+            sendJson(res, 400, { error: 'Missing password' })
+            return
+          }
+          const target = store.findUserById(userId)
+          if (!target) {
+            sendJson(res, 404, { error: 'User not found' })
+            return
+          }
+          store.setUserPassword(userId, password)
+          console.log(`[users] ${session.username} reset the password for ${target.username}`)
+          sendJson(res, 200, { ok: true })
+        })
+        .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+      return
+    }
   }
 
   sendJson(res, 404, { error: 'Not found' })

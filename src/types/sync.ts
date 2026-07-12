@@ -7,6 +7,7 @@ export const SYNCED_KEYS = [
   'admin.contactInfo',
   'admin.textSizePresets',
   'admin.clockFormat',
+  'admin.paneLanguage',
   'admin.screenLockPin',
   'admin.screensaverSchedule',
   'admin.screens',
@@ -22,8 +23,11 @@ export type SyncedKey = (typeof SYNCED_KEYS)[number]
 /** A user's role. `admin` and `subadmin` have full rights over every section; `limited` is scoped to `allowedSections`. */
 export type AdminRole = 'admin' | 'subadmin' | 'limited'
 
-/** Dashboard sections a `limited` account can be scoped to. Matches every `AdminSidebarNav` item except `overview`, which is always visible. */
+/** Dashboard sections a `limited` account can be scoped to. Matches every `AdminSidebarNav` item except `overview` (always visible), `images`/`users` (admin/subadmin only, never assignable to a `limited` account), and `settings` (a personal/device preference, not a permissioned section). */
 export type DashboardSection = 'messages' | 'products' | 'events' | 'instagram' | 'contact' | 'orders' | 'screens' | 'extensions' | 'messageboard'
+
+/** Runtime list matching `DashboardSection`, in the same order `AdminSidebarNav` shows them — used to build a `limited` account's own section-picker checkboxes (see `UserForm`). */
+export const DASHBOARD_SECTIONS: DashboardSection[] = ['messages', 'products', 'events', 'instagram', 'contact', 'orders', 'screens', 'extensions', 'messageboard']
 
 /** The session info returned by `/login` and attached to every authenticated request. */
 export interface AdminSession {

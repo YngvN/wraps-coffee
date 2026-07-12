@@ -359,6 +359,26 @@
               "description": "Tuna, shrimp."
             }
           }
+        },
+        "dietaryTags": {
+          "title": "Dietary",
+          "items": {
+            "vegetarian": {
+              "title": "Vegetarian"
+            },
+            "vegan": {
+              "title": "Vegan"
+            },
+            "halal": {
+              "title": "Halal"
+            },
+            "glutenFree": {
+              "title": "Gluten-free"
+            },
+            "dairyFree": {
+              "title": "Dairy-free"
+            }
+          }
         }
       },
       "events": {
@@ -422,6 +442,7 @@
           "extensions": "Extensions",
           "logout": "Log out",
           "images": "Images",
+          "users": "Users",
           "settings": "Settings",
           "messageBoard": "Message board"
         },
@@ -457,6 +478,7 @@
           "availableLabel": "Available on the menu",
           "hiddenLabel": "Hidden",
           "allergensLabel": "Allergens",
+          "dietaryTagsLabel": "Dietary tags",
           "noProducts": "No products in this category yet."
         },
         "events": {
@@ -533,20 +555,37 @@
           "defaultNamePrefix": "Screen",
           "globalTabLabel": "Global",
           "slotCountLabel": "Layout",
-          "slotCountBadgeOne": "1 slot",
-          "slotCountBadge": "{{count}} slots",
-          "slot1Label": "Slot 1",
-          "slot2Label": "Slot 2",
-          "slot3Label": "Slot 3",
-          "slot4Label": "Slot 4",
+          "slotCountBadgeOne": "1 pane",
+          "slotCountBadge": "{{count}} panes",
+          "slot1Label": "Pane 1",
+          "slot2Label": "Pane 2",
+          "slot3Label": "Pane 3",
+          "slot4Label": "Pane 4",
           "slotNoneLabel": "None",
-          "slotMenuLabel": "Full menu",
+          "slotMenuLabel": "Menu",
           "menuCategoriesLabel": "Categories to include",
-          "slotEventsLabel": "Upcoming events",
+          "slotEventsGroupLabel": "Events",
+          "slotEventCalendarLabel": "Event calendar",
+          "slotEventImageLabel": "Event image",
+          "slotEventDetailsLabel": "Event details",
+          "slotEventMonthLabel": "Month view",
+          "eventOrdinalLabel": "Which event",
+          "eventOrdinalOption": "{{ordinal}} event",
+          "eventsNoEventsConfiguredLabel": "No events configured yet",
+          "eventCalendarCountLabel": "Number of events shown",
+          "eventCancelledLabel": "Cancelled",
+          "eventPostponedLabel": "Postponed",
+          "eventShowPriceLabel": "Show price",
+          "eventFreeLabel": "Free",
+          "eventShowDescriptionLabel": "Show description",
+          "eventMonthNoEventsLabel": "No events this month",
           "slotImageLabel": "Image",
+          "slotQrCodeLabel": "QR code",
+          "qrCodeUrlLabel": "URL",
+          "qrCodeSizeLabel": "Code size",
           "imageFillContainerLabel": "Fill container (crop to fit)",
-          "resizeToFitImageLabel": "Resize slot to fit image",
-          "resizeToFitBlockedTooltip": "Already used to fit another slot at this step",
+          "resizeToFitImageLabel": "Resize pane to fit image",
+          "resizeToFitBlockedTooltip": "Already used to fit another pane at this step",
           "resizeScaleLabel": "Image size (% of screen)",
           "slotTransitLabel": "Transit departures",
           "transitStopLabel": "Stop",
@@ -559,11 +598,13 @@
           "transitionStyleLabel": "Transition",
           "transitionFadeLabel": "Fade",
           "transitionSlideLabel": "Slide",
-          "showSlotBordersLabel": "Show borders between slots",
+          "showSlotBordersLabel": "Show borders between panes",
           "borderColorLabel": "Border color",
           "autoBorderColorLabel": "Auto",
           "hideScrollbarLabel": "Hide scrollbar",
           "backgroundLabel": "Background",
+          "languageLabel": "Language",
+          "paneLanguageStandardLabel": "Standard ({{language}})",
           "bordersLabel": "Borders",
           "stagesLabel": "Steps",
           "useStagesLabel": "Use steps",
@@ -579,19 +620,23 @@
           "tripleRowSecondLabel": "Featured on bottom",
           "tripleColumnFirstLabel": "Featured on left",
           "tripleColumnSecondLabel": "Featured on right",
-          "resizeLabel": "Resize slots",
+          "resizeLabel": "Resize panes",
           "resizeUpLabel": "Move divider up",
           "resizeDownLabel": "Move divider down",
           "resizeLeftLabel": "Move divider left",
           "resizeRightLabel": "Move divider right",
           "displayUrlLabel": "Display link",
-          "copyUrl": "Copy link",
           "openInNewTab": "Open",
-          "urlCopied": "Link copied",
+          "urlCopied": "Copied to clipboard",
           "noScreens": "No screens yet.",
           "duplicateName": "{{name}} copy",
           "imagePreviewLabel": "Preview",
           "slotMessageBoardLabel": "Message board",
+          "slotAnnouncementLabel": "Custom message",
+          "announcementTitleLabel": "Title",
+          "announcementDescriptionLabel": "Description",
+          "copyMessageButton": "Copy from another message",
+          "noOtherMessages": "No other messages yet.",
           "messageBoardLabel": "Board",
           "messageBoardDisplayModeLabel": "Display mode",
           "messageBoardDisplayMode": {
@@ -629,9 +674,36 @@
           "dropHint": "Drop images to upload",
           "uploadError": "One or more images failed to upload."
         },
+        "users": {
+          "title": "Users",
+          "addUser": "Add user",
+          "usernameLabel": "Username",
+          "passwordLabel": "Password",
+          "roleLabel": "Role",
+          "roles": {
+            "admin": "Admin",
+            "subadmin": "Sub-admin",
+            "limited": "Limited"
+          },
+          "allowedSectionsLabel": "Allowed sections",
+          "noUsers": "No users yet.",
+          "loadingLabel": "Loading…",
+          "loadError": "Could not load users",
+          "saveError": "Could not create the user",
+          "deleteError": "Could not delete the user",
+          "resetPasswordButton": "Reset password",
+          "resetPasswordTitle": "Reset password — {{username}}",
+          "newPasswordLabel": "New password",
+          "resetPasswordError": "Could not reset the password",
+          "cantDeleteSelf": "You can't delete your own account",
+          "cantDeleteAdmin": "Sub-admin accounts can't delete an admin account",
+          "cantDeleteLastAdmin": "Can't delete the last remaining admin account"
+        },
         "settings": {
           "title": "Settings",
           "languageLabel": "Language",
+          "paneLanguageLabel": "Standard pane language",
+          "paneLanguageHint": "The default language kiosk panes show their content in (menu items, event descriptions, and so on) — separate from the interface language above. Each pane can override this individually from its own \"Language\" menu.",
           "clockFormatLabel": "Clock format",
           "clockFormat24hLabel": "24-hour",
           "clockFormat12hLabel": "12-hour (AM/PM)",
@@ -648,6 +720,8 @@
             "loginText": "Sign in to get a token:",
             "logoutText": "Sign out — invalidates the token:",
             "roleText": "role is \"admin\", \"subadmin\", or \"limited\". A limited account's own allowedSections restricts which write below it's allowed to make.",
+            "usersTitle": "Users",
+            "usersIntro": "Account management (the dashboard's own \"Users\" tab): listing every configured account, creating one, resetting a password, and deleting one. Admin/subadmin only — a \"limited\" token gets a 403 on every route below. A \"subadmin\" token can do everything an \"admin\" token can except create or delete an \"admin\"-role account; the very last \"admin\" account can never be deleted by anyone.",
             "syncTitle": "Live data (WebSocket)",
             "syncIntro": "Connect to the endpoint below. Declare which keys you care about, and the server replies with their current values, then pushes an update every time any of them changes — including changes made from this same app, on any device.",
             "syncHelloText": "On connect, declare interest in the keys you want:",
@@ -662,9 +736,10 @@
             "keyContactInfo": "Phone, email, address, opening hours.",
             "keyTextSizePresets": "Saved named text-size presets for screens.",
             "keyClockFormat": "12-hour or 24-hour clock format, used everywhere a wall-clock time is shown (weather, timestamps, the screensaver schedule's own time pickers).",
+            "keyPaneLanguage": "The cafe's own default language for kiosk pane content — each pane can override it individually.",
             "keyScreenLockPin": "The shared PIN for locking/unlocking a screen.",
             "keyScreensaverSchedule": "The shared daily screensaver start/end window.",
-            "keyScreens": "Every configured kiosk screen — layout, slots, content.",
+            "keyScreens": "Every configured kiosk screen — layout, panes, content.",
             "keyExtensions": "Ruter/Yr integration setup — chosen stops, forecast hours.",
             "keySidebarSettings": "Which admin sidebar items are shown.",
             "keyOrders": "Online orders placed on the public website, pulled down live.",
@@ -765,8 +840,8 @@
         "enterFullscreen": "Enter fullscreen",
         "exitFullscreen": "Exit fullscreen",
         "editSizes": "Edit appearance",
-        "editSlot": "Edit slot",
-        "slotEditorTitle": "Edit slot",
+        "editSlot": "Edit pane",
+        "slotEditorTitle": "Edit pane",
         "keepEditPrompt": {
           "title": "Apply changes?",
           "intro": "You changed:",
@@ -774,6 +849,8 @@
           "summaryTextSize": "Text size",
           "summaryBackgroundColor": "Background color",
           "summaryBackgroundImage": "Background image",
+          "summaryLanguage": "Language",
+          "summaryLayout": "Pane sizes",
           "question": "Keep this for the current step only, or apply it to every step after it too?",
           "keepHereButton": "Keep for this step only",
           "keepForNextStepsButton": "Keep for next step(s) too",
@@ -807,7 +884,6 @@
           },
           "slotContentLabel": "Content",
           "stageTabLabel": "Step {{number}}",
-          "slideDurationLabel": "Seconds per step",
           "allLabel": "All",
           "headingLabel": "Heading",
           "itemTitleLabel": "Item title",
@@ -823,8 +899,7 @@
           "restorePrevious": "Restore previous",
           "done": "Done",
           "backgroundImageLabel": "Background image",
-          "slotLabel": "Slot {{number}}",
-          "ownBackgroundImageLabel": "This step's own background image"
+          "slotLabel": "Pane {{number}}"
         }
       },
       "imageUpload": {
@@ -1202,6 +1277,26 @@
               "description": "Tunfisk, reker."
             }
           }
+        },
+        "dietaryTags": {
+          "title": "Kosthold",
+          "items": {
+            "vegetarian": {
+              "title": "Vegetar"
+            },
+            "vegan": {
+              "title": "Vegansk"
+            },
+            "halal": {
+              "title": "Halal"
+            },
+            "glutenFree": {
+              "title": "Glutenfri"
+            },
+            "dairyFree": {
+              "title": "Melkefri"
+            }
+          }
         }
       },
       "events": {
@@ -1265,6 +1360,7 @@
           "extensions": "Utvidelser",
           "logout": "Logg ut",
           "images": "Bilder",
+          "users": "Brukere",
           "settings": "Innstillinger",
           "messageBoard": "Oppslagstavle"
         },
@@ -1300,6 +1396,7 @@
           "availableLabel": "Tilgjengelig på menyen",
           "hiddenLabel": "Skjult",
           "allergensLabel": "Allergener",
+          "dietaryTagsLabel": "Kosthold-tagger",
           "noProducts": "Ingen produkter i denne kategorien ennå."
         },
         "events": {
@@ -1376,20 +1473,37 @@
           "defaultNamePrefix": "Skjerm",
           "globalTabLabel": "Generelt",
           "slotCountLabel": "Oppsett",
-          "slotCountBadgeOne": "1 felt",
-          "slotCountBadge": "{{count}} felt",
-          "slot1Label": "Plass 1",
-          "slot2Label": "Plass 2",
-          "slot3Label": "Plass 3",
-          "slot4Label": "Plass 4",
+          "slotCountBadgeOne": "1 panel",
+          "slotCountBadge": "{{count}} paneler",
+          "slot1Label": "Panel 1",
+          "slot2Label": "Panel 2",
+          "slot3Label": "Panel 3",
+          "slot4Label": "Panel 4",
           "slotNoneLabel": "Ingen",
-          "slotMenuLabel": "Hele menyen",
+          "slotMenuLabel": "Meny",
           "menuCategoriesLabel": "Kategorier som skal vises",
-          "slotEventsLabel": "Kommende arrangementer",
+          "slotEventsGroupLabel": "Arrangementer",
+          "slotEventCalendarLabel": "Arrangementskalender",
+          "slotEventImageLabel": "Arrangementsbilde",
+          "slotEventDetailsLabel": "Arrangementsdetaljer",
+          "slotEventMonthLabel": "Månedsvisning",
+          "eventOrdinalLabel": "Hvilket arrangement",
+          "eventOrdinalOption": "{{ordinal}} arrangement",
+          "eventsNoEventsConfiguredLabel": "Ingen arrangementer lagt til ennå",
+          "eventCalendarCountLabel": "Antall arrangementer som vises",
+          "eventCancelledLabel": "Kansellert",
+          "eventPostponedLabel": "Utsatt",
+          "eventShowPriceLabel": "Vis pris",
+          "eventFreeLabel": "Gratis",
+          "eventShowDescriptionLabel": "Vis beskrivelse",
+          "eventMonthNoEventsLabel": "Ingen arrangementer denne måneden",
           "slotImageLabel": "Bilde",
+          "slotQrCodeLabel": "QR-kode",
+          "qrCodeUrlLabel": "URL",
+          "qrCodeSizeLabel": "Kodestørrelse",
           "imageFillContainerLabel": "Fyll beholder (beskjær for å tilpasse)",
-          "resizeToFitImageLabel": "Tilpass feltet til bildet",
-          "resizeToFitBlockedTooltip": "Allerede brukt til å tilpasse et annet felt på dette steget",
+          "resizeToFitImageLabel": "Tilpass panelet til bildet",
+          "resizeToFitBlockedTooltip": "Allerede brukt til å tilpasse et annet panel på dette steget",
           "resizeScaleLabel": "Bildestørrelse (% av skjermen)",
           "slotTransitLabel": "Avganger",
           "transitStopLabel": "Stopp",
@@ -1402,11 +1516,13 @@
           "transitionStyleLabel": "Overgang",
           "transitionFadeLabel": "Ton",
           "transitionSlideLabel": "Skyv",
-          "showSlotBordersLabel": "Vis kantlinjer mellom feltene",
+          "showSlotBordersLabel": "Vis kantlinjer mellom panelene",
           "borderColorLabel": "Kantlinjefarge",
           "autoBorderColorLabel": "Auto",
           "hideScrollbarLabel": "Skjul rullefelt",
           "backgroundLabel": "Bakgrunn",
+          "languageLabel": "Språk",
+          "paneLanguageStandardLabel": "Standard ({{language}})",
           "bordersLabel": "Kantlinjer",
           "stagesLabel": "Steg",
           "useStagesLabel": "Bruk steg",
@@ -1422,19 +1538,23 @@
           "tripleRowSecondLabel": "Fremhevet nederst",
           "tripleColumnFirstLabel": "Fremhevet til venstre",
           "tripleColumnSecondLabel": "Fremhevet til høyre",
-          "resizeLabel": "Endre størrelse på feltene",
+          "resizeLabel": "Endre størrelse på panelene",
           "resizeUpLabel": "Flytt skillelinjen opp",
           "resizeDownLabel": "Flytt skillelinjen ned",
           "resizeLeftLabel": "Flytt skillelinjen til venstre",
           "resizeRightLabel": "Flytt skillelinjen til høyre",
           "displayUrlLabel": "Visningslenke",
-          "copyUrl": "Kopier lenke",
           "openInNewTab": "Åpne",
-          "urlCopied": "Lenke kopiert",
+          "urlCopied": "Kopiert til utklippstavlen",
           "noScreens": "Ingen skjermer ennå.",
           "duplicateName": "{{name}} kopi",
           "imagePreviewLabel": "Forhåndsvisning",
           "slotMessageBoardLabel": "Oppslagstavle",
+          "slotAnnouncementLabel": "Egendefinert melding",
+          "announcementTitleLabel": "Tittel",
+          "announcementDescriptionLabel": "Beskrivelse",
+          "copyMessageButton": "Kopier fra en annen melding",
+          "noOtherMessages": "Ingen andre meldinger ennå.",
           "messageBoardLabel": "Tavle",
           "messageBoardDisplayModeLabel": "Visningsmodus",
           "messageBoardDisplayMode": {
@@ -1472,9 +1592,36 @@
           "dropHint": "Slipp bilder for å laste opp",
           "uploadError": "Ett eller flere bilder kunne ikke lastes opp."
         },
+        "users": {
+          "title": "Brukere",
+          "addUser": "Legg til bruker",
+          "usernameLabel": "Brukernavn",
+          "passwordLabel": "Passord",
+          "roleLabel": "Rolle",
+          "roles": {
+            "admin": "Admin",
+            "subadmin": "Underadmin",
+            "limited": "Begrenset"
+          },
+          "allowedSectionsLabel": "Tillatte seksjoner",
+          "noUsers": "Ingen brukere ennå.",
+          "loadingLabel": "Laster…",
+          "loadError": "Kunne ikke laste brukere",
+          "saveError": "Kunne ikke opprette brukeren",
+          "deleteError": "Kunne ikke slette brukeren",
+          "resetPasswordButton": "Tilbakestill passord",
+          "resetPasswordTitle": "Tilbakestill passord — {{username}}",
+          "newPasswordLabel": "Nytt passord",
+          "resetPasswordError": "Kunne ikke tilbakestille passordet",
+          "cantDeleteSelf": "Du kan ikke slette din egen konto",
+          "cantDeleteAdmin": "Underadmin-kontoer kan ikke slette en admin-konto",
+          "cantDeleteLastAdmin": "Kan ikke slette den siste gjenværende admin-kontoen"
+        },
         "settings": {
           "title": "Innstillinger",
           "languageLabel": "Språk",
+          "paneLanguageLabel": "Standard panespråk",
+          "paneLanguageHint": "Standardspråket kioskskjermenes egne paneler viser innholdet sitt i (menyvarer, arrangementbeskrivelser og lignende) — uavhengig av grensesnittspråket over. Hvert panel kan overstyre dette individuelt fra sin egen «Språk»-meny.",
           "clockFormatLabel": "Klokkeformat",
           "clockFormat24hLabel": "24-timers",
           "clockFormat12hLabel": "12-timers (AM/PM)",
@@ -1491,6 +1638,8 @@
             "loginText": "Logg inn for å få et token:",
             "logoutText": "Logg ut — ugyldiggjør tokenet:",
             "roleText": "role er «admin», «subadmin» eller «limited». En limited-konto sin egen allowedSections begrenser hvilken skriving under den har lov til å gjøre.",
+            "usersTitle": "Brukere",
+            "usersIntro": "Kontoadministrasjon (dashbordets egen «Brukere»-fane): liste opp alle konfigurerte kontoer, opprette en, tilbakestille et passord, og slette en. Kun admin/underadmin — en «limited»-token får 403 på hver rute under. En «subadmin»-token kan gjøre alt en «admin»-token kan, bortsett fra å opprette eller slette en konto med rollen «admin»; den aller siste «admin»-kontoen kan aldri slettes av noen.",
             "syncTitle": "Live-data (WebSocket)",
             "syncIntro": "Koble til endepunktet under. Meld interesse for hvilke nøkler du trenger, så svarer serveren med gjeldende verdier, og sender deretter en oppdatering hver gang noen av dem endres — også endringer gjort fra denne samme appen, på hvilken som helst enhet.",
             "syncHelloText": "Meld interesse for nøklene du vil ha rett etter tilkobling:",
@@ -1505,9 +1654,10 @@
             "keyContactInfo": "Telefon, e-post, adresse, åpningstider.",
             "keyTextSizePresets": "Lagrede, navngitte tekststørrelse-forhåndsinnstillinger for skjermer.",
             "keyClockFormat": "Klokkeformat (12- eller 24-timers), brukt overalt et klokkeslett vises (vær, tidsstempler, skjermsparerens egne tidsvelgere).",
+            "keyPaneLanguage": "Kafeens eget standardspråk for kioskskjermenes panelinnhold — hvert panel kan overstyre det individuelt.",
             "keyScreenLockPin": "Den delte PIN-koden for å låse/låse opp en skjerm.",
             "keyScreensaverSchedule": "Det delte daglige start-/sluttvinduet for skjermspareren.",
-            "keyScreens": "Hver konfigurerte kioskskjerm — oppsett, felt, innhold.",
+            "keyScreens": "Hver konfigurerte kioskskjerm — oppsett, paneler, innhold.",
             "keyExtensions": "Oppsett for Ruter/Yr-integrasjonen — valgte stopp, antall timer værmelding.",
             "keySidebarSettings": "Hvilke elementer som vises i sidemenyen.",
             "keyOrders": "Nettbestillinger fra den offentlige nettsiden, hentet ned live.",
@@ -1608,8 +1758,8 @@
         "enterFullscreen": "Gå til fullskjerm",
         "exitFullscreen": "Avslutt fullskjerm",
         "editSizes": "Rediger utseende",
-        "editSlot": "Rediger felt",
-        "slotEditorTitle": "Rediger felt",
+        "editSlot": "Rediger panel",
+        "slotEditorTitle": "Rediger panel",
         "keepEditPrompt": {
           "title": "Bruk endringene?",
           "intro": "Du endret:",
@@ -1617,6 +1767,8 @@
           "summaryTextSize": "Tekststørrelse",
           "summaryBackgroundColor": "Bakgrunnsfarge",
           "summaryBackgroundImage": "Bakgrunnsbilde",
+          "summaryLanguage": "Språk",
+          "summaryLayout": "Panelstørrelser",
           "question": "Behold dette kun for dette steget, eller bruk det på alle stegene etter også?",
           "keepHereButton": "Behold kun for dette steget",
           "keepForNextStepsButton": "Behold også for neste steg",
@@ -1650,7 +1802,6 @@
           },
           "slotContentLabel": "Innhold",
           "stageTabLabel": "Steg {{number}}",
-          "slideDurationLabel": "Sekunder per steg",
           "allLabel": "Alle",
           "headingLabel": "Overskrift",
           "itemTitleLabel": "Varetittel",
@@ -1666,8 +1817,7 @@
           "restorePrevious": "Gjenopprett forrige",
           "done": "Ferdig",
           "backgroundImageLabel": "Bakgrunnsbilde",
-          "slotLabel": "Felt {{number}}",
-          "ownBackgroundImageLabel": "Eget bakgrunnsbilde for dette lysbildet"
+          "slotLabel": "Panel {{number}}"
         }
       },
       "imageUpload": {

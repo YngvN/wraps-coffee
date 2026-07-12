@@ -11,6 +11,7 @@ import {
   ProductsIcon,
   ScreensIcon,
   SettingsIcon,
+  UsersIcon,
 } from './AdminNavIcons'
 
 /**
@@ -34,9 +35,12 @@ export const NAV_ITEMS = [
   { to: 'extensions', id: 'admin.nav.extensions', adminOnly: false, toggleable: true },
   { to: 'messageboard', id: 'admin.nav.messageBoard', adminOnly: false, toggleable: true },
   // Spans uploads from every section rather than belonging to one, so —
-  // like a future "Users" tab — it's admin/subadmin-only rather than part of
-  // a `limited` account's own scoped sections.
+  // like "Users" below — it's admin/subadmin-only rather than part of a
+  // `limited` account's own scoped sections.
   { to: 'images', id: 'admin.nav.images', adminOnly: true, toggleable: true },
+  // Account management itself — admin/subadmin-only for the same reason a
+  // `limited` account can't grant itself more access than it was given.
+  { to: 'users', id: 'admin.nav.users', adminOnly: true, toggleable: true },
   // A personal/device preference (language, for now), not a permissioned
   // section — visible regardless of role.
   { to: 'settings', id: 'admin.nav.settings', adminOnly: false, toggleable: false },
@@ -55,5 +59,6 @@ export const ADMIN_NAV_ICONS = {
   extensions: ExtensionsIcon,
   messageboard: MessageBoardIcon,
   images: ImagesIcon,
+  users: UsersIcon,
   settings: SettingsIcon,
 }

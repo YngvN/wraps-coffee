@@ -73,4 +73,15 @@ export interface EventRecord {
 export interface UpcomingEvent {
   event: EventRecord
   occursAt: Date
+  /**
+   * `'cancelled'`: this entry is kept in its own timeline position (see
+   * `getUpcomingEvents`) rather than a live upcoming occurrence — `occursAt`
+   * is its original scheduled date, not a real future one; the caller
+   * should show a "cancelled" indicator instead. `'postponed'`: `occursAt`
+   * is already the event's own rescheduled date/time (`postponedDetails`),
+   * not its original one — the caller should still show a "postponed"
+   * indicator alongside it, since the date alone doesn't say so.
+   * `'scheduled'`: a normal, unmodified occurrence.
+   */
+  status: 'scheduled' | 'postponed' | 'cancelled'
 }

@@ -85,12 +85,8 @@
   // The actual `transition` (with its own delay, when this pane's own
   // content just crossfaded to a new checkpoint) is computed and set
   // inline instead — see `SplitLayout.tsx`'s own `paneColorDelay`.
-
-  @media (hover: hover) {
-    &:hover .slot-edit-button {
-      opacity: 1;
-    }
-  }
+  // Pane hover/click highlighting is now `PaneEditButton`'s own concern
+  // (see `PaneEditButton.scss`) rather than a rule here reaching into it.
 
   &--big {
     grid-area: big;

@@ -21,12 +21,22 @@
 }
 
 // The "Edit screen"/"Add screen" view (replacing the list entirely, not a
-// modal on top of it — see ScreensView.tsx) — its own Back button returns to
-// the list.
+// modal on top of it — see ScreensView.tsx) — a single Back button (closing
+// whichever sub-view is currently open, one level at a time — see
+// `useBackLevel`/`goBack` — or the whole form itself once none is) lined up
+// with the title itself, on the same row.
 .screens-view__form-header {
   display: flex;
   align-items: center;
   gap: $spacing-unit;
+
+  // `BackButton`'s own `align-self: flex-start` (needed where it sits alone
+  // above other stretched column content, e.g. every `__subview` panel)
+  // would otherwise override this row's own `align-items: center` and pin
+  // it to the top instead of centering it against the title beside it.
+  .back-button {
+    align-self: center;
+  }
 }
 
 .screens-view__form-title {
@@ -36,33 +46,6 @@
 .screens-view__form-route {
   font-weight: 400;
   color: $color-text-muted;
-}
-
-// Same reasoning as `.screens-view__item-preview` — reflects the screen's
-// own chosen background color, and highlights/pulses whichever pane the
-// form's own tabs currently have active, now that the list (and its own
-// per-card preview) isn't visible behind the form to show that on instead.
-.screens-view__form-preview {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 52px;
-  height: 39px;
-  overflow: hidden;
-  border: 1px solid $color-border;
-  border-radius: 6px;
-  background: var(--screen-bg);
-  color: var(--screen-text);
-}
-
-.screens-view__form-preview-pulse {
-  position: absolute;
-  inset: -50%;
-  border-radius: 50%;
-  background: #fff;
-  pointer-events: none;
 }
 
 .screens-view__empty {
@@ -105,20 +88,6 @@
   color: var(--screen-text);
 }
 
-// The click-feedback flash (see `TAB_PULSE_MOTION`) shown on this card's own
-// preview while it's the one currently open in the editor — a circle bigger
-// than the box itself, so growing it via `transform: scale` (set by
-// framer-motion, not here) always reaches past every edge. Clipped to the
-// box's own rounded corners by its `overflow: hidden` above, and never
-// intercepts a click (`pointer-events: none`).
-.screens-view__item-preview-pulse {
-  position: absolute;
-  inset: -50%;
-  border-radius: 50%;
-  background: #fff;
-  pointer-events: none;
-}
-
 .screens-view__item-body {
   display: flex;
   flex-direction: column;
@@ -149,15 +118,6 @@
   gap: $spacing-unit;
   flex-wrap: wrap;
 
-  code {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 320px;
-    font-size: 0.8rem;
-    color: $color-text-muted;
-  }
-
   a {
     @media (hover: hover) {
       &:hover {
@@ -165,6 +125,51 @@
       }
     }
   }
+}
+
+// The URL itself, clicking it copies it to the clipboard (see `handleCopy`)
+// — a plain button rather than `Button` so it reads as the link's own text,
+// not a separate pill-shaped action next to it.
+.screens-view__item-url-code {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  overflow: hidden;
+  max-width: 320px;
+  padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: $color-text-muted;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  svg {
+    flex-shrink: 0;
+  }
+
+  code {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8rem;
+    color: inherit;
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-shadow;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
+.screens-view__item-url-copied {
+  font-size: 0.8rem;
+  color: $color-accent;
 }
 
 .screens-view__item-actions {

@@ -1,5 +1,5 @@
 import type { DepartureInfo, NearbyStop, WeatherHour } from '../types/extensions'
-import type { AdminSession } from '../types/sync'
+import type { AdminRole, AdminSession, DashboardSection } from '../types/sync'
 
 /**
  * Derives the local LAN sync server's HTTP origin from the page's own
@@ -191,4 +191,62 @@ export async function setNeonUrl(token: string, url: string | null): Promise<str
   }
   const { url: savedUrl } = (await response.json()) as { url: string | null }
   return savedUrl
+}
+
+// --- Users (admin dashboard's own "Users" tab) -------------------------------
+
+/** One user account, as returned by the server — never includes the password. */
+export interface AdminUserSummary {
+  id: string
+  username: string
+  role: AdminRole
+  allowedSections?: DashboardSection[]
+}
+
+/** Every configured account. `admin`/`subadmin` only. */
+export async function listUsers(token: string): Promise<AdminUserSummary[]> {
+  const response = await fetch(`${serverBaseUrl()}/users`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 403) throw new Error('Only admin/subadmin accounts can manage users')
+  if (!response.ok) throw new Error('Could not load users')
+  return response.json() as Promise<AdminUserSummary[]>
+}
+
+/** Creates a new account. Throws if the username is already taken, or a `subadmin` session tries to create an `admin`-role account. */
+export async function createUser(token: string, input: { username: string; password: string; role: AdminRole; allowedSections?: DashboardSection[] }): Promise<AdminUserSummary> {
+  const response = await fetch(`${serverBaseUrl()}/users`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not create the user')
+  }
+  return response.json() as Promise<AdminUserSummary>
+}
+
+/** Deletes an account by id. Throws if it's the caller's own account, an admin-role account being deleted by a `subadmin`, the last remaining admin account, or the account no longer exists. */
+export async function deleteUser(token: string, id: string): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/users/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not delete the user')
+  }
+}
+
+/** Overwrites an account's password — the "Reset password" action, available for any account regardless of role. */
+export async function resetUserPassword(token: string, id: string, password: string): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/users/${id}/password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ password }),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not reset the password')
+  }
 }

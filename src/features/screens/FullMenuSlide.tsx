@@ -3,6 +3,7 @@ import { useProducts } from '../../hooks/useProducts'
 import { useLanguage } from '../../i18n'
 import type { ProductCategory } from '../../types/product'
 import { formatPrice } from '../../utils/price'
+import { allergenNames, dietaryTagNames } from '../../utils/productLabels'
 import { CATEGORY_ORDER } from '../admin/products/categoryMeta'
 import './FullMenuSlide.scss'
 
@@ -44,6 +45,16 @@ export function FullMenuSlide({ categories }: FullMenuSlideProps) {
                     {item.price !== undefined && <span className="full-menu-slide__item-price">{formatPrice(item.price, t)}</span>}
                   </div>
                   <p>{item.description[language]}</p>
+                  {item.allergens.length > 0 && (
+                    <p className="full-menu-slide__item-allergens">
+                      {t('menu.allergens.title')}: {allergenNames(item.allergens, t)}
+                    </p>
+                  )}
+                  {item.dietaryTags.length > 0 && (
+                    <p className="full-menu-slide__item-allergens">
+                      {t('menu.dietaryTags.title')}: {dietaryTagNames(item.dietaryTags, t)}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

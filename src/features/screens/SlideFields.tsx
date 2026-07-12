@@ -1,30 +1,63 @@
-import { Checkbox, ImageUploadField } from '../../components'
+import { useState } from 'react'
+import { Button, Checkbox, ImageUploadField, Input, Textarea } from '../../components'
+import { useEvents } from '../../hooks/useEvents'
 import { useExtensionsConfig } from '../../hooks/useExtensionsConfig'
 import { useMessageBoardPosts } from '../../hooks/useMessageBoardPosts'
 import { useMessageBoards } from '../../hooks/useMessageBoards'
+import { useScreens } from '../../hooks/useScreens'
 import { useLanguage } from '../../i18n'
 import type { ProductCategory } from '../../types/product'
-import { DEFAULT_MESSAGE_BOARD_COUNT, DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS, type MessageBoardDisplayMode, type MessageBoardOrder, type ScreenSlotContent } from '../../types/screen'
+import {
+  DEFAULT_EVENT_CALENDAR_COUNT,
+  DEFAULT_MESSAGE_BOARD_COUNT,
+  DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS,
+  DEFAULT_QR_CODE_SIZE,
+  MIN_QR_CODE_SIZE,
+  type EventDisplayMode,
+  type MessageBoardDisplayMode,
+  type MessageBoardOrder,
+  type ScreenSlotContent,
+} from '../../types/screen'
+import { collectAnnouncementMessages } from '../../utils/announcements'
 import { CATEGORY_ORDER } from '../admin/products/categoryMeta'
 import { clampImageResizeScale, IMAGE_RESIZE_MAX_VIEWPORT_FRACTION, MAX_IMAGE_RESIZE_SCALE, MIN_IMAGE_RESIZE_SCALE } from '../../utils/screenLayout'
+import { formatOrdinal } from '../../utils/formatOrdinal'
 import { getSmallUrl } from '../../utils/responsiveImage'
+import { MessagePickerModal } from './MessagePickerModal'
 import './SlideFields.scss'
 
 const MESSAGE_BOARD_DISPLAY_MODES: MessageBoardDisplayMode[] = ['rotating', 'list', 'single']
 const MESSAGE_BOARD_ORDERS: MessageBoardOrder[] = ['newestFirst', 'oldestFirst']
 
-/** Encodes a slide's content as a `<select>` option value: "none", "menu", "events", "image", "transit", "weather", "messageboard", or "category:<key>". */
-function contentToOptionValue(content: ScreenSlotContent): string {
-  return content.kind === 'category' ? `category:${content.category}` : content.kind
-}
-
-/** Decodes a `<select>` option value back into a `ScreenSlotContent`. An "image"/"transit"/"messageboard" slide starts with an empty URL/stop id/board id, filled in via its own field below the selector. */
-function optionValueToContent(value: string): ScreenSlotContent {
-  if (value === 'none' || value === 'menu' || value === 'events' || value === 'weather') return { kind: value }
+/**
+ * Decodes a `<select>` option value back into a `ScreenSlotContent`. An
+ * "image"/"qrcode"/"transit"/"messageboard"/"announcement" slide starts
+ * with an empty URL/stop id/board id/title+description, filled in via its
+ * own field below the selector. An `event:*` value (composite, like the
+ * since-removed `category:X` values) picks the `'event'` kind's own
+ * `displayMode` — switching to `'image'`/`'details'` keeps
+ * `currentContent`'s own `eventOrdinal` if it already had one (switching
+ * between the two keeps your pick), else starts from
+ * `suggestedEventOrdinal` (see `findSiblingEventOrdinal`).
+ */
+function optionValueToContent(value: string, currentContent: ScreenSlotContent, suggestedEventOrdinal: number): ScreenSlotContent {
   if (value === 'image') return { kind: 'image', imageUrl: '' }
+  if (value === 'qrcode') return { kind: 'qrcode', url: '' }
   if (value === 'transit') return { kind: 'transit', stopId: '' }
   if (value === 'messageboard') return { kind: 'messageboard' }
-  return { kind: 'category', category: value.slice('category:'.length) as ProductCategory }
+  if (value === 'announcement') return { kind: 'announcement', title: '', description: '' }
+  if (value.startsWith('event:')) {
+    const displayMode = value.slice('event:'.length) as EventDisplayMode
+    if (displayMode === 'image' || displayMode === 'details') {
+      const eventOrdinal =
+        currentContent.kind === 'event' && (currentContent.displayMode === 'image' || currentContent.displayMode === 'details') && currentContent.eventOrdinal !== undefined
+          ? currentContent.eventOrdinal
+          : suggestedEventOrdinal
+      return { kind: 'event', displayMode, eventOrdinal }
+    }
+    return { kind: 'event', displayMode }
+  }
+  return { kind: value as 'none' | 'menu' | 'weather' }
 }
 
 interface SlideFieldsProps {
@@ -43,6 +76,8 @@ interface SlideFieldsProps {
    * back off regardless.
    */
   resizeToFitBlocked?: boolean
+  /** What a fresh switch to "Event image"/"Event details" should default its own `eventOrdinal` to (see `findSiblingEventOrdinal`) — usually another pane's own choice on the same screen, else `1`. */
+  suggestedEventOrdinal: number
 }
 
 /**
@@ -57,11 +92,14 @@ interface SlideFieldsProps {
  * slide's own background image (an override of its slot's shared one) is
  * edited alongside the slot's own, in the "Background" sub-menu, not here.
  */
-export function SlideFields({ id, content, onChange, label, resizeToFitBlocked }: SlideFieldsProps) {
-  const { t } = useLanguage()
+export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, suggestedEventOrdinal }: SlideFieldsProps) {
+  const { t, language } = useLanguage()
   const [extensionsConfig] = useExtensionsConfig()
   const [messageBoards] = useMessageBoards()
   const [messageBoardPosts] = useMessageBoardPosts()
+  const [screens] = useScreens()
+  const [events] = useEvents()
+  const [isMessagePickerOpen, setIsMessagePickerOpen] = useState(false)
 
   /** Starts a fresh image slide when switching the selector to "Image"; otherwise just updates the URL in place, keeping this slide's other own fields (fit, resize-to-fit, background image) intact. */
   const setImageUrl = (imageUrl: string) => {
@@ -86,6 +124,20 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked }
   const setImageResizeScalePercent = (percent: number) => {
     if (content.kind !== 'image') return
     onChange({ ...content, resizeScale: clampImageResizeScale(percent / 100) })
+  }
+
+  /** Starts a fresh QR code slide when switching the selector to "QR code"; otherwise just updates the URL in place. */
+  const setQrCodeUrl = (url: string) => {
+    if (content.kind !== 'qrcode') {
+      onChange({ kind: 'qrcode', url })
+      return
+    }
+    onChange({ ...content, url })
+  }
+
+  const setQrCodeSize = (size: number) => {
+    if (content.kind !== 'qrcode') return
+    onChange({ ...content, size })
   }
 
   const setTransitStopId = (stopId: string) => {
@@ -132,21 +184,57 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked }
     onChange({ ...content, count })
   }
 
+  const setAnnouncementTitle = (title: string) => {
+    if (content.kind !== 'announcement') return
+    onChange({ ...content, title })
+  }
+
+  const setAnnouncementDescription = (description: string) => {
+    if (content.kind !== 'announcement') return
+    onChange({ ...content, description })
+  }
+
+  const setEventOrdinal = (eventOrdinal: number) => {
+    if (content.kind !== 'event') return
+    onChange({ ...content, eventOrdinal })
+  }
+
+  const setEventCalendarCount = (count: number) => {
+    if (content.kind !== 'event') return
+    onChange({ ...content, count })
+  }
+
+  const setEventShowPrice = (showPrice: boolean) => {
+    if (content.kind !== 'event') return
+    onChange({ ...content, showPrice })
+  }
+
+  const setEventShowDescription = (showDescription: boolean) => {
+    if (content.kind !== 'event') return
+    onChange({ ...content, showDescription })
+  }
+
   return (
     <div className="slide-fields">
-      <select aria-label={label} value={contentToOptionValue(content)} onChange={(event) => onChange(optionValueToContent(event.target.value))}>
+      <select
+        aria-label={label}
+        value={content.kind === 'event' ? `event:${content.displayMode ?? 'calendar'}` : content.kind}
+        onChange={(event) => onChange(optionValueToContent(event.target.value, content, suggestedEventOrdinal))}
+      >
         <option value="none">{t('admin.screens.slotNoneLabel')}</option>
         <option value="menu">{t('admin.screens.slotMenuLabel')}</option>
-        <option value="events">{t('admin.screens.slotEventsLabel')}</option>
+        <optgroup label={t('admin.screens.slotEventsGroupLabel')}>
+          <option value="event:calendar">{t('admin.screens.slotEventCalendarLabel')}</option>
+          <option value="event:image">{t('admin.screens.slotEventImageLabel')}</option>
+          <option value="event:details">{t('admin.screens.slotEventDetailsLabel')}</option>
+          <option value="event:month">{t('admin.screens.slotEventMonthLabel')}</option>
+        </optgroup>
         <option value="image">{t('admin.screens.slotImageLabel')}</option>
+        <option value="qrcode">{t('admin.screens.slotQrCodeLabel')}</option>
         <option value="transit">{t('admin.screens.slotTransitLabel')}</option>
         <option value="weather">{t('admin.screens.slotWeatherLabel')}</option>
         <option value="messageboard">{t('admin.screens.slotMessageBoardLabel')}</option>
-        {CATEGORY_ORDER.map((category) => (
-          <option key={category} value={`category:${category}`}>
-            {t(`menu.categories.${category}.title`)}
-          </option>
-        ))}
+        <option value="announcement">{t('admin.screens.slotAnnouncementLabel')}</option>
       </select>
 
       {content.kind === 'image' && (
@@ -202,6 +290,24 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked }
               </div>
             </div>
           )}
+        </>
+      )}
+
+      {content.kind === 'qrcode' && (
+        <>
+          <Input id={`${id}-qrcode-url`} type="url" label={t('admin.screens.qrCodeUrlLabel')} value={content.url} onChange={(event) => setQrCodeUrl(event.target.value)} />
+          <label className="slide-fields__slider">
+            <span>
+              {t('admin.screens.qrCodeSizeLabel')} — {content.size ?? DEFAULT_QR_CODE_SIZE}%
+            </span>
+            <input
+              type="range"
+              min={MIN_QR_CODE_SIZE}
+              max={100}
+              value={content.size ?? DEFAULT_QR_CODE_SIZE}
+              onChange={(event) => setQrCodeSize(Number(event.target.value))}
+            />
+          </label>
         </>
       )}
 
@@ -322,6 +428,68 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked }
         ) : (
           <p className="slide-fields__hint">{t('admin.screens.messageBoardNoBoardsLabel')}</p>
         ))}
+
+      {content.kind === 'event' && (content.displayMode ?? 'calendar') === 'calendar' && (
+        <label className="slide-fields__number-field">
+          <span>{t('admin.screens.eventCalendarCountLabel')}</span>
+          <input type="number" min={1} value={content.count ?? DEFAULT_EVENT_CALENDAR_COUNT} onChange={(event) => setEventCalendarCount(Number(event.target.value))} />
+        </label>
+      )}
+
+      {content.kind === 'event' &&
+        (content.displayMode === 'image' || content.displayMode === 'details') &&
+        (events.length > 0 ? (
+          <select aria-label={t('admin.screens.eventOrdinalLabel')} value={content.eventOrdinal ?? 1} onChange={(event) => setEventOrdinal(Number(event.target.value))}>
+            {Array.from({ length: events.length }, (_, index) => index + 1).map((ordinal) => (
+              <option key={ordinal} value={ordinal}>
+                {t('admin.screens.eventOrdinalOption', { ordinal: formatOrdinal(ordinal, language) })}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <p className="slide-fields__hint">{t('admin.screens.eventsNoEventsConfiguredLabel')}</p>
+        ))}
+
+      {content.kind === 'event' && content.displayMode === 'month' && (
+        <>
+          <Checkbox id={`${id}-event-show-price`} label={t('admin.screens.eventShowPriceLabel')} checked={Boolean(content.showPrice)} onChange={(event) => setEventShowPrice(event.target.checked)} />
+          <Checkbox
+            id={`${id}-event-show-description`}
+            label={t('admin.screens.eventShowDescriptionLabel')}
+            checked={Boolean(content.showDescription)}
+            onChange={(event) => setEventShowDescription(event.target.checked)}
+          />
+        </>
+      )}
+
+      {content.kind === 'announcement' && (
+        <>
+          <Button type="button" variant="secondary" onClick={() => setIsMessagePickerOpen(true)}>
+            {t('admin.screens.copyMessageButton')}
+          </Button>
+          <Input
+            id={`${id}-announcement-title`}
+            label={t('admin.screens.announcementTitleLabel')}
+            value={content.title}
+            onChange={(event) => setAnnouncementTitle(event.target.value)}
+          />
+          <Textarea
+            id={`${id}-announcement-description`}
+            label={t('admin.screens.announcementDescriptionLabel')}
+            value={content.description}
+            onChange={(event) => setAnnouncementDescription(event.target.value)}
+          />
+          <MessagePickerModal
+            open={isMessagePickerOpen}
+            onClose={() => setIsMessagePickerOpen(false)}
+            messages={collectAnnouncementMessages(screens)}
+            onSelect={(message) => {
+              onChange({ ...content, title: message.title, description: message.description })
+              setIsMessagePickerOpen(false)
+            }}
+          />
+        </>
+      )}
     </div>
   )
 }

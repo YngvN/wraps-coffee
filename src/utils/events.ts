@@ -65,35 +65,90 @@ export function getNextOccurrence(event: EventRecord, from: Date = new Date()): 
 }
 
 /**
- * Returns the `count` events with the soonest upcoming occurrence on or
- * after `from`, sorted soonest-first. Cancelled events and events with no
- * future occurrence are excluded.
+ * Returns the `count` events soonest in the upcoming timeline, sorted
+ * soonest-first. A cancelled event is never excluded by date — it keeps
+ * occupying its own timeline position (sorted by its original `date`/`time`,
+ * same slot it held before being cancelled) indefinitely, marked
+ * `status: 'cancelled'`, until the admin deletes the event record outright;
+ * the caller is expected to show that state rather than treat `occursAt` as
+ * a real future date. A postponed event is included at its own rescheduled
+ * date/time, marked `status: 'postponed'` — the caller should still
+ * indicate that, since `occursAt` alone doesn't say the date changed. A
+ * non-cancelled event with no future occurrence (it already happened, or a
+ * postponed/recurring event has genuinely run out) is excluded, which is
+ * what naturally promotes "2nd" to "1st" once "1st" has passed.
  */
 export function getUpcomingEvents(events: EventRecord[], count: number, from: Date = new Date()): UpcomingEvent[] {
   return events
-    .map((event) => ({ event, occursAt: getNextOccurrence(event, from) }))
-    .filter((entry): entry is UpcomingEvent => entry.occursAt !== null)
+    .map((event): UpcomingEvent | null => {
+      if (event.status === 'cancelled') return { event, occursAt: toDateTime(event.date, event.time), status: 'cancelled' }
+      const occursAt = getNextOccurrence(event, from)
+      if (!occursAt) return null
+      return { event, occursAt, status: event.status === 'postponed' ? 'postponed' : 'scheduled' }
+    })
+    .filter((entry): entry is UpcomingEvent => entry !== null)
     .sort((a, b) => a.occursAt.getTime() - b.occursAt.getTime())
     .slice(0, count)
+}
+
+/**
+ * Returns the event at the given 1-based `ordinal` position in the upcoming
+ * timeline (see `getUpcomingEvents`), or `null` if fewer than `ordinal`
+ * events exist there.
+ */
+export function getNthUpcomingEvent(events: EventRecord[], ordinal: number, from: Date = new Date()): UpcomingEvent | null {
+  return getUpcomingEvents(events, ordinal, from)[ordinal - 1] ?? null
+}
+
+/**
+ * Returns every event occurring anywhere in the same calendar month as
+ * `from` (defaulting to today), sorted soonest-first — see
+ * `getOccurrencesInRange` for how cancelled/postponed/recurring events are
+ * each represented.
+ */
+export function getEventsInMonth(events: EventRecord[], from: Date = new Date()): UpcomingEvent[] {
+  const rangeStart = new Date(from.getFullYear(), from.getMonth(), 1)
+  const rangeEnd = new Date(from.getFullYear(), from.getMonth() + 1, 1)
+  return getOccurrencesInRange(events, rangeStart, rangeEnd)
+}
+
+/** Formats `price` as a localized currency string (e.g. "kr 150,00" for `no`), using the same per-language locale as `formatEventDate`. Callers should check `isEventFree` first and show a "Free" label instead — a `0`/`NaN` price is by definition free, not "0,00 kr". */
+export function formatEventPrice(price: number, currency: string, language: LanguageCode): string {
+  return new Intl.NumberFormat(LOCALE_BY_LANGUAGE[language], { style: 'currency', currency }).format(price)
+}
+
+/** Whether an event's own `price` should be shown as "Free" rather than a formatted currency amount — `0`, or `NaN` from unset/invalid admin input. */
+export function isEventFree(price: number): boolean {
+  return price === 0 || Number.isNaN(price)
 }
 
 /**
  * Returns every occurrence of `events` that falls within `[rangeStart,
  * rangeEnd)`, sorted soonest-first. Unlike `getUpcomingEvents`, this expands
  * recurring events into all of their matching occurrences in the range
- * rather than just the next one, which is what a calendar grid needs.
- * Cancelled events (and cancelled exceptions of recurring events) are
- * excluded; postponed events appear only at their postponed date/time.
+ * rather than just the next one, which is what a calendar grid needs. A
+ * whole-event `status === 'cancelled'` appears once, at its original
+ * `date`/`time` (marked `status: 'cancelled'`) if that falls in range —
+ * same "stays visible until deleted" posture as `getUpcomingEvents` —
+ * rather than being excluded; a postponed event appears once, at its own
+ * rescheduled date/time (marked `status: 'postponed'`); a cancelled
+ * *exception* of an otherwise-active recurring series (one cancelled date
+ * within it, not the whole series) is still skipped, a separate concept
+ * from a whole-event cancellation.
  */
 export function getOccurrencesInRange(events: EventRecord[], rangeStart: Date, rangeEnd: Date): UpcomingEvent[] {
   const occurrences: UpcomingEvent[] = []
 
   for (const event of events) {
-    if (event.status === 'cancelled') continue
+    if (event.status === 'cancelled') {
+      const occursAt = toDateTime(event.date, event.time)
+      if (occursAt >= rangeStart && occursAt < rangeEnd) occurrences.push({ event, occursAt, status: 'cancelled' })
+      continue
+    }
 
     if (event.status === 'postponed' && event.postponedDetails.newDate && event.postponedDetails.newTime) {
       const occursAt = toDateTime(event.postponedDetails.newDate, event.postponedDetails.newTime)
-      if (occursAt >= rangeStart && occursAt < rangeEnd) occurrences.push({ event, occursAt })
+      if (occursAt >= rangeStart && occursAt < rangeEnd) occurrences.push({ event, occursAt, status: 'postponed' })
       continue
     }
 
@@ -106,7 +161,7 @@ export function getOccurrencesInRange(events: EventRecord[], rangeStart: Date, r
       while (candidate < rangeEnd) {
         const dateStr = candidate.toISOString().slice(0, 10)
         if (!cancelledDates.has(dateStr)) {
-          occurrences.push({ event, occursAt: toDateTime(dateStr, event.time) })
+          occurrences.push({ event, occursAt: toDateTime(dateStr, event.time), status: 'scheduled' })
         }
         candidate.setDate(candidate.getDate() + 7)
       }
@@ -114,7 +169,7 @@ export function getOccurrencesInRange(events: EventRecord[], rangeStart: Date, r
     }
 
     const occursAt = toDateTime(event.date, event.time)
-    if (occursAt >= rangeStart && occursAt < rangeEnd) occurrences.push({ event, occursAt })
+    if (occursAt >= rangeStart && occursAt < rangeEnd) occurrences.push({ event, occursAt, status: 'scheduled' })
   }
 
   return occurrences.sort((a, b) => a.occursAt.getTime() - b.occursAt.getTime())

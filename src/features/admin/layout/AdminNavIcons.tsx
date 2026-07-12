@@ -109,6 +109,17 @@ export function ImagesIcon(props: IconProps) {
   )
 }
 
+export function UsersIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6" />
+      <path d="M16 4.5c1.7.4 3 2 3 3.9 0 1.9-1.3 3.5-3 3.9" />
+      <path d="M15 14c2.8.5 5 2.9 5 6" />
+    </Icon>
+  )
+}
+
 export function MessageBoardIcon(props: IconProps) {
   return (
     <Icon {...props}>

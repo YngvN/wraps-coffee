@@ -1,26 +1,22 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState, type CSSProperties } from 'react'
 import { BackButton, Badge, Button, SlideTransition, TranslatedText } from '../../../components'
+import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useScreenLockPin } from '../../../hooks/useScreenLockPin'
 import { useScreens } from '../../../hooks/useScreens'
 import { useScreensaverSchedule } from '../../../hooks/useScreensaverSchedule'
 import { useLanguage } from '../../../i18n'
+import { goBack } from '../../../lib/backStack'
 import { DEFAULT_SCREEN_BACKGROUND_COLOR, type ScreenConfig, type ScreenSlot, type ScreenSlotContent } from '../../../types/screen'
 import { getScreenColorVars } from '../../../utils/screenColors'
 import { resolveSlotContent } from '../../../utils/screenStages'
+import { CopyIcon } from './CopyIcon'
 import { CreatePinModal } from './CreatePinModal'
 import { LayoutIcon } from './LayoutIcon'
 import { ScreenForm } from './ScreenForm'
 import { getScreenPreviewPattern } from './screenPreviewPattern'
 import { ScreensaverScheduleModal } from './ScreensaverScheduleModal'
 import './ScreensView.scss'
-
-/** The click-feedback flash on the form view's own header preview icon, while its matching pane/tab is the one being edited (see `activeEditingSlot`): a small white circle that pops in at its center and expands out to fill (and fade past) the preview box, clipped to it by that box's own `overflow: hidden`. Framer-motion props rather than a plain CSS animation so a fresh `key` (a new element, as far as React's concerned) reliably restarts it from `initial` however fast a tab is spam-clicked in the editor, instead of a re-triggered CSS animation sometimes being coalesced by the browser into a no-op when it's already mid-run. */
-const TAB_PULSE_MOTION = {
-  initial: { opacity: 0.7, scale: 0.3 },
-  animate: { opacity: 0, scale: 1.8 },
-  transition: { duration: 0.5, ease: 'easeOut' as const },
-}
 
 /** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link, plus the "Create pin" button that sets the one shared PIN every screen's own "Lock screen" button locks behind, and the "Screen saver" button that sets the one shared daily window every screen's own "Use screensaver" checkbox opts into. */
 export function ScreensView() {
@@ -36,20 +32,20 @@ export function ScreensView() {
   const [direction, setDirection] = useState<1 | -1>(1)
   /** The screen form's own currently open sub-view (e.g. "Resize slots"), shown next to the form view's own title — see `ScreenForm`'s `onRouteChange`. Reset on close so a stale route doesn't flash before the next open's fresh form reports its own. */
   const [formRoute, setFormRoute] = useState<string | undefined>(undefined)
-  /** Which of `editingScreen`'s own tabs the form is currently showing, plus an ever-increasing `pulse` key — see `ScreenForm`'s `onActiveSlotChange` — so the form view's own header preview can highlight (and flash) the matching pane, helping show at a glance which physical position on the actual screen is being edited right now. Reset alongside `editingScreen` so a stale highlight from a previous session never flashes on the next screen opened. */
-  const [activeEditingSlot, setActiveEditingSlot] = useState<{ tab: 'global' | number; pulse: number }>({ tab: 'global', pulse: 0 })
 
   const isFormOpen = editingScreen !== undefined
   const openForm = (target: ScreenConfig | null) => {
     setDirection(1)
     setEditingScreen(target)
-    setActiveEditingSlot({ tab: 'global', pulse: 0 })
   }
   const closeForm = () => {
     setDirection(-1)
     setEditingScreen(undefined)
     setFormRoute(undefined)
   }
+
+  /** Registers the open form as one level of the shared browser-back stack (see `useBackLevel`) — the single top Back button below (and, nested inside `ScreenForm` itself, its own sub-views) all close via the browser's own back action from here on, one level at a time, instead of each rendering its own separate Back button. */
+  useBackLevel(isFormOpen, closeForm)
 
   /** Reads/writes via the functional `setScreens` form (fresh from storage) rather than this component's own `screens` state, which — being a separate `useScreens()` instance from `ScreenForm`'s own — can otherwise still be missing a live edit (background color, text size, etc.) `ScreenForm` just wrote moments earlier. */
   const handleSave = (screen: ScreenConfig) => {
@@ -81,12 +77,19 @@ export function ScreensView() {
   const contentLabel = (content: ScreenSlotContent) => {
     if (content.kind === 'none') return t('admin.screens.slotNoneLabel')
     if (content.kind === 'menu') return t('admin.screens.slotMenuLabel')
-    if (content.kind === 'events') return t('admin.screens.slotEventsLabel')
+    if (content.kind === 'event') {
+      const displayMode = content.displayMode ?? 'calendar'
+      if (displayMode === 'image') return t('admin.screens.slotEventImageLabel')
+      if (displayMode === 'details') return t('admin.screens.slotEventDetailsLabel')
+      if (displayMode === 'month') return t('admin.screens.slotEventMonthLabel')
+      return t('admin.screens.slotEventCalendarLabel')
+    }
     if (content.kind === 'image') return t('admin.screens.slotImageLabel')
+    if (content.kind === 'qrcode') return t('admin.screens.slotQrCodeLabel')
     if (content.kind === 'transit') return t('admin.screens.slotTransitLabel')
     if (content.kind === 'weather') return t('admin.screens.slotWeatherLabel')
     if (content.kind === 'messageboard') return t('admin.screens.slotMessageBoardLabel')
-    return t(`menu.categories.${content.category}.title`)
+    return t('admin.screens.slotAnnouncementLabel')
   }
 
   /** A slot's summary text: its stage-1 content's own label (every slot is guaranteed a stage-1 checkpoint), or `null` if it's "none" there. A screen with stages on may show different content at other stages — see the stage-count badge below for that. */
@@ -108,33 +111,13 @@ export function ScreensView() {
         {isFormOpen ? (
           <div>
             <div className="screens-view__form-header">
-              <BackButton onClick={closeForm}>{t('admin.common.back')}</BackButton>
-              {editingScreen && (
-                <div
-                  className="screens-view__form-preview"
-                  style={getScreenColorVars(editingScreen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR) as CSSProperties}
-                >
-                  <LayoutIcon
-                    pattern={getScreenPreviewPattern(editingScreen)}
-                    width={40}
-                    height={30}
-                    highlightIndex={activeEditingSlot.tab === 'global' ? 'all' : activeEditingSlot.tab}
-                  />
-                  {activeEditingSlot.pulse > 0 && <motion.span key={activeEditingSlot.pulse} className="screens-view__form-preview-pulse" {...TAB_PULSE_MOTION} />}
-                </div>
-              )}
+              <BackButton onClick={goBack}>{t('admin.common.back')}</BackButton>
               <h1 className="screens-view__form-title">
                 {editingScreen ? t('admin.screens.editScreen') : t('admin.screens.addScreen')}
                 {formRoute && <span className="screens-view__form-route"> - {formRoute}</span>}
               </h1>
             </div>
-            <ScreenForm
-              screen={editingScreen ?? null}
-              onSave={handleSave}
-              onCancel={closeForm}
-              onRouteChange={setFormRoute}
-              onActiveSlotChange={(tab, pulse) => setActiveEditingSlot({ tab, pulse })}
-            />
+            <ScreenForm screen={editingScreen ?? null} onSave={handleSave} onCancel={closeForm} onRouteChange={setFormRoute} />
           </div>
         ) : (
           <div>
@@ -190,10 +173,11 @@ export function ScreensView() {
                             </span>
                           </div>
                           <div className="screens-view__item-url">
-                            <code>{url}</code>
-                            <Button variant="secondary" onClick={() => handleCopy(screen, url)}>
-                              {copiedID === screen.screenID ? t('admin.screens.urlCopied') : t('admin.screens.copyUrl')}
-                            </Button>
+                            <button type="button" className="screens-view__item-url-code" onClick={() => handleCopy(screen, url)}>
+                              <CopyIcon />
+                              <code>{url}</code>
+                            </button>
+                            {copiedID === screen.screenID && <span className="screens-view__item-url-copied">{t('admin.screens.urlCopied')}</span>}
                             <a href={url} target="_blank" rel="noopener noreferrer">
                               {t('admin.screens.openInNewTab')}
                             </a>

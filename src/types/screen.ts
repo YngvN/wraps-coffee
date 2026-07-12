@@ -1,3 +1,4 @@
+import type { LanguageCode } from '../i18n'
 import type { ProductCategory } from './product'
 
 /** How an image slide's picture fills its slot: shrunk to fit without cropping (the default), or scaled to fill the entire container, cropping as needed. */
@@ -19,12 +20,19 @@ interface OwnBackgroundImageFields {
 
 /**
  * What a slot shows at one of its own content timeline's checkpoints
- * (see `ScreenSlot.content`): nothing, a specific menu category, the entire
- * menu (every category with available items, laid out the same way as the
- * public Menu page — or, via `categories`, just a chosen subset of them,
- * e.g. to split the full menu across more than one screen), the
- * upcoming-events list, or a single centered image (e.g. a logo or an
- * Instagram photo, pasted in as a URL). A category/menu/events checkpoint's
+ * (see `ScreenSlot.content`): nothing, the menu (every category with
+ * available items, laid out the same way as the public Menu page — or, via
+ * `categories`, just a chosen subset of them, e.g. to split the full menu
+ * across more than one screen, or narrowed to a single category), one of
+ * the `'event'` kind's own `displayMode`s (see `EventDisplayMode` — an
+ * upcoming-events calendar list, a single upcoming event's own photo or
+ * details by ordinal position, or every event in the current month), a
+ * single centered image (e.g. a logo or an Instagram photo, pasted in as a
+ * URL), or a scannable QR code linking to an admin-typed `url` — drawn in a
+ * single flat color (whichever of black/white the pane's own contrast-based
+ * `--screen-text` resolves to, see `getScreenColorVars`) with no background
+ * box of its own, so it reads as part of the pane rather than a pasted-in
+ * sticker. A menu/event checkpoint's
  * own `textSizes` is independent of its slot's other stages — e.g. it can
  * be bigger than the slot's other checkpoints — since editing one step's
  * pane is only ever meant to change how that one step looks. It falls back
@@ -45,22 +53,48 @@ interface OwnBackgroundImageFields {
  * aspect ratio stays locked no matter which border is dragged. Every
  * kind can independently opt out of its slot's own `backgroundImage` by
  * setting its own `backgroundImage`, regardless of whether it has text of
- * its own. Two further kinds are backed by live external data rather than
- * admin-authored content, configured from the admin's Extensions tab (see
- * `useExtensionsConfig`): `'transit'` shows real-time departures from one
- * of the cafe's configured nearby stops (`stopId`, referencing
- * `ExtensionsConfig['transit']['selectedStops']`), and `'weather'` shows an
- * hourly forecast for the cafe's own address — neither renders anything
- * (see `TransitSlide`/`WeatherSlide`) unless its integration is enabled.
+ * its own. `'announcement'` is a short admin-authored call-to-action — a
+ * title (e.g. "Buy tickets now!") and an optional description below it,
+ * written once in whichever single language the owner types it in (not
+ * per-language, unlike the rest of this app's admin-authored content) — for
+ * a one-off message unrelated to the menu/events/message-board systems. Two
+ * further kinds are backed by live
+ * external data rather than admin-authored content, configured from the
+ * admin's Extensions tab (see `useExtensionsConfig`): `'transit'` shows
+ * real-time departures from one of the cafe's configured nearby stops
+ * (`stopId`, referencing `ExtensionsConfig['transit']['selectedStops']`),
+ * and `'weather'` shows an hourly forecast for the cafe's own address —
+ * neither renders anything (see `TransitSlide`/`WeatherSlide`) unless its
+ * integration is enabled.
  */
 export type ScreenSlotContent =
   | ({ kind: 'none' } & OwnBackgroundImageFields)
-  | ({ kind: 'category'; category: ProductCategory; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({ kind: 'menu'; categories?: ProductCategory[]; textSizes?: TextSizes } & OwnBackgroundImageFields)
-  | ({ kind: 'events'; textSizes?: TextSizes } & OwnBackgroundImageFields)
+  | ({
+      kind: 'event'
+      /** Falls back to `'calendar'` when unset. */
+      displayMode?: EventDisplayMode
+      /** Used only when `displayMode` is `'image'`/`'details'` — 1-based position in the live event timeline (see `getUpcomingEvents`); a cancelled event still occupies its own position there (never removed until the admin deletes it outright), so this can resolve to a cancelled entry. Falls back to `1` when unset. */
+      eventOrdinal?: number
+      /** Used only when `displayMode` is `'calendar'` (or unset) — how many timeline entries it shows. Falls back to `DEFAULT_EVENT_CALENDAR_COUNT`. */
+      count?: number
+      /** Used only when `displayMode` is `'month'` — whether each listed event also shows its own price. Falls back to `false`. */
+      showPrice?: boolean
+      /** Used only when `displayMode` is `'month'` — whether each listed event also shows its own description. Falls back to `false`. */
+      showDescription?: boolean
+      /** Irrelevant for `'image'` — it has no text of its own. */
+      textSizes?: TextSizes
+    } & OwnBackgroundImageFields)
   | ({ kind: 'image'; imageUrl: string; fit?: ImageFit; resizeToFit?: boolean; resizeScale?: number } & OwnBackgroundImageFields)
+  | ({
+      kind: 'qrcode'
+      url: string
+      /** Percentage (`MIN_QR_CODE_SIZE`-100) of the pane's own available space the code fills. Falls back to `DEFAULT_QR_CODE_SIZE` (as large as it can be) when unset. */
+      size?: number
+    } & OwnBackgroundImageFields)
   | ({ kind: 'transit'; stopId?: string; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({ kind: 'weather'; textSizes?: TextSizes } & OwnBackgroundImageFields)
+  | ({ kind: 'announcement'; title: string; description: string; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({
       kind: 'messageboard'
       /** Which `MessageBoard` (see `src/types/messageBoard.ts`) this slot shows — unset renders nothing, same posture as an unset transit `stopId`. */
@@ -89,6 +123,25 @@ export const DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS = 8
 
 /** Used when a `'messageboard'` slide's own `count` is unset. */
 export const DEFAULT_MESSAGE_BOARD_COUNT = 10
+
+/**
+ * How an `'event'` slide shows the cafe's events: `'calendar'` lists the
+ * next few upcoming ones (soonest first), `'image'`/`'details'` each
+ * pin to a single event by its 1-based ordinal position in that same
+ * upcoming timeline (see `getUpcomingEvents`) — one showing just its photo,
+ * the other its title/date/description — and `'month'` lists every event
+ * occurring in the current calendar month, headed by the month's own name.
+ */
+export type EventDisplayMode = 'calendar' | 'image' | 'details' | 'month'
+
+/** Used when an `'event'` slide's own `count` is unset (`'calendar'` mode only). */
+export const DEFAULT_EVENT_CALENDAR_COUNT = 4
+
+/** Used when a `'qrcode'` slide's own `size` is unset — fills as much of its pane as it can. */
+export const DEFAULT_QR_CODE_SIZE = 100
+
+/** Smallest percentage a `'qrcode'` slide's own `size` can be dragged down to. */
+export const MIN_QR_CODE_SIZE = 10
 
 /**
  * A sparse per-stage "checkpoint" map for one field's value — only stages
@@ -125,6 +178,8 @@ export interface ScreenSlot {
   backgroundImage: StageTimeline<BackgroundImage | undefined>
   /** This slot's own shared/fallback text size timeline — replaces the old screen-level `slotTextSizes`. Falls back to the screen's own `textSizes` (then `DEFAULT_TEXT_SIZES`) at any stage without an entry. */
   textSizes: StageTimeline<TextSizes | undefined>
+  /** This slot's own language override timeline — an entry's value may itself be `undefined` (explicitly "use the cafe's own Standard pane language" at that stage, see `useDefaultPaneLanguage`), distinct from no entry at all (inherit from an earlier stage's own override, then the standard). Optional (rather than always-present like the fields above) since it's a newer field — a slot with none set at all falls back to the standard everywhere, exactly as if this were `{}`. */
+  language?: StageTimeline<LanguageCode | undefined>
 }
 
 /** How a screen's panes are arranged along their split axis: side by side, or stacked. Only meaningful when `slotCount` is 2. */

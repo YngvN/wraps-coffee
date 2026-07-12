@@ -16,6 +16,7 @@ import { ScreensView } from './features/admin/screens/ScreensView'
 import { ExtensionsView } from './features/admin/extensions/ExtensionsView'
 import { MessageBoardView } from './features/admin/messageBoard/MessageBoardView'
 import { SettingsView } from './features/admin/settings/SettingsView'
+import { UsersView } from './features/admin/users/UsersView'
 import { LanguageProvider } from './i18n'
 import { ScreenDisplay } from './pages/ScreenDisplay'
 import './styles/global.scss'
@@ -46,6 +47,7 @@ const router = createBrowserRouter([
           { path: 'extensions', element: <ExtensionsView /> },
           { path: 'messageboard', element: <MessageBoardView /> },
           { path: 'images', element: <ImageLibraryView /> },
+          { path: 'users', element: <UsersView /> },
           { path: 'settings', element: <SettingsView /> },
         ],
       },

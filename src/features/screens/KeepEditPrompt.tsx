@@ -2,12 +2,16 @@ import { Button } from '../../components'
 import { useLanguage } from '../../i18n'
 import './KeepEditPrompt.scss'
 
-/** Which categories of a slot's fields changed during one editing session — see `ScreenDisplay`'s own diffing, which builds this by comparing the draft against the snapshot captured when the editor opened. */
+/** Which categories of a slot's fields (or, for `layout`, the screen's own arrangement dividers) changed during one editing session — see `ScreenDisplay`'s own diffing, which builds this by comparing the draft against the snapshot captured when the editor opened, or (for `layout`) the ratios captured when a divider drag first started. */
 export interface SlotEditChanges {
   content: boolean
   textSizes: boolean
   backgroundColor: boolean
   backgroundImage: boolean
+  /** Whether a pane's own language override changed. */
+  language: boolean
+  /** Whether a pane divider was dragged to a new position — set outside of any slot editor session, since resizing happens directly on the live view (see `ScreenDisplay`'s resize fallback prompt). */
+  layout: boolean
 }
 
 interface KeepEditPromptProps {
@@ -36,6 +40,8 @@ export function KeepEditPrompt({ changes, onKeepHere, onKeepForNextSteps, onRemo
     changes.textSizes && t('screenDisplay.keepEditPrompt.summaryTextSize'),
     changes.backgroundColor && t('screenDisplay.keepEditPrompt.summaryBackgroundColor'),
     changes.backgroundImage && t('screenDisplay.keepEditPrompt.summaryBackgroundImage'),
+    changes.language && t('screenDisplay.keepEditPrompt.summaryLanguage'),
+    changes.layout && t('screenDisplay.keepEditPrompt.summaryLayout'),
   ].filter((item): item is string => Boolean(item))
 
   return (

@@ -1,0 +1,27 @@
+@use '../../styles/variables' as *;
+
+.announcement-slide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: $spacing-unit * 6;
+  text-align: center;
+  gap: $spacing-unit * 2;
+
+  h1 {
+    margin: 0;
+    font-family: $font-heading;
+    font-size: var(--slide-heading-size, 3.5rem);
+    overflow-wrap: break-word;
+  }
+
+  p {
+    margin: 0;
+    max-width: 60ch;
+    color: var(--screen-text-muted);
+    font-size: var(--slide-description-size, 1.25rem);
+    overflow-wrap: break-word;
+  }
+}

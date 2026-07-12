@@ -1,12 +1,8 @@
-import { Input } from '../../components'
-import { useLanguage } from '../../i18n'
+import { useLanguage, type LanguageCode } from '../../i18n'
 import type { BackgroundImage, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
-import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, writeStageCheckpoint } from '../../utils/screenStages'
-import { BackgroundImagePicker } from './BackgroundImagePicker'
-import { SlideFields } from './SlideFields'
-import './SlotEditor.scss'
-import { StageTabs } from './StageTabs'
-import { TextSizeEditor } from './TextSizeEditor'
+import { resolveContentBackgroundImage } from '../../utils/screenSlots'
+import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage, writeStageCheckpoint } from '../../utils/screenStages'
+import { PaneEditor } from './PaneEditor'
 
 interface SlotEditorProps {
   /** Stable identifier for this slot (e.g. "slot-1"), used to build unique field ids. */
@@ -21,34 +17,36 @@ interface SlotEditorProps {
   /** Which stage this editor's own tab bar (shown when `useStages && stageCount > 1`) currently has selected. */
   activeStage: number
   onActiveStageChange: (stage: number) => void
-  /** The screen's own shared rotation speed — only shown (and editable here) once there's more than one stage to rotate through. */
-  slideDurationSeconds: number
-  onSlideDurationChange: (seconds: number) => void
   /** The currently active stage's own resolved content text sizes — what's actually edited once there's more than one stage. */
   textSizes: TextSizes
   onTextSizesChange: (textSizes: TextSizes) => void
   /** The slot's own shared (fallback) text sizes at the active stage — what's edited instead while there's only one stage, since there's nothing else for a per-content override to differ from. */
   slotTextSizes: TextSizes
   onSlotTextSizesChange: (textSizes: TextSizes) => void
-  /** Disables the content editor's "Resize slot to fit image" checkbox when another slot already has one active at this same stage. */
+  /** Disables the content editor's "Resize pane to fit image" checkbox when another pane already has one active at this same stage. */
   resizeToFitBlocked?: boolean
+  /** Forwarded straight to `PaneEditor` — see its own doc comment. */
+  suggestedEventOrdinal: number
+  /** The cafe's own Standard pane language (see `useDefaultPaneLanguage`) — what this slot's own language override (if any) is shown/edited relative to. */
+  defaultLanguage: LanguageCode
+  onRouteChange?: (route: string | undefined) => void
   onRestore: () => void
   onDone: () => void
 }
 
 /**
- * The display's per-slot "Edit slot" panel. Once the screen has shared
- * stages on with more than one, a stage-tab bar (mirroring the admin
- * dashboard's own one level deeper) lets the owner jump between stages;
- * every field below — content, own background color/image, and
- * shared/fallback text size — is resolved from (and edits write back into)
- * that slot's own independent timeline at whichever stage is currently
- * selected (see `src/utils/screenStages.ts`). With stages off (or only one
- * stage), the tab bar is hidden and every field is simply the slot's one
- * static stage-1 checkpoint. Neither the rotation timer (a screen-wide
- * setting, applied live immediately) nor which stage is active is part of
+ * The display's per-pane "Edit pane" panel — a thin translation layer over
+ * the shared `PaneEditor`: resolves this slot's own stage-timeline fields
+ * (content/background color/background image) at whichever stage is
+ * currently selected and writes edits back into that same timeline (see
+ * `src/utils/screenStages.ts`), and picks which of the two independent
+ * text-size timelines (the active stage's own content, or the slot's
+ * shared/fallback one) an edit actually targets. With stages off (or only
+ * one stage), the tab bar is hidden and every field is simply the slot's
+ * one static stage-1 checkpoint. Which stage is active isn't itself part of
  * the draft the caller persists once this panel closes — everything else
- * is.
+ * is. The shared rotation speed (seconds per step) is a screen-wide setting
+ * edited from the admin dashboard's own "Steps" panel, not here.
  */
 export function SlotEditor({
   id,
@@ -58,13 +56,14 @@ export function SlotEditor({
   stageCount,
   activeStage,
   onActiveStageChange,
-  slideDurationSeconds,
-  onSlideDurationChange,
   textSizes,
   onTextSizesChange,
   slotTextSizes,
   onSlotTextSizesChange,
   resizeToFitBlocked,
+  suggestedEventOrdinal,
+  defaultLanguage,
+  onRouteChange,
   onRestore,
   onDone,
 }: SlotEditorProps) {
@@ -72,54 +71,41 @@ export function SlotEditor({
   const hasMultipleStages = useStages && stageCount > 1
   const content = resolveSlotContent(slot, activeStage)
   const backgroundColor = resolveSlotBackgroundColor(slot, activeStage)
-  const backgroundImage = resolveSlotBackgroundImage(slot, activeStage)
+  const backgroundImage = resolveContentBackgroundImage(content, resolveSlotBackgroundImage(slot, activeStage))
+  const language = resolveSlotLanguage(slot, activeStage)
 
   const setContent = (nextContent: ScreenSlotContent) => onSlotChange({ ...slot, content: writeStageCheckpoint(slot.content, activeStage, nextContent) })
   const setBackgroundColor = (nextColor: string | undefined) => onSlotChange({ ...slot, backgroundColor: writeStageCheckpoint(slot.backgroundColor, activeStage, nextColor) })
-  const setBackgroundImage = (nextImage: BackgroundImage | undefined) => onSlotChange({ ...slot, backgroundImage: writeStageCheckpoint(slot.backgroundImage, activeStage, nextImage) })
+  const setLanguage = (next: LanguageCode | undefined) => onSlotChange({ ...slot, language: writeStageCheckpoint(slot.language, activeStage, next) })
+
+  /** Writes the single consolidated background-image field: to the active stage's own content checkpoint with more than one stage (so each stage's own pane can carry its own distinct image), else to the slot's own shared checkpoint — same split `textSizes` already resolves between, since with just one stage there's nothing for a per-content override to meaningfully differ from. */
+  const setBackgroundImage = (next: BackgroundImage | undefined) =>
+    hasMultipleStages ? setContent({ ...content, backgroundImage: next }) : onSlotChange({ ...slot, backgroundImage: writeStageCheckpoint(slot.backgroundImage, activeStage, next) })
 
   return (
-    <div className="slot-editor">
-      {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={activeStage} onActiveStageChange={onActiveStageChange} />}
-
-      <SlideFields
-        id={id}
-        content={content}
-        onChange={setContent}
-        label={hasMultipleStages ? t('screenDisplay.textSizeEditor.stageTabLabel', { number: activeStage }) : t('screenDisplay.textSizeEditor.slotContentLabel')}
-        resizeToFitBlocked={resizeToFitBlocked}
-      />
-
-      <span className="slot-editor__label">{t('screenDisplay.textSizeEditor.backgroundImageLabel')}</span>
-      <BackgroundImagePicker id={`${id}-bg-image`} backgroundImage={backgroundImage} onChange={setBackgroundImage} />
-
-      <span className="slot-editor__label">{t('screenDisplay.textSizeEditor.ownBackgroundImageLabel')}</span>
-      <BackgroundImagePicker
-        id={`${id}-own-bg-image`}
-        backgroundImage={content.backgroundImage}
-        onChange={(ownBackgroundImage) => setContent({ ...content, backgroundImage: ownBackgroundImage })}
-      />
-
-      {hasMultipleStages && (
-        <Input
-          id={`${id}-duration`}
-          label={t('screenDisplay.textSizeEditor.slideDurationLabel')}
-          type="number"
-          min={1}
-          value={slideDurationSeconds}
-          onChange={(event) => onSlideDurationChange(Number(event.target.value))}
-        />
-      )}
-
-      <TextSizeEditor
-        textSizes={hasMultipleStages ? textSizes : slotTextSizes}
-        onChange={hasMultipleStages ? onTextSizesChange : onSlotTextSizesChange}
-        backgroundColor={backgroundColor}
-        onBackgroundColorChange={setBackgroundColor}
-        allowTransparentBackground
-        onRestore={onRestore}
-        onDone={onDone}
-      />
-    </div>
+    <PaneEditor
+      id={id}
+      content={content}
+      onContentChange={setContent}
+      backgroundColor={backgroundColor}
+      onBackgroundColorChange={setBackgroundColor}
+      backgroundImage={backgroundImage}
+      onBackgroundImageChange={setBackgroundImage}
+      textSizes={hasMultipleStages ? textSizes : slotTextSizes}
+      onTextSizesChange={hasMultipleStages ? onTextSizesChange : onSlotTextSizesChange}
+      language={language}
+      onLanguageChange={setLanguage}
+      defaultLanguage={defaultLanguage}
+      useStages={useStages}
+      stageCount={stageCount}
+      activeStage={activeStage}
+      onActiveStageChange={onActiveStageChange}
+      label={hasMultipleStages ? t('screenDisplay.textSizeEditor.stageTabLabel', { number: activeStage }) : t('screenDisplay.textSizeEditor.slotContentLabel')}
+      resizeToFitBlocked={resizeToFitBlocked}
+      suggestedEventOrdinal={suggestedEventOrdinal}
+      onRouteChange={onRouteChange}
+      onRestore={onRestore}
+      onDone={onDone}
+    />
   )
 }

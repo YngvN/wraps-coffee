@@ -1,9 +1,11 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { BackButton, Button, Checkbox, Input, SlideTransition } from '../../../components'
+import { Button, Checkbox, Input, SlideTransition } from '../../../components'
+import { useBackLevel } from '../../../hooks/useBackLevel'
+import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { useScreens } from '../../../hooks/useScreens'
 import { useScreensaverSchedule } from '../../../hooks/useScreensaverSchedule'
-import { useLanguage } from '../../../i18n'
+import { useLanguage, type LanguageCode } from '../../../i18n'
 import {
   DEFAULT_SCREEN_BACKGROUND_COLOR,
   DEFAULT_TEXT_SIZES,
@@ -16,25 +18,25 @@ import {
   type SplitDirection,
   type TextSizes,
 } from '../../../types/screen'
+import { findSiblingEventOrdinal } from '../../../utils/eventOrdinals'
 import { nudgeRatio, type ResizeDirection } from '../../../utils/screenLayout'
-import { hasOwnTextSizeFields } from '../../../utils/screenSlots'
+import { hasOwnTextSizeFields, resolveContentBackgroundImage } from '../../../utils/screenSlots'
 import {
   isResizeToFitConflict,
   isSlotActive,
   resolveSlotBackgroundColor,
   resolveSlotBackgroundImage,
   resolveSlotContent,
+  resolveSlotLanguage,
   resolveSlotTextSizes,
   writeStageCheckpoint,
 } from '../../../utils/screenStages'
 import { resolveContentTextSizes } from '../../../utils/textSizeVars'
 import { BackgroundColorPicker } from '../../screens/BackgroundColorPicker'
 import { BackgroundEditor } from '../../screens/BackgroundEditor'
-import { BackgroundImagePicker } from '../../screens/BackgroundImagePicker'
 import { GlobalTextSizeScaler, type SizeSnapshot } from '../../screens/GlobalTextSizeScaler'
-import { SlideFields } from '../../screens/SlideFields'
+import { PaneEditor } from '../../screens/PaneEditor'
 import { StageTabs } from '../../screens/StageTabs'
-import { TextSizeEditor } from '../../screens/TextSizeEditor'
 import { LayoutIcon, type LayoutIconPattern } from './LayoutIcon'
 import { getArrangementPattern } from './screenPreviewPattern'
 import './ScreenForm.scss'
@@ -46,18 +48,6 @@ interface ScreenFormProps {
   onCancel: () => void
   /** Reports this form's own currently open sub-view by name (e.g. "Resize slots"), or `undefined` while showing its main tabbed content — lets the parent's `Modal` show it as a "Edit screen - Resize slots" breadcrumb next to its title. */
   onRouteChange?: (route: string | undefined) => void
-  /**
-   * Reports every switch of the outer tab (see `handleSelectTab`) — including
-   * a repeat click on the tab that's already active — so the parent (the
-   * screen's own card in `ScreensView`) can highlight the matching pane on
-   * its live preview icon and flash it, helping show at a glance which
-   * physical position on the actual screen is being edited right now.
-   * `pulseKey` increments on every single call (even repeats), purely so the
-   * parent can key its own flash element by it and have framer-motion
-   * restart the animation from scratch no matter how fast the tab is
-   * spam-clicked.
-   */
-  onActiveSlotChange?: (slot: 'global' | number, pulseKey: number) => void
 }
 
 /** The 4 arrangements available when exactly 3 of a screen's slots are active. */
@@ -112,12 +102,13 @@ function nextDefaultScreenName(screens: ScreenConfig[], prefix: string): string 
  * dialing it back up (or mis-saving with it lower than intended) can't
  * lose any data; only deleting the whole screen does.
  */
-export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSlotChange }: ScreenFormProps) {
+export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFormProps) {
   const { t } = useLanguage()
   const [screens, setScreens] = useScreens()
   const [screensaverSchedule] = useScreensaverSchedule()
-  /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the "Split direction" editor (layout picker plus its own resize D-pad, and its own nested "Borders" sub-menu — see `arrangementShowingBorders`), the screen's own whole-screen "Background" color/image editor, the active slot's own "Background" color/image editor (`slot-background`), the "Steps" (use-stages/count/duration/transition) editor, the "Screen saver" editor, the "Other settings" editor, or neither. */
-  const [editingTarget, setEditingTarget] = useState<'global' | 'arrangement' | 'background' | 'slot-background' | 'stages' | 'screensaver' | 'other' | null>(null)
+  const [defaultPaneLanguage] = useDefaultPaneLanguage()
+  /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the "Layout" pane-count picker, the "Split direction" editor (arrangement picker plus its own resize D-pad, and its own nested "Borders" sub-menu — see `arrangementShowingBorders`), the screen's own whole-screen "Background" color/image editor, the "Steps" (use-stages/count/duration/transition) editor, the "Screen saver" editor, the "Other settings" editor, or neither. A slot's own fields (content, background, text size) aren't one of these — they're owned by `PaneEditor` itself, which manages its own sub-view navigation internally (see the active-slot tab render below). */
+  const [editingTarget, setEditingTarget] = useState<'global' | 'layout' | 'arrangement' | 'background' | 'stages' | 'screensaver' | 'other' | null>(null)
   /** `1` while opening a sub-view (slides in from the right, see `SlideTransition`), `-1` while going back (slides in from the left) — including one level of nesting deeper/shallower within Arrangement's own "Borders" sub-menu. Set right before whatever state change actually switches the view. */
   const [direction, setDirection] = useState<1 | -1>(1)
   /** Whether the "Split direction" sub-view is itself showing its own nested "Borders" sub-menu rather than the layout picker/resize D-pad — reset whenever this sub-view (re)opens. */
@@ -133,7 +124,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
   const [slot4, setSlot4] = useState<ScreenSlot>(screen?.slots[3] ?? EMPTY_SLOT)
   /** Which tab is showing: the screen-wide settings, or one specific slot's own. */
   const [activeTab, setActiveTab] = useState<'global' | number>('global')
-  /** Bumped on every tab switch (see `handleSelectTab`) purely to hand `onActiveSlotChange` a fresh, ever-increasing key — lets the parent's own flash element restart from scratch on a repeat click of the tab that's already active, no matter how fast it's spam-clicked, rather than relying on `activeTab` itself (which wouldn't change at all in that case). */
+  /** Bumped on every tab switch (see `handleSelectTab`) purely to hand `editingFocus.pulse` a fresh, ever-increasing key — lets the live display's own flash element (see `SplitLayout`) restart from scratch on a repeat click of the tab that's already active, no matter how fast it's spam-clicked, rather than relying on `activeTab` itself (which wouldn't change at all in that case). */
   const pulseCounterRef = useRef(0)
   const [useStages, setUseStages] = useState(screen?.useStages ?? false)
   const [stageCount, setStageCount] = useState(screen?.stageCount ?? 1)
@@ -185,20 +176,17 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
   /**
    * Switches the outer tab (the screen-wide "Global" settings, or one
    * specific slot), reseeding the live text-size buffer for whichever stage
-   * is currently active. Reports the switch two ways: `onActiveSlotChange`
-   * for the screen's own card in this same tab (see `ScreensView` — a plain
-   * localStorage write, below, can't reach another component mounted in the
-   * very same window, since the `storage` event that keeps *other* tabs in
-   * sync deliberately never fires in the one that wrote the change), and
-   * `editingFocus`, persisted straight onto the screen itself, for every
-   * other open tab/window of it — including the actual live display,
-   * possibly running on a kiosk with nobody at a keyboard to click anything.
+   * is currently active, and persists `editingFocus` straight onto the
+   * screen itself so every other open tab/window of it — including the
+   * actual live display, possibly running on a kiosk with nobody at a
+   * keyboard to click anything — can highlight and flash the matching pane,
+   * helping show at a glance which physical position on the actual screen
+   * is being edited right now.
    */
   const handleSelectTab = (tab: 'global' | number) => {
     setActiveTab(tab)
     if (typeof tab === 'number') seedLiveTextSizes(tab, clampedActiveStage)
     pulseCounterRef.current += 1
-    onActiveSlotChange?.(tab, pulseCounterRef.current)
     liveUpdateScreen({ editingFocus: { tab, pulse: pulseCounterRef.current } })
   }
 
@@ -218,17 +206,14 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
     onRouteChange?.(t('admin.screens.backgroundLabel'))
   }
 
-  /** Opens the active slot's own background color/image editor — the route breadcrumb names which slot (and, with shared stages on, which stage) is being edited, e.g. "Slot 1 - Step 2 - Background". */
-  const openSlotBackgroundEditor = () => {
-    if (typeof activeTab !== 'number') return
+  /** Opens the "Layout" pane-count picker (1-4 panes). */
+  const openLayoutEditor = () => {
     setDirection(1)
-    setEditingTarget('slot-background')
-    const slotLabel = t('screenDisplay.textSizeEditor.slotLabel', { number: activeTab + 1 })
-    const stagePart = hasMultipleStages ? ` - ${t('screenDisplay.textSizeEditor.stageTabLabel', { number: clampedActiveStage })}` : ''
-    onRouteChange?.(`${slotLabel}${stagePart} - ${t('admin.screens.backgroundLabel')}`)
+    setEditingTarget('layout')
+    onRouteChange?.(t('admin.screens.slotCountLabel'))
   }
 
-  /** Opens the layout picker/resize D-pad editor. */
+  /** Opens the arrangement picker/resize D-pad editor ("Split direction"). */
   const openArrangementEditor = () => {
     setDirection(1)
     setEditingTarget('arrangement')
@@ -249,6 +234,9 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
     setArrangementShowingBorders(false)
     onRouteChange?.(t('admin.screens.splitDirectionLabel'))
   }
+
+  /** Registers Arrangement's own nested "Borders" sub-menu as its own (third) level of the shared browser-back stack — nested inside the "a sub-view is open" level just below, so the browser's own back action closes Borders first, then the Arrangement sub-view itself, one at a time. */
+  useBackLevel(editingTarget === 'arrangement' && arrangementShowingBorders, closeBordersWithinArrangement)
 
   /** Opens the use-stages/count/duration/transition editor. */
   const openStagesEditor = () => {
@@ -299,31 +287,55 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
     activeSlot.onChange({ ...activeSlot.value, content: writeStageCheckpoint(activeSlot.value.content, clampedActiveStage, content) })
   }
 
+  /** Changes the active slot's own background color at the currently active stage — same local-draft-only shape as `handleContentChange` (only actually persisted once "Save" is pressed), not the live-write pattern the text-size/arrangement handlers use. */
+  const handleBackgroundColorChange = (color: string | undefined) => {
+    if (!activeSlot) return
+    activeSlot.onChange({ ...activeSlot.value, backgroundColor: writeStageCheckpoint(activeSlot.value.backgroundColor, clampedActiveStage, color) })
+  }
+
+  /** Changes the active slot's own single consolidated background image — to the active stage's own content checkpoint with more than one stage (so each stage's own pane can carry its own distinct image), else to the slot's own shared checkpoint, same split `handleLiveTextSizesChange` already resolves between. Same local-draft-only shape as `handleContentChange`. */
+  const handleBackgroundImageChange = (image: BackgroundImage | undefined) => {
+    if (!activeSlot) return
+    if (hasMultipleStages) {
+      handleContentChange({ ...resolveSlotContent(activeSlot.value, clampedActiveStage), backgroundImage: image })
+      return
+    }
+    activeSlot.onChange({ ...activeSlot.value, backgroundImage: writeStageCheckpoint(activeSlot.value.backgroundImage, clampedActiveStage, image) })
+  }
+
+  /** Changes the active slot's own language override at the currently active stage — `undefined` resets it back to the cafe's own Standard pane language. Same local-draft-only shape as `handleContentChange`. */
+  const handleLanguageChange = (language: LanguageCode | undefined) => {
+    if (!activeSlot) return
+    activeSlot.onChange({ ...activeSlot.value, language: writeStageCheckpoint(activeSlot.value.language, clampedActiveStage, language) })
+  }
+
   /**
-   * Writes the active tab's text-size change straight to the persisted
-   * screen (via `useScreens`, the same localStorage-backed store the
-   * display reads from), not just this form's own local draft — so it
-   * shows up live on that screen's display immediately, in any other
-   * tab/window of this browser already showing it. This is plain browser
-   * storage, not a network call, so it keeps working even if the internet
+   * Writes the active tab's text-size change into this form's own local
+   * slot state (same as `handleContentChange`), plus — once the screen
+   * actually has a `screenID` to write to — straight to the persisted
+   * screen too (via `useScreens`, the same localStorage-backed store the
+   * display reads from), so it shows up live on that screen's display
+   * immediately, in any other tab/window of this browser already showing
+   * it. Still-being-created screens (no `screenID` yet) only get the local
+   * write — there's nothing to push live to yet — picked up like any other
+   * field once "Save" is pressed. This is plain browser storage, not a
+   * network call, so the live push keeps working even if the internet
    * drops. With more than one stage, goes to the currently active stage's
    * own content checkpoint, since editing one step's pane is only ever
    * meant to change how that step looks; with just one stage, there's
    * nothing else for a per-content value to differ from, so it goes to the
-   * slot's own shared/fallback checkpoint instead. Also mirrors the change
-   * into this form's own local slot state, so a subsequent Save can't
-   * stomp it with a stale copy.
+   * slot's own shared/fallback checkpoint instead.
    */
   const handleLiveTextSizesChange = (sizes: TextSizes) => {
     setLiveTextSizes(sizes)
-    if (!screen || typeof activeTab !== 'number') return
+    if (typeof activeTab !== 'number') return
     const slotIndex = activeTab
     const slot = slotFields[slotIndex].value
 
     if (!hasMultipleStages) {
       const updatedSlot: ScreenSlot = { ...slot, textSizes: writeStageCheckpoint(slot.textSizes, clampedActiveStage, sizes) }
       slotFields[slotIndex].onChange(updatedSlot)
-      liveUpdateScreen({ slots: slotFields.map((field, i) => (i === slotIndex ? updatedSlot : field.value)) as ScreenConfig['slots'] })
+      if (screen) liveUpdateScreen({ slots: slotFields.map((field, i) => (i === slotIndex ? updatedSlot : field.value)) as ScreenConfig['slots'] })
       return
     }
 
@@ -331,7 +343,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
     if (!hasOwnTextSizeFields(content)) return
     const updatedSlot: ScreenSlot = { ...slot, content: writeStageCheckpoint(slot.content, clampedActiveStage, { ...content, textSizes: sizes }) }
     slotFields[slotIndex].onChange(updatedSlot)
-    liveUpdateScreen({ slots: slotFields.map((field, i) => (i === slotIndex ? updatedSlot : field.value)) as ScreenConfig['slots'] })
+    if (screen) liveUpdateScreen({ slots: slotFields.map((field, i) => (i === slotIndex ? updatedSlot : field.value)) as ScreenConfig['slots'] })
   }
 
   /** Writes a whole-screen percentage-scaled change (the default and every slot's own size, across every stage) straight to the persisted screen, live — same reasoning as `handleLiveTextSizesChange`. */
@@ -413,6 +425,16 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
     onRouteChange?.(undefined)
   }
 
+  /** Registers "a sub-view is open" as its own level of the shared browser-back stack (see `useBackLevel`) — closes via whichever function actually returns to the main tabbed form for the currently open one, since the "global" scaler's own close also re-seeds this form's local slot state (see `closeGlobalTextSizeEditor`) and every other sub-view's doesn't need that. The single Back button lives one level up, in `ScreensView`'s own header — not here. */
+  const closeCurrentSubview = () => {
+    if (editingTarget === 'global') {
+      closeGlobalTextSizeEditor()
+      return
+    }
+    closeSubview()
+  }
+  useBackLevel(editingTarget !== null, closeCurrentSubview)
+
   let viewKey: string
   let formContent: ReactNode
 
@@ -420,15 +442,36 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
     viewKey = 'global'
     formContent = (
       <div className="screen-form__subview">
-        <BackButton onClick={closeGlobalTextSizeEditor}>{t('admin.common.back')}</BackButton>
         <GlobalTextSizeScaler screen={latestScreen ?? screen} onChange={handleGlobalTextSizesChange} onDone={closeGlobalTextSizeEditor} />
+      </div>
+    )
+  } else if (editingTarget === 'layout') {
+    viewKey = 'layout'
+    formContent = (
+      <div className="screen-form__subview">
+        <div className="screen-form__layout-picker">
+          {[1, 2, 3, 4].map((count) => {
+            const countLabel = count === 1 ? t('admin.screens.slotCountBadgeOne') : t('admin.screens.slotCountBadge', { count })
+            return (
+              <button
+                key={count}
+                type="button"
+                aria-label={countLabel}
+                title={countLabel}
+                className={`screen-form__layout-option${slotCount === count ? ' screen-form__layout-option--active' : ''}`}
+                onClick={() => handleSlotCountChange(count)}
+              >
+                <LayoutIcon pattern={SLOT_COUNT_PREVIEW_PATTERNS[count]} highlightIndex="all" />
+              </button>
+            )
+          })}
+        </div>
       </div>
     )
   } else if (editingTarget === 'background' && latestScreen) {
     viewKey = 'background'
     formContent = (
       <div className="screen-form__subview">
-        <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
         <BackgroundEditor
           backgroundColor={latestScreen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR}
           onBackgroundColorChange={handleScreenBackgroundColorChange}
@@ -437,40 +480,10 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
         />
       </div>
     )
-  } else if (editingTarget === 'slot-background' && activeSlot) {
-    const slotBackgroundContent = resolveSlotContent(activeSlot.value, clampedActiveStage)
-    viewKey = 'slot-background'
-    formContent = (
-      <div className="screen-form__subview">
-        <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
-        <BackgroundColorPicker
-          backgroundColor={resolveSlotBackgroundColor(activeSlot.value, clampedActiveStage)}
-          onChange={(color) =>
-            activeSlot.onChange({ ...activeSlot.value, backgroundColor: writeStageCheckpoint(activeSlot.value.backgroundColor, clampedActiveStage, color) })
-          }
-          allowTransparent
-        />
-        <span className="screen-form__subview-label">{t('screenDisplay.textSizeEditor.backgroundImageLabel')}</span>
-        <BackgroundImagePicker
-          id={`${activeSlot.id}-bg-image`}
-          backgroundImage={resolveSlotBackgroundImage(activeSlot.value, clampedActiveStage)}
-          onChange={(backgroundImage) =>
-            activeSlot.onChange({ ...activeSlot.value, backgroundImage: writeStageCheckpoint(activeSlot.value.backgroundImage, clampedActiveStage, backgroundImage) })
-          }
-        />
-        <span className="screen-form__subview-label">{t('screenDisplay.textSizeEditor.ownBackgroundImageLabel')}</span>
-        <BackgroundImagePicker
-          id={`${activeSlot.id}-own-bg-image`}
-          backgroundImage={slotBackgroundContent.backgroundImage}
-          onChange={(backgroundImage) => handleContentChange({ ...slotBackgroundContent, backgroundImage })}
-        />
-      </div>
-    )
   } else if (editingTarget === 'stages' && screen) {
     viewKey = 'stages'
     formContent = (
       <div className="screen-form__subview">
-        <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
         <Checkbox id="screen-use-stages" label={t('admin.screens.useStagesLabel')} checked={useStages} onChange={(event) => setUseStages(event.target.checked)} />
         {useStages && (
           <Input
@@ -515,7 +528,6 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
     viewKey = 'other'
     formContent = (
       <div className="screen-form__subview">
-        <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
         <Checkbox
           id="screen-hide-scrollbar"
           label={t('admin.screens.hideScrollbarLabel')}
@@ -528,7 +540,6 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
     viewKey = 'screensaver'
     formContent = (
       <div className="screen-form__subview">
-        <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
         <Checkbox
           id="screen-use-screensaver"
           label={t('admin.screens.useScreensaverLabel')}
@@ -546,7 +557,6 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
     viewKey = 'arrangement-borders'
     formContent = (
       <div className="screen-form__subview">
-        <BackButton onClick={closeBordersWithinArrangement}>{t('admin.common.back')}</BackButton>
         <Checkbox
           id="screen-show-slot-borders"
           label={t('admin.screens.showSlotBordersLabel')}
@@ -568,8 +578,6 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
     viewKey = 'arrangement'
     formContent = (
       <div className="screen-form__subview">
-        <BackButton onClick={closeSubview}>{t('admin.common.back')}</BackButton>
-
         {slotCount === 2 && (
           <div className="screen-form__field">
             <span>{t('admin.screens.splitDirectionLabel')}</span>
@@ -730,26 +738,30 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
             <>
               <Input id="screen-name" label={t('admin.screens.nameLabel')} value={name} onChange={(event) => setName(event.target.value)} required />
 
-              <div className="screen-form__field">
-                <span>{t('admin.screens.slotCountLabel')}</span>
-                <div className="screen-form__layout-picker">
-                  {[1, 2, 3, 4].map((count) => {
-                    const countLabel = count === 1 ? t('admin.screens.slotCountBadgeOne') : t('admin.screens.slotCountBadge', { count })
-                    return (
-                      <button
-                        key={count}
-                        type="button"
-                        aria-label={countLabel}
-                        title={countLabel}
-                        className={`screen-form__layout-option${slotCount === count ? ' screen-form__layout-option--active' : ''}`}
-                        onClick={() => handleSlotCountChange(count)}
-                      >
-                        <LayoutIcon pattern={SLOT_COUNT_PREVIEW_PATTERNS[count]} highlightIndex="all" />
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
+              <motion.div layout>
+                <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openLayoutEditor}>
+                  {t('admin.screens.slotCountLabel')}
+                  <span aria-hidden="true">→</span>
+                </Button>
+              </motion.div>
+
+              {screen && (
+                <motion.div layout>
+                  <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openGlobalTextSizeEditor}>
+                    {t('admin.screens.editTextSize')}
+                    <span aria-hidden="true">→</span>
+                  </Button>
+                </motion.div>
+              )}
+
+              {screen && (
+                <motion.div layout>
+                  <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openBackgroundEditor}>
+                    {t('admin.screens.backgroundLabel')}
+                    <span aria-hidden="true">→</span>
+                  </Button>
+                </motion.div>
+              )}
 
               {/* Fades and slides in/out as slotCount crosses 1 (`initial={false}` skips this on first mount, since it's not really "appearing"). Animating its own `height` (0 to/from its natural size, `layout` enables interpolating that "auto" value) — rather than just `opacity`/`y` — is what actually makes every field below it glide smoothly into its new position instead of snapping the instant this one's removed from the document flow; those fields only need `layout` themselves to pick up that progressive reflow. `overflow: hidden` keeps the button from spilling out while its own height is still animating. */}
               <AnimatePresence initial={false}>
@@ -770,24 +782,6 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              {screen && (
-                <motion.div layout>
-                  <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openBackgroundEditor}>
-                    {t('admin.screens.backgroundLabel')}
-                    <span aria-hidden="true">→</span>
-                  </Button>
-                </motion.div>
-              )}
-
-              {screen && (
-                <motion.div layout>
-                  <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openGlobalTextSizeEditor}>
-                    {t('admin.screens.editTextSize')}
-                    <span aria-hidden="true">→</span>
-                  </Button>
-                </motion.div>
-              )}
 
               <motion.div layout>
                 <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openStagesEditor}>
@@ -816,29 +810,49 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, onActiveSl
             activeSlot &&
             (() => {
               const content = resolveSlotContent(activeSlot.value, clampedActiveStage)
+              const backgroundImage = resolveContentBackgroundImage(content, resolveSlotBackgroundImage(activeSlot.value, clampedActiveStage))
+              const handlePaneRouteChange = (route: string | undefined) => {
+                if (!route) {
+                  onRouteChange?.(undefined)
+                  return
+                }
+                const slotLabel = t('screenDisplay.textSizeEditor.slotLabel', { number: (activeTab as number) + 1 })
+                const stagePart = hasMultipleStages ? ` - ${t('screenDisplay.textSizeEditor.stageTabLabel', { number: clampedActiveStage })}` : ''
+                onRouteChange?.(`${slotLabel}${stagePart} - ${route}`)
+              }
               return (
-                <>
-                  {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={clampedActiveStage} onActiveStageChange={handleActiveStageChange} />}
-
-                  <SlideFields
-                    id={activeSlot.id}
-                    content={content}
-                    onChange={handleContentChange}
-                    label={hasMultipleStages ? t('screenDisplay.textSizeEditor.stageTabLabel', { number: clampedActiveStage }) : activeSlot.label}
-                    resizeToFitBlocked={isResizeToFitConflict(
-                      slotFields.map((field) => field.value),
-                      activeTab as number,
+                <PaneEditor
+                  id={activeSlot.id}
+                  content={content}
+                  onContentChange={handleContentChange}
+                  backgroundColor={resolveSlotBackgroundColor(activeSlot.value, clampedActiveStage)}
+                  onBackgroundColorChange={handleBackgroundColorChange}
+                  backgroundImage={backgroundImage}
+                  onBackgroundImageChange={handleBackgroundImageChange}
+                  textSizes={liveTextSizes}
+                  onTextSizesChange={handleLiveTextSizesChange}
+                  language={resolveSlotLanguage(activeSlot.value, clampedActiveStage)}
+                  onLanguageChange={handleLanguageChange}
+                  defaultLanguage={defaultPaneLanguage}
+                  useStages={useStages}
+                  stageCount={stageCount}
+                  activeStage={clampedActiveStage}
+                  onActiveStageChange={handleActiveStageChange}
+                  label={hasMultipleStages ? t('screenDisplay.textSizeEditor.stageTabLabel', { number: clampedActiveStage }) : activeSlot.label}
+                  resizeToFitBlocked={isResizeToFitConflict(
+                    slotFields.map((field) => field.value),
+                    activeTab as number,
+                    clampedActiveStage,
+                  )}
+                  suggestedEventOrdinal={
+                    findSiblingEventOrdinal(
+                      slotFields.filter((_, index) => index !== activeTab).map((field) => field.value),
                       clampedActiveStage,
-                    )}
-                  />
-
-                  {screen && hasOwnTextSizeFields(content) && <TextSizeEditor textSizes={liveTextSizes} onChange={handleLiveTextSizesChange} />}
-
-                  <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openSlotBackgroundEditor}>
-                    {t('admin.screens.backgroundLabel')}
-                    <span aria-hidden="true">→</span>
-                  </Button>
-                </>
+                    ) ?? 1
+                  }
+                  onRouteChange={handlePaneRouteChange}
+                  hideBackButton
+                />
               )
             })()
           )}

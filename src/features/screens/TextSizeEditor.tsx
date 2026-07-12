@@ -3,7 +3,6 @@ import { Button, Input } from '../../components'
 import { useTextSizePresets } from '../../hooks/useTextSizePresets'
 import { useLanguage } from '../../i18n'
 import type { TextSizes } from '../../types/screen'
-import { BackgroundColorPicker } from './BackgroundColorPicker'
 import './TextSizeEditor.scss'
 
 /** One slider row's config: which `TextSizes` field it controls, its label key, and its rem range. */
@@ -18,12 +17,7 @@ const SLIDERS: { key: keyof TextSizes; labelKey: string; min: number; max: numbe
 interface TextSizeEditorProps {
   textSizes: TextSizes
   onChange: (textSizes: TextSizes) => void
-  /** Current value (`undefined` = transparent/no color). Omit `onBackgroundColorChange` to hide the swatch picker entirely. */
-  backgroundColor?: string
-  onBackgroundColorChange?: (backgroundColor: string | undefined) => void
-  /** Shows a "Transparent" swatch in the color picker — used for a slot's own color, whose standard/default is transparent. */
-  allowTransparentBackground?: boolean
-  /** Resets the sizes (and, when shown, the background color) back to what they were when this editor was opened. Omit to hide the button — there's nothing to restore to when changes are already written live with no "previous" snapshot of their own (the admin form's slot editor). */
+  /** Resets the sizes back to what they were when this editor was opened. Omit to hide the button — there's nothing to restore to when changes are already written live with no "previous" snapshot of their own (the admin form's slot editor). */
   onRestore?: () => void
   /** Called by the "Done" button — typically closes a modal, or (the admin form's inline per-slide editor) returns to the slot's own "Global" tab. Omit to hide the button entirely, for a usage with no such notion of "finishing" (e.g. a flat, always-inline editor with nothing to return to). */
   onDone?: () => void
@@ -31,16 +25,14 @@ interface TextSizeEditorProps {
 
 /**
  * Panel with a slider per text role (heading/item title/description/price),
- * plus loading/saving named text size presets shareable across screens. When
- * `onBackgroundColorChange` is provided, also shows a background color
- * swatch picker from the site's fixed brand palette (optionally with a
- * "Transparent" option) — never affected by the site's own light/dark mode;
- * text color follows automatically for contrast. Every change here is
- * applied live via `onChange`/`onBackgroundColorChange` — there is no
- * separate "Save" step, so the caller is expected to persist it (e.g. on the
- * wrapping modal being closed).
+ * plus loading/saving named text size presets shareable across screens — a
+ * pane's own background color lives in `PaneEditor`'s own "Background"
+ * sub-view instead (see `BackgroundColorPicker`), not here. Every change
+ * here is applied live via `onChange` — there is no separate "Save" step, so
+ * the caller is expected to persist it (e.g. on the wrapping modal being
+ * closed).
  */
-export function TextSizeEditor({ textSizes, onChange, backgroundColor, onBackgroundColorChange, allowTransparentBackground, onRestore, onDone }: TextSizeEditorProps) {
+export function TextSizeEditor({ textSizes, onChange, onRestore, onDone }: TextSizeEditorProps) {
   const { t } = useLanguage()
   const [presets, setPresets] = useTextSizePresets()
   const [presetName, setPresetName] = useState('')
@@ -79,8 +71,6 @@ export function TextSizeEditor({ textSizes, onChange, backgroundColor, onBackgro
 
   return (
     <div className="text-size-editor">
-      {onBackgroundColorChange && <BackgroundColorPicker backgroundColor={backgroundColor} onChange={onBackgroundColorChange} allowTransparent={allowTransparentBackground} />}
-
       <label className="text-size-editor__slider text-size-editor__slider--all">
         <span>
           {t('screenDisplay.textSizeEditor.allLabel')} — {allPercent}%

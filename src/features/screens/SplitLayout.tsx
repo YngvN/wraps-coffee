@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useRef, useState, type DragEvent } from 'react'
-import { useLanguage } from '../../i18n'
+import { useLanguage, type LanguageCode } from '../../i18n'
 import type { RatioField, ScreenConfig, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
 import { backgroundImageTextStyle, slotBackgroundColorStyle } from '../../utils/screenColors'
 import { pickImageVariant } from '../../utils/responsiveImage'
@@ -18,10 +18,19 @@ import {
   type RatioPatch,
 } from '../../utils/screenLayout'
 import { isResizeToFitImage, resolveContentBackgroundImage } from '../../utils/screenSlots'
-import { isSlotActive, resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolvedCheckpointStage, resolveSlotContent, writeStageCheckpoint } from '../../utils/screenStages'
+import {
+  isSlotActive,
+  resolveSlotBackgroundColor,
+  resolveSlotBackgroundImage,
+  resolveSlotLanguage,
+  resolvedCheckpointStage,
+  resolveSlotContent,
+  writeStageCheckpoint,
+} from '../../utils/screenStages'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
+import { PaneEditButton } from './PaneEditButton'
+import { PaneLanguageScope } from './PaneLanguageScope'
 import { SlotContent } from './SlotContent'
-import { SlotEditButton } from './SlotEditButton'
 import { SplitLayoutCenterHandle } from './SplitLayoutCenterHandle'
 import './SplitLayout.scss'
 import { SplitLayoutDivider } from './SplitLayoutDivider'
@@ -43,6 +52,8 @@ interface SplitLayoutProps {
   onDragStateChange?: (isDragging: boolean) => void
   /** Called when an image file is dropped directly onto a pane, with that slot's own index (0-3) and the dropped file — the caller owns uploading it and deciding what to do with the result (see `ScreenDisplay`'s own handler, which sets that slot's content to the uploaded image at `fit: 'cover'`). Omit (like `onEditSlide`/`onResizeDivider`) to disable entirely, e.g. while the screen is locked. */
   onDropImage?: (slotIndex: number, file: File) => void
+  /** The cafe's own Standard pane language (see `useDefaultPaneLanguage`) — what a pane's own rendered content (menu items, event descriptions, etc.) falls back to when it has no language override of its own at the current stage (see `resolveSlotLanguage`). */
+  defaultPaneLanguage: LanguageCode
 }
 
 /**
@@ -78,7 +89,7 @@ interface SplitLayoutProps {
  * slides back to its own set size on its own, the same transition a manual
  * resize already animates with.
  */
-export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forcedStage, onResizeDivider, onDragStateChange, onDropImage }: SplitLayoutProps) {
+export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forcedStage, onResizeDivider, onDragStateChange, onDropImage, defaultPaneLanguage }: SplitLayoutProps) {
   const { t } = useLanguage()
   const reducedMotion = useReducedMotion()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -460,6 +471,7 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forc
     const backgroundColor = resolveSlotBackgroundColor(slot, effectiveStage)
     const slotBackgroundImage = resolveSlotBackgroundImage(slot, effectiveStage)
     const backgroundImage = resolveContentBackgroundImage(content, slotBackgroundImage)
+    const language = resolveSlotLanguage(slot, effectiveStage) ?? defaultPaneLanguage
     // Only delays this pane's own background/text color transition (rather
     // than starting it immediately, alongside a live-edited color change)
     // when its *own* content checkpoint just changed this render — i.e. a
@@ -514,10 +526,12 @@ export function SplitLayout({ screen, resolveTextSizes, onEditSlide, stage, forc
             exit="exit"
             transition={transition}
           >
-            <SlotContent slot={content} />
+            <PaneLanguageScope language={language}>
+              <SlotContent slot={content} />
+            </PaneLanguageScope>
           </motion.div>
         </AnimatePresence>
-        {onEditSlide && <SlotEditButton onClick={() => onEditSlide(index)} />}
+        {onEditSlide && <PaneEditButton onClick={() => onEditSlide(index)} />}
         {screen.editingFocus && (screen.editingFocus.tab === 'global' || screen.editingFocus.tab === index) && (
           <motion.div
             key={screen.editingFocus.pulse}

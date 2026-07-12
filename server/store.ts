@@ -41,6 +41,7 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.contactInfo': 'contactInfo.json',
   'admin.textSizePresets': 'textSizePresets.json',
   'admin.clockFormat': null,
+  'admin.paneLanguage': null,
   'admin.screenLockPin': null,
   'admin.screensaverSchedule': null,
   'admin.screens': 'screens.json',
@@ -56,6 +57,11 @@ const HARDCODED_DEFAULTS: Partial<Record<SyncedKey, unknown>> = {
   'admin.screenLockPin': null,
   'admin.screensaverSchedule': null,
   'admin.clockFormat': '24h',
+  // The cafe's own default language for kiosk pane content — set to
+  // Norwegian on a fresh install per the explicit ask (see the "Standard
+  // pane language" Settings card); each pane can still override it
+  // individually (see `ScreenSlot.language`).
+  'admin.paneLanguage': 'no',
   'admin.extensions': DEFAULT_EXTENSIONS_CONFIG,
   'admin.sidebarSettings': DEFAULT_SIDEBAR_SETTINGS,
   // No bundled seed — orders only ever arrive via the Neon bridge pulling
@@ -147,6 +153,51 @@ export function snapshot(keys: SyncedKey[]): Partial<Record<SyncedKey, StoredEnt
 
 export function verifyLogin(username: string, password: string): AdminUser | null {
   return users.find((user) => user.username === username && user.password === password) ?? null
+}
+
+function persistUsers() {
+  writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf-8')
+}
+
+/** Every user account, minus its password — for listing in the admin dashboard's own Users tab (see "Add Users" in the codebase's own todo). */
+export function listUsers(): Omit<AdminUser, 'password'>[] {
+  return users.map((user) => ({ id: user.id, username: user.username, role: user.role, allowedSections: user.allowedSections }))
+}
+
+export function findUserById(id: string): AdminUser | undefined {
+  return users.find((user) => user.id === id)
+}
+
+/** How many accounts currently hold the `admin` role — used to block deleting the very last one, which would leave the dashboard with no admin account able to manage users/roles at all. */
+export function adminUserCount(): number {
+  return users.filter((user) => user.role === 'admin').length
+}
+
+/** Adds a new user account. Returns `null` if `username` is already taken (case-sensitive, matching `verifyLogin`'s own comparison) rather than throwing — the caller (an HTTP route) turns that into a 409. */
+export function createUser(input: { username: string; password: string; role: AdminRole; allowedSections?: DashboardSection[] }): Omit<AdminUser, 'password'> | null {
+  if (users.some((user) => user.username === input.username)) return null
+  const user: AdminUser = { id: randomUUID(), username: input.username, password: input.password, role: input.role, allowedSections: input.allowedSections }
+  users.push(user)
+  persistUsers()
+  return { id: user.id, username: user.username, role: user.role, allowedSections: user.allowedSections }
+}
+
+/** Deletes a user by id. Returns `false` if no such user exists — the caller treats that as a 404, not a crash. Every actual authorization check (self-delete, an admin-role target, the last remaining admin) is the HTTP route's own job, not this function's — it only ever removes exactly what it's told to. */
+export function deleteUser(id: string): boolean {
+  const before = users.length
+  users = users.filter((user) => user.id !== id)
+  if (users.length === before) return false
+  persistUsers()
+  return true
+}
+
+/** Overwrites a user's password — `admin`/`subadmin`'s own "reset password" action. Returns `false` if no such user exists. */
+export function setUserPassword(id: string, password: string): boolean {
+  const user = users.find((candidate) => candidate.id === id)
+  if (!user) return false
+  user.password = password
+  persistUsers()
+  return true
 }
 
 export function createSession(user: AdminUser): { token: string; session: SessionInfo } {

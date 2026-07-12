@@ -1,4 +1,5 @@
 import screensSeed from '../data/screens.json'
+import type { ProductCategory } from '../types/product'
 import type { BackgroundImage, RatioField, ScreenConfig, ScreenSlot, ScreenSlotContent, TextSizes } from '../types/screen'
 import { isSlotActive } from '../utils/screenStages'
 import { normalizeTextSizes } from '../utils/textSizeVars'
@@ -7,6 +8,73 @@ import { useLocalStorage } from './useLocalStorage'
 const STORAGE_KEY = 'admin.screens'
 
 const RATIO_FIELDS: RatioField[] = ['splitRatio', 'tripleBigRatio', 'tripleSmallRatio', 'quadColumnRatio', 'quadRowRatio']
+
+/** The shape a content checkpoint took under the removed `'category'` kind — kept as its own local type (rather than `Extract<ScreenSlotContent, ...>`) so `migrateCategoryContent` keeps working once `'category'` is gone from `ScreenSlotContent` itself, since old persisted data can still literally contain one of these regardless of what the current type allows. */
+interface LegacyCategoryContent {
+  kind: 'category'
+  category: ProductCategory
+  textSizes?: TextSizes
+  backgroundImage?: BackgroundImage
+}
+
+/**
+ * Rewrites a `'category'` content checkpoint (kind removed — `'menu'`
+ * narrowed to one category via `categories: [category]` does everything it
+ * did, and more, so there's nothing behaviorally lost) into its `'menu'`
+ * equivalent. Every other content checkpoint passes through unchanged.
+ * Read-time only, like every other migration in this file — never writes
+ * back to storage.
+ */
+function migrateCategoryContent(content: ScreenSlotContent): ScreenSlotContent {
+  if (!content || (content as { kind?: string }).kind !== 'category') return content
+  const legacy = content as unknown as LegacyCategoryContent
+  return { kind: 'menu', categories: [legacy.category], textSizes: legacy.textSizes, backgroundImage: legacy.backgroundImage }
+}
+
+/** The shape an `'announcement'` content checkpoint's `title`/`description` took before "Custom message" was simplified from a bilingual `{en, no}` pair to a single plain-text field. */
+interface LegacyBilingualText {
+  en?: string
+  no?: string
+}
+
+/**
+ * Rewrites an `'announcement'` content checkpoint whose `title`/`description`
+ * are still the old bilingual `{en, no}` shape into a plain string —
+ * prefers Norwegian (matching `useDefaultPaneLanguage`'s own default),
+ * falling back to English, then to an empty string. A checkpoint already in
+ * the current (plain-string) shape passes through unchanged, as does every
+ * other content kind. Read-time only, like every other migration in this
+ * file — never writes back to storage.
+ */
+function migrateAnnouncementContent(content: ScreenSlotContent): ScreenSlotContent {
+  if (!content || (content as { kind?: string }).kind !== 'announcement') return content
+  const raw = content as unknown as { title: unknown; description: unknown }
+  if (typeof raw.title === 'string' && typeof raw.description === 'string') return content
+  const asPlainText = (value: unknown): string => {
+    if (typeof value === 'string') return value
+    const legacy = value as LegacyBilingualText | undefined
+    return legacy?.no || legacy?.en || ''
+  }
+  return { ...content, title: asPlainText(raw.title), description: asPlainText(raw.description) } as ScreenSlotContent
+}
+
+/**
+ * Rewrites the removed `'events'` kind (a single upcoming-events calendar
+ * list, no further configuration) into its `'event'`/`displayMode: 'calendar'`
+ * equivalent — same rendered behavior, just consolidated under the newer
+ * `'event'` kind's own `displayMode` field alongside `'image'`/`'details'`/
+ * `'month'`. Every other content checkpoint passes through unchanged.
+ */
+function migrateEventsContent(content: ScreenSlotContent): ScreenSlotContent {
+  if (!content || (content as { kind?: string }).kind !== 'events') return content
+  const legacy = content as unknown as { textSizes?: TextSizes; backgroundImage?: BackgroundImage }
+  return { kind: 'event', displayMode: 'calendar', textSizes: legacy.textSizes, backgroundImage: legacy.backgroundImage }
+}
+
+/** Runs every content-checkpoint migration in this file, in sequence — the single place `normalizeSlot` threads a raw checkpoint through all of them. */
+function migrateContent(content: ScreenSlotContent): ScreenSlotContent {
+  return migrateEventsContent(migrateAnnouncementContent(migrateCategoryContent(content)))
+}
 
 /**
  * Migrates a screen's pre-stages flat ratio fields (`splitRatio`,
@@ -65,27 +133,29 @@ function isCurrentShapeSlot(value: unknown): value is ScreenSlot {
  */
 function normalizeSlot(value: unknown, legacyTextSizes: TextSizes | undefined): ScreenSlot {
   if (isCurrentShapeSlot(value)) {
-    const content = Object.keys(value.content ?? {}).length > 0 ? value.content : { 1: { kind: 'none' as const } }
+    const rawContent = Object.keys(value.content ?? {}).length > 0 ? value.content : { 1: { kind: 'none' as const } }
+    const content = Object.fromEntries(Object.entries(rawContent).map(([stageKey, checkpoint]) => [stageKey, migrateContent(checkpoint)])) as ScreenSlot['content']
     const textSizes = value.textSizes
       ? (Object.fromEntries(Object.entries(value.textSizes).map(([key, size]) => [key, size ? normalizeTextSizes(size) : size])) as ScreenSlot['textSizes'])
       : {}
-    return { content, backgroundColor: value.backgroundColor ?? {}, backgroundImage: value.backgroundImage ?? {}, textSizes }
+    return { content, backgroundColor: value.backgroundColor ?? {}, backgroundImage: value.backgroundImage ?? {}, textSizes, language: value.language ?? {} }
   }
   if (isLegacySlot(value)) {
     const contents = value.contents.length > 0 ? value.contents : [{ kind: 'none' as const }]
     const firstConfiguredIndex = contents.findIndex((content) => content.kind !== 'none')
     const chosen = contents[firstConfiguredIndex === -1 ? 0 : firstConfiguredIndex]
     return {
-      content: { 1: chosen },
+      content: { 1: migrateContent(chosen) },
       backgroundColor: { 1: value.backgroundColor },
       backgroundImage: { 1: value.backgroundImage },
       textSizes: { 1: legacyTextSizes ? normalizeTextSizes(legacyTextSizes) : legacyTextSizes },
+      language: {},
     }
   }
   if (value && typeof value === 'object' && 'kind' in value) {
-    return { content: { 1: value as ScreenSlotContent }, backgroundColor: { 1: undefined }, backgroundImage: { 1: undefined }, textSizes: { 1: legacyTextSizes } }
+    return { content: { 1: migrateContent(value as ScreenSlotContent) }, backgroundColor: { 1: undefined }, backgroundImage: { 1: undefined }, textSizes: { 1: legacyTextSizes }, language: {} }
   }
-  return { content: { 1: { kind: 'none' } }, backgroundColor: { 1: undefined }, backgroundImage: { 1: undefined }, textSizes: { 1: legacyTextSizes } }
+  return { content: { 1: { kind: 'none' } }, backgroundColor: { 1: undefined }, backgroundImage: { 1: undefined }, textSizes: { 1: legacyTextSizes }, language: {} }
 }
 
 /**

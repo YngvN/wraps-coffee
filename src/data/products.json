@@ -2,446 +2,985 @@
   {
     "itemID": "salads-shrimpSalad",
     "category": "salads",
-    "name": { "en": "Shrimp Salad", "no": "Rekesalat" },
-    "description": { "en": "Poached shrimp over crisp greens with a light dressing.", "no": "Pocherte reker over sprø salat med en lett dressing." },
-    "allergens": ["F"],
+    "name": {
+      "en": "Shrimp Salad",
+      "no": "Rekesalat"
+    },
+    "description": {
+      "en": "Poached shrimp over crisp greens with a light dressing.",
+      "no": "Pocherte reker over sprø salat med en lett dressing."
+    },
+    "allergens": [
+      "F"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "salads-tunaSalad",
     "category": "salads",
-    "name": { "en": "Tuna Salad", "no": "Tunfisksalat" },
-    "description": { "en": "Flaked tuna tossed in a creamy dressing.", "no": "Tunfisk vendt i en kremet dressing." },
-    "allergens": ["M", "F"],
+    "name": {
+      "en": "Tuna Salad",
+      "no": "Tunfisksalat"
+    },
+    "description": {
+      "en": "Flaked tuna tossed in a creamy dressing.",
+      "no": "Tunfisk vendt i en kremet dressing."
+    },
+    "allergens": [
+      "M",
+      "F"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "salads-caesarSalad",
     "category": "salads",
-    "name": { "en": "Caesar Salad", "no": "Caesarsalat" },
-    "description": { "en": "Crisp lettuce, golden croutons and classic Caesar dressing.", "no": "Sprø salat, gyldne krutonger og klassisk caesardressing." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Caesar Salad",
+      "no": "Caesarsalat"
+    },
+    "description": {
+      "en": "Crisp lettuce, golden croutons and classic Caesar dressing.",
+      "no": "Sprø salat, gyldne krutonger og klassisk caesardressing."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "salads-fetaSalad",
     "category": "salads",
-    "name": { "en": "Feta Salad", "no": "Fetasalat" },
-    "description": { "en": "Feta cheese with crisp, fresh vegetables.", "no": "Fetaost med sprø, ferske grønnsaker." },
-    "allergens": ["M"],
+    "name": {
+      "en": "Feta Salad",
+      "no": "Fetasalat"
+    },
+    "description": {
+      "en": "Feta cheese with crisp, fresh vegetables.",
+      "no": "Fetaost med sprø, ferske grønnsaker."
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "wraps-chickenWrap",
     "category": "wraps",
-    "name": { "en": "Chicken", "no": "Kylling" },
-    "description": { "en": "Tender grilled chicken.", "no": "Mør, grillet kylling." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Chicken",
+      "no": "Kylling"
+    },
+    "description": {
+      "en": "Tender grilled chicken.",
+      "no": "Mør, grillet kylling."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "wraps-tunaWrap",
     "category": "wraps",
-    "name": { "en": "Tuna", "no": "Tunfisk" },
-    "description": { "en": "Flaked tuna in a light dressing.", "no": "Tunfisk i en lett dressing." },
-    "allergens": ["G", "M", "F"],
+    "name": {
+      "en": "Tuna",
+      "no": "Tunfisk"
+    },
+    "description": {
+      "en": "Flaked tuna in a light dressing.",
+      "no": "Tunfisk i en lett dressing."
+    },
+    "allergens": [
+      "G",
+      "M",
+      "F"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "wraps-vegetarianWrap",
     "category": "wraps",
-    "name": { "en": "Vegetarian", "no": "Vegetar" },
-    "description": { "en": "A fajita-spiced bean mix.", "no": "Fajitakrydret bønneblanding." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Vegetarian",
+      "no": "Vegetar"
+    },
+    "description": {
+      "en": "A fajita-spiced bean mix.",
+      "no": "Fajitakrydret bønneblanding."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "wraps-chickenFajitasWrap",
     "category": "wraps",
-    "name": { "en": "Chicken Fajitas", "no": "Kylling Fajitas" },
-    "description": { "en": "Chicken marinated in fajita spices.", "no": "Kylling marinert i fajitakrydder." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Chicken Fajitas",
+      "no": "Kylling Fajitas"
+    },
+    "description": {
+      "en": "Chicken marinated in fajita spices.",
+      "no": "Kylling marinert i fajitakrydder."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "wraps-chickenFetaWrap",
     "category": "wraps",
-    "name": { "en": "Chicken & Feta", "no": "Kylling Feta" },
-    "description": { "en": "Grilled chicken with crumbled feta.", "no": "Grillet kylling med smuldret feta." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Chicken & Feta",
+      "no": "Kylling Feta"
+    },
+    "description": {
+      "en": "Grilled chicken with crumbled feta.",
+      "no": "Grillet kylling med smuldret feta."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "wraps-chickenTzatzikiWrap",
     "category": "wraps",
-    "name": { "en": "Chicken Tzatziki", "no": "Kylling Tzatziki" },
-    "description": { "en": "Grilled chicken with cool tzatziki.", "no": "Grillet kylling med kjølig tzatziki." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Chicken Tzatziki",
+      "no": "Kylling Tzatziki"
+    },
+    "description": {
+      "en": "Grilled chicken with cool tzatziki.",
+      "no": "Grillet kylling med kjølig tzatziki."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "wraps-chickenTandooriWrap",
     "category": "wraps",
-    "name": { "en": "Chicken Tandoori", "no": "Kylling Tandoori" },
-    "description": { "en": "Chicken marinated in tandoori spices.", "no": "Kylling marinert i tandoori-krydder." },
-    "allergens": ["G", "M", "N"],
+    "name": {
+      "en": "Chicken Tandoori",
+      "no": "Kylling Tandoori"
+    },
+    "description": {
+      "en": "Chicken marinated in tandoori spices.",
+      "no": "Kylling marinert i tandoori-krydder."
+    },
+    "allergens": [
+      "G",
+      "M",
+      "N"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "wraps-chickenCurryWrap",
     "category": "wraps",
-    "name": { "en": "Chicken Curry", "no": "Kylling Curry" },
-    "description": { "en": "Chicken in a mild curry sauce.", "no": "Kylling i en mild currysaus." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Chicken Curry",
+      "no": "Kylling Curry"
+    },
+    "description": {
+      "en": "Chicken in a mild curry sauce.",
+      "no": "Kylling i en mild currysaus."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "wraps-chickenAioliWrap",
     "category": "wraps",
-    "name": { "en": "Chicken Aioli", "no": "Kylling Aioli" },
-    "description": { "en": "Grilled chicken with garlic aioli.", "no": "Grillet kylling med hvitløksaioli." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Chicken Aioli",
+      "no": "Kylling Aioli"
+    },
+    "description": {
+      "en": "Grilled chicken with garlic aioli.",
+      "no": "Grillet kylling med hvitløksaioli."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "wraps-pulledPorkWrap",
     "category": "wraps",
-    "name": { "en": "Pulled Pork", "no": "Pulled Pork" },
-    "description": { "en": "Slow-cooked, tender pulled pork.", "no": "Langtidskokt, mør pulled pork." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Pulled Pork",
+      "no": "Pulled Pork"
+    },
+    "description": {
+      "en": "Slow-cooked, tender pulled pork.",
+      "no": "Langtidskokt, mør pulled pork."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "wraps-chipotleBeefWrap",
     "category": "wraps",
-    "name": { "en": "Chipotle Beef", "no": "Chipotle Biff" },
-    "description": { "en": "Beef in a smoky chipotle sauce.", "no": "Biff i en røykfylt chipotlesaus." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Chipotle Beef",
+      "no": "Chipotle Biff"
+    },
+    "description": {
+      "en": "Beef in a smoky chipotle sauce.",
+      "no": "Biff i en røykfylt chipotlesaus."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "wraps-mexicanTacoWrap",
     "category": "wraps",
-    "name": { "en": "Mexican Taco", "no": "Mexicansk Taco" },
-    "description": { "en": "Mexican-spiced taco meat.", "no": "Mexicansk krydret tacokjøttdeig." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Mexican Taco",
+      "no": "Mexicansk Taco"
+    },
+    "description": {
+      "en": "Mexican-spiced taco meat.",
+      "no": "Mexicansk krydret tacokjøttdeig."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "wraps-hamCheeseWrap",
     "category": "wraps",
-    "name": { "en": "Ham & Cheese", "no": "Ost & Skinke" },
-    "description": { "en": "Sliced ham with melted cheese.", "no": "Skinke med smeltet ost." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Ham & Cheese",
+      "no": "Ost & Skinke"
+    },
+    "description": {
+      "en": "Sliced ham with melted cheese.",
+      "no": "Skinke med smeltet ost."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "baguettes-shrimpBaguette",
     "category": "baguettes",
-    "name": { "en": "Shrimp", "no": "Reker" },
-    "description": { "en": "Shrimp with a light dressing.", "no": "Reker med en lett dressing." },
-    "allergens": ["G", "F"],
+    "name": {
+      "en": "Shrimp",
+      "no": "Reker"
+    },
+    "description": {
+      "en": "Shrimp with a light dressing.",
+      "no": "Reker med en lett dressing."
+    },
+    "allergens": [
+      "G",
+      "F"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "baguettes-tunaBaguette",
     "category": "baguettes",
-    "name": { "en": "Tuna", "no": "Tunfisk" },
-    "description": { "en": "Flaked tuna in a tangy dressing.", "no": "Tunfisk i en syrlig dressing." },
-    "allergens": ["G", "M", "F"],
+    "name": {
+      "en": "Tuna",
+      "no": "Tunfisk"
+    },
+    "description": {
+      "en": "Flaked tuna in a tangy dressing.",
+      "no": "Tunfisk i en syrlig dressing."
+    },
+    "allergens": [
+      "G",
+      "M",
+      "F"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "baguettes-hamBaguette",
     "category": "baguettes",
-    "name": { "en": "Ham", "no": "Skinke" },
-    "description": { "en": "Classic sliced ham.", "no": "Klassisk skiveskåret skinke." },
-    "allergens": ["G"],
+    "name": {
+      "en": "Ham",
+      "no": "Skinke"
+    },
+    "description": {
+      "en": "Classic sliced ham.",
+      "no": "Klassisk skiveskåret skinke."
+    },
+    "allergens": [
+      "G"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "baguettes-tandooriChickenBaguette",
     "category": "baguettes",
-    "name": { "en": "Tandoori Chicken", "no": "Tandoori Kylling" },
-    "description": { "en": "Chicken marinated in tandoori spices.", "no": "Kylling marinert i tandoori-krydder." },
-    "allergens": ["G", "N"],
+    "name": {
+      "en": "Tandoori Chicken",
+      "no": "Tandoori Kylling"
+    },
+    "description": {
+      "en": "Chicken marinated in tandoori spices.",
+      "no": "Kylling marinert i tandoori-krydder."
+    },
+    "allergens": [
+      "G",
+      "N"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "baguettes-fetaBaguette",
     "category": "baguettes",
-    "name": { "en": "Feta", "no": "Feta" },
-    "description": { "en": "Crumbled feta cheese.", "no": "Smuldret fetaost." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Feta",
+      "no": "Feta"
+    },
+    "description": {
+      "en": "Crumbled feta cheese.",
+      "no": "Smuldret fetaost."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "baguettes-chickenBaguette",
     "category": "baguettes",
-    "name": { "en": "Chicken", "no": "Kylling" },
-    "description": { "en": "Roast chicken with a hint of garlic.", "no": "Ovnsbakt kylling med et snev av hvitløk." },
-    "allergens": ["G"],
+    "name": {
+      "en": "Chicken",
+      "no": "Kylling"
+    },
+    "description": {
+      "en": "Roast chicken with a hint of garlic.",
+      "no": "Ovnsbakt kylling med et snev av hvitløk."
+    },
+    "allergens": [
+      "G"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "baguettes-chimichurriBaguette",
     "category": "baguettes",
-    "name": { "en": "Chimichurri", "no": "Chimichurri" },
-    "description": { "en": "Tangy chimichurri sauce.", "no": "Syrlig chimichurri-saus." },
-    "allergens": ["G"],
+    "name": {
+      "en": "Chimichurri",
+      "no": "Chimichurri"
+    },
+    "description": {
+      "en": "Tangy chimichurri sauce.",
+      "no": "Syrlig chimichurri-saus."
+    },
+    "allergens": [
+      "G"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "baguettes-eggTomatoBaguette",
     "category": "baguettes",
-    "name": { "en": "Egg & Tomato", "no": "Egg & Tomat" },
-    "description": { "en": "A simple, fresh classic.", "no": "En enkel, fersk klassiker." },
-    "allergens": ["G"],
+    "name": {
+      "en": "Egg & Tomato",
+      "no": "Egg & Tomat"
+    },
+    "description": {
+      "en": "A simple, fresh classic.",
+      "no": "En enkel, fersk klassiker."
+    },
+    "allergens": [
+      "G"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "baguettes-mozzarellaBaguette",
     "category": "baguettes",
-    "name": { "en": "Mozzarella", "no": "Mozzarella" },
-    "description": { "en": "Fresh mozzarella.", "no": "Fersk mozzarella." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Mozzarella",
+      "no": "Mozzarella"
+    },
+    "description": {
+      "en": "Fresh mozzarella.",
+      "no": "Fersk mozzarella."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "pizza-margherita",
     "category": "pizza",
-    "name": { "en": "Margherita", "no": "Margherita" },
-    "description": { "en": "San Marzano tomato sauce, fresh mozzarella and basil.", "no": "San Marzano tomatsaus, fersk mozzarella og basilikum." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Margherita",
+      "no": "Margherita"
+    },
+    "description": {
+      "en": "San Marzano tomato sauce, fresh mozzarella and basil.",
+      "no": "San Marzano tomatsaus, fersk mozzarella og basilikum."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "pizza-chickenPizza",
     "category": "pizza",
-    "name": { "en": "Chicken", "no": "Kylling" },
-    "description": { "en": "Chicken, mushrooms and onion with parmesan and oregano.", "no": "Kylling, sopp og løk med parmesan og oregano." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Chicken",
+      "no": "Kylling"
+    },
+    "description": {
+      "en": "Chicken, mushrooms and onion with parmesan and oregano.",
+      "no": "Kylling, sopp og løk med parmesan og oregano."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "pizza-parma",
     "category": "pizza",
-    "name": { "en": "Parma", "no": "Parma" },
-    "description": { "en": "Parma ham, rocket, parmesan and pine nuts.", "no": "Parmaskinke, ruccola, parmesan og pinjekjerner." },
-    "allergens": ["G", "M"],
+    "name": {
+      "en": "Parma",
+      "no": "Parma"
+    },
+    "description": {
+      "en": "Parma ham, rocket, parmesan and pine nuts.",
+      "no": "Parmaskinke, ruccola, parmesan og pinjekjerner."
+    },
+    "allergens": [
+      "G",
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "nachos-chickenNachos",
     "category": "nachos",
-    "name": { "en": "Chicken", "no": "Kylling" },
-    "description": { "en": "Grilled chicken.", "no": "Grillet kylling." },
-    "allergens": ["M"],
+    "name": {
+      "en": "Chicken",
+      "no": "Kylling"
+    },
+    "description": {
+      "en": "Grilled chicken.",
+      "no": "Grillet kylling."
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "nachos-chickenFajitasNachos",
     "category": "nachos",
-    "name": { "en": "Chicken Fajitas", "no": "Kylling Fajitas" },
-    "description": { "en": "Chicken marinated in fajita spices.", "no": "Kylling marinert i fajitakrydder." },
-    "allergens": ["M"],
+    "name": {
+      "en": "Chicken Fajitas",
+      "no": "Kylling Fajitas"
+    },
+    "description": {
+      "en": "Chicken marinated in fajita spices.",
+      "no": "Kylling marinert i fajitakrydder."
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "nachos-chickenTandooriNachos",
     "category": "nachos",
-    "name": { "en": "Chicken Tandoori", "no": "Kylling Tandoori" },
-    "description": { "en": "Chicken marinated in tandoori spices.", "no": "Kylling marinert i tandoori-krydder." },
-    "allergens": ["M", "N"],
+    "name": {
+      "en": "Chicken Tandoori",
+      "no": "Kylling Tandoori"
+    },
+    "description": {
+      "en": "Chicken marinated in tandoori spices.",
+      "no": "Kylling marinert i tandoori-krydder."
+    },
+    "allergens": [
+      "M",
+      "N"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "nachos-chickenTzatzikiNachos",
     "category": "nachos",
-    "name": { "en": "Chicken Tzatziki", "no": "Kylling Tzatziki" },
-    "description": { "en": "Grilled chicken with cool tzatziki.", "no": "Grillet kylling med kjølig tzatziki." },
-    "allergens": ["M"],
+    "name": {
+      "en": "Chicken Tzatziki",
+      "no": "Kylling Tzatziki"
+    },
+    "description": {
+      "en": "Grilled chicken with cool tzatziki.",
+      "no": "Grillet kylling med kjølig tzatziki."
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "nachos-chickenCurryNachos",
     "category": "nachos",
-    "name": { "en": "Chicken Curry", "no": "Kylling Curry" },
-    "description": { "en": "Chicken in a mild curry sauce.", "no": "Kylling i en mild currysaus." },
-    "allergens": ["M"],
+    "name": {
+      "en": "Chicken Curry",
+      "no": "Kylling Curry"
+    },
+    "description": {
+      "en": "Chicken in a mild curry sauce.",
+      "no": "Kylling i en mild currysaus."
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "nachos-chickenAioliNachos",
     "category": "nachos",
-    "name": { "en": "Chicken Aioli", "no": "Kylling Aioli" },
-    "description": { "en": "Grilled chicken with garlic aioli.", "no": "Grillet kylling med hvitløksaioli." },
-    "allergens": ["M"],
+    "name": {
+      "en": "Chicken Aioli",
+      "no": "Kylling Aioli"
+    },
+    "description": {
+      "en": "Grilled chicken with garlic aioli.",
+      "no": "Grillet kylling med hvitløksaioli."
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "nachos-chickenFetaNachos",
     "category": "nachos",
-    "name": { "en": "Chicken Feta", "no": "Kylling Feta" },
-    "description": { "en": "Grilled chicken with crumbled feta.", "no": "Grillet kylling med smuldret feta." },
-    "allergens": ["M"],
+    "name": {
+      "en": "Chicken Feta",
+      "no": "Kylling Feta"
+    },
+    "description": {
+      "en": "Grilled chicken with crumbled feta.",
+      "no": "Grillet kylling med smuldret feta."
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "nachos-vegetarianNachos",
     "category": "nachos",
-    "name": { "en": "Vegetarian", "no": "Vegetar" },
-    "description": { "en": "A fajita-spiced bean mix.", "no": "Fajitakrydret bønneblanding." },
-    "allergens": ["M"],
+    "name": {
+      "en": "Vegetarian",
+      "no": "Vegetar"
+    },
+    "description": {
+      "en": "A fajita-spiced bean mix.",
+      "no": "Fajitakrydret bønneblanding."
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "nachos-mexicanNachos",
     "category": "nachos",
-    "name": { "en": "Mexican", "no": "Mexicansk" },
-    "description": { "en": "Mexican-spiced taco meat.", "no": "Mexicansk krydret tacokjøttdeig." },
-    "allergens": ["M"],
+    "name": {
+      "en": "Mexican",
+      "no": "Mexicansk"
+    },
+    "description": {
+      "en": "Mexican-spiced taco meat.",
+      "no": "Mexicansk krydret tacokjøttdeig."
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "drinks-espresso",
     "category": "drinks",
-    "name": { "en": "Espresso", "no": "Espresso" },
-    "description": { "en": "A short, intense shot — the heart of every coffee drink.", "no": "En kort og intens shot — hjertet i enhver kaffedrikk." },
-    "price": { "takeaway": 40, "eatIn": 45 },
+    "name": {
+      "en": "Espresso",
+      "no": "Espresso"
+    },
+    "description": {
+      "en": "A short, intense shot — the heart of every coffee drink.",
+      "no": "En kort og intens shot — hjertet i enhver kaffedrikk."
+    },
+    "price": {
+      "takeaway": 40,
+      "eatIn": 45
+    },
     "allergens": [],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "drinks-longBlack",
     "category": "drinks",
-    "name": { "en": "Long Black", "no": "Long Black" },
-    "description": { "en": "Espresso topped with hot water for a bold, full-bodied cup.", "no": "Espresso toppet med varmt vann for en kraftig kopp." },
-    "price": { "takeaway": 45, "eatIn": 50 },
+    "name": {
+      "en": "Long Black",
+      "no": "Long Black"
+    },
+    "description": {
+      "en": "Espresso topped with hot water for a bold, full-bodied cup.",
+      "no": "Espresso toppet med varmt vann for en kraftig kopp."
+    },
+    "price": {
+      "takeaway": 45,
+      "eatIn": 50
+    },
     "allergens": [],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "drinks-redEye",
     "category": "drinks",
-    "name": { "en": "Red Eye", "no": "Red Eye" },
-    "description": { "en": "Drip coffee with a shot of espresso for an extra boost.", "no": "Filterkaffe med en shot espresso for en ekstra dytt energi." },
-    "price": { "takeaway": 45, "eatIn": 50 },
+    "name": {
+      "en": "Red Eye",
+      "no": "Red Eye"
+    },
+    "description": {
+      "en": "Drip coffee with a shot of espresso for an extra boost.",
+      "no": "Filterkaffe med en shot espresso for en ekstra dytt energi."
+    },
+    "price": {
+      "takeaway": 45,
+      "eatIn": 50
+    },
     "allergens": [],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "drinks-americano",
     "category": "drinks",
-    "name": { "en": "Americano", "no": "Americano" },
-    "description": { "en": "Espresso topped up with hot water for a milder coffee.", "no": "Espresso fylt opp med varmt vann for en mildere kaffe." },
-    "price": { "takeaway": 40, "eatIn": 45 },
+    "name": {
+      "en": "Americano",
+      "no": "Americano"
+    },
+    "description": {
+      "en": "Espresso topped up with hot water for a milder coffee.",
+      "no": "Espresso fylt opp med varmt vann for en mildere kaffe."
+    },
+    "price": {
+      "takeaway": 40,
+      "eatIn": 45
+    },
     "allergens": [],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "drinks-macchiato",
     "category": "drinks",
-    "name": { "en": "Macchiato", "no": "Macchiato" },
-    "description": { "en": "Espresso \"marked\" with a dash of foamed milk.", "no": "Espresso satt et lite \"merke\" på med skummet melk." },
-    "price": { "takeaway": 47, "eatIn": 52 },
-    "allergens": ["M"],
+    "name": {
+      "en": "Macchiato",
+      "no": "Macchiato"
+    },
+    "description": {
+      "en": "Espresso \"marked\" with a dash of foamed milk.",
+      "no": "Espresso satt et lite \"merke\" på med skummet melk."
+    },
+    "price": {
+      "takeaway": 47,
+      "eatIn": 52
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "drinks-cortado",
     "category": "drinks",
-    "name": { "en": "Cortado", "no": "Cortado" },
-    "description": { "en": "Espresso cut with a small amount of warm milk.", "no": "Espresso temperert med en liten skvett varm melk." },
-    "price": { "takeaway": 47, "eatIn": 52 },
-    "allergens": ["M"],
+    "name": {
+      "en": "Cortado",
+      "no": "Cortado"
+    },
+    "description": {
+      "en": "Espresso cut with a small amount of warm milk.",
+      "no": "Espresso temperert med en liten skvett varm melk."
+    },
+    "price": {
+      "takeaway": 47,
+      "eatIn": 52
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "drinks-cappuccino",
     "category": "drinks",
-    "name": { "en": "Cappuccino", "no": "Cappuccino" },
-    "description": { "en": "Espresso with steamed milk and a thick layer of foam.", "no": "Espresso med dampet melk og et tykt lag skum." },
-    "price": { "takeaway": 50, "eatIn": 55 },
-    "allergens": ["M"],
+    "name": {
+      "en": "Cappuccino",
+      "no": "Cappuccino"
+    },
+    "description": {
+      "en": "Espresso with steamed milk and a thick layer of foam.",
+      "no": "Espresso med dampet melk og et tykt lag skum."
+    },
+    "price": {
+      "takeaway": 50,
+      "eatIn": 55
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "drinks-cafeLatte",
     "category": "drinks",
-    "name": { "en": "Café Latte", "no": "Caffè Latte" },
-    "description": { "en": "Espresso with plenty of steamed milk and a light layer of foam.", "no": "Espresso med rikelig dampet melk og et lett lag skum." },
-    "price": { "takeaway": 50, "eatIn": 55 },
-    "allergens": ["M"],
+    "name": {
+      "en": "Café Latte",
+      "no": "Caffè Latte"
+    },
+    "description": {
+      "en": "Espresso with plenty of steamed milk and a light layer of foam.",
+      "no": "Espresso med rikelig dampet melk og et lett lag skum."
+    },
+    "price": {
+      "takeaway": 50,
+      "eatIn": 55
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "drinks-chaiLatte",
     "category": "drinks",
-    "name": { "en": "Chai Latte", "no": "Chai Latte" },
-    "description": { "en": "Spiced black tea with steamed milk and a touch of sweetness.", "no": "Krydret svart te med dampet melk og et snev av sødme." },
-    "price": { "takeaway": 55, "eatIn": 60 },
-    "allergens": ["M"],
+    "name": {
+      "en": "Chai Latte",
+      "no": "Chai Latte"
+    },
+    "description": {
+      "en": "Spiced black tea with steamed milk and a touch of sweetness.",
+      "no": "Krydret svart te med dampet melk og et snev av sødme."
+    },
+    "price": {
+      "takeaway": 55,
+      "eatIn": 60
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "drinks-mocha",
     "category": "drinks",
-    "name": { "en": "Mocha", "no": "Mocha" },
-    "description": { "en": "Espresso with steamed milk and rich chocolate.", "no": "Espresso med dampet melk og rik sjokolade." },
-    "price": { "takeaway": 55, "eatIn": 60 },
-    "allergens": ["M"],
+    "name": {
+      "en": "Mocha",
+      "no": "Mocha"
+    },
+    "description": {
+      "en": "Espresso with steamed milk and rich chocolate.",
+      "no": "Espresso med dampet melk og rik sjokolade."
+    },
+    "price": {
+      "takeaway": 55,
+      "eatIn": 60
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "drinks-iceCafe",
     "category": "drinks",
-    "name": { "en": "Ice Café", "no": "Iskaffe" },
-    "description": { "en": "Chilled coffee over ice with a splash of milk.", "no": "Kald kaffe over is med et skvett melk." },
-    "price": { "takeaway": 60, "eatIn": 55 },
-    "allergens": ["M"],
+    "name": {
+      "en": "Ice Café",
+      "no": "Iskaffe"
+    },
+    "description": {
+      "en": "Chilled coffee over ice with a splash of milk.",
+      "no": "Kald kaffe over is med et skvett melk."
+    },
+    "price": {
+      "takeaway": 60,
+      "eatIn": 55
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "drinks-flatWhite",
     "category": "drinks",
-    "name": { "en": "Flat White", "no": "Flat White" },
-    "description": { "en": "Espresso with steamed milk and a thin, velvety layer of microfoam.", "no": "Espresso med dampet melk og et tynt, fløyelsmykt lag mikroskum." },
-    "price": { "takeaway": 45, "eatIn": 50 },
-    "allergens": ["M"],
+    "name": {
+      "en": "Flat White",
+      "no": "Flat White"
+    },
+    "description": {
+      "en": "Espresso with steamed milk and a thin, velvety layer of microfoam.",
+      "no": "Espresso med dampet melk og et tynt, fløyelsmykt lag mikroskum."
+    },
+    "price": {
+      "takeaway": 45,
+      "eatIn": 50
+    },
+    "allergens": [
+      "M"
+    ],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "drinks-tea",
     "category": "drinks",
-    "name": { "en": "Tea", "no": "Te" },
-    "description": { "en": "A pot of your choice of black, green or herbal tea.", "no": "En kanne med ditt valg av svart, grønn eller urtete." },
-    "price": { "takeaway": 50, "eatIn": 50 },
+    "name": {
+      "en": "Tea",
+      "no": "Te"
+    },
+    "description": {
+      "en": "A pot of your choice of black, green or herbal tea.",
+      "no": "En kanne med ditt valg av svart, grønn eller urtete."
+    },
+    "price": {
+      "takeaway": 50,
+      "eatIn": 50
+    },
     "allergens": [],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "smoothies-orangeStrawberryBanana",
     "category": "smoothies",
-    "name": { "en": "Orange, Strawberry & Banana", "no": "Appelsin, Jordbær & Banan" },
-    "description": { "en": "A classic, naturally sweet blend.", "no": "En klassisk, naturlig søt blanding." },
+    "name": {
+      "en": "Orange, Strawberry & Banana",
+      "no": "Appelsin, Jordbær & Banan"
+    },
+    "description": {
+      "en": "A classic, naturally sweet blend.",
+      "no": "En klassisk, naturlig søt blanding."
+    },
     "allergens": [],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "smoothies-orangeBlueberryRaspberry",
     "category": "smoothies",
-    "name": { "en": "Orange, Blueberry & Raspberry", "no": "Appelsin, Blåbær & Bringebær" },
-    "description": { "en": "A vibrant, antioxidant-rich mix.", "no": "En frisk miks rik på antioksidanter." },
+    "name": {
+      "en": "Orange, Blueberry & Raspberry",
+      "no": "Appelsin, Blåbær & Bringebær"
+    },
+    "description": {
+      "en": "A vibrant, antioxidant-rich mix.",
+      "no": "En frisk miks rik på antioksidanter."
+    },
     "allergens": [],
+    "dietaryTags": [],
     "available": true
   },
   {
     "itemID": "smoothies-orangeTzatzikiPesto",
     "category": "smoothies",
-    "name": { "en": "Orange, Tzatziki & Pesto", "no": "Appelsin, Tzatziki & Pesto" },
-    "description": { "en": "An unexpected combination — surprisingly delicious.", "no": "En uventet kombinasjon — overraskende god." },
-    "allergens": ["M", "N"],
+    "name": {
+      "en": "Orange, Tzatziki & Pesto",
+      "no": "Appelsin, Tzatziki & Pesto"
+    },
+    "description": {
+      "en": "An unexpected combination — surprisingly delicious.",
+      "no": "En uventet kombinasjon — overraskende god."
+    },
+    "allergens": [
+      "M",
+      "N"
+    ],
+    "dietaryTags": [],
     "available": true
   }
 ]

@@ -1,0 +1,47 @@
+@use '../../../styles/variables' as *;
+
+.user-form {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+  min-width: min(360px, 80vw);
+}
+
+.user-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  font-size: 0.875rem;
+  font-weight: 600;
+
+  select {
+    padding: $spacing-unit calc($spacing-unit * 1.5);
+    border: 1px solid $color-border;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-family: inherit;
+    background: $color-bg;
+    color: $color-text;
+  }
+}
+
+.user-form__sections {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: 1px solid $color-border;
+  border-radius: 8px;
+
+  legend {
+    padding: 0 calc($spacing-unit / 2);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+}
+
+.user-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-unit;
+}

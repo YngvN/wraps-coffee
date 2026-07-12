@@ -19,6 +19,7 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.contactInfo', descKey: 'admin.settings.developerDocs.keyContactInfo' },
   { key: 'admin.textSizePresets', descKey: 'admin.settings.developerDocs.keyTextSizePresets' },
   { key: 'admin.clockFormat', descKey: 'admin.settings.developerDocs.keyClockFormat' },
+  { key: 'admin.paneLanguage', descKey: 'admin.settings.developerDocs.keyPaneLanguage' },
   { key: 'admin.screenLockPin', descKey: 'admin.settings.developerDocs.keyScreenLockPin' },
   { key: 'admin.screensaverSchedule', descKey: 'admin.settings.developerDocs.keyScreensaverSchedule' },
   { key: 'admin.screens', descKey: 'admin.settings.developerDocs.keyScreens' },
@@ -126,6 +127,31 @@ export function DeveloperDocsView() {
 → 200 { "ok": true }`}</code>
         </pre>
         <p>{t('admin.settings.developerDocs.roleText')}</p>
+      </Card>
+
+      <Card title={t('admin.settings.developerDocs.usersTitle')}>
+        <p>{t('admin.settings.developerDocs.usersIntro')}</p>
+        <pre>
+          <code>{`GET /users                        (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 [{ "id", "username", "role", "allowedSections"? }, ...]   (no passwords included)
+
+POST /users                       (Authorization: Bearer <token>, admin/subadmin only)
+{ "username": "...", "password": "...", "role": "admin" | "subadmin" | "limited", "allowedSections"?: [...] }
+→ 200 { "id", "username", "role", "allowedSections"? }
+→ 403 { "error": "..." }   (a "subadmin" token creating an "admin"-role account)
+→ 409 { "error": "..." }   (username already taken)
+
+DELETE /users/<id>                (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "ok": true }
+→ 400 { "error": "..." }   (deleting your own account, or the last remaining admin account)
+→ 403 { "error": "..." }   (a "subadmin" token deleting an "admin"-role account)
+→ 404 { "error": "User not found" }
+
+POST /users/<id>/password         (Authorization: Bearer <token>, admin/subadmin only)
+{ "password": "..." }
+→ 200 { "ok": true }
+→ 404 { "error": "User not found" }`}</code>
+        </pre>
       </Card>
 
       <Card title={t('admin.settings.developerDocs.syncTitle')}>
