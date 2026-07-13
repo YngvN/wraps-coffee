@@ -1,8 +1,9 @@
 import { useReducedMotion } from 'framer-motion'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useLanguage, type LanguageCode } from '../../i18n'
-import type { PaneId, ScreenConfig, ScreenSlotContent, SplitDirection, TextSizes } from '../../types/screen'
+import { DEFAULT_SCREEN_BACKGROUND_COLOR, type PaneId, type ScreenConfig, type ScreenSlotContent, type SplitDirection, type TextSizes } from '../../types/screen'
 import { listLeaves } from '../../utils/layoutTree'
+import { backgroundImageTextStyle, borderColorStyle, getScreenColorVars } from '../../utils/screenColors'
 import { imageResizeRatioPatch, imageResizeScaleFromDrag, paneResizableAxes, pathKey, setRatioAtPath, type NodePath, type PaneResizableAxes, type RatioPatch } from '../../utils/screenLayout'
 import { isResizeToFitImage } from '../../utils/screenSlots'
 import { isSlotActive, resolveSlotContent, resolveStageValue, writeStageCheckpoint } from '../../utils/screenStages'
@@ -86,6 +87,13 @@ export function SplitLayout({
   const requestedImagesRef = useRef<Set<string>>(new Set())
   const effectiveStage = forcedStage ?? stage
 
+  /** `--screen-bg`/`--screen-text`/etc, redeclared right at this wrapper so every descendant pane — including one with no background color of its own — resolves them from the *screen's* own configured appearance rather than leaking through to whatever ancestor styling happens to surround `SplitLayout` whenever it's used (e.g. the admin form's own "Layout" preview never set these at all otherwise). A pane with its own background color still overrides these locally (see `slotBackgroundColorStyle`), same as ever — this only fixes the fallback. */
+  const screenColorStyle = {
+    ...getScreenColorVars(screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR),
+    ...borderColorStyle(screen.borderColor),
+    ...backgroundImageTextStyle(screen.backgroundImage?.overlay),
+  } as CSSProperties
+
   useEffect(() => {
     const node = containerRef.current
     if (!node) return
@@ -146,7 +154,7 @@ export function SplitLayout({
 
   if (!leaves.some((leaf) => screen.paneSlots[leaf.id] && isSlotActive(screen.paneSlots[leaf.id]))) {
     return (
-      <div className="split-layout split-layout--empty">
+      <div className="split-layout split-layout--empty" style={screenColorStyle}>
         <p>{t('screenDisplay.emptyLabel')}</p>
       </div>
     )
@@ -204,7 +212,7 @@ export function SplitLayout({
   }
 
   return (
-    <div ref={containerRef} className={`split-layout${borderModifier}`}>
+    <div ref={containerRef} className={`split-layout${borderModifier}`} style={screenColorStyle}>
       <LayoutTree
         node={layoutTree}
         path={[]}

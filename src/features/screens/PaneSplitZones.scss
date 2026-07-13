@@ -71,6 +71,7 @@
 .pane-split-zones__column-line {
   position: absolute;
   background: var(--screen-accent);
+  box-shadow: 0 0 6px 1px rgba(0, 0, 0, 0.4);
   opacity: 0;
   transition: opacity 0.15s ease;
   pointer-events: none;
@@ -92,6 +93,13 @@
   margin-top: -1.5px;
 }
 
+// `--screen-bg`/`--screen-text` are the *pane's own* (contrast-matched)
+// colors — redefined locally on `.split-layout__pane` itself (see
+// `slotBackgroundColorStyle`/`LayoutPane.tsx`), falling back to the whole
+// screen's own (see `SplitLayout.tsx`'s own `screenColorStyle`) when the
+// pane has no background color of its own — so this label always matches
+// whichever pane it's floating over, with `--screen-text` already
+// guaranteed readable against it.
 .pane-split-zones__label {
   position: absolute;
   top: 50%;
@@ -99,14 +107,13 @@
   transform: translate(-50%, -50%);
   padding: calc($spacing-unit / 2) $spacing-unit;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.65);
-  color: #fff;
+  background: var(--screen-bg);
+  color: var(--screen-text);
   font-size: 0.875rem;
   font-weight: 600;
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.15s ease;
 }
 
 // Real hover only — touch devices skip both the line and the label
