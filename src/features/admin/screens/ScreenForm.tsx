@@ -10,16 +10,18 @@ import {
   DEFAULT_SCREEN_BACKGROUND_COLOR,
   DEFAULT_TEXT_SIZES,
   type BackgroundImage,
+  type LayoutNode,
+  type PaneId,
   type ScreenConfig,
   type ScreenSlot,
   type ScreenSlotContent,
   type ScreenTransitionStyle,
-  type SplitBigPosition,
   type SplitDirection,
+  type StageTimeline,
   type TextSizes,
 } from '../../../types/screen'
 import { findSiblingEventOrdinal } from '../../../utils/eventOrdinals'
-import { nudgeRatio, type ResizeDirection } from '../../../utils/screenLayout'
+import { cloneSlot, createLeaf, deleteLeaf, emptySlot, listLeaves, splitLeaf } from '../../../utils/layoutTree'
 import { hasOwnTextSizeFields, resolveContentBackgroundImage } from '../../../utils/screenSlots'
 import {
   isResizeToFitConflict,
@@ -29,6 +31,7 @@ import {
   resolveSlotContent,
   resolveSlotLanguage,
   resolveSlotTextSizes,
+  resolveStageValue,
   writeStageCheckpoint,
 } from '../../../utils/screenStages'
 import { resolveContentTextSizes } from '../../../utils/textSizeVars'
@@ -36,9 +39,10 @@ import { BackgroundColorPicker } from '../../screens/BackgroundColorPicker'
 import { BackgroundEditor } from '../../screens/BackgroundEditor'
 import { GlobalTextSizeScaler, type SizeSnapshot } from '../../screens/GlobalTextSizeScaler'
 import { PaneEditor } from '../../screens/PaneEditor'
+import { ScaledScreenPreview, type PreviewAspectRatio } from '../../screens/ScaledScreenPreview'
+import { SplitLayout } from '../../screens/SplitLayout'
 import { StageTabs } from '../../screens/StageTabs'
-import { LayoutIcon, type LayoutIconPattern } from './LayoutIcon'
-import { getArrangementPattern } from './screenPreviewPattern'
+import { LayoutIcon } from './LayoutIcon'
 import './ScreenForm.scss'
 
 interface ScreenFormProps {
@@ -46,28 +50,18 @@ interface ScreenFormProps {
   screen: ScreenConfig | null
   onSave: (screen: ScreenConfig) => void
   onCancel: () => void
-  /** Reports this form's own currently open sub-view by name (e.g. "Resize slots"), or `undefined` while showing its main tabbed content — lets the parent's `Modal` show it as a "Edit screen - Resize slots" breadcrumb next to its title. */
+  /** Reports this form's own currently open sub-view by name (e.g. "Layout"), or `undefined` while showing its main tabbed content — lets the parent's `Modal` show it as a "Edit screen - Layout" breadcrumb next to its title. */
   onRouteChange?: (route: string | undefined) => void
 }
 
-/** The 4 arrangements available when exactly 3 of a screen's slots are active. */
-const TRIPLE_ARRANGEMENTS: { pattern: LayoutIconPattern; direction: SplitDirection; bigPosition: SplitBigPosition; labelKey: string }[] = [
-  { pattern: 'triple-row-first', direction: 'row', bigPosition: 'first', labelKey: 'tripleRowFirstLabel' },
-  { pattern: 'triple-row-second', direction: 'row', bigPosition: 'second', labelKey: 'tripleRowSecondLabel' },
-  { pattern: 'triple-column-first', direction: 'column', bigPosition: 'first', labelKey: 'tripleColumnFirstLabel' },
-  { pattern: 'triple-column-second', direction: 'column', bigPosition: 'second', labelKey: 'tripleColumnSecondLabel' },
+/** The most common physical display shapes, offered as quick picks for the "Layout" tab's own live preview — purely a sanity-check tool for how the arrangement would look on a differently-shaped screen, not a persisted setting (resets to 16:9, the first entry, every time the form reopens). */
+const PREVIEW_ASPECT_RATIOS: { ratio: PreviewAspectRatio; label: string }[] = [
+  { ratio: { width: 16, height: 9 }, label: '16:9' },
+  { ratio: { width: 9, height: 16 }, label: '9:16' },
+  { ratio: { width: 4, height: 3 }, label: '4:3' },
+  { ratio: { width: 3, height: 4 }, label: '3:4' },
+  { ratio: { width: 21, height: 9 }, label: '21:9' },
 ]
-
-/** A representative preview pattern for each selectable `slotCount`, shown on the "Layout" picker's own buttons — not necessarily this screen's actual current arrangement (that's the tab bar's own icons, just above), just a stand-in shape for "1 pane"/"2 panes"/etc. */
-const SLOT_COUNT_PREVIEW_PATTERNS: Record<number, LayoutIconPattern> = {
-  1: 'single',
-  2: 'row',
-  3: 'triple-row-first',
-  4: 'quad',
-}
-
-/** A slot with no checkpoints yet. */
-const EMPTY_SLOT: ScreenSlot = { content: {}, backgroundColor: {}, backgroundImage: {}, textSizes: {} }
 
 /** The next unused "<prefix> N" name (starting at 1), so a new screen never defaults to a name that collides with an existing one. */
 function nextDefaultScreenName(screens: ScreenConfig[], prefix: string): string {
@@ -79,58 +73,52 @@ function nextDefaultScreenName(screens: ScreenConfig[], prefix: string): string 
 
 /**
  * Create/edit form for a single screen: a "Global" tab with name, the
- * screen's own background color, how many of its 4 slots are actually shown
- * (`slotCount`) plus their on-screen arrangement, a "Resize" panel of 4
- * arrows nudging whichever pane divider each one controls 1% at a time (the
- * exact same fields the live display's own draggable dividers adjust, so
- * either one stays in sync with the other), whether/what color the borders
- * between panes use, a "Steps" panel (whether/how many shared stages every
- * slot advances through together, the rotation timer, and the transition
- * animation), and — one tab per slot, so each gets its own room — that
- * slot's own content, background color/image, and shared/fallback text
- * size. Once the screen has shared stages on with more than one, a slot's
- * own tab gains a stage-tab bar above its fields — mirroring the outer
- * tabs one level deeper — and every field is resolved from (and edits
- * write back into) that slot's own independent timeline at whichever stage
- * is selected (see `src/utils/screenStages.ts`); with stages off (or only
- * one), the tab bar is hidden and every field is simply the slot's one
- * static stage-1 checkpoint. Everything available from the display's own
- * in-place editors is available here too, so the whole screen can be
- * configured externally without ever opening the live display. Reducing
- * `slotCount` never clears a hidden slot's own content/settings — its tab
- * stays fully editable, just visually marked as not currently shown — so
- * dialing it back up (or mis-saving with it lower than intended) can't
- * lose any data; only deleting the whole screen does.
+ * screen's own background color, an interactive "Layout" grid (drag any
+ * divider to resize — the exact same live display shows), whether/what
+ * color the borders between panes use, a "Steps" panel (whether/how many
+ * shared stages every pane advances through together, the rotation timer,
+ * and the transition animation), and — one tab per pane, so each gets its
+ * own room — that pane's own content, background color/image, and
+ * shared/fallback text size, plus simple "Split pane"/"Delete pane"
+ * buttons for restructuring the arrangement itself. Once the screen has
+ * shared stages on with more than one, a pane's own tab gains a stage-tab
+ * bar above its fields — mirroring the outer tabs one level deeper — and
+ * every field is resolved from (and edits write back into) that pane's own
+ * independent timeline at whichever stage is selected (see
+ * `src/utils/screenStages.ts`); with stages off (or only one), the tab bar
+ * is hidden and every field is simply the pane's one static stage-1
+ * checkpoint. Everything available from the display's own in-place editors
+ * is available here too, so the whole screen can be configured externally
+ * without ever opening the live display.
  */
 export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFormProps) {
   const { t } = useLanguage()
   const [screens, setScreens] = useScreens()
   const [screensaverSchedule] = useScreensaverSchedule()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
-  /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the "Layout" pane-count picker, the "Split direction" editor (arrangement picker plus its own resize D-pad, and its own nested "Borders" sub-menu — see `arrangementShowingBorders`), the screen's own whole-screen "Background" color/image editor, the "Steps" (use-stages/count/duration/transition) editor, the "Screen saver" editor, the "Other settings" editor, or neither. A slot's own fields (content, background, text size) aren't one of these — they're owned by `PaneEditor` itself, which manages its own sub-view navigation internally (see the active-slot tab render below). */
-  const [editingTarget, setEditingTarget] = useState<'global' | 'layout' | 'arrangement' | 'background' | 'stages' | 'screensaver' | 'other' | null>(null)
-  /** `1` while opening a sub-view (slides in from the right, see `SlideTransition`), `-1` while going back (slides in from the left) — including one level of nesting deeper/shallower within Arrangement's own "Borders" sub-menu. Set right before whatever state change actually switches the view. */
+  /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the interactive "Layout" grid, the pane-border color editor, the screen's own whole-screen "Background" color/image editor, the "Steps" (use-stages/count/duration/transition) editor, the "Screen saver" editor, the "Other settings" editor, or neither. A pane's own fields (content, background, text size) aren't one of these — they're owned by `PaneEditor` itself, which manages its own sub-view navigation internally (see the active-pane tab render below). */
+  const [editingTarget, setEditingTarget] = useState<'global' | 'layout' | 'borders' | 'background' | 'stages' | 'screensaver' | 'other' | null>(null)
+  /** `1` while opening a sub-view (slides in from the right, see `SlideTransition`), `-1` while going back (slides in from the left). Set right before whatever state change actually switches the view. */
   const [direction, setDirection] = useState<1 | -1>(1)
-  /** Whether the "Split direction" sub-view is itself showing its own nested "Borders" sub-menu rather than the layout picker/resize D-pad — reset whenever this sub-view (re)opens. */
-  const [arrangementShowingBorders, setArrangementShowingBorders] = useState(false)
+  /** Which physical display shape the "Layout" tab's own live preview is currently sized to — a local sanity-check tool, not a persisted screen setting. */
+  const [previewAspectRatio, setPreviewAspectRatio] = useState<PreviewAspectRatio>(PREVIEW_ASPECT_RATIOS[0].ratio)
   const [liveTextSizes, setLiveTextSizes] = useState<TextSizes>(screen?.textSizes ?? DEFAULT_TEXT_SIZES)
-  /** Which stage a slot's own tab is currently showing fields for — shared across every slot tab (switching which slot you're viewing doesn't change it), since stages are a screen-wide sequence, not a per-slot one. */
+  /** Which stage a pane's own tab is currently showing fields for — shared across every pane tab (switching which pane you're viewing doesn't change it), since stages are a screen-wide sequence, not a per-pane one. */
   const [activeStage, setActiveStage] = useState(1)
   const [name, setName] = useState(() => screen?.name ?? nextDefaultScreenName(screens, t('admin.screens.defaultNamePrefix')))
-  const [slotCount, setSlotCount] = useState(screen?.slotCount ?? 4)
-  const [slot1, setSlot1] = useState<ScreenSlot>(screen?.slots[0] ?? EMPTY_SLOT)
-  const [slot2, setSlot2] = useState<ScreenSlot>(screen?.slots[1] ?? EMPTY_SLOT)
-  const [slot3, setSlot3] = useState<ScreenSlot>(screen?.slots[2] ?? EMPTY_SLOT)
-  const [slot4, setSlot4] = useState<ScreenSlot>(screen?.slots[3] ?? EMPTY_SLOT)
-  /** Which tab is showing: the screen-wide settings, or one specific slot's own. */
-  const [activeTab, setActiveTab] = useState<'global' | number>('global')
+  /** This screen's own arrangement + every pane's own content, kept as one local draft — a brand-new screen starts as a single blank leaf. */
+  const [draft, setDraft] = useState<{ layout: StageTimeline<LayoutNode>; paneSlots: Record<PaneId, ScreenSlot> }>(() => {
+    if (screen) return { layout: screen.layout, paneSlots: screen.paneSlots }
+    const { node, id } = createLeaf()
+    return { layout: { 1: node }, paneSlots: { [id]: emptySlot() } }
+  })
+  /** Which tab is showing: the screen-wide settings, or one specific pane's own. */
+  const [activeTab, setActiveTab] = useState<'global' | PaneId>('global')
   /** Bumped on every tab switch (see `handleSelectTab`) purely to hand `editingFocus.pulse` a fresh, ever-increasing key — lets the live display's own flash element (see `SplitLayout`) restart from scratch on a repeat click of the tab that's already active, no matter how fast it's spam-clicked, rather than relying on `activeTab` itself (which wouldn't change at all in that case). */
   const pulseCounterRef = useRef(0)
   const [useStages, setUseStages] = useState(screen?.useStages ?? false)
   const [stageCount, setStageCount] = useState(screen?.stageCount ?? 1)
   const [slideDurationSeconds, setSlideDurationSeconds] = useState(screen?.slideDurationSeconds ?? 10)
-  const [splitDirection, setSplitDirection] = useState<SplitDirection>(screen?.splitDirection ?? 'row')
-  const [splitBigPosition, setSplitBigPosition] = useState<SplitBigPosition>(screen?.splitBigPosition ?? 'first')
   const [showSlotBorders, setShowSlotBorders] = useState(screen?.showSlotBorders ?? true)
   const [hideScrollbar, setHideScrollbar] = useState(screen?.hideScrollbar ?? false)
   const [useScreensaver, setUseScreensaver] = useState(screen?.useScreensaver ?? false)
@@ -140,18 +128,134 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
   /** `activeStage` clamped to whatever's actually selectable right now — shrinking `stageCount` while a higher stage was selected shouldn't leave the tab bar (or any resolver below) pointing at a stage that's no longer offered; growing it back reveals the original selection again, since `activeStage` itself is never reset. */
   const clampedActiveStage = Math.min(activeStage, useStages ? Math.max(1, stageCount) : 1)
 
-  const slotFields: { id: string; label: string; value: ScreenSlot; onChange: (slot: ScreenSlot) => void }[] = [
-    { id: 'slot-1', label: t('admin.screens.slot1Label'), value: slot1, onChange: setSlot1 },
-    { id: 'slot-2', label: t('admin.screens.slot2Label'), value: slot2, onChange: setSlot2 },
-    { id: 'slot-3', label: t('admin.screens.slot3Label'), value: slot3, onChange: setSlot3 },
-    { id: 'slot-4', label: t('admin.screens.slot4Label'), value: slot4, onChange: setSlot4 },
-  ]
-  const activeSlot = typeof activeTab === 'number' ? slotFields[activeTab] : null
-  /** The arrangement shape every slot tab's own icon is drawn against, so each button's `highlightIndex` shows exactly which physical position on the screen it represents. */
-  const arrangementPattern = getArrangementPattern({ slotCount, splitDirection, splitBigPosition })
+  const resolvedTree = resolveStageValue(draft.layout, clampedActiveStage) ?? Object.values(draft.layout)[0]
+  const leaves = resolvedTree ? listLeaves(resolvedTree) : []
+  const activeLeafId = activeTab !== 'global' ? activeTab : null
+  const activeSlot = activeLeafId ? draft.paneSlots[activeLeafId] : undefined
+
+  /**
+   * The currently-selected pane's own Split/Delete buttons + `PaneEditor` —
+   * shared by the main per-pane tab view and the "Layout" subview's own
+   * inline pane editor (clicking a pane in the live preview there selects
+   * it exactly like clicking its tab does, via the same `activeTab` state),
+   * so the two never drift out of sync with each other. `routePrefix`, if
+   * given, is prepended to the breadcrumb `onRouteChange` reports — the
+   * "Layout" subview is already its own named route, so a pane selected
+   * from within it reports e.g. "Layout - Pane 2 - Background" instead of
+   * just "Pane 2 - Background" — and also decides whether `PaneEditor`
+   * shows its own local Back button for its nested "Background"/"Edit text
+   * size" sub-views: the plain per-pane tab view sits right below the
+   * form's single outer Back button, one hop away, so hides its own
+   * (`hideBackButton`) to avoid a redundant second one; the "Layout"
+   * subview's own page is considerably longer (the live preview, ratio
+   * picker and stage tabs all sit above this), so that outer button scrolls
+   * out of easy reach — a local one right next to the fields it actually
+   * returns from is worth the (no longer truly redundant) second button
+   * there.
+   */
+  const renderActivePaneEditor = (routePrefix?: string) => {
+    if (!activeSlot || !activeLeafId) return null
+    const content = resolveSlotContent(activeSlot, clampedActiveStage)
+    const backgroundImage = resolveContentBackgroundImage(content, resolveSlotBackgroundImage(activeSlot, clampedActiveStage))
+    const paneIndex = leaves.findIndex((leaf) => leaf.id === activeLeafId)
+    const handlePaneRouteChange = (route: string | undefined) => {
+      if (!route) {
+        onRouteChange?.(routePrefix)
+        return
+      }
+      const paneLabel = t('admin.screens.paneLabel', { number: paneIndex + 1 })
+      const stagePart = hasMultipleStages ? ` - ${t('screenDisplay.textSizeEditor.stageTabLabel', { number: clampedActiveStage })}` : ''
+      const prefix = routePrefix ? `${routePrefix} - ` : ''
+      onRouteChange?.(`${prefix}${paneLabel}${stagePart} - ${route}`)
+    }
+    return (
+      <>
+        <div className="screen-form__pane-structure-actions">
+          <Button type="button" variant="secondary" onClick={() => handleSplitPane(activeLeafId, 'row')}>
+            {t('admin.screens.splitPaneHorizontallyButton')}
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => handleSplitPane(activeLeafId, 'column')}>
+            {t('admin.screens.splitPaneVerticallyButton')}
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => handleClearPane(activeLeafId)}>
+            {t('admin.screens.clearPaneButton')}
+          </Button>
+          {leaves.length > 1 && (
+            <Button type="button" variant="secondary" onClick={() => handleDeletePane(activeLeafId)}>
+              {t('admin.screens.deletePaneButton')}
+            </Button>
+          )}
+        </div>
+        <PaneEditor
+          id={activeLeafId}
+          content={content}
+          onContentChange={handleContentChange}
+          backgroundColor={resolveSlotBackgroundColor(activeSlot, clampedActiveStage)}
+          onBackgroundColorChange={handleBackgroundColorChange}
+          backgroundImage={backgroundImage}
+          onBackgroundImageChange={handleBackgroundImageChange}
+          textSizes={liveTextSizes}
+          onTextSizesChange={handleLiveTextSizesChange}
+          language={resolveSlotLanguage(activeSlot, clampedActiveStage)}
+          onLanguageChange={handleLanguageChange}
+          defaultLanguage={defaultPaneLanguage}
+          useStages={useStages}
+          stageCount={stageCount}
+          activeStage={clampedActiveStage}
+          onActiveStageChange={handleActiveStageChange}
+          label={hasMultipleStages ? t('screenDisplay.textSizeEditor.stageTabLabel', { number: clampedActiveStage }) : t('admin.screens.paneLabel', { number: paneIndex + 1 })}
+          resizeToFitBlocked={isResizeToFitConflict(
+            leaves.map((leaf) => ({ id: leaf.id, slot: draft.paneSlots[leaf.id] })),
+            activeLeafId,
+            clampedActiveStage,
+          )}
+          suggestedEventOrdinal={
+            findSiblingEventOrdinal(
+              leaves.filter((leaf) => leaf.id !== activeLeafId).map((leaf) => draft.paneSlots[leaf.id]),
+              clampedActiveStage,
+            ) ?? 1
+          }
+          onRouteChange={handlePaneRouteChange}
+          hideBackButton={!routePrefix}
+        />
+      </>
+    )
+  }
 
   /** The freshest persisted version of this screen — reflects any live writes already made this session (background color, text sizes) that this form's own local state doesn't separately track, so neither re-seeding a sub-panel nor the final Save can stomp them with stale data. */
   const latestScreen = screen ? (screens.find((candidate) => candidate.screenID === screen.screenID) ?? screen) : null
+
+  /**
+   * A screen-shaped object reflecting the freshest known state of every
+   * live-pushed field — used to render the interactive "Layout" grid (the
+   * exact same `SplitLayout` the live display uses) inline in this form.
+   * Built from `latestScreen` (not this form's own local draft/component
+   * state) for every field that can be live-edited from *anywhere* —
+   * `layout`, background, border color, transition style, etc. — so an edit
+   * made directly on the kiosk display (or another open tab/window of this
+   * same screen) shows up here too, not just edits made from this form.
+   * `paneSlots` is the one deliberate exception: pane *content* edits are
+   * draft-only until "Save" (unlike layout/background/etc., which are
+   * live), so previewing this form's own in-progress unsaved content edits
+   * takes priority there. A screen that hasn't been saved yet at all (no
+   * `latestScreen`) falls back to this form's own local field state
+   * entirely, since there's nothing persisted anywhere to prefer instead.
+   */
+  const previewScreen: ScreenConfig = latestScreen
+    ? { ...latestScreen, paneSlots: draft.paneSlots }
+    : {
+        screenID: '',
+        name,
+        layout: draft.layout,
+        paneSlots: draft.paneSlots,
+        useStages,
+        stageCount,
+        slideDurationSeconds,
+        transitionStyle,
+        showSlotBorders,
+        hideScrollbar,
+        useScreensaver,
+      }
 
   // Clears this screen's own live "which tab is the editor focused on" signal
   // (see `editingFocus`) the moment this form actually closes — otherwise
@@ -173,9 +277,25 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately mount/unmount-only, see comment above.
   }, [screen])
 
+  /** Writes a partial change straight to the persisted screen, live — so it shows up on the display immediately, in any other tab/window of this browser already showing it. Reads fresh from storage (the functional `setScreens` form) rather than this component's own `screens` state, which — being a separate `useScreens()` instance from `ScreensView`'s — can otherwise lag behind a write the other one just made. */
+  const liveUpdateScreen = (patch: Partial<ScreenConfig>) => {
+    if (!screen) return
+    setScreens((current) => current.map((existing) => (existing.screenID === screen.screenID ? { ...existing, ...patch } : existing)))
+  }
+
+  /** Seeds the live text-size buffer for one pane at a given stage — that stage's resolved content's own value if it has one, else the pane's own shared/fallback value at that same stage. */
+  const seedLiveTextSizes = (leafId: PaneId, stage: number) => {
+    if (!screen || !latestScreen) return
+    const slot = latestScreen.paneSlots[leafId]
+    if (!slot) return
+    const sharedTextSizes = resolveSlotTextSizes(slot, stage) ?? latestScreen.textSizes ?? DEFAULT_TEXT_SIZES
+    const content = resolveSlotContent(slot, stage)
+    setLiveTextSizes(resolveContentTextSizes(content, sharedTextSizes))
+  }
+
   /**
    * Switches the outer tab (the screen-wide "Global" settings, or one
-   * specific slot), reseeding the live text-size buffer for whichever stage
+   * specific pane), reseeding the live text-size buffer for whichever stage
    * is currently active, and persists `editingFocus` straight onto the
    * screen itself so every other open tab/window of it — including the
    * actual live display, possibly running on a kiosk with nobody at a
@@ -183,9 +303,9 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
    * helping show at a glance which physical position on the actual screen
    * is being edited right now.
    */
-  const handleSelectTab = (tab: 'global' | number) => {
+  const handleSelectTab = (tab: 'global' | PaneId) => {
     setActiveTab(tab)
-    if (typeof tab === 'number') seedLiveTextSizes(tab, clampedActiveStage)
+    if (tab !== 'global') seedLiveTextSizes(tab, clampedActiveStage)
     pulseCounterRef.current += 1
     liveUpdateScreen({ editingFocus: { tab, pulse: pulseCounterRef.current } })
   }
@@ -206,37 +326,19 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
     onRouteChange?.(t('admin.screens.backgroundLabel'))
   }
 
-  /** Opens the "Layout" pane-count picker (1-4 panes). */
+  /** Opens the interactive "Layout" grid. */
   const openLayoutEditor = () => {
     setDirection(1)
     setEditingTarget('layout')
-    onRouteChange?.(t('admin.screens.slotCountLabel'))
+    onRouteChange?.(t('admin.screens.layoutLabel'))
   }
 
-  /** Opens the arrangement picker/resize D-pad editor ("Split direction"). */
-  const openArrangementEditor = () => {
+  /** Opens the pane-border color/visibility editor. */
+  const openBordersEditor = () => {
     setDirection(1)
-    setEditingTarget('arrangement')
-    setArrangementShowingBorders(false)
-    onRouteChange?.(t('admin.screens.splitDirectionLabel'))
+    setEditingTarget('borders')
+    onRouteChange?.(t('admin.screens.bordersLabel'))
   }
-
-  /** Opens Arrangement's own nested "Borders" sub-menu. */
-  const openBordersWithinArrangement = () => {
-    setDirection(1)
-    setArrangementShowingBorders(true)
-    onRouteChange?.(`${t('admin.screens.splitDirectionLabel')} - ${t('admin.screens.bordersLabel')}`)
-  }
-
-  /** Returns from Arrangement's own nested "Borders" sub-menu back to the layout picker/resize D-pad — one level up, not all the way out to the main form. */
-  const closeBordersWithinArrangement = () => {
-    setDirection(-1)
-    setArrangementShowingBorders(false)
-    onRouteChange?.(t('admin.screens.splitDirectionLabel'))
-  }
-
-  /** Registers Arrangement's own nested "Borders" sub-menu as its own (third) level of the shared browser-back stack — nested inside the "a sub-view is open" level just below, so the browser's own back action closes Borders first, then the Arrangement sub-view itself, one at a time. */
-  useBackLevel(editingTarget === 'arrangement' && arrangementShowingBorders, closeBordersWithinArrangement)
 
   /** Opens the use-stages/count/duration/transition editor. */
   const openStagesEditor = () => {
@@ -266,96 +368,74 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
     onRouteChange?.(undefined)
   }
 
-  /** Seeds the live text-size buffer for one slot at a given stage — that stage's resolved content's own value if it has one, else the slot's own shared/fallback value at that same stage. */
-  const seedLiveTextSizes = (slotIndex: number, stage: number) => {
-    if (!screen || !latestScreen) return
-    const slot = latestScreen.slots[slotIndex]
-    const sharedTextSizes = resolveSlotTextSizes(slot, stage) ?? latestScreen.textSizes ?? DEFAULT_TEXT_SIZES
-    const content = resolveSlotContent(slot, stage)
-    setLiveTextSizes(resolveContentTextSizes(content, sharedTextSizes))
-  }
-
-  /** Switches which stage the active slot's own tab bar has selected, reseeding the live text-size buffer to match. */
+  /** Switches which stage the active pane's own tab bar has selected, reseeding the live text-size buffer to match. */
   const handleActiveStageChange = (stage: number) => {
     setActiveStage(stage)
-    if (typeof activeTab === 'number') seedLiveTextSizes(activeTab, stage)
+    if (activeLeafId) seedLiveTextSizes(activeLeafId, stage)
   }
 
-  /** Changes the active slot's own content at the currently active stage — writes a checkpoint there, leaving every other stage's own content untouched. */
-  const handleContentChange = (content: ScreenSlotContent) => {
-    if (!activeSlot) return
-    activeSlot.onChange({ ...activeSlot.value, content: writeStageCheckpoint(activeSlot.value.content, clampedActiveStage, content) })
+  /** Writes an updated version of the active pane's own slot into the local draft. */
+  const updateActiveSlot = (updater: (slot: ScreenSlot) => ScreenSlot) => {
+    if (!activeLeafId || !activeSlot) return
+    setDraft((current) => ({ ...current, paneSlots: { ...current.paneSlots, [activeLeafId]: updater(current.paneSlots[activeLeafId]) } }))
   }
 
-  /** Changes the active slot's own background color at the currently active stage — same local-draft-only shape as `handleContentChange` (only actually persisted once "Save" is pressed), not the live-write pattern the text-size/arrangement handlers use. */
-  const handleBackgroundColorChange = (color: string | undefined) => {
-    if (!activeSlot) return
-    activeSlot.onChange({ ...activeSlot.value, backgroundColor: writeStageCheckpoint(activeSlot.value.backgroundColor, clampedActiveStage, color) })
-  }
+  /** Changes the active pane's own content at the currently active stage — writes a checkpoint there, leaving every other stage's own content untouched. */
+  const handleContentChange = (content: ScreenSlotContent) => updateActiveSlot((slot) => ({ ...slot, content: writeStageCheckpoint(slot.content, clampedActiveStage, content) }))
 
-  /** Changes the active slot's own single consolidated background image — to the active stage's own content checkpoint with more than one stage (so each stage's own pane can carry its own distinct image), else to the slot's own shared checkpoint, same split `handleLiveTextSizesChange` already resolves between. Same local-draft-only shape as `handleContentChange`. */
+  /** Changes the active pane's own background color at the currently active stage — same local-draft-only shape as `handleContentChange` (only actually persisted once "Save" is pressed), not the live-write pattern the text-size/layout handlers use. */
+  const handleBackgroundColorChange = (color: string | undefined) => updateActiveSlot((slot) => ({ ...slot, backgroundColor: writeStageCheckpoint(slot.backgroundColor, clampedActiveStage, color) }))
+
+  /** Changes the active pane's own single consolidated background image — to the active stage's own content checkpoint with more than one stage (so each stage's own pane can carry its own distinct image), else to the pane's own shared checkpoint, same split `handleLiveTextSizesChange` already resolves between. Same local-draft-only shape as `handleContentChange`. */
   const handleBackgroundImageChange = (image: BackgroundImage | undefined) => {
     if (!activeSlot) return
     if (hasMultipleStages) {
-      handleContentChange({ ...resolveSlotContent(activeSlot.value, clampedActiveStage), backgroundImage: image })
+      handleContentChange({ ...resolveSlotContent(activeSlot, clampedActiveStage), backgroundImage: image })
       return
     }
-    activeSlot.onChange({ ...activeSlot.value, backgroundImage: writeStageCheckpoint(activeSlot.value.backgroundImage, clampedActiveStage, image) })
+    updateActiveSlot((slot) => ({ ...slot, backgroundImage: writeStageCheckpoint(slot.backgroundImage, clampedActiveStage, image) }))
   }
 
-  /** Changes the active slot's own language override at the currently active stage — `undefined` resets it back to the cafe's own Standard pane language. Same local-draft-only shape as `handleContentChange`. */
-  const handleLanguageChange = (language: LanguageCode | undefined) => {
-    if (!activeSlot) return
-    activeSlot.onChange({ ...activeSlot.value, language: writeStageCheckpoint(activeSlot.value.language, clampedActiveStage, language) })
-  }
+  /** Changes the active pane's own language override at the currently active stage — `undefined` resets it back to the cafe's own Standard pane language. Same local-draft-only shape as `handleContentChange`. */
+  const handleLanguageChange = (language: LanguageCode | undefined) => updateActiveSlot((slot) => ({ ...slot, language: writeStageCheckpoint(slot.language, clampedActiveStage, language) }))
 
   /**
    * Writes the active tab's text-size change into this form's own local
-   * slot state (same as `handleContentChange`), plus — once the screen
-   * actually has a `screenID` to write to — straight to the persisted
-   * screen too (via `useScreens`, the same localStorage-backed store the
-   * display reads from), so it shows up live on that screen's display
-   * immediately, in any other tab/window of this browser already showing
-   * it. Still-being-created screens (no `screenID` yet) only get the local
-   * write — there's nothing to push live to yet — picked up like any other
-   * field once "Save" is pressed. This is plain browser storage, not a
-   * network call, so the live push keeps working even if the internet
-   * drops. With more than one stage, goes to the currently active stage's
-   * own content checkpoint, since editing one step's pane is only ever
-   * meant to change how that step looks; with just one stage, there's
-   * nothing else for a per-content value to differ from, so it goes to the
-   * slot's own shared/fallback checkpoint instead.
+   * draft (same as `handleContentChange`), plus — once the screen actually
+   * has a `screenID` to write to — straight to the persisted screen too
+   * (via `useScreens`, the same localStorage-backed store the display reads
+   * from), so it shows up live on that screen's display immediately, in any
+   * other tab/window of this browser already showing it. Still-being-
+   * created screens (no `screenID` yet) only get the local write — there's
+   * nothing to push live to yet — picked up like any other field once
+   * "Save" is pressed. With more than one stage, goes to the currently
+   * active stage's own content checkpoint, since editing one step's pane is
+   * only ever meant to change how that step looks; with just one stage,
+   * there's nothing else for a per-content value to differ from, so it goes
+   * to the pane's own shared/fallback checkpoint instead.
    */
   const handleLiveTextSizesChange = (sizes: TextSizes) => {
     setLiveTextSizes(sizes)
-    if (typeof activeTab !== 'number') return
-    const slotIndex = activeTab
-    const slot = slotFields[slotIndex].value
+    if (!activeLeafId || !activeSlot) return
 
+    let updatedSlot: ScreenSlot
     if (!hasMultipleStages) {
-      const updatedSlot: ScreenSlot = { ...slot, textSizes: writeStageCheckpoint(slot.textSizes, clampedActiveStage, sizes) }
-      slotFields[slotIndex].onChange(updatedSlot)
-      if (screen) liveUpdateScreen({ slots: slotFields.map((field, i) => (i === slotIndex ? updatedSlot : field.value)) as ScreenConfig['slots'] })
-      return
+      updatedSlot = { ...activeSlot, textSizes: writeStageCheckpoint(activeSlot.textSizes, clampedActiveStage, sizes) }
+    } else {
+      const content = resolveSlotContent(activeSlot, clampedActiveStage)
+      if (!hasOwnTextSizeFields(content)) return
+      updatedSlot = { ...activeSlot, content: writeStageCheckpoint(activeSlot.content, clampedActiveStage, { ...content, textSizes: sizes }) }
     }
-
-    const content = resolveSlotContent(slot, clampedActiveStage)
-    if (!hasOwnTextSizeFields(content)) return
-    const updatedSlot: ScreenSlot = { ...slot, content: writeStageCheckpoint(slot.content, clampedActiveStage, { ...content, textSizes: sizes }) }
-    slotFields[slotIndex].onChange(updatedSlot)
-    if (screen) liveUpdateScreen({ slots: slotFields.map((field, i) => (i === slotIndex ? updatedSlot : field.value)) as ScreenConfig['slots'] })
+    const nextPaneSlots = { ...draft.paneSlots, [activeLeafId]: updatedSlot }
+    setDraft((current) => ({ ...current, paneSlots: nextPaneSlots }))
+    if (screen) liveUpdateScreen({ paneSlots: nextPaneSlots })
   }
 
-  /** Writes a whole-screen percentage-scaled change (the default and every slot's own size, across every stage) straight to the persisted screen, live — same reasoning as `handleLiveTextSizesChange`. */
+  /** Writes a whole-screen percentage-scaled change (the default and every pane's own size, across every stage) straight to the persisted screen, live — same reasoning as `handleLiveTextSizesChange`. */
   const handleGlobalTextSizesChange = (next: SizeSnapshot) => {
     if (!screen) return
-    setScreens((current) => current.map((existing) => (existing.screenID === screen.screenID ? { ...existing, textSizes: next.textSizes, slots: next.slots } : existing)))
-  }
-
-  /** Writes a partial change straight to the persisted screen, live — same reasoning as the text-size handlers: so it shows up on the display immediately, in any other tab/window of this browser already showing it. Reads fresh from storage (the functional `setScreens` form) rather than this component's own `screens` state, which — being a separate `useScreens()` instance from `ScreensView`'s — can otherwise lag behind a write the other one just made. */
-  const liveUpdateScreen = (patch: Partial<ScreenConfig>) => {
-    if (!screen) return
-    setScreens((current) => current.map((existing) => (existing.screenID === screen.screenID ? { ...existing, ...patch } : existing)))
+    setDraft((current) => ({ ...current, paneSlots: next.paneSlots }))
+    setScreens((current) => current.map((existing) => (existing.screenID === screen.screenID ? { ...existing, textSizes: next.textSizes, paneSlots: next.paneSlots } : existing)))
   }
 
   /** Writes the screen's own background color straight to the persisted screen, live. */
@@ -367,36 +447,57 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
   /** Writes the pane border color straight to the persisted screen, live. `undefined` goes back to the automatic contrast-based color. */
   const handleBorderColorChange = (color: string | undefined) => liveUpdateScreen({ borderColor: color })
 
-  /** Writes the chosen slot count straight to the persisted screen, live. */
-  const handleSlotCountChange = (count: number) => {
-    setSlotCount(count)
-    liveUpdateScreen({ slotCount: count })
-  }
-
-  /** Writes the row/column split direction (2 slots) straight to the persisted screen, live. */
-  const handleSplitDirectionChange = (direction: SplitDirection) => {
-    setSplitDirection(direction)
-    liveUpdateScreen({ splitDirection: direction })
-  }
-
-  /** Writes a triple arrangement (3 slots) straight to the persisted screen, live. */
-  const handleTripleArrangementChange = (direction: SplitDirection, bigPosition: SplitBigPosition) => {
-    setSplitDirection(direction)
-    setSplitBigPosition(bigPosition)
-    liveUpdateScreen({ splitDirection: direction, splitBigPosition: bigPosition })
-  }
-
   /** Writes the chosen transition style (fade/slide) straight to the persisted screen, live. */
   const handleTransitionStyleChange = (style: ScreenTransitionStyle) => {
     setTransitionStyle(style)
     liveUpdateScreen({ transitionStyle: style })
   }
 
-  /** Nudges the divider a "Resize" arrow direction controls (for the screen's current arrangement) by 1%, live, checkpointed at the currently active stage — the exact same fields the display's own draggable dividers adjust, so the two stay in sync no matter which is used to resize. No-ops (button disabled) for a direction with no divider on that axis. */
-  const handleNudgeRatio = (direction: ResizeDirection) => {
-    if (!latestScreen) return
-    const patch = nudgeRatio(latestScreen, direction, clampedActiveStage)
-    if (patch) liveUpdateScreen(patch)
+  /** Persists a divider drag (or, once the split/delete UI lands, a structural edit) from the inline "Layout" grid straight to the persisted screen, live — matching how the live display's own dragging already works. */
+  const handleResizeDivider = (patch: Partial<ScreenConfig>) => {
+    setDraft((current) => ({
+      layout: patch.layout ?? current.layout,
+      paneSlots: patch.paneSlots ? { ...current.paneSlots, ...patch.paneSlots } : current.paneSlots,
+    }))
+    if (screen) liveUpdateScreen(patch)
+  }
+
+  /**
+   * Splits `leafId` into two along `axis`, always an even 50/50 split, both
+   * halves starting with its own duplicated content — switches to the new
+   * pane's own tab afterward. `edge` defaults to placing the new pane on
+   * the trailing side (matching the plain "Split pane horizontally/
+   * vertically" buttons' own fixed behavior); the hover-thirds UI in the
+   * "Layout" preview passes its own edge instead, matching whichever third
+   * was clicked. Live-pushed immediately (no draft-only step), same
+   * posture `handleResizeDivider` already has.
+   */
+  const handleSplitPane = (leafId: PaneId, axis: SplitDirection, edge: 'start' | 'end' = 'end') => {
+    if (!resolvedTree) return
+    const { tree, newPaneId } = splitLeaf(resolvedTree, leafId, axis, edge)
+    const nextLayout = writeStageCheckpoint(draft.layout, clampedActiveStage, tree)
+    const nextPaneSlots = { ...draft.paneSlots, [newPaneId]: cloneSlot(draft.paneSlots[leafId]) }
+    setDraft({ layout: nextLayout, paneSlots: nextPaneSlots })
+    setActiveTab(newPaneId)
+    if (screen) liveUpdateScreen({ layout: nextLayout, paneSlots: nextPaneSlots })
+  }
+
+  /** Deletes `leafId` — its sibling takes over the freed space. No-op when it's the only pane left (the delete button isn't rendered at all in that case). Switches back to the "Global" tab if the deleted pane was the one currently open. */
+  const handleDeletePane = (leafId: PaneId) => {
+    if (!resolvedTree) return
+    const nextTree = deleteLeaf(resolvedTree, leafId)
+    if (!nextTree) return
+    const nextLayout = writeStageCheckpoint(draft.layout, clampedActiveStage, nextTree)
+    setDraft((current) => ({ ...current, layout: nextLayout }))
+    if (activeLeafId === leafId) setActiveTab('global')
+    if (screen) liveUpdateScreen({ layout: nextLayout })
+  }
+
+  /** Resets `leafId`'s own content/background/text-size straight back to a fresh blank `ScreenSlot` — independent of `layout` entirely. Live-pushed immediately, same posture as split/delete. */
+  const handleClearPane = (leafId: PaneId) => {
+    const nextPaneSlots = { ...draft.paneSlots, [leafId]: emptySlot() }
+    setDraft((current) => ({ ...current, paneSlots: nextPaneSlots }))
+    if (screen) liveUpdateScreen({ paneSlots: nextPaneSlots })
   }
 
   /** Toggles the live screensaver preview straight on the persisted screen — unlike `useScreensaver` itself (a plain field saved along with everything else on Submit), this needs to show up immediately on any open kiosk tab to actually be useful as a test. */
@@ -407,25 +508,20 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
 
   /**
    * Returning from the whole-screen percentage scaler to the main form —
-   * re-seeds the 4 slot fields from the freshest persisted data, since the
-   * scaler writes straight into every slot's own content/color/text
-   * sizes. Without this, the main form's own (now-stale) local slot state
+   * re-seeds the local pane draft from the freshest persisted data, since
+   * the scaler writes straight into every pane's own content/color/text
+   * sizes. Without this, the main form's own (now-stale) local pane state
    * would stomp those live writes the next time "Save" is clicked.
    */
   const closeGlobalTextSizeEditor = () => {
     setDirection(-1)
     const latest = screens.find((candidate) => candidate.screenID === screen?.screenID)
-    if (latest) {
-      setSlot1(latest.slots[0])
-      setSlot2(latest.slots[1])
-      setSlot3(latest.slots[2])
-      setSlot4(latest.slots[3])
-    }
+    if (latest) setDraft({ layout: latest.layout, paneSlots: latest.paneSlots })
     setEditingTarget(null)
     onRouteChange?.(undefined)
   }
 
-  /** Registers "a sub-view is open" as its own level of the shared browser-back stack (see `useBackLevel`) — closes via whichever function actually returns to the main tabbed form for the currently open one, since the "global" scaler's own close also re-seeds this form's local slot state (see `closeGlobalTextSizeEditor`) and every other sub-view's doesn't need that. The single Back button lives one level up, in `ScreensView`'s own header — not here. */
+  /** Registers "a sub-view is open" as its own level of the shared browser-back stack (see `useBackLevel`) — closes via whichever function actually returns to the main tabbed form for the currently open one, since the "global" scaler's own close also re-seeds this form's local pane state (see `closeGlobalTextSizeEditor`) and every other sub-view's doesn't need that. The single Back button lives one level up, in `ScreensView`'s own header — not here. */
   const closeCurrentSubview = () => {
     if (editingTarget === 'global') {
       closeGlobalTextSizeEditor()
@@ -442,30 +538,45 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
     viewKey = 'global'
     formContent = (
       <div className="screen-form__subview">
-        <GlobalTextSizeScaler screen={latestScreen ?? screen} onChange={handleGlobalTextSizesChange} onDone={closeGlobalTextSizeEditor} />
+        <GlobalTextSizeScaler screen={latestScreen ?? previewScreen} onChange={handleGlobalTextSizesChange} onDone={closeGlobalTextSizeEditor} />
       </div>
     )
   } else if (editingTarget === 'layout') {
     viewKey = 'layout'
     formContent = (
       <div className="screen-form__subview">
-        <div className="screen-form__layout-picker">
-          {[1, 2, 3, 4].map((count) => {
-            const countLabel = count === 1 ? t('admin.screens.slotCountBadgeOne') : t('admin.screens.slotCountBadge', { count })
-            return (
-              <button
-                key={count}
-                type="button"
-                aria-label={countLabel}
-                title={countLabel}
-                className={`screen-form__layout-option${slotCount === count ? ' screen-form__layout-option--active' : ''}`}
-                onClick={() => handleSlotCountChange(count)}
-              >
-                <LayoutIcon pattern={SLOT_COUNT_PREVIEW_PATTERNS[count]} highlightIndex="all" />
-              </button>
-            )
-          })}
+        <div className="screen-form__layout-picker" role="group" aria-label={t('admin.screens.previewRatioLabel')}>
+          {PREVIEW_ASPECT_RATIOS.map(({ ratio, label }) => (
+            <button
+              key={label}
+              type="button"
+              className={`screen-form__layout-option${previewAspectRatio.width === ratio.width && previewAspectRatio.height === ratio.height ? ' screen-form__layout-option--active' : ''}`}
+              onClick={() => setPreviewAspectRatio(ratio)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
+        {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={clampedActiveStage} onActiveStageChange={handleActiveStageChange} />}
+        <ScaledScreenPreview aspectRatio={previewAspectRatio}>
+          <SplitLayout
+            screen={previewScreen}
+            resolveTextSizes={(leafId, stage, content) => {
+              const slot = draft.paneSlots[leafId]
+              const shared = (slot && resolveSlotTextSizes(slot, stage)) ?? latestScreen?.textSizes ?? DEFAULT_TEXT_SIZES
+              return resolveContentTextSizes(content, shared)
+            }}
+            stage={clampedActiveStage}
+            onResizeDivider={handleResizeDivider}
+            onEditSlide={handleSelectTab}
+            onSplitPane={handleSplitPane}
+            onClearPane={handleClearPane}
+            onDeletePane={handleDeletePane}
+            selectedLeafId={activeLeafId ?? undefined}
+            defaultPaneLanguage={defaultPaneLanguage}
+          />
+        </ScaledScreenPreview>
+        {activeLeafId && renderActivePaneEditor(t('admin.screens.layoutLabel'))}
       </div>
     )
   } else if (editingTarget === 'background' && latestScreen) {
@@ -553,8 +664,8 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
         )}
       </div>
     )
-  } else if (editingTarget === 'arrangement' && latestScreen && arrangementShowingBorders) {
-    viewKey = 'arrangement-borders'
+  } else if (editingTarget === 'borders' && latestScreen) {
+    viewKey = 'borders'
     formContent = (
       <div className="screen-form__subview">
         <Checkbox
@@ -574,108 +685,6 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
         )}
       </div>
     )
-  } else if (editingTarget === 'arrangement' && latestScreen) {
-    viewKey = 'arrangement'
-    formContent = (
-      <div className="screen-form__subview">
-        {slotCount === 2 && (
-          <div className="screen-form__field">
-            <span>{t('admin.screens.splitDirectionLabel')}</span>
-            <div className="screen-form__layout-picker">
-              <button
-                type="button"
-                className={`screen-form__layout-option${splitDirection === 'row' ? ' screen-form__layout-option--active' : ''}`}
-                onClick={() => handleSplitDirectionChange('row')}
-                aria-label={t('admin.screens.splitDirectionRowLabel')}
-                title={t('admin.screens.splitDirectionRowLabel')}
-              >
-                <LayoutIcon pattern="row" />
-              </button>
-              <button
-                type="button"
-                className={`screen-form__layout-option${splitDirection === 'column' ? ' screen-form__layout-option--active' : ''}`}
-                onClick={() => handleSplitDirectionChange('column')}
-                aria-label={t('admin.screens.splitDirectionColumnLabel')}
-                title={t('admin.screens.splitDirectionColumnLabel')}
-              >
-                <LayoutIcon pattern="column" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {slotCount === 3 && (
-          <div className="screen-form__field">
-            <span>{t('admin.screens.splitDirectionLabel')}</span>
-            <div className="screen-form__layout-picker">
-              {TRIPLE_ARRANGEMENTS.map(({ pattern, direction, bigPosition, labelKey }) => {
-                const isActive = splitDirection === direction && splitBigPosition === bigPosition
-                const label = t(`admin.screens.${labelKey}`)
-                return (
-                  <button
-                    type="button"
-                    key={pattern}
-                    className={`screen-form__layout-option${isActive ? ' screen-form__layout-option--active' : ''}`}
-                    onClick={() => handleTripleArrangementChange(direction, bigPosition)}
-                    aria-label={label}
-                    title={label}
-                  >
-                    <LayoutIcon pattern={pattern} />
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        <div className="screen-form__field">
-          <span>{t('admin.screens.resizeLabel')}</span>
-        </div>
-        {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={clampedActiveStage} onActiveStageChange={handleActiveStageChange} />}
-        <div className="screen-form__resize-pad" role="group" aria-label={t('admin.screens.resizeLabel')}>
-          <button
-            type="button"
-            className="screen-form__resize-arrow screen-form__resize-arrow--up"
-            disabled={!nudgeRatio(latestScreen, 'up', clampedActiveStage)}
-            onClick={() => handleNudgeRatio('up')}
-            aria-label={t('admin.screens.resizeUpLabel')}
-          >
-            ▲
-          </button>
-          <button
-            type="button"
-            className="screen-form__resize-arrow screen-form__resize-arrow--left"
-            disabled={!nudgeRatio(latestScreen, 'left', clampedActiveStage)}
-            onClick={() => handleNudgeRatio('left')}
-            aria-label={t('admin.screens.resizeLeftLabel')}
-          >
-            ◀
-          </button>
-          <button
-            type="button"
-            className="screen-form__resize-arrow screen-form__resize-arrow--right"
-            disabled={!nudgeRatio(latestScreen, 'right', clampedActiveStage)}
-            onClick={() => handleNudgeRatio('right')}
-            aria-label={t('admin.screens.resizeRightLabel')}
-          >
-            ▶
-          </button>
-          <button
-            type="button"
-            className="screen-form__resize-arrow screen-form__resize-arrow--down"
-            disabled={!nudgeRatio(latestScreen, 'down', clampedActiveStage)}
-            onClick={() => handleNudgeRatio('down')}
-            aria-label={t('admin.screens.resizeDownLabel')}
-          >
-            ▼
-          </button>
-        </div>
-
-        <Button type="button" variant="secondary" onClick={openBordersWithinArrangement}>
-          {t('admin.screens.bordersLabel')}
-        </Button>
-      </div>
-    )
   } else {
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault()
@@ -688,14 +697,12 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
         ...(latestScreen ?? screen),
         screenID: screen?.screenID ?? `${Date.now()}`,
         name,
-        slotCount,
-        slots: [slot1, slot2, slot3, slot4],
+        layout: draft.layout,
+        paneSlots: draft.paneSlots,
         useStages,
         stageCount,
         slideDurationSeconds,
         transitionStyle,
-        splitDirection,
-        splitBigPosition,
         showSlotBorders,
         hideScrollbar,
         useScreensaver,
@@ -715,20 +722,20 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
             className={`screen-form__tab screen-form__tab--icon${activeTab === 'global' ? ' screen-form__tab--active' : ''}`}
             onClick={() => handleSelectTab('global')}
           >
-            <LayoutIcon pattern={arrangementPattern} highlightIndex="all" />
+            <LayoutIcon layout={resolvedTree ?? null} highlightId="all" />
           </button>
-          {slotFields.map(({ id, label, value }, index) => (
+          {leaves.map((leaf, index) => (
             <button
-              key={id}
+              key={leaf.id}
               type="button"
               role="tab"
-              aria-selected={activeTab === index}
-              aria-label={label}
-              title={label}
-              className={`screen-form__tab screen-form__tab--icon${activeTab === index ? ' screen-form__tab--active' : ''}${isSlotActive(value) ? ' screen-form__tab--filled' : ''}${index >= slotCount ? ' screen-form__tab--out-of-range' : ''}`}
-              onClick={() => handleSelectTab(index)}
+              aria-selected={activeTab === leaf.id}
+              aria-label={t('admin.screens.paneLabel', { number: index + 1 })}
+              title={t('admin.screens.paneLabel', { number: index + 1 })}
+              className={`screen-form__tab screen-form__tab--icon${activeTab === leaf.id ? ' screen-form__tab--active' : ''}${draft.paneSlots[leaf.id] && isSlotActive(draft.paneSlots[leaf.id]) ? ' screen-form__tab--filled' : ''}`}
+              onClick={() => handleSelectTab(leaf.id)}
             >
-              <LayoutIcon pattern={arrangementPattern} highlightIndex={index} />
+              <LayoutIcon layout={resolvedTree ?? null} highlightId={leaf.id} />
             </button>
           ))}
         </div>
@@ -740,7 +747,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
 
               <motion.div layout>
                 <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openLayoutEditor}>
-                  {t('admin.screens.slotCountLabel')}
+                  {t('admin.screens.layoutLabel')}
                   <span aria-hidden="true">→</span>
                 </Button>
               </motion.div>
@@ -763,11 +770,11 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
                 </motion.div>
               )}
 
-              {/* Fades and slides in/out as slotCount crosses 1 (`initial={false}` skips this on first mount, since it's not really "appearing"). Animating its own `height` (0 to/from its natural size, `layout` enables interpolating that "auto" value) — rather than just `opacity`/`y` — is what actually makes every field below it glide smoothly into its new position instead of snapping the instant this one's removed from the document flow; those fields only need `layout` themselves to pick up that progressive reflow. `overflow: hidden` keeps the button from spilling out while its own height is still animating. */}
+              {/* Fades and slides in/out as the pane count crosses 1 (`initial={false}` skips this on first mount, since it's not really "appearing"). Animating its own `height` (0 to/from its natural size, `layout` enables interpolating that "auto" value) — rather than just `opacity`/`y` — is what actually makes every field below it glide smoothly into its new position instead of snapping the instant this one's removed from the document flow; those fields only need `layout` themselves to pick up that progressive reflow. `overflow: hidden` keeps the button from spilling out while its own height is still animating. */}
               <AnimatePresence initial={false}>
-                {slotCount > 1 && latestScreen && (
+                {leaves.length > 1 && latestScreen && (
                   <motion.div
-                    key="arrangement"
+                    key="borders"
                     layout
                     initial={{ opacity: 0, y: -12, height: 0 }}
                     animate={{ opacity: 1, y: 0, height: 'auto' }}
@@ -775,8 +782,8 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
                     transition={{ duration: 0.2, ease: 'easeOut' }}
                     style={{ overflow: 'hidden' }}
                   >
-                    <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openArrangementEditor}>
-                      {t('admin.screens.splitDirectionLabel')}
+                    <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openBordersEditor}>
+                      {t('admin.screens.bordersLabel')}
                       <span aria-hidden="true">→</span>
                     </Button>
                   </motion.div>
@@ -807,54 +814,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
               </motion.div>
             </>
           ) : (
-            activeSlot &&
-            (() => {
-              const content = resolveSlotContent(activeSlot.value, clampedActiveStage)
-              const backgroundImage = resolveContentBackgroundImage(content, resolveSlotBackgroundImage(activeSlot.value, clampedActiveStage))
-              const handlePaneRouteChange = (route: string | undefined) => {
-                if (!route) {
-                  onRouteChange?.(undefined)
-                  return
-                }
-                const slotLabel = t('screenDisplay.textSizeEditor.slotLabel', { number: (activeTab as number) + 1 })
-                const stagePart = hasMultipleStages ? ` - ${t('screenDisplay.textSizeEditor.stageTabLabel', { number: clampedActiveStage })}` : ''
-                onRouteChange?.(`${slotLabel}${stagePart} - ${route}`)
-              }
-              return (
-                <PaneEditor
-                  id={activeSlot.id}
-                  content={content}
-                  onContentChange={handleContentChange}
-                  backgroundColor={resolveSlotBackgroundColor(activeSlot.value, clampedActiveStage)}
-                  onBackgroundColorChange={handleBackgroundColorChange}
-                  backgroundImage={backgroundImage}
-                  onBackgroundImageChange={handleBackgroundImageChange}
-                  textSizes={liveTextSizes}
-                  onTextSizesChange={handleLiveTextSizesChange}
-                  language={resolveSlotLanguage(activeSlot.value, clampedActiveStage)}
-                  onLanguageChange={handleLanguageChange}
-                  defaultLanguage={defaultPaneLanguage}
-                  useStages={useStages}
-                  stageCount={stageCount}
-                  activeStage={clampedActiveStage}
-                  onActiveStageChange={handleActiveStageChange}
-                  label={hasMultipleStages ? t('screenDisplay.textSizeEditor.stageTabLabel', { number: clampedActiveStage }) : activeSlot.label}
-                  resizeToFitBlocked={isResizeToFitConflict(
-                    slotFields.map((field) => field.value),
-                    activeTab as number,
-                    clampedActiveStage,
-                  )}
-                  suggestedEventOrdinal={
-                    findSiblingEventOrdinal(
-                      slotFields.filter((_, index) => index !== activeTab).map((field) => field.value),
-                      clampedActiveStage,
-                    ) ?? 1
-                  }
-                  onRouteChange={handlePaneRouteChange}
-                  hideBackButton
-                />
-              )
-            })()
+            renderActivePaneEditor()
           )}
         </div>
 

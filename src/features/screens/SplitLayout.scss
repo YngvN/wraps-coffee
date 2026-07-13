@@ -2,59 +2,12 @@
 
 .split-layout {
   position: relative;
-  display: grid;
   width: 100%;
   height: 100%;
-  // The divider between panes is this grid's own background showing through
-  // its `gap` — grid gap only ever appears *between* cells, never around
-  // the outside, so this can't produce an outer border no matter the
-  // arrangement.
-  gap: 4px;
-  background-color: var(--screen-border);
-  // Also picking up a new color when the screen's own background changes
-  // (`--screen-border` is derived from it) — set inline, alongside the
-  // grid-template-resize transition, since an inline `transition` replaces
-  // rather than merges with this one; see `SplitLayout.tsx`'s own
-  // `gridTransition`.
 
-  &--no-borders {
+  &--no-borders .layout-tree__split {
     gap: 0;
     background-color: transparent;
-  }
-
-  // Sizing (grid-template-columns/rows) for every arrangement below is set
-  // live, per screen, via inline style (see `splitGridTemplate` — driven by
-  // that screen's own adjustable divider ratios, draggable right on this
-  // grid via `SplitLayoutDivider`). Only `grid-template-areas` — which
-  // named pane goes where, never adjustable — stays here.
-
-  &--single {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr;
-  }
-
-  &--triple-row-first {
-    grid-template-areas:
-      'big big'
-      'small1 small2';
-  }
-
-  &--triple-row-second {
-    grid-template-areas:
-      'small1 small2'
-      'big big';
-  }
-
-  &--triple-column-first {
-    grid-template-areas:
-      'big small1'
-      'big small2';
-  }
-
-  &--triple-column-second {
-    grid-template-areas:
-      'small1 big'
-      'small2 big';
   }
 
   &--empty {
@@ -66,14 +19,43 @@
   }
 }
 
+// One of these per `split` node in the tree (see `LayoutTree.tsx`) — a
+// plain 2-cell grid holding that node's own two children (each in turn a
+// pane or another nested split), sized live via inline style
+// (`nodeGridTemplate`, driven by that node's own adjustable ratio,
+// draggable right on this grid via `SplitLayoutDivider`). The divider line
+// itself is just this grid's own background showing through its `gap` —
+// grid gap only ever appears *between* cells, never around the outside, so
+// nesting these can't produce a doubled-up or missing border anywhere.
+.layout-tree__split {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  // A grid item's default `min-width`/`min-height` is `auto`, not `0` — it
+  // refuses to shrink below its own *content's* natural size even when the
+  // grid assigns it a smaller track. A nested split whose own subtree
+  // happens to want more room than its assigned share can then overflow
+  // into (and visually paint over) its parent's own `gap`, silently
+  // erasing the border at exactly that boundary while every other,
+  // shallower one still renders fine — `overflow: hidden` is what forces a
+  // grid item back down to its assigned track size regardless of depth.
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  gap: 4px;
+  background-color: var(--screen-border);
+}
+
 .split-layout__pane {
   position: relative;
   height: 100%;
   overflow: hidden;
   // Always paints its own background (not just relying on the screen's own
-  // showing through) so it fully covers the grid container's background —
-  // otherwise that divider color (see `.split-layout`'s own `background`)
-  // would show through the whole pane, not just the gap around it.
+  // showing through) so it fully covers its parent grid's own background —
+  // otherwise that divider color (see `.layout-tree__split`'s own
+  // `background`) would show through the whole pane, not just the gap
+  // around it.
   background-color: var(--screen-bg);
   // Re-declares `color` here (not just inherits it from `.screen-display`)
   // so that when this pane's own background color redefines `--screen-text`
@@ -82,22 +64,18 @@
   // change a `color` value already resolved higher up. Falls back to the
   // screen's own text color when the slot has no color of its own.
   color: var(--screen-text);
-  // The actual `transition` (with its own delay, when this pane's own
-  // content just crossfaded to a new checkpoint) is computed and set
-  // inline instead — see `SplitLayout.tsx`'s own `paneColorDelay`.
-  // Pane hover/click highlighting is now `PaneEditButton`'s own concern
-  // (see `PaneEditButton.scss`) rather than a rule here reaching into it.
+  // Pane hover/click highlighting is `PaneEditButton`'s own concern (see
+  // `PaneEditButton.scss`) rather than a rule here reaching into it.
 
-  &--big {
-    grid-area: big;
-  }
-
-  &--small1 {
-    grid-area: small1;
-  }
-
-  &--small2 {
-    grid-area: small2;
+  // A persistent (not hover-only) ring around whichever pane a caller says
+  // is currently selected — e.g. the admin form's own "Layout" preview,
+  // matching which pane's own editor is open just beneath it. Inset so it
+  // never gets clipped by this pane's own `overflow: hidden`; `z-index`
+  // above the content but below the edit button so the button's own click
+  // target is never blocked by it.
+  &--selected {
+    box-shadow: inset 0 0 0 3px var(--screen-accent);
+    z-index: 4;
   }
 }
 
@@ -163,28 +141,6 @@
   inset: 0;
 }
 
-// While a pane-resize CSS transition is animating (a stage advance, a
-// `resizeToFit` image growing/shrinking, the admin's own arrow-nudge
-// "Resize" panel, etc. — see `SplitLayout.tsx`'s own `isPaneResizing`,
-// which never applies during a live divider drag), every slide's own
-// heading/title text is kept on one line instead of visibly wrapping and
-// unwrapping through several line counts while its pane's width is still
-// animating toward its final size — ellipsized rather than left to
-// overflow raw. Scoped to `h1`/`h2` only, the tag every slide's own
-// title-level heading uses — body/description text (`p`) keeps wrapping
-// normally throughout, since multi-line prose reflowing mid-transition
-// reads far less jarring than a short title doing it. Reverts the instant
-// the transition settles and this class is removed, restoring each
-// heading's own `overflow-wrap: break-word` for genuinely long titles.
-.split-layout--resizing .split-layout__pane-content {
-  h1,
-  h2 {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-}
-
 // The admin editor's own click-feedback flash (see `screen.editingFocus`),
 // shown right on this pane on the actual live display — sits above the
 // background/content layers and the edit button alike (last in the DOM),
@@ -192,6 +148,7 @@
 .split-layout__pane-pulse {
   position: absolute;
   inset: 0;
+  z-index: 9;
   background: #fff;
   pointer-events: none;
 }

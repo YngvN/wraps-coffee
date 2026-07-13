@@ -1,13 +1,24 @@
 import screensSeed from '../data/screens.json'
 import type { ProductCategory } from '../types/product'
-import type { BackgroundImage, RatioField, ScreenConfig, ScreenSlot, ScreenSlotContent, TextSizes } from '../types/screen'
-import { isSlotActive } from '../utils/screenStages'
+import type { BackgroundImage, LayoutNode, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SplitDirection, StageTimeline, TextSizes } from '../types/screen'
+import { clampRatio } from '../utils/screenLayout'
+import { isSlotActive, resolveStageValue } from '../utils/screenStages'
 import { normalizeTextSizes } from '../utils/textSizeVars'
 import { useLocalStorage } from './useLocalStorage'
 
 const STORAGE_KEY = 'admin.screens'
 
-const RATIO_FIELDS: RatioField[] = ['splitRatio', 'tripleBigRatio', 'tripleSmallRatio', 'quadColumnRatio', 'quadRowRatio']
+/** The 5 named divider fields the pre-tree arrangement model used — kept as a local type (not exported from `types/screen.ts` anymore) purely so this file's own migration can still read old persisted data shaped like it. */
+type LegacyRatioField = 'splitRatio' | 'tripleBigRatio' | 'tripleSmallRatio' | 'quadColumnRatio' | 'quadRowRatio'
+
+/** The pre-tree-rework shape of a screen's arrangement fields, as they might still be sitting in a browser's storage or the local server's own data file. */
+interface LegacyArrangement {
+  slotCount: number
+  slots: unknown[]
+  splitDirection?: SplitDirection
+  splitBigPosition?: 'first' | 'second'
+  ratios?: Partial<Record<LegacyRatioField, StageTimeline<number>>>
+}
 
 /** The shape a content checkpoint took under the removed `'category'` kind — kept as its own local type (rather than `Extract<ScreenSlotContent, ...>`) so `migrateCategoryContent` keeps working once `'category'` is gone from `ScreenSlotContent` itself, since old persisted data can still literally contain one of these regardless of what the current type allows. */
 interface LegacyCategoryContent {
@@ -76,25 +87,6 @@ function migrateContent(content: ScreenSlotContent): ScreenSlotContent {
   return migrateEventsContent(migrateAnnouncementContent(migrateCategoryContent(content)))
 }
 
-/**
- * Migrates a screen's pre-stages flat ratio fields (`splitRatio`,
- * `tripleBigRatio`, `tripleSmallRatio`, `quadColumnRatio`, `quadRowRatio` —
- * each a single screen-wide number, since removed) into the current
- * per-field, per-stage `ratios` shape, each becoming a lone stage-1
- * checkpoint. Already-current screens (which have `ratios` set, however
- * sparsely) are returned untouched.
- */
-function migrateRatios(screen: ScreenConfig): ScreenConfig['ratios'] {
-  if (screen.ratios) return screen.ratios
-  const legacy = screen as ScreenConfig & Partial<Record<RatioField, number>>
-  const ratios: NonNullable<ScreenConfig['ratios']> = {}
-  RATIO_FIELDS.forEach((field) => {
-    const value = legacy[field]
-    if (typeof value === 'number') ratios[field] = { 1: value }
-  })
-  return Object.keys(ratios).length > 0 ? ratios : undefined
-}
-
 /** The shape a persisted slot took before shared stages existed: one shared `isSlideshow` flag plus a flat, always-fully-populated list of rotating slides. */
 interface LegacySlot {
   isSlideshow?: boolean
@@ -158,38 +150,152 @@ function normalizeSlot(value: unknown, legacyTextSizes: TextSizes | undefined): 
   return { content: { 1: { kind: 'none' } }, backgroundColor: { 1: undefined }, backgroundImage: { 1: undefined }, textSizes: { 1: legacyTextSizes }, language: {} }
 }
 
+/** A migrated legacy pane's own deterministic, position-derived id — stable across repeated migrations of the same underlying legacy data (unlike a fresh random id), so a previously-migrated `editingFocus.tab` keeps matching on every re-read, and so this doesn't cause needless remounts. Once a screen is ever saved back with a real `layout`/`paneSlots`, this id scheme is never exercised again for it. */
+function legacyPaneId(index: number): PaneId {
+  return `legacy-${index}`
+}
+
+/** Which of the 5 legacy ratio fields are actually relevant to a given legacy `slotCount` — mirrors exactly which fields `screenDividers`/`splitGridTemplate` used to read for that count. */
+function legacyRatioFieldsForSlotCount(slotCount: number): LegacyRatioField[] {
+  if (slotCount === 2) return ['splitRatio']
+  if (slotCount === 3) return ['tripleBigRatio', 'tripleSmallRatio']
+  if (slotCount === 4) return ['quadColumnRatio', 'quadRowRatio']
+  return []
+}
+
 /**
- * Normalizes a screen's `slots` tuple (padding with empty slots if it's
- * missing or short), migrates any pre-stages `slotTextSizes` (a screen-level
- * field keyed by slot index, since removed) into each slot's own `textSizes`
- * timeline, migrates any pre-stages flat ratio fields into the current
- * per-stage `ratios` shape (see `migrateRatios`), and fills in
- * `slotCount`/`useStages`/`stageCount` for screens saved before they
- * existed.
+ * Builds the tree shape a legacy `slotCount`/`splitDirection`/
+ * `splitBigPosition` arrangement is equivalent to, with every ratio
+ * resolved at one specific `stage` — see `migrateLayout` for how this is
+ * called once per stage that had its own distinct ratio checkpoint, so a
+ * legacy screen's own per-stage divider positions (ratios were already
+ * per-stage before this rework, even though `slotCount` itself never was)
+ * carry over faithfully. Note the legacy "row"/"column" `splitDirection`
+ * naming, for the 3-slot case specifically, describes the *grid's* row/column
+ * count (2 grid rows for `'row'`, big on top) rather than literally "the
+ * outer big/small split's own direction" — `'row'` means the outer
+ * big/small split is stacked (this file's `'column'`) with the small pair
+ * splitting side by side (this file's `'row'`), and vice versa for
+ * `'column'` — a quirk of the pre-rework naming, reproduced exactly here so
+ * the migrated tree renders identically to how it looked before.
  */
-function normalizeScreen(screen: ScreenConfig): ScreenConfig {
-  const rawSlots = Array.isArray(screen.slots) ? screen.slots : []
-  const legacySlotTextSizes = (screen as ScreenConfig & { slotTextSizes?: Record<number, TextSizes> }).slotTextSizes
-  const slots = [0, 1, 2, 3].map((index) => normalizeSlot(rawSlots[index], legacySlotTextSizes?.[index])) as ScreenConfig['slots']
+function buildLegacyTreeForStage(slotCount: number, splitDirection: SplitDirection | undefined, splitBigPosition: 'first' | 'second' | undefined, ratios: LegacyArrangement['ratios'], stage: number): LayoutNode {
+  const direction = splitDirection ?? 'row'
+  const bigPosition = splitBigPosition ?? 'first'
+  const at = (field: LegacyRatioField): number => clampRatio(resolveStageValue(ratios?.[field], stage) ?? 50)
+  const leaf = (index: number): LayoutNode => ({ type: 'leaf', id: legacyPaneId(index) })
+
+  if (slotCount === 2) return { type: 'split', direction, ratio: at('splitRatio'), first: leaf(0), second: leaf(1) }
+
+  if (slotCount === 3) {
+    const outerDirection: SplitDirection = direction === 'row' ? 'column' : 'row'
+    const smallPairDirection: SplitDirection = direction === 'row' ? 'row' : 'column'
+    const smallPair: LayoutNode = { type: 'split', direction: smallPairDirection, ratio: at('tripleSmallRatio'), first: leaf(1), second: leaf(2) }
+    const big = leaf(0)
+    return bigPosition === 'first'
+      ? { type: 'split', direction: outerDirection, ratio: at('tripleBigRatio'), first: big, second: smallPair }
+      : { type: 'split', direction: outerDirection, ratio: 100 - at('tripleBigRatio'), first: smallPair, second: big }
+  }
+
+  if (slotCount === 4) {
+    const column = at('quadColumnRatio')
+    const topRow: LayoutNode = { type: 'split', direction: 'row', ratio: column, first: leaf(0), second: leaf(1) }
+    const bottomRow: LayoutNode = { type: 'split', direction: 'row', ratio: column, first: leaf(2), second: leaf(3) }
+    return { type: 'split', direction: 'column', ratio: at('quadRowRatio'), first: topRow, second: bottomRow }
+  }
+
+  return leaf(0)
+}
+
+/**
+ * Converts a screen's pre-tree-rework arrangement (`slotCount`,
+ * `slots`, `splitDirection`, `splitBigPosition`, `ratios`) into the
+ * equivalent `layout`/`paneSlots`. The legacy arrangement's own *shape*
+ * (`slotCount`/`splitDirection`/`splitBigPosition`) was never per-stage —
+ * only its `ratios` were — so this produces one tree checkpoint per stage
+ * that actually had its own distinct ratio value (falling back to a single
+ * stage-1 checkpoint when the arrangement had no adjustable dividers at
+ * all, or none were ever moved off their 50/50 default), each checkpoint
+ * the same shape with that stage's own resolved divider positions baked in
+ * — a faithful reproduction of "this screen always had the same shape, but
+ * its dividers could already vary by stage."
+ */
+function migrateLegacyArrangement(legacy: LegacyArrangement, normalizedSlots: ScreenSlot[]): { layout: StageTimeline<LayoutNode>; paneSlots: Record<PaneId, ScreenSlot> } {
+  const slotCount = Math.min(4, Math.max(1, legacy.slotCount || 1))
+
+  const paneSlots: Record<PaneId, ScreenSlot> = {}
+  for (let index = 0; index < slotCount; index++) paneSlots[legacyPaneId(index)] = normalizedSlots[index]
+
+  const relevantFields = legacyRatioFieldsForSlotCount(slotCount)
+  const stageKeys = new Set<number>([1])
+  relevantFields.forEach((field) => Object.keys(legacy.ratios?.[field] ?? {}).forEach((key) => stageKeys.add(Number(key))))
+
+  const layout: StageTimeline<LayoutNode> = {}
+  for (const stage of stageKeys) layout[stage] = buildLegacyTreeForStage(slotCount, legacy.splitDirection, legacy.splitBigPosition, legacy.ratios, stage)
+
+  return { layout, paneSlots }
+}
+
+/** A legacy `editingFocus.tab` (a plain positional index) mapped to the corresponding migrated pane's own deterministic id — `'global'` or an already-string id (from a screen already saved in the current format) passes through unchanged. */
+function migrateEditingFocusTab(tab: 'global' | number | PaneId): 'global' | PaneId {
+  return typeof tab === 'number' ? legacyPaneId(tab) : tab
+}
+
+/**
+ * Normalizes a screen into the current `layout`/`paneSlots` shape,
+ * tolerating whatever older arrangement fields (or anything else
+ * malformed) might already be sitting in storage. A screen that already
+ * has its own `layout` is left as-is structurally — only its `paneSlots`
+ * entries are still run through the per-slot content/text-size migrations
+ * above, same as every other slot everywhere else, since those can still
+ * lag behind a `ScreenSlotContent` shape change regardless of whether the
+ * *arrangement* itself is old or new. A screen with neither `layout` nor
+ * any legacy arrangement fields at all (shouldn't normally happen, but
+ * keeps this defensive) falls back to a single empty pane.
+ */
+function normalizeScreen(screen: ScreenConfig & Partial<LegacyArrangement> & { slotTextSizes?: Record<number, TextSizes> }): ScreenConfig {
   const textSizes = screen.textSizes ? normalizeTextSizes(screen.textSizes) : screen.textSizes
-  const slotCount =
-    typeof screen.slotCount === 'number' && screen.slotCount >= 1 && screen.slotCount <= 4
-      ? screen.slotCount
-      : Math.min(4, Math.max(1, slots.filter(isSlotActive).length || 1))
   const useStages = typeof screen.useStages === 'boolean' ? screen.useStages : false
   const stageCount = typeof screen.stageCount === 'number' && screen.stageCount >= 1 ? screen.stageCount : 1
-  const ratios = migrateRatios(screen)
-  const normalized: ScreenConfig & { slotTextSizes?: unknown } & Partial<Record<RatioField, unknown>> = {
+
+  let layout: StageTimeline<LayoutNode>
+  let paneSlots: Record<PaneId, ScreenSlot>
+
+  if (screen.layout && screen.paneSlots) {
+    layout = screen.layout
+    paneSlots = Object.fromEntries(Object.entries(screen.paneSlots).map(([id, slot]) => [id, normalizeSlot(slot, undefined)]))
+  } else if (Array.isArray(screen.slots)) {
+    const normalizedSlots = [0, 1, 2, 3].map((index) => normalizeSlot(screen.slots![index], screen.slotTextSizes?.[index]))
+    const fallbackSlotCount = normalizedSlots.filter(isSlotActive).length || 1
+    const migrated = migrateLegacyArrangement(
+      { slotCount: screen.slotCount ?? fallbackSlotCount, slots: screen.slots, splitDirection: screen.splitDirection, splitBigPosition: screen.splitBigPosition, ratios: screen.ratios },
+      normalizedSlots,
+    )
+    layout = migrated.layout
+    paneSlots = migrated.paneSlots
+  } else {
+    const id = legacyPaneId(0)
+    layout = { 1: { type: 'leaf', id } }
+    paneSlots = { [id]: normalizeSlot(undefined, undefined) }
+  }
+
+  const editingFocus = screen.editingFocus ? { ...screen.editingFocus, tab: migrateEditingFocusTab(screen.editingFocus.tab) } : screen.editingFocus
+
+  const normalized: ScreenConfig & Partial<LegacyArrangement> & { slotTextSizes?: unknown } = {
     ...screen,
-    slots,
+    layout,
+    paneSlots,
     textSizes,
-    slotCount,
     useStages,
     stageCount,
-    ratios,
+    editingFocus,
   }
+  delete normalized.slots
+  delete normalized.slotCount
+  delete normalized.splitDirection
+  delete normalized.splitBigPosition
+  delete normalized.ratios
   delete normalized.slotTextSizes
-  RATIO_FIELDS.forEach((field) => delete normalized[field])
   return normalized
 }
 

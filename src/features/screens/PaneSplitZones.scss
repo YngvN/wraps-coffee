@@ -1,0 +1,128 @@
+@use '../../styles/variables' as *;
+
+// Sits above `PaneEditButton` (z-index 5) but below the corner Clear/Delete
+// buttons (z-index 7, see `PaneCornerButton.scss`) and the divider drag
+// handles (z-index 8) — see `SplitLayout.tsx`'s own doc comment for the
+// full layering. `pointer-events: none` here (re-enabled only on the 4
+// piece buttons below) is what leaves the hollow center square — where no
+// piece reaches — click-through to `PaneEditButton` beneath instead of
+// this container's own otherwise-full inset:0 box swallowing it.
+.pane-split-zones {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+
+// The 4 pieces below tile a hollow "plus": a 24%-wide/tall square is left
+// uncovered right in the middle (38% to 62% along both axes), flanked by
+// north/south (narrow in x, either side of the vertical middle line) and
+// west/east (narrow in y, either side of the horizontal middle line) — see
+// `PaneSplitZones.tsx`'s own doc comment for why the hole matters.
+.pane-split-zone {
+  position: absolute;
+  z-index: 6;
+  pointer-events: auto;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+
+  &--north,
+  &--south {
+    left: 38%;
+    right: 38%;
+  }
+
+  &--north {
+    top: 0;
+    bottom: 62%;
+  }
+
+  &--south {
+    top: 62%;
+    bottom: 0;
+  }
+
+  &--west,
+  &--east {
+    top: 38%;
+    bottom: 38%;
+  }
+
+  &--west {
+    left: 0;
+    right: 62%;
+  }
+
+  &--east {
+    left: 62%;
+    right: 0;
+  }
+}
+
+// The actual "invisible border" — only painted on hover, always dead-center
+// across the whole pane, since the split it triggers is always an even
+// 50/50 (see `splitLeaf`). A direct child of `.pane-split-zones` (spanning
+// the whole pane), so `50%` resolves against the pane itself, not one
+// piece's own narrow band.
+.pane-split-zones__row-line,
+.pane-split-zones__column-line {
+  position: absolute;
+  background: var(--screen-accent);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.pane-split-zones__row-line {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  margin-left: -1.5px;
+}
+
+.pane-split-zones__column-line {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 3px;
+  margin-top: -1.5px;
+}
+
+.pane-split-zones__label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+// Real hover only — touch devices skip both the line and the label
+// entirely rather than risk either getting stuck on-screen after a tap
+// (see CLAUDE.md's own touch-safety convention); the zone pieces
+// themselves stay tappable either way, just without the preview.
+@media (hover: hover) {
+  .pane-split-zones:has(.pane-split-zone--north:hover, .pane-split-zone--south:hover) .pane-split-zones__row-line {
+    opacity: 1;
+  }
+
+  .pane-split-zones:has(.pane-split-zone--west:hover, .pane-split-zone--east:hover) .pane-split-zones__column-line {
+    opacity: 1;
+  }
+
+  .pane-split-zones:has(.pane-split-zone:hover) .pane-split-zones__label {
+    opacity: 1;
+  }
+}

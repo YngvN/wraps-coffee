@@ -1,5 +1,5 @@
 import type { LanguageCode } from '../i18n'
-import type { BackgroundImage, ScreenConfig, ScreenSlot, ScreenSlotContent, StageTimeline, TextSizes } from '../types/screen'
+import type { BackgroundImage, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, StageTimeline, TextSizes } from '../types/screen'
 import { isResizeToFitImage } from './screenSlots'
 
 /**
@@ -68,9 +68,9 @@ export function currentStage(tick: number, screen: Pick<ScreenConfig, 'useStages
   return (tick % effectiveStageCount(screen)) + 1
 }
 
-/** True if some slot *other* than `excludeSlotIndex`, resolved at this exact `stage`, is already showing a resize-to-fit image — used to block a second one from being turned on at the same stage. Point-in-time only: doesn't check every stage a checkpoint might carry forward into. */
-export function isResizeToFitConflict(slots: ScreenSlot[], excludeSlotIndex: number, stage: number): boolean {
-  return slots.some((slot, index) => index !== excludeSlotIndex && isResizeToFitImage(resolveSlotContent(slot, stage)))
+/** True if some pane *other* than `excludeLeafId`, resolved at this exact `stage`, is already showing a resize-to-fit image — used to block a second one from being turned on at the same stage. Point-in-time only: doesn't check every stage a checkpoint might carry forward into. */
+export function isResizeToFitConflict(leaves: { id: PaneId; slot: ScreenSlot }[], excludeLeafId: PaneId, stage: number): boolean {
+  return leaves.some(({ id, slot }) => id !== excludeLeafId && isResizeToFitImage(resolveSlotContent(slot, stage)))
 }
 
 /** Whether a slot has any content to show at all, at any stage. */

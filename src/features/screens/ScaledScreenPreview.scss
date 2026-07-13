@@ -1,0 +1,14 @@
+.scaled-screen-preview {
+  position: relative;
+  width: 100%;
+  // `aspect-ratio` itself is set inline (see `ScaledScreenPreview.tsx`), driven by its own `aspectRatio` prop.
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.scaled-screen-preview__canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+}

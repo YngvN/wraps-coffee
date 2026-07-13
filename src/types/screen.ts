@@ -182,21 +182,28 @@ export interface ScreenSlot {
   language?: StageTimeline<LanguageCode | undefined>
 }
 
-/** How a screen's panes are arranged along their split axis: side by side, or stacked. Only meaningful when `slotCount` is 2. */
+/** How a screen's panes are arranged along their split axis: side by side, or stacked. */
 export type SplitDirection = 'row' | 'column'
 
-/**
- * When exactly 3 of a screen's `slotCount` panes are shown, one is shown
- * "featured" (occupying a full row/column) and the other two share the
- * remaining space as two small squares. This says whether the featured one
- * comes first (top, if `splitDirection` is 'row'; left, if 'column') or
- * second (bottom/right). The featured pane itself is always the first one
- * in slot order (Slot 1 before Slot 2, etc).
- */
-export type SplitBigPosition = 'first' | 'second'
+/** Opaque, stable identifier for one pane — generated once (see `createLeaf` in `src/utils/layoutTree.ts`) and never reused or positional, so a pane keeps its own identity (content, `editingFocus`, drag/drop targets) across arbitrary tree edits and across whichever of a screen's stages happen to include it. */
+export type PaneId = string
 
-/** A screen's own adjustable arrangement dividers — which one governs which split, for a given `slotCount`/`splitDirection`/`splitBigPosition` combo (see `src/utils/screenLayout.ts`). Each is its own independent per-stage timeline on `ScreenConfig.ratios`, so moving a divider only affects the stage currently being viewed. */
-export type RatioField = 'splitRatio' | 'tripleBigRatio' | 'tripleSmallRatio' | 'quadColumnRatio' | 'quadRowRatio'
+/**
+ * A screen's pane arrangement — structure only, no content (see
+ * `ScreenConfig.paneSlots` for that). A `'leaf'` is one visible pane,
+ * referenced by its stable `PaneId`. A `'split'` divides its own box in two
+ * along `direction` ('row' = side by side, a vertical divider; 'column' =
+ * stacked, a horizontal one) at `ratio` (percentage, 10-90, the `first`
+ * child's own share — see `MIN_RATIO`/`MAX_RATIO` in `screenLayout.ts`),
+ * containing two further `LayoutNode`s, each in turn a leaf or another
+ * split — arbitrarily deep, arbitrarily wide. Rendered recursively as
+ * nested CSS grids, one per `split` node (see `LayoutTree.tsx`). `ratio` is
+ * a plain number, not its own per-stage timeline, because the whole tree is
+ * already checkpointed as one unit at the outer `ScreenConfig.layout` level
+ * (see there) — nesting a second per-stage timeline inside an
+ * already-per-stage-resolved value would be redundant.
+ */
+export type LayoutNode = { type: 'leaf'; id: PaneId } | { type: 'split'; direction: SplitDirection; ratio: number; first: LayoutNode; second: LayoutNode }
 
 /** How a slide change is animated for any slot's own in-place rotation. Kept as its own union so more styles can be added later without changing `ScreenConfig`'s shape. */
 export type ScreenTransitionStyle = 'fade' | 'slide'
@@ -254,48 +261,42 @@ export interface ScreenConfig {
   screenID: string
   name: string
   /**
-   * How many of the 4 slots (starting from Slot 1) are actually shown on
-   * the live display, 1-4 — an explicit layout choice, independent of
-   * whether each of those slots has its own content configured yet (an
-   * in-range slot with nothing set just renders blank in its position).
-   * Reducing this never touches a hidden slot's own content/settings —
-   * they're simply not rendered until `slotCount` grows back to include
-   * them again, or the whole screen is deleted.
+   * This screen's pane arrangement, per stage — same `StageTimeline`
+   * resolution every other per-stage field already uses (nearest checkpoint
+   * at-or-below the stage, else wraps to the highest). A single-stage
+   * screen just has one checkpoint at stage 1, always resolved regardless
+   * of the queried stage. Splitting/deleting a pane at stage N writes a
+   * whole new tree checkpoint at N, inherited by every later stage until
+   * its own checkpoint exists — exactly how a content edit "changes this
+   * step onward" already works. This is what lets a multi-stage screen add
+   * or remove panes as its sequence advances.
    */
-  slotCount: number
-  /** Up to 4 content slots; unused ones have no non-"none" entries anywhere in their `content` timeline. */
-  slots: [ScreenSlot, ScreenSlot, ScreenSlot, ScreenSlot]
-  /** Whether every slot advances through a shared sequence of numbered stages together (see `stageCount`). Falls back to `false` (a single static stage) when absent — turning it off never deletes checkpoint data beyond stage 1, so turning it back on (or growing `stageCount` back up) restores exactly where the owner left off. */
+  layout: StageTimeline<LayoutNode>
+  /**
+   * Every pane's own content/background/text-size, keyed by its stable
+   * `PaneId` — deliberately NOT itself per-stage (each field inside
+   * `ScreenSlot` already is, unchanged). Kept separate from `layout` so a
+   * pane's content stays the single continuous source of truth regardless
+   * of which stages' tree checkpoints happen to reference it — editing a
+   * pane's content while viewing stage 2 is visible at stage 5 too (if
+   * stage 5 inherits stage 2's tree shape) with no need to know or care
+   * about tree-checkpoint boundaries. A `PaneId` no longer referenced by
+   * any stage's tree is simply unreachable — left as harmless orphaned
+   * data (nothing else in this app prunes "unused" data either).
+   */
+  paneSlots: Record<PaneId, ScreenSlot>
+  /** Whether every pane advances through a shared sequence of numbered stages together (see `stageCount`). Falls back to `false` (a single static stage) when absent — turning it off never deletes checkpoint data beyond stage 1, so turning it back on (or growing `stageCount` back up) restores exactly where the owner left off. */
   useStages?: boolean
   /** Total number of shared stages, 1 and up — only relevant/edited while `useStages` is true. Falls back to 1 when absent. Shrinking this never prunes checkpoints beyond the new count; they simply become unreachable until it's grown back. */
   stageCount?: number
-  /** Seconds each stage is shown before advancing to the next, shared by every slot's own rotation. Only meaningful while `useStages` is on and `stageCount` is more than 1. */
+  /** Seconds each stage is shown before advancing to the next, shared by every pane's own rotation. Only meaningful while `useStages` is on and `stageCount` is more than 1. */
   slideDurationSeconds: number
   transitionStyle: ScreenTransitionStyle
   /** Optional per-screen text size override, set via the display's own "Edit appearance" panel. Falls back to `DEFAULT_TEXT_SIZES` when absent. */
   textSizes?: TextSizes
-  /** Only used when `slotCount` is 2. Falls back to 'row' (side by side) when absent. */
-  splitDirection?: SplitDirection
-  /** Only used when `slotCount` is 3. Falls back to 'first' when absent. */
-  splitBigPosition?: SplitBigPosition
-  /**
-   * Per-stage timelines (percentage, 10-90) for each of a screen's own
-   * adjustable arrangement dividers — draggable on the live display, or
-   * nudgeable 1% at a time from the admin form's "Resize" panel — only the
-   * field(s) relevant to the current `slotCount`/`splitDirection` are ever
-   * read (see `src/utils/screenLayout.ts`). Moving a divider only writes a
-   * checkpoint at the stage currently being viewed, same as every slot's
-   * own fields; falls back to 50 (even split) for a field/stage with no
-   * entry. `splitRatio`: the single divider in a 2-slot row/column
-   * arrangement. `tripleBigRatio`: the divider between the "big" pane and
-   * the small pair in a 3-slot arrangement. `tripleSmallRatio`: the
-   * divider between the two small panes themselves. `quadColumnRatio`/
-   * `quadRowRatio`: the vertical/horizontal dividers in a 4-slot 2x2 grid.
-   */
-  ratios?: Partial<Record<RatioField, StageTimeline<number>>>
   /** Whether visible borders are drawn between panes. Falls back to `true` (shown) when absent. */
   showSlotBorders?: boolean
-  /** Fixed border color (hex, from `SCREEN_BACKGROUND_COLORS`) between panes. Falls back to an automatic contrast-based color (`--screen-border`) when absent. Only relevant while `showSlotBorders` is on and `slotCount` is more than 1. */
+  /** Fixed border color (hex, from `SCREEN_BACKGROUND_COLORS`) between panes. Falls back to an automatic contrast-based color (`--screen-border`) when absent. Only relevant while `showSlotBorders` is on and there's more than one pane. */
   borderColor?: string
   /** Whether a slide's own scrollbar (shown when its content is taller than the screen) is hidden. Content stays scrollable either way — this only hides the scrollbar UI. Falls back to `false` (shown) when absent. */
   hideScrollbar?: boolean
@@ -310,18 +311,20 @@ export interface ScreenConfig {
   /** Live-toggled preview of the screensaver ("Test screensaver"), independent of the actual schedule — shows the same black overlay immediately regardless of the time of day (or whether `useScreensaver` is even on), on this screen and any other open tab of it. Manually turned back off the same way; falls back to `false` when absent. */
   screensaverTestActive?: boolean
   /**
-   * Which of this screen's own tabs the admin's editor is currently focused
-   * on — an ephemeral, live-synced signal (same mechanism as
+   * Which of this screen's own panes the admin's editor is currently
+   * focused on — an ephemeral, live-synced signal (same mechanism as
    * `screensaverTestActive`) rather than real screen configuration, so the
    * actual live display (see `SplitLayout`) can flash the matching pane and
    * make clear, even when that display is showing somewhere else entirely
    * (a kiosk, another tab/window), which part is currently being edited.
-   * `pulse` increments on every focus change, even a repeat one on the tab
+   * `tab` is a `PaneId` (or `'global'` for the whole screen), not a
+   * positional index, so it stays valid across arbitrary tree edits.
+   * `pulse` increments on every focus change, even a repeat one on the pane
    * that's already active, purely so the display can restart its flash
-   * animation from scratch regardless of how fast it's re-triggered. Cleared
-   * to `undefined` when the editor closes.
+   * animation from scratch regardless of how fast it's re-triggered.
+   * Cleared to `undefined` when the editor closes.
    */
-  editingFocus?: { tab: 'global' | number; pulse: number }
+  editingFocus?: { tab: 'global' | PaneId; pulse: number }
 }
 
 /** A named, reusable set of text sizes, saved from one screen's editor and applicable to any screen. */

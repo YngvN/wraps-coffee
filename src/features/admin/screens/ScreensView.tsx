@@ -8,6 +8,7 @@ import { useScreensaverSchedule } from '../../../hooks/useScreensaverSchedule'
 import { useLanguage } from '../../../i18n'
 import { goBack } from '../../../lib/backStack'
 import { DEFAULT_SCREEN_BACKGROUND_COLOR, type ScreenConfig, type ScreenSlot, type ScreenSlotContent } from '../../../types/screen'
+import { countLeaves } from '../../../utils/layoutTree'
 import { getScreenColorVars } from '../../../utils/screenColors'
 import { resolveSlotContent } from '../../../utils/screenStages'
 import { CopyIcon } from './CopyIcon'
@@ -141,7 +142,9 @@ export function ScreensView() {
                 <AnimatePresence initial={false}>
                   {screens.map((screen) => {
                     const url = `${window.location.origin}/screens/${screen.screenID}`
-                    const slotCountLabel = screen.slotCount === 1 ? t('admin.screens.slotCountBadgeOne') : t('admin.screens.slotCountBadge', { count: screen.slotCount })
+                    const tree = screen.layout[1] ?? Object.values(screen.layout)[0]
+                    const slotCount = tree ? countLeaves(tree) : 0
+                    const slotCountLabel = slotCount === 1 ? t('admin.screens.slotCountBadgeOne') : t('admin.screens.slotCountBadge', { count: slotCount })
                     return (
                       <motion.li
                         key={screen.screenID}
@@ -156,7 +159,7 @@ export function ScreensView() {
                           style={getScreenColorVars(screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR) as CSSProperties}
                           title={slotCountLabel}
                         >
-                          <LayoutIcon pattern={getScreenPreviewPattern(screen)} width={56} height={42} />
+                          <LayoutIcon layout={getScreenPreviewPattern(screen)} width={56} height={42} />
                         </div>
                         <div className="screens-view__item-body">
                           <div className="screens-view__item-info">
@@ -166,7 +169,7 @@ export function ScreensView() {
                               <Badge variant="info">{t('admin.screens.stageCountBadge', { count: screen.stageCount ?? 1 })}</Badge>
                             )}
                             <span className="screens-view__item-slots">
-                              {screen.slots
+                              {Object.values(screen.paneSlots)
                                 .map(slotSummary)
                                 .filter((summary): summary is string => summary !== null)
                                 .join(' · ')}

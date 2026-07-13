@@ -18,7 +18,7 @@ export interface AnnouncementMessage {
 export function collectAnnouncementMessages(screens: ScreenConfig[]): AnnouncementMessage[] {
   const seen = new Map<string, AnnouncementMessage>()
   for (const screen of screens) {
-    for (const slot of screen.slots) {
+    for (const slot of Object.values(screen.paneSlots)) {
       for (const content of Object.values(slot.content)) {
         if (content.kind !== 'announcement') continue
         if (!content.title) continue

@@ -6,6 +6,8 @@ import { hasOwnTextSizeFields } from '../../utils/screenSlots'
 import { mapTimelineValues } from '../../utils/screenStages'
 import './GlobalTextSizeScaler.scss'
 
+type PaneSlots = ScreenConfig['paneSlots']
+
 /** One slider row's config: which `TextSizes` field it scales, and its i18n label key (shared with the display's own text-size editor). */
 const SLIDERS: { key: keyof TextSizes; labelKey: string }[] = [
   { key: 'heading', labelKey: 'headingLabel' },
@@ -17,30 +19,35 @@ const SLIDERS: { key: keyof TextSizes; labelKey: string }[] = [
 
 const ALL_100: Record<keyof TextSizes, number> = { heading: 100, itemTitle: 100, description: 100, price: 100, itemPrice: 100 }
 
-/** A snapshot of the screen's default text sizes and every slot as a whole (which — since each slot's `textSizes`/`content` are their own stage timelines — carries every stage's own effective size and override along with it) — together, the 100% reference point. */
+/** A snapshot of the screen's default text sizes and every pane as a whole (which — since each pane's `textSizes`/`content` are their own stage timelines — carries every stage's own effective size and override along with it) — together, the 100% reference point. */
 export interface SizeSnapshot {
   textSizes: TextSizes
-  slots: ScreenConfig['slots']
+  paneSlots: PaneSlots
 }
 
 function snapshotFrom(screen: ScreenConfig): SizeSnapshot {
-  return { textSizes: screen.textSizes ?? DEFAULT_TEXT_SIZES, slots: screen.slots }
+  return { textSizes: screen.textSizes ?? DEFAULT_TEXT_SIZES, paneSlots: screen.paneSlots }
 }
 
-/** The "standard" snapshot: the hardcoded default text sizes everywhere (the screen's own, every slot's own at every stage, and every stage's own content that has its own value), and every slot's (and every stage's own content's) individual color and background image cleared back to a single fresh stage-1 default. Used by the "Reset" button — unlike "Restore previous", this isn't about undoing this session's edits, it's a hard reset to factory defaults. Each slot's own *content* selections (which stages have what) are left alone — only their sizing/color/image fields are cleared. */
-function standardSnapshotFrom(slots: ScreenConfig['slots']): SizeSnapshot {
-  const standardSlots = slots.map((slot) => ({
-    ...slot,
-    backgroundColor: { 1: undefined },
-    backgroundImage: { 1: undefined },
-    textSizes: { 1: DEFAULT_TEXT_SIZES },
-    content:
-      mapTimelineValues(slot.content, (content) => ({
-        ...(hasOwnTextSizeFields(content) && content.textSizes ? { ...content, textSizes: DEFAULT_TEXT_SIZES } : content),
-        backgroundImage: undefined,
-      })) ?? slot.content,
-  })) as unknown as ScreenConfig['slots']
-  return { textSizes: DEFAULT_TEXT_SIZES, slots: standardSlots }
+/** The "standard" snapshot: the hardcoded default text sizes everywhere (the screen's own, every pane's own at every stage, and every stage's own content that has its own value), and every pane's (and every stage's own content's) individual color and background image cleared back to a single fresh stage-1 default. Used by the "Reset" button — unlike "Restore previous", this isn't about undoing this session's edits, it's a hard reset to factory defaults. Each pane's own *content* selections (which stages have what) are left alone — only their sizing/color/image fields are cleared. */
+function standardSnapshotFrom(paneSlots: PaneSlots): SizeSnapshot {
+  const standardPaneSlots = Object.fromEntries(
+    Object.entries(paneSlots).map(([id, slot]) => [
+      id,
+      {
+        ...slot,
+        backgroundColor: { 1: undefined },
+        backgroundImage: { 1: undefined },
+        textSizes: { 1: DEFAULT_TEXT_SIZES },
+        content:
+          mapTimelineValues(slot.content, (content) => ({
+            ...(hasOwnTextSizeFields(content) && content.textSizes ? { ...content, textSizes: DEFAULT_TEXT_SIZES } : content),
+            backgroundImage: undefined,
+          })) ?? slot.content,
+      },
+    ]),
+  ) as PaneSlots
+  return { textSizes: DEFAULT_TEXT_SIZES, paneSlots: standardPaneSlots }
 }
 
 interface GlobalTextSizeScalerProps {
@@ -82,32 +89,34 @@ export function GlobalTextSizeScaler({ screen, onChange, screensaver, onOpenBack
   const [allPercent, setAllPercent] = useState(100)
   const [current, setCurrent] = useState<SizeSnapshot>(baseline)
 
-  /** Scales a single field (the default and every slot's own size/override, at every stage each has one) by `percent`, relative to `reference`. */
+  /** Scales a single field (the default and every pane's own size/override, at every stage each has one) by `percent`, relative to `reference`. */
   const scaleField = (base: SizeSnapshot, field: keyof TextSizes, percent: number): SizeSnapshot => {
     const scale = percent / 100
     const nextTextSizes = { ...base.textSizes, [field]: reference.textSizes[field] * scale }
 
-    const nextSlots = base.slots.map((slot, slotIndex) => {
-      const referenceSlot = reference.slots[slotIndex]
-      const nextSlotTextSizes =
-        mapTimelineValues(slot.textSizes, (value, stageKey) => {
-          if (!value) return value
-          const referenceValue = referenceSlot.textSizes[stageKey]
-          return { ...value, [field]: (referenceValue ? referenceValue[field] : value[field]) * scale }
-        }) ?? slot.textSizes
+    const nextPaneSlots = Object.fromEntries(
+      Object.entries(base.paneSlots).map(([id, slot]) => {
+        const referenceSlot = reference.paneSlots[id] ?? slot
+        const nextSlotTextSizes =
+          mapTimelineValues(slot.textSizes, (value, stageKey) => {
+            if (!value) return value
+            const referenceValue = referenceSlot.textSizes[stageKey]
+            return { ...value, [field]: (referenceValue ? referenceValue[field] : value[field]) * scale }
+          }) ?? slot.textSizes
 
-      const nextContent =
-        mapTimelineValues(slot.content, (content, stageKey) => {
-          if (!hasOwnTextSizeFields(content) || !content.textSizes) return content
-          const referenceContent = referenceSlot.content[stageKey]
-          if (!hasOwnTextSizeFields(referenceContent) || !referenceContent.textSizes) return content
-          return { ...content, textSizes: { ...content.textSizes, [field]: referenceContent.textSizes[field] * scale } }
-        }) ?? slot.content
+        const nextContent =
+          mapTimelineValues(slot.content, (content, stageKey) => {
+            if (!hasOwnTextSizeFields(content) || !content.textSizes) return content
+            const referenceContent = referenceSlot.content[stageKey]
+            if (!hasOwnTextSizeFields(referenceContent) || !referenceContent.textSizes) return content
+            return { ...content, textSizes: { ...content.textSizes, [field]: referenceContent.textSizes[field] * scale } }
+          }) ?? slot.content
 
-      return { ...slot, textSizes: nextSlotTextSizes, content: nextContent }
-    }) as ScreenConfig['slots']
+        return [id, { ...slot, textSizes: nextSlotTextSizes, content: nextContent }]
+      }),
+    ) as PaneSlots
 
-    return { textSizes: nextTextSizes, slots: nextSlots }
+    return { textSizes: nextTextSizes, paneSlots: nextPaneSlots }
   }
 
   const setPercentage = (field: keyof TextSizes, percent: number) => {
@@ -135,9 +144,9 @@ export function GlobalTextSizeScaler({ screen, onChange, screensaver, onOpenBack
     onChange(baseline)
   }
 
-  /** Hard-resets every size to the standard default and clears every slot's own color — a fresh 100% reference point, not tied to how the screen looked when the panel opened. Leaves the screen's own background color untouched. */
+  /** Hard-resets every size to the standard default and clears every pane's own color — a fresh 100% reference point, not tied to how the screen looked when the panel opened. Leaves the screen's own background color untouched. */
   const handleReset = () => {
-    const standard = standardSnapshotFrom(current.slots)
+    const standard = standardSnapshotFrom(current.paneSlots)
     setPercentages(ALL_100)
     setAllPercent(100)
     setReference(standard)

@@ -1,93 +1,74 @@
-export type LayoutIconPattern =
-  | 'row'
-  | 'column'
-  | 'triple-row-first'
-  | 'triple-row-second'
-  | 'triple-column-first'
-  | 'triple-column-second'
-  | 'single'
-  | 'quad'
-  | 'empty'
+import type { LayoutNode, PaneId } from '../../../types/screen'
+import { resolveRatio } from '../../../utils/screenLayout'
 
 interface IconRect {
   x: number
   y: number
   width: number
   height: number
-  /** Dashed stroke, used for the "nothing configured" empty preview. */
-  dashed?: boolean
 }
 
-/** Rectangles (in a 32x24 viewBox) previewing each arrangement, matching `SplitLayout`'s grid-template-areas 1:1. */
-const RECTS: Record<LayoutIconPattern, IconRect[]> = {
-  row: [
-    { x: 1, y: 1, width: 14, height: 22 },
-    { x: 17, y: 1, width: 14, height: 22 },
-  ],
-  column: [
-    { x: 1, y: 1, width: 30, height: 10 },
-    { x: 1, y: 13, width: 30, height: 10 },
-  ],
-  'triple-row-first': [
-    { x: 1, y: 1, width: 30, height: 10 },
-    { x: 1, y: 13, width: 14, height: 10 },
-    { x: 17, y: 13, width: 14, height: 10 },
-  ],
-  'triple-row-second': [
-    { x: 1, y: 1, width: 14, height: 10 },
-    { x: 17, y: 1, width: 14, height: 10 },
-    { x: 1, y: 13, width: 30, height: 10 },
-  ],
-  'triple-column-first': [
-    { x: 1, y: 1, width: 14, height: 22 },
-    { x: 17, y: 1, width: 14, height: 10 },
-    { x: 17, y: 13, width: 14, height: 10 },
-  ],
-  'triple-column-second': [
-    { x: 1, y: 1, width: 14, height: 10 },
-    { x: 1, y: 13, width: 14, height: 10 },
-    { x: 17, y: 1, width: 14, height: 22 },
-  ],
-  single: [{ x: 1, y: 1, width: 30, height: 22 }],
-  quad: [
-    { x: 1, y: 1, width: 14, height: 10 },
-    { x: 17, y: 1, width: 14, height: 10 },
-    { x: 1, y: 13, width: 14, height: 10 },
-    { x: 17, y: 13, width: 14, height: 10 },
-  ],
-  empty: [{ x: 1, y: 1, width: 30, height: 22, dashed: true }],
+/** Proportionally subdivides `box` by walking `node` exactly like the real recursive renderer does (`LayoutTree.tsx`), using each split's own real `ratio` — producing one rect per leaf, correct for any tree shape (not just a handful of fixed presets). */
+function layoutNodeToRects(node: LayoutNode, box: IconRect): { id: PaneId; rect: IconRect }[] {
+  if (node.type === 'leaf') return [{ id: node.id, rect: box }]
+  const share = resolveRatio(node) / 100
+  if (node.direction === 'row') {
+    const firstWidth = box.width * share
+    return [
+      ...layoutNodeToRects(node.first, { ...box, width: firstWidth }),
+      ...layoutNodeToRects(node.second, { ...box, x: box.x + firstWidth, width: box.width - firstWidth }),
+    ]
+  }
+  const firstHeight = box.height * share
+  return [
+    ...layoutNodeToRects(node.first, { ...box, height: firstHeight }),
+    ...layoutNodeToRects(node.second, { ...box, y: box.y + firstHeight, height: box.height - firstHeight }),
+  ]
+}
+
+/** A small inset margin (in the 32x24 viewBox's own units) between adjacent rects, so they read as separate panes rather than one solid block — matching the old hand-laid preview's own 2-unit gaps. */
+const GAP = 1
+
+function inset(rect: IconRect): IconRect {
+  return { x: rect.x + GAP / 2, y: rect.y + GAP / 2, width: Math.max(0, rect.width - GAP), height: Math.max(0, rect.height - GAP) }
 }
 
 interface LayoutIconProps {
-  pattern: LayoutIconPattern
+  /** `null` draws a single dashed placeholder rect (nothing configured yet) instead of walking a tree. */
+  layout: LayoutNode | null
   width?: number
   height?: number
-  /** Index (into this pattern's own rects, in the same slot order `SplitLayout` renders its panes) of the one pane to visually fill in, rather than leaving it as an outline like the rest — e.g. so a slot's own tab button can show, at a glance, which physical position on the screen it corresponds to. `'all'` fills in every pane instead (the screen-wide "Global" tab, which edits all of them at once). Omit to draw every pane the same outline-only way, as when picking the arrangement itself. */
-  highlightIndex?: number | 'all'
+  /** Which leaf (by id) to visually fill in, rather than leaving it as an outline like the rest — e.g. so a pane's own tab button can show, at a glance, which physical position on the screen it corresponds to. `'all'` fills in every leaf instead (the screen-wide "Global" tab, which edits all of them at once). Omit to draw every pane the same outline-only way, as when picking a preset. */
+  highlightId?: PaneId | 'all'
 }
 
-/** Small SVG preview of an arrangement, used as the visual choice in the admin Screens form's layout picker, each screen card's live preview, and (with `highlightIndex`) each of the form's own tab buttons. */
-export function LayoutIcon({ pattern, width = 32, height = 24, highlightIndex }: LayoutIconProps) {
+/** Small SVG preview of a pane arrangement, used as the visual choice in the admin Screens form's preset picker, each screen card's live preview, and (with `highlightId`) each of the form's own tab buttons. */
+export function LayoutIcon({ layout, width = 32, height = 24, highlightId }: LayoutIconProps) {
+  const rects = layout ? layoutNodeToRects(layout, { x: 1, y: 1, width: 30, height: 22 }).map(({ id, rect }) => ({ id, rect: inset(rect) })) : []
+
   return (
     <svg viewBox="0 0 32 24" width={width} height={height} aria-hidden="true">
-      {RECTS[pattern].map((rect, index) => {
-        const isHighlighted = highlightIndex === 'all' || index === highlightIndex
-        return (
-          <rect
-            key={index}
-            x={rect.x}
-            y={rect.y}
-            width={rect.width}
-            height={rect.height}
-            rx={1.5}
-            fill={isHighlighted ? 'currentColor' : 'none'}
-            fillOpacity={isHighlighted ? 0.35 : undefined}
-            stroke="currentColor"
-            strokeWidth={1.5}
-            strokeDasharray={rect.dashed ? '3 2' : undefined}
-          />
-        )
-      })}
+      {layout === null ? (
+        <rect x={1} y={1} width={30} height={22} rx={1.5} fill="none" stroke="currentColor" strokeWidth={1.5} strokeDasharray="3 2" />
+      ) : (
+        rects.map(({ id, rect }) => {
+          const isHighlighted = highlightId === 'all' || id === highlightId
+          return (
+            <rect
+              key={id}
+              x={rect.x}
+              y={rect.y}
+              width={rect.width}
+              height={rect.height}
+              rx={1.5}
+              fill={isHighlighted ? 'currentColor' : 'none'}
+              fillOpacity={isHighlighted ? 0.35 : undefined}
+              stroke="currentColor"
+              strokeWidth={1.5}
+            />
+          )
+        })
+      )}
     </svg>
   )
 }
