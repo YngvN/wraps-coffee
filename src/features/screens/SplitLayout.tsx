@@ -1,12 +1,15 @@
 import { useReducedMotion } from 'framer-motion'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useLanguage, type LanguageCode } from '../../i18n'
-import { DEFAULT_SCREEN_BACKGROUND_COLOR, type PaneId, type ScreenConfig, type ScreenSlotContent, type SplitDirection, type TextSizes } from '../../types/screen'
+import { DEFAULT_SCREEN_BACKGROUND_COLOR, type LayoutNode, type PaneId, type ScreenConfig, type ScreenSlotContent, type SplitDirection, type TextSizes } from '../../types/screen'
+import { computeLayoutGeometry, type Rect } from '../../utils/layoutGeometry'
 import { listLeaves } from '../../utils/layoutTree'
+import { diffLeafSets, resolvePaneGrowthOrigin, type PaneGrowthOrigin } from '../../utils/paneGrowth'
 import { backgroundImageTextStyle, borderColorStyle, getScreenColorVars } from '../../utils/screenColors'
 import { imageResizeRatioPatch, imageResizeScaleFromDrag, paneResizableAxes, pathKey, setRatioAtPath, type NodePath, type PaneResizableAxes, type RatioPatch } from '../../utils/screenLayout'
 import { isResizeToFitImage } from '../../utils/screenSlots'
 import { isSlotActive, resolveSlotContent, resolveStageValue, writeStageCheckpoint } from '../../utils/screenStages'
+import { ExitingPaneGhost } from './ExitingPaneGhost'
 import { LayoutTree } from './LayoutTree'
 import './SplitLayout.scss'
 
@@ -107,6 +110,70 @@ export function SplitLayout({
   const fallbackLeafId = Object.keys(screen.paneSlots)[0] ?? 'none'
   const tree = resolveStageValue(screen.layout, effectiveStage) ?? { type: 'leaf' as const, id: fallbackLeafId }
   const leaves = listLeaves(tree)
+  const paneGrowthFallback = screen.paneGrowthFallback ?? 'screenEdge'
+
+  /**
+   * Detects a shape change (the resolved tree's own leaf *set* differing
+   * from the last one seen) synchronously during render, not in a
+   * `useEffect` — framer-motion's `initial` prop (which is what actually
+   * plays a newly-appeared pane's own grow-in animation, see
+   * `LayoutPane.tsx`) is only honored at a component's true first mount,
+   * and an effect runs *after* that first commit, so by the time an effect
+   * could compute "this pane just appeared, grow it in from X," the pane
+   * would already be mounted at full size with nothing to animate from.
+   * Uses React's own documented "adjusting state when a prop changes"
+   * pattern (`useState`, not `useRef` — this codebase's lint config
+   * forbids reading/writing a ref's `current` during render entirely, per
+   * the `react-hooks/refs` rule) — a conditional `setState` call right
+   * here, during render, is safe and intentional: React immediately
+   * re-renders with the updated state before committing anything to the
+   * screen, and the condition below is false on that very next pass (state
+   * already caught up), so this always settles after at most one extra
+   * pass. `diffBase` is deliberately never reset back to `null` once
+   * populated (it naturally becomes stale/unused again the next time
+   * `tree` genuinely changes) — safe to leave "stuck" since every consumer
+   * below is idempotent to being re-derived from the same stale value on
+   * repeat renders (framer-motion only reads `enteringGrowth` once, at
+   * actual mount; `exitingGhosts` explicitly filters out ids it's already
+   * tracking before ever calling `setExitingGhosts`).
+   */
+  const [prevTree, setPrevTree] = useState<LayoutNode>(tree)
+  const [diffBase, setDiffBase] = useState<LayoutNode | null>(null)
+  if (prevTree !== tree) {
+    setDiffBase(prevTree)
+    setPrevTree(tree)
+  }
+
+  const enteringGrowth: Record<PaneId, PaneGrowthOrigin> =
+    diffBase && !reducedMotion
+      ? Object.fromEntries(diffLeafSets(diffBase, tree).appeared.map((id) => [id, resolvePaneGrowthOrigin(tree, diffBase, id, paneGrowthFallback)]))
+      : {}
+
+  const [exitingGhosts, setExitingGhosts] = useState<Record<PaneId, { rect: Rect; growth: PaneGrowthOrigin }>>({})
+  if (diffBase && !reducedMotion) {
+    const { disappeared } = diffLeafSets(diffBase, tree)
+    const newlyDisappeared = disappeared.filter((id) => !(id in exitingGhosts))
+    if (newlyDisappeared.length > 0) {
+      const priorGeometry = computeLayoutGeometry(diffBase)
+      setExitingGhosts((current) => {
+        const additions: Record<PaneId, { rect: Rect; growth: PaneGrowthOrigin }> = {}
+        for (const id of newlyDisappeared) {
+          if (id in current) continue
+          const rect = priorGeometry.leaves.find((leaf) => leaf.id === id)?.rect
+          if (!rect) continue
+          additions[id] = { rect, growth: resolvePaneGrowthOrigin(diffBase, tree, id, paneGrowthFallback) }
+        }
+        return Object.keys(additions).length > 0 ? { ...current, ...additions } : current
+      })
+    }
+  }
+  const removeGhost = (leafId: PaneId) =>
+    setExitingGhosts((current) => {
+      if (!(leafId in current)) return current
+      const next = { ...current }
+      delete next[leafId]
+      return next
+    })
   const resolvePaneContent = (leafId: PaneId): ScreenSlotContent => {
     const slot = screen.paneSlots[leafId]
     return slot ? resolveSlotContent(slot, effectiveStage) : { kind: 'none' }
@@ -235,7 +302,22 @@ export function SplitLayout({
         onClearPane={onClearPane}
         onDeletePane={onDeletePane}
         canDelete={leaves.length > 1}
+        enteringGrowth={enteringGrowth}
       />
+      {Object.entries(exitingGhosts).map(([leafId, { rect, growth }]) => (
+        <ExitingPaneGhost
+          key={leafId}
+          leafId={leafId}
+          rect={rect}
+          growth={growth}
+          slot={screen.paneSlots[leafId]}
+          stage={effectiveStage}
+          transitionStyle={screen.transitionStyle}
+          resolveTextSizes={resolveTextSizes}
+          defaultPaneLanguage={defaultPaneLanguage}
+          onCollapseComplete={removeGhost}
+        />
+      ))}
     </div>
   )
 }

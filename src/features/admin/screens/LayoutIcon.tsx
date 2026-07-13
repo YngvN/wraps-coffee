@@ -1,35 +1,10 @@
 import type { LayoutNode, PaneId } from '../../../types/screen'
-import { resolveRatio } from '../../../utils/screenLayout'
-
-interface IconRect {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
-/** Proportionally subdivides `box` by walking `node` exactly like the real recursive renderer does (`LayoutTree.tsx`), using each split's own real `ratio` — producing one rect per leaf, correct for any tree shape (not just a handful of fixed presets). */
-function layoutNodeToRects(node: LayoutNode, box: IconRect): { id: PaneId; rect: IconRect }[] {
-  if (node.type === 'leaf') return [{ id: node.id, rect: box }]
-  const share = resolveRatio(node) / 100
-  if (node.direction === 'row') {
-    const firstWidth = box.width * share
-    return [
-      ...layoutNodeToRects(node.first, { ...box, width: firstWidth }),
-      ...layoutNodeToRects(node.second, { ...box, x: box.x + firstWidth, width: box.width - firstWidth }),
-    ]
-  }
-  const firstHeight = box.height * share
-  return [
-    ...layoutNodeToRects(node.first, { ...box, height: firstHeight }),
-    ...layoutNodeToRects(node.second, { ...box, y: box.y + firstHeight, height: box.height - firstHeight }),
-  ]
-}
+import { computeLayoutGeometry, type Rect } from '../../../utils/layoutGeometry'
 
 /** A small inset margin (in the 32x24 viewBox's own units) between adjacent rects, so they read as separate panes rather than one solid block — matching the old hand-laid preview's own 2-unit gaps. */
 const GAP = 1
 
-function inset(rect: IconRect): IconRect {
+function inset(rect: Rect): Rect {
   return { x: rect.x + GAP / 2, y: rect.y + GAP / 2, width: Math.max(0, rect.width - GAP), height: Math.max(0, rect.height - GAP) }
 }
 
@@ -44,7 +19,7 @@ interface LayoutIconProps {
 
 /** Small SVG preview of a pane arrangement, used as the visual choice in the admin Screens form's preset picker, each screen card's live preview, and (with `highlightId`) each of the form's own tab buttons. */
 export function LayoutIcon({ layout, width = 32, height = 24, highlightId }: LayoutIconProps) {
-  const rects = layout ? layoutNodeToRects(layout, { x: 1, y: 1, width: 30, height: 22 }).map(({ id, rect }) => ({ id, rect: inset(rect) })) : []
+  const rects = layout ? computeLayoutGeometry(layout, { x: 1, y: 1, width: 30, height: 22 }).leaves.map(({ id, rect }) => ({ id, rect: inset(rect) })) : []
 
   return (
     <svg viewBox="0 0 32 24" width={width} height={height} aria-hidden="true">

@@ -11,6 +11,7 @@ import {
   DEFAULT_TEXT_SIZES,
   type BackgroundImage,
   type LayoutNode,
+  type PaneGrowthFallback,
   type PaneId,
   type ScreenConfig,
   type ScreenSlot,
@@ -97,7 +98,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
   const [screensaverSchedule] = useScreensaverSchedule()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
   /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the interactive "Layout" grid, the pane-border color editor, the screen's own whole-screen "Background" color/image editor, the "Steps" (use-stages/count/duration/transition) editor, the "Screen saver" editor, the "Other settings" editor, or neither. A pane's own fields (content, background, text size) aren't one of these — they're owned by `PaneEditor` itself, which manages its own sub-view navigation internally (see the active-pane tab render below). */
-  const [editingTarget, setEditingTarget] = useState<'global' | 'layout' | 'borders' | 'background' | 'stages' | 'screensaver' | 'other' | null>(null)
+  const [editingTarget, setEditingTarget] = useState<'global' | 'layout' | 'borders' | 'background' | 'stages' | 'transitions' | 'screensaver' | 'other' | null>(null)
   /** `1` while opening a sub-view (slides in from the right, see `SlideTransition`), `-1` while going back (slides in from the left). Set right before whatever state change actually switches the view. */
   const [direction, setDirection] = useState<1 | -1>(1)
   /** Which physical display shape the "Layout" tab's own live preview is currently sized to — a local sanity-check tool, not a persisted screen setting. */
@@ -123,6 +124,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
   const [hideScrollbar, setHideScrollbar] = useState(screen?.hideScrollbar ?? false)
   const [useScreensaver, setUseScreensaver] = useState(screen?.useScreensaver ?? false)
   const [transitionStyle, setTransitionStyle] = useState<ScreenTransitionStyle>(screen?.transitionStyle ?? 'fade')
+  const [paneGrowthFallback, setPaneGrowthFallback] = useState<PaneGrowthFallback>(screen?.paneGrowthFallback ?? 'screenEdge')
 
   const hasMultipleStages = useStages && stageCount > 1
   /** `activeStage` clamped to whatever's actually selectable right now — shrinking `stageCount` while a higher stage was selected shouldn't leave the tab bar (or any resolver below) pointing at a stage that's no longer offered; growing it back reveals the original selection again, since `activeStage` itself is never reset. */
@@ -252,6 +254,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
         stageCount,
         slideDurationSeconds,
         transitionStyle,
+        paneGrowthFallback,
         showSlotBorders,
         hideScrollbar,
         useScreensaver,
@@ -340,11 +343,18 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
     onRouteChange?.(t('admin.screens.bordersLabel'))
   }
 
-  /** Opens the use-stages/count/duration/transition editor. */
+  /** Opens the use-stages/count/duration editor. */
   const openStagesEditor = () => {
     setDirection(1)
     setEditingTarget('stages')
     onRouteChange?.(t('admin.screens.stagesLabel'))
+  }
+
+  /** Opens the content-transition-style / pane-growth-fallback editor. */
+  const openTransitionsEditor = () => {
+    setDirection(1)
+    setEditingTarget('transitions')
+    onRouteChange?.(t('admin.screens.transitionsLabel'))
   }
 
   /** Opens the "Use screensaver"/"Test screensaver" editor. */
@@ -451,6 +461,12 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
   const handleTransitionStyleChange = (style: ScreenTransitionStyle) => {
     setTransitionStyle(style)
     liveUpdateScreen({ transitionStyle: style })
+  }
+
+  /** Writes the chosen pane-growth fallback (screen edge / fade — see `PaneGrowthFallback`) straight to the persisted screen, live. */
+  const handlePaneGrowthFallbackChange = (fallback: PaneGrowthFallback) => {
+    setPaneGrowthFallback(fallback)
+    liveUpdateScreen({ paneGrowthFallback: fallback })
   }
 
   /** Persists a divider drag (or, once the split/delete UI lands, a structural edit) from the inline "Layout" grid straight to the persisted screen, live — matching how the live display's own dragging already works. */
@@ -614,6 +630,12 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
           value={slideDurationSeconds}
           onChange={(event) => setSlideDurationSeconds(Number(event.target.value))}
         />
+      </div>
+    )
+  } else if (editingTarget === 'transitions' && screen) {
+    viewKey = 'transitions'
+    formContent = (
+      <div className="screen-form__subview">
         <div className="screen-form__field">
           <span>{t('admin.screens.transitionStyleLabel')}</span>
           <div className="screen-form__layout-picker">
@@ -630,6 +652,25 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
               onClick={() => handleTransitionStyleChange('slide')}
             >
               {t('admin.screens.transitionSlideLabel')}
+            </button>
+          </div>
+        </div>
+        <div className="screen-form__field">
+          <span>{t('admin.screens.paneGrowthFallbackLabel')}</span>
+          <div className="screen-form__layout-picker">
+            <button
+              type="button"
+              className={`screen-form__layout-option${paneGrowthFallback === 'screenEdge' ? ' screen-form__layout-option--active' : ''}`}
+              onClick={() => handlePaneGrowthFallbackChange('screenEdge')}
+            >
+              {t('admin.screens.paneGrowthScreenEdgeLabel')}
+            </button>
+            <button
+              type="button"
+              className={`screen-form__layout-option${paneGrowthFallback === 'fade' ? ' screen-form__layout-option--active' : ''}`}
+              onClick={() => handlePaneGrowthFallbackChange('fade')}
+            >
+              {t('admin.screens.paneGrowthFadeLabel')}
             </button>
           </div>
         </div>
@@ -703,6 +744,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
         stageCount,
         slideDurationSeconds,
         transitionStyle,
+        paneGrowthFallback,
         showSlotBorders,
         hideScrollbar,
         useScreensaver,
@@ -793,6 +835,13 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
               <motion.div layout>
                 <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openStagesEditor}>
                   {t('admin.screens.stagesLabel')}
+                  <span aria-hidden="true">→</span>
+                </Button>
+              </motion.div>
+
+              <motion.div layout>
+                <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openTransitionsEditor}>
+                  {t('admin.screens.transitionsLabel')}
                   <span aria-hidden="true">→</span>
                 </Button>
               </motion.div>

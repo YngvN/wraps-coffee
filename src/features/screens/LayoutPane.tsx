@@ -3,10 +3,12 @@ import { useState, type DragEvent } from 'react'
 import { useLanguage, type LanguageCode } from '../../i18n'
 import type { PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SlideTransitionDirection, SplitDirection, TextSizes } from '../../types/screen'
 import { backgroundImageTextStyle, slotBackgroundColorStyle } from '../../utils/screenColors'
+import type { PaneGrowthOrigin } from '../../utils/paneGrowth'
 import { pickImageVariant } from '../../utils/responsiveImage'
 import { resolveContentBackgroundImage } from '../../utils/screenSlots'
 import { resolvedCheckpointStage, resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage } from '../../utils/screenStages'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
+import { collapsedClipPath, FULL_REVEAL_CLIP_PATH, PANE_GROWTH_DURATION_SECONDS } from './paneGrowthMotion'
 import { PaneClearButton } from './PaneClearButton'
 import { PaneDeleteButton } from './PaneDeleteButton'
 import { PaneEditButton } from './PaneEditButton'
@@ -38,6 +40,8 @@ interface LayoutPaneProps {
   canDelete: boolean
   /** Draws a persistent highlight ring around this pane — see `SplitLayout`'s own doc comment. */
   selected?: boolean
+  /** Which of this pane's own edges it should visually grow in from on mount (a real divider, the screen's own edge, or a plain fade — see `resolvePaneGrowthOrigin` in `src/utils/paneGrowth.ts`) — `undefined` renders at full size immediately, which is also always the effective behavior once `reducedMotion` is on (only consulted at React's own true first mount, per `SplitLayout.tsx`'s own doc comment on why this can't be computed in an effect). */
+  growEntranceFrom?: PaneGrowthOrigin
 }
 
 /**
@@ -67,10 +71,31 @@ export function LayoutPane({
   onDeletePane,
   canDelete,
   selected,
+  growEntranceFrom,
 }: LayoutPaneProps) {
   const { t } = useLanguage()
   const [dragDepth, setDragDepth] = useState(0)
   const transition = reducedMotion ? { duration: 0 } : { duration: transitionDuration, ease: 'easeInOut' as const }
+
+  /**
+   * The `editingFocus.pulse` value already in effect the *first* time this
+   * particular pane instance rendered — captured once (a plain `useState`
+   * initial value, never updated afterward) so a pane that mounts fresh
+   * while already matching the ambient focus (`'global'`, or a
+   * newly-split/appeared pane that happens to inherit it) doesn't mistake
+   * "I just mounted" for "I was just clicked." Without this, `initial`
+   * always applies at a component's true first mount regardless of *why*
+   * it mounted, so every newly-appeared pane matching `'global'` would
+   * flash white the instant it grows in — very visible now that panes
+   * animate in smoothly instead of popping in. Only a pulse value that's
+   * genuinely *different* from this one — a real subsequent focus change —
+   * plays the flash.
+   */
+  const [pulseAtMount] = useState(editingFocus?.pulse)
+
+  const growthClipPath = growEntranceFrom && growEntranceFrom.kind !== 'fade' ? collapsedClipPath(growEntranceFrom.edge) : FULL_REVEAL_CLIP_PATH
+  const growthInitial = growEntranceFrom && !reducedMotion ? { clipPath: growthClipPath, opacity: growEntranceFrom.kind === 'fade' ? 0 : 1 } : { clipPath: FULL_REVEAL_CLIP_PATH, opacity: 1 }
+  const growthTransition = { duration: growEntranceFrom && !reducedMotion ? PANE_GROWTH_DURATION_SECONDS : 0, ease: 'easeInOut' as const }
 
   const content = resolveSlotContent(slot, stage)
   const checkpointStage = resolvedCheckpointStage(slot.content, stage) ?? stage
@@ -108,9 +133,12 @@ export function LayoutPane({
   }
 
   return (
-    <div
+    <motion.div
       className={`split-layout__pane${selected ? ' split-layout__pane--selected' : ''}`}
       style={paneStyle}
+      initial={growthInitial}
+      animate={{ clipPath: FULL_REVEAL_CLIP_PATH, opacity: 1 }}
+      transition={growthTransition}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -167,9 +195,9 @@ export function LayoutPane({
       {onSplitPane && <PaneSplitZones onSplit={(axis, edge) => onSplitPane(leafId, axis, edge)} />}
       {onClearPane && <PaneClearButton onClick={() => onClearPane(leafId)} />}
       {onDeletePane && canDelete && <PaneDeleteButton onClick={() => onDeletePane(leafId)} />}
-      {editingFocus && (editingFocus.tab === 'global' || editingFocus.tab === leafId) && (
+      {editingFocus && (editingFocus.tab === 'global' || editingFocus.tab === leafId) && editingFocus.pulse !== pulseAtMount && (
         <motion.div key={editingFocus.pulse} className="split-layout__pane-pulse" initial={{ opacity: 0.55 }} animate={{ opacity: 0 }} transition={{ duration: 0.6, ease: 'easeOut' }} />
       )}
-    </div>
+    </motion.div>
   )
 }

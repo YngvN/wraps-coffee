@@ -208,6 +208,9 @@ export type LayoutNode = { type: 'leaf'; id: PaneId } | { type: 'split'; directi
 /** How a slide change is animated for any slot's own in-place rotation. Kept as its own union so more styles can be added later without changing `ScreenConfig`'s shape. */
 export type ScreenTransitionStyle = 'fade' | 'slide'
 
+/** The fallback entrance/exit a pane uses when it has no existing internal divider to grow from/collapse into — see `ScreenConfig.paneGrowthFallback`. */
+export type PaneGrowthFallback = 'screenEdge' | 'fade'
+
 /** Which side a `'slide'`-style transition's incoming slide enters from — the outgoing one exits toward the opposite side. Only relevant when `transitionStyle` is `'slide'`; computed per pane from the arrangement itself (see `paneDefaultSlideDirection`) rather than stored on `ScreenConfig`, so a slide never has to enter/exit through a border it shares with a neighboring pane. */
 export type SlideTransitionDirection = 'left' | 'right' | 'up' | 'down'
 
@@ -292,6 +295,8 @@ export interface ScreenConfig {
   /** Seconds each stage is shown before advancing to the next, shared by every pane's own rotation. Only meaningful while `useStages` is on and `stageCount` is more than 1. */
   slideDurationSeconds: number
   transitionStyle: ScreenTransitionStyle
+  /** Which entrance/exit a newly-appeared or just-removed pane uses when no existing internal divider qualifies as a border to grow from/collapse into (see `resolvePaneGrowthOrigin` in `src/utils/paneGrowth.ts`) — e.g. splitting a screen's very first/only pane, where there's nothing else yet to grow from. `'screenEdge'` grows in from (or collapses back into) whichever of the pane's own edges lies on the screen's outer boundary. `'fade'` skips the directional wipe entirely and just crossfades in/out in place. Falls back to `'screenEdge'` when absent. */
+  paneGrowthFallback?: PaneGrowthFallback
   /** Optional per-screen text size override, set via the display's own "Edit appearance" panel. Falls back to `DEFAULT_TEXT_SIZES` when absent. */
   textSizes?: TextSizes
   /** Whether visible borders are drawn between panes. Falls back to `true` (shown) when absent. */

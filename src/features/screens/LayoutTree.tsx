@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import type { LanguageCode } from '../../i18n'
 import type { LayoutNode, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SplitDirection, TextSizes } from '../../types/screen'
+import type { PaneGrowthOrigin } from '../../utils/paneGrowth'
 import { nodeGridTemplate, paneDefaultSlideDirection, type NodePath } from '../../utils/screenLayout'
 import { LayoutPane } from './LayoutPane'
 import { SplitLayoutDivider } from './SplitLayoutDivider'
@@ -32,6 +33,8 @@ interface LayoutTreeProps {
   onClearPane?: (leafId: PaneId) => void
   onDeletePane?: (leafId: PaneId) => void
   canDelete: boolean
+  /** Which leaves just appeared this render (keyed by their own id) and which edge each should visually grow in from — see `LayoutPane`'s own prop of the same name, and `SplitLayout.tsx`'s own doc comment for how this is derived. Leaves not present here render at full size immediately. */
+  enteringGrowth: Record<PaneId, PaneGrowthOrigin>
 }
 
 /**
@@ -66,6 +69,7 @@ export function LayoutTree({
   onClearPane,
   onDeletePane,
   canDelete,
+  enteringGrowth,
 }: LayoutTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -75,6 +79,7 @@ export function LayoutTree({
     const slideDirection = paneDefaultSlideDirection(root, node.id)
     return (
       <LayoutPane
+        key={node.id}
         leafId={node.id}
         slot={slot}
         stage={stage}
@@ -92,6 +97,7 @@ export function LayoutTree({
         onClearPane={onClearPane}
         onDeletePane={onDeletePane}
         canDelete={canDelete}
+        growEntranceFrom={enteringGrowth[node.id]}
       />
     )
   }
@@ -123,6 +129,7 @@ export function LayoutTree({
         onClearPane={onClearPane}
         onDeletePane={onDeletePane}
         canDelete={canDelete}
+        enteringGrowth={enteringGrowth}
       />
       <LayoutTree
         node={node.second}
@@ -146,6 +153,7 @@ export function LayoutTree({
         onClearPane={onClearPane}
         onDeletePane={onDeletePane}
         canDelete={canDelete}
+        enteringGrowth={enteringGrowth}
       />
       {onLiveChange && onCommit && (
         <SplitLayoutDivider
