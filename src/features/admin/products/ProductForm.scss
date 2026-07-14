@@ -22,15 +22,14 @@
     background: $color-bg;
     color: $color-text;
   }
-}
 
-.product-form__row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: $spacing-unit * 2;
-
-  @media (max-width: 600px) {
-    grid-template-columns: 1fr;
+  // `ImageUploadField` carries its own top margin to separate it from
+  // whatever comes before it (see its own `.image-upload-field` rule) — here
+  // that's this field's own label, already spaced by this field's own `gap`
+  // above, so the two would otherwise stack into a much bigger gap than
+  // every other field in this form gets.
+  .image-upload-field {
+    margin-top: 0;
   }
 }
 

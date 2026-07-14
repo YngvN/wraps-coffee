@@ -24,6 +24,7 @@ export function MessagesView() {
   return (
     <div className="messages-view">
       <TranslatedText as="h1" id="admin.messages.title" />
+      <TranslatedText as="p" id="admin.messages.description" className="admin-page-description" />
       <div className="messages-view__layout">
         <div className="messages-view__list">
           {messages.length === 0 ? (

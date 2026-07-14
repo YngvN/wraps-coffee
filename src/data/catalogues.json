@@ -1,0 +1,64 @@
+[
+  {
+    "id": "food-menu",
+    "name": { "en": "Food menu", "no": "Matmeny" },
+    "categories": [
+      {
+        "id": "salads",
+        "name": { "en": "Salads", "no": "Salater" },
+        "description": {
+          "en": "Fresh salads with crisp greens and your choice of topping.",
+          "no": "Friske salater med sprø grønnsaker og ditt valg av tilbehør."
+        }
+      },
+      {
+        "id": "wraps",
+        "name": { "en": "Wraps", "no": "Wraps" },
+        "description": {
+          "en": "Soft wraps rolled with rice, fresh vegetables, dressing and your choice of filling.",
+          "no": "Myke wraps rullet med ris, ferske grønnsaker, dressing og ditt valg av fyll."
+        }
+      },
+      {
+        "id": "baguettes",
+        "name": { "en": "Baguettes", "no": "Baguetter" },
+        "description": {
+          "en": "Crusty baguettes with fresh salad and your choice of filling.",
+          "no": "Sprø baguetter med fersk salat og ditt valg av fyll."
+        }
+      },
+      {
+        "id": "pizza",
+        "name": { "en": "Pizza", "no": "Pizza" },
+        "description": {
+          "en": "Stone-baked pizza with classic toppings.",
+          "no": "Steinovnsbakt pizza med klassiske topping."
+        }
+      },
+      {
+        "id": "nachos",
+        "name": { "en": "Nachos", "no": "Nachos" },
+        "description": {
+          "en": "Crunchy nacho chips loaded with rice, cheese and your choice of topping, perfect for sharing.",
+          "no": "Sprø nachos chips med ris, ost og ditt valg av topping — perfekt å dele."
+        }
+      },
+      {
+        "id": "drinks",
+        "name": { "en": "Coffee & Drinks", "no": "Kaffe & Drikke" },
+        "description": {
+          "en": "Espresso drinks, tea and other favourites to go with your meal.",
+          "no": "Espressodrikker, te og andre favoritter som passer til måltidet."
+        }
+      },
+      {
+        "id": "smoothies",
+        "name": { "en": "Smoothies", "no": "Smoothies" },
+        "description": {
+          "en": "Fresh fruit smoothies, blended to order — pick your favourite combination.",
+          "no": "Friske fruktsmoothies, blandet ferskt til deg — velg din favorittkombinasjon."
+        }
+      }
+    ]
+  }
+]

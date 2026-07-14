@@ -1,5 +1,5 @@
 import { useReducedMotion } from 'framer-motion'
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useLanguage, type LanguageCode } from '../../i18n'
 import { DEFAULT_SCREEN_BACKGROUND_COLOR, type LayoutNode, type PaneId, type ScreenConfig, type ScreenSlotContent, type SplitDirection, type TextSizes } from '../../types/screen'
 import { computeLayoutGeometry, type Rect } from '../../utils/layoutGeometry'
@@ -108,7 +108,15 @@ export function SplitLayout({
   }, [])
 
   const fallbackLeafId = Object.keys(screen.paneSlots)[0] ?? 'none'
-  const tree = resolveStageValue(screen.layout, effectiveStage) ?? { type: 'leaf' as const, id: fallbackLeafId }
+  // Memoized so it's a *stable* reference across renders that don't change
+  // `screen.layout`/`effectiveStage` (the object-literal fallback branch
+  // would otherwise be a fresh object every render) — required for the
+  // `diffWithBase`/`enteringGrowth` memoization below (both keyed on
+  // `tree`) to actually skip work, not just on paper.
+  const tree = useMemo(
+    () => resolveStageValue(screen.layout, effectiveStage) ?? { type: 'leaf' as const, id: fallbackLeafId },
+    [screen.layout, effectiveStage, fallbackLeafId],
+  )
   const leaves = listLeaves(tree)
   const paneGrowthFallback = screen.paneGrowthFallback ?? 'screenEdge'
 
@@ -135,7 +143,10 @@ export function SplitLayout({
    * below is idempotent to being re-derived from the same stale value on
    * repeat renders (framer-motion only reads `enteringGrowth` once, at
    * actual mount; `exitingGhosts` explicitly filters out ids it's already
-   * tracking before ever calling `setExitingGhosts`).
+   * tracking before ever calling `setExitingGhosts`) — and `diffWithBase`
+   * below memoizes the actual diff itself, so a stale-but-unchanged
+   * `diffBase` doesn't even cost a re-walk of the tree on every one of
+   * those repeat renders, only the first time it's seen.
    */
   const [prevTree, setPrevTree] = useState<LayoutNode>(tree)
   const [diffBase, setDiffBase] = useState<LayoutNode | null>(null)
@@ -144,24 +155,27 @@ export function SplitLayout({
     setPrevTree(tree)
   }
 
-  const enteringGrowth: Record<PaneId, PaneGrowthOrigin> =
-    diffBase && !reducedMotion
-      ? Object.fromEntries(diffLeafSets(diffBase, tree).appeared.map((id) => [id, resolvePaneGrowthOrigin(tree, diffBase, id, paneGrowthFallback)]))
-      : {}
+  /** `diffLeafSets(diffBase, tree)` computed once per `[diffBase, tree]` pair rather than separately (and redundantly) by both `enteringGrowth` below and the `exitingGhosts` tracking block — both derive from exactly the same diff. */
+  const diffWithBase = useMemo(() => (diffBase ? { diffBase, diff: diffLeafSets(diffBase, tree) } : null), [diffBase, tree])
+
+  const enteringGrowth = useMemo<Record<PaneId, PaneGrowthOrigin>>(() => {
+    if (!diffWithBase || reducedMotion) return {}
+    return Object.fromEntries(diffWithBase.diff.appeared.map((id) => [id, resolvePaneGrowthOrigin(tree, diffWithBase.diffBase, id, paneGrowthFallback)]))
+  }, [diffWithBase, reducedMotion, tree, paneGrowthFallback])
 
   const [exitingGhosts, setExitingGhosts] = useState<Record<PaneId, { rect: Rect; growth: PaneGrowthOrigin }>>({})
-  if (diffBase && !reducedMotion) {
-    const { disappeared } = diffLeafSets(diffBase, tree)
-    const newlyDisappeared = disappeared.filter((id) => !(id in exitingGhosts))
+  if (diffWithBase && !reducedMotion) {
+    const { diffBase: baseForExit, diff } = diffWithBase
+    const newlyDisappeared = diff.disappeared.filter((id) => !(id in exitingGhosts))
     if (newlyDisappeared.length > 0) {
-      const priorGeometry = computeLayoutGeometry(diffBase)
+      const priorGeometry = computeLayoutGeometry(baseForExit)
       setExitingGhosts((current) => {
         const additions: Record<PaneId, { rect: Rect; growth: PaneGrowthOrigin }> = {}
         for (const id of newlyDisappeared) {
           if (id in current) continue
           const rect = priorGeometry.leaves.find((leaf) => leaf.id === id)?.rect
           if (!rect) continue
-          additions[id] = { rect, growth: resolvePaneGrowthOrigin(diffBase, tree, id, paneGrowthFallback) }
+          additions[id] = { rect, growth: resolvePaneGrowthOrigin(baseForExit, tree, id, paneGrowthFallback) }
         }
         return Object.keys(additions).length > 0 ? { ...current, ...additions } : current
       })

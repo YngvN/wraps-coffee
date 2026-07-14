@@ -123,6 +123,7 @@ export function UsersView() {
         <TranslatedText as="h1" id="admin.users.title" />
         <Button onClick={openAddModal}>{t('admin.users.addUser')}</Button>
       </div>
+      <TranslatedText as="p" id="admin.users.description" className="admin-page-description" />
 
       <Card>
         {users === null ? (

@@ -46,11 +46,13 @@ export function SettingsView() {
             <BackButton onClick={closeDeveloperDocs}>{t('admin.common.back')}</BackButton>
             <TranslatedText as="h1" id="admin.settings.developersTitle" />
           </div>
+          <TranslatedText as="p" id="admin.settings.developersDescription" className="admin-page-description" />
           <DeveloperDocsView />
         </div>
       ) : (
         <div className="settings-view">
           <TranslatedText as="h1" id="admin.settings.title" />
+          <TranslatedText as="p" id="admin.settings.description" className="admin-page-description" />
           <Card title={t('admin.settings.languageLabel')}>
             <div className="settings-view__language-options">
               {availableLanguages.map((option) => (

@@ -102,6 +102,7 @@ export function MessageBoardView() {
   return (
     <div className="message-board-view">
       <TranslatedText as="h1" id="admin.messageBoard.title" />
+      <TranslatedText as="p" id="admin.messageBoard.description" className="admin-page-description" />
 
       <div className="message-board-view__tabs" role="tablist">
         {boards.map((board) => {

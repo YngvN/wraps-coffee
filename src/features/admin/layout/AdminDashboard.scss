@@ -32,6 +32,16 @@
   overflow-x: hidden;
 }
 
+// A one-line "what this page is for" description, shown right under a page's
+// own `<h1>` — one shared rule (rather than restyling it separately in every
+// section's own stylesheet) since every admin view renders inside
+// `.admin-dashboard__content` and wants the exact same treatment.
+.admin-page-description {
+  display: block;
+  margin: calc($spacing-unit / -1.5) 0 $spacing-unit * 2;
+  color: $color-text-muted;
+}
+
 .admin-dashboard__toggle {
   display: none;
 }

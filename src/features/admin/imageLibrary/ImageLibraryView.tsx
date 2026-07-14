@@ -121,6 +121,7 @@ export function ImageLibraryView() {
           <input type="file" accept="image/*" multiple onChange={handleFileInputChange} disabled={uploading || !session} />
         </label>
       </div>
+      <TranslatedText as="p" id="admin.imageLibrary.description" className="admin-page-description" />
 
       {isDragging && (
         <div className="image-library__drop-overlay">

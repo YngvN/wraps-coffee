@@ -15,6 +15,7 @@ export function OverviewView() {
   return (
     <div className="overview-view">
       <TranslatedText as="h1" id="admin.overview.title" />
+      <TranslatedText as="p" id="admin.overview.description" className="admin-page-description" />
       <div className="overview-view__tiles">
         {[
           { label: t('admin.overview.revenueToday'), value: `${mockStats.revenueToday.value.toLocaleString(language)} kr`, stat: mockStats.revenueToday },

@@ -1,10 +1,10 @@
 import type { ScreenSlotContent } from '../../types/screen'
 import { AnnouncementSlide } from './AnnouncementSlide'
+import { CatalogueSlide } from './CatalogueSlide'
 import { EventCalendarSlide } from './EventCalendarSlide'
 import { EventDetailsSlide } from './EventDetailsSlide'
 import { EventImageSlide } from './EventImageSlide'
 import { EventMonthSlide } from './EventMonthSlide'
-import { FullMenuSlide } from './FullMenuSlide'
 import { ImageSlide } from './ImageSlide'
 import { MessageBoardSlide } from './MessageBoardSlide'
 import { QrCodeSlide } from './QrCodeSlide'
@@ -17,7 +17,7 @@ interface SlotContentProps {
 
 /** Renders whatever a screen slot is configured to show. */
 export function SlotContent({ slot }: SlotContentProps) {
-  if (slot.kind === 'menu') return <FullMenuSlide categories={slot.categories} />
+  if (slot.kind === 'catalogue') return <CatalogueSlide catalogueId={slot.catalogueId} categories={slot.categories} />
   if (slot.kind === 'event') {
     const displayMode = slot.displayMode ?? 'calendar'
     if (displayMode === 'image') return <EventImageSlide eventOrdinal={slot.eventOrdinal ?? 1} />

@@ -45,9 +45,10 @@ function stemOf(filename: string): string {
 }
 
 /**
- * Saves the uploaded original, then generates two compressed WebP
+ * Saves the uploaded original, then generates three compressed WebP
  * companions alongside it (`-small` for mobile/slow-connection viewers,
- * `-thumb` for small-image contexts like the Image Library grid) — see
+ * `-thumb` for small-image contexts like the Image Library grid, `-blur`
+ * pre-blurred and downsized for a pane's own blurred backdrop — see
  * "Responsive image variants" in the sync-server plan. A compression
  * failure (e.g. a corrupt image) still leaves the original saved and
  * usable, just without the smaller variants.
@@ -77,6 +78,11 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse, ho
     writeFileSync(join(UPLOADS_DIR, `${id}-small.webp`), small)
     const thumb = await sharp(buffer).resize({ width: 240, withoutEnlargement: true }).webp({ quality: 50 }).toBuffer()
     writeFileSync(join(UPLOADS_DIR, `${id}-thumb.webp`), thumb)
+    // Downsized before blurring — blurred content has no fine detail to lose,
+    // so this is both a faster sharp pass and a much smaller file than
+    // blurring the full-resolution original live in the browser every frame.
+    const blurred = await sharp(buffer).resize({ width: 480, withoutEnlargement: true }).blur(20).webp({ quality: 60 }).toBuffer()
+    writeFileSync(join(UPLOADS_DIR, `${id}-blur.webp`), blurred)
   } catch (error) {
     console.error('[uploads] compression failed, original still saved:', error)
   }
@@ -85,12 +91,12 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse, ho
   sendJson(res, 201, { url: `http://${host}/uploads/${filename}` })
 }
 
-/** Serves the original, or (with `?size=small|thumb`) its compressed companion if one exists — falls back to the original if the requested variant is missing. */
+/** Serves the original, or (with `?size=small|thumb|blur`) its compressed companion if one exists — falls back to the original if the requested variant is missing (e.g. an upload saved before that variant existed). */
 export function handleServeUpload(res: ServerResponse, requestedFilename: string, size: string | null) {
   const safeName = basename(requestedFilename)
   let targetName = safeName
 
-  if (size === 'small' || size === 'thumb') {
+  if (size === 'small' || size === 'thumb' || size === 'blur') {
     const variantName = `${stemOf(safeName)}-${size}.webp`
     if (existsSync(join(UPLOADS_DIR, variantName))) targetName = variantName
   }
@@ -112,12 +118,12 @@ export function handleServeUpload(res: ServerResponse, requestedFilename: string
   res.end(readFileSync(filePath))
 }
 
-/** Removes the original and both its `-small`/`-thumb` companions, if present. Idempotent — always succeeds even if nothing existed. */
+/** Removes the original and all of its `-small`/`-thumb`/`-blur` companions, if present. Idempotent — always succeeds even if nothing existed. */
 export function handleDeleteUpload(res: ServerResponse, requestedFilename: string) {
   const safeName = basename(requestedFilename)
   const stem = stemOf(safeName)
 
-  for (const name of [safeName, `${stem}-small.webp`, `${stem}-thumb.webp`]) {
+  for (const name of [safeName, `${stem}-small.webp`, `${stem}-thumb.webp`, `${stem}-blur.webp`]) {
     const filePath = join(UPLOADS_DIR, name)
     if (existsSync(filePath)) unlinkSync(filePath)
   }
@@ -134,9 +140,11 @@ export interface UploadListEntry {
   uploadedAt: string
 }
 
-/** Lists every original upload (excluding `-small`/`-thumb` companions, so each upload appears once), newest first. */
+/** Lists every original upload (excluding `-small`/`-thumb`/`-blur` companions, so each upload appears once), newest first. */
 export function listUploads(host: string): UploadListEntry[] {
-  const files = readdirSync(UPLOADS_DIR).filter((name) => !name.endsWith('-small.webp') && !name.endsWith('-thumb.webp') && name !== '.gitkeep')
+  const files = readdirSync(UPLOADS_DIR).filter(
+    (name) => !name.endsWith('-small.webp') && !name.endsWith('-thumb.webp') && !name.endsWith('-blur.webp') && name !== '.gitkeep',
+  )
 
   return files
     .map((filename) => {

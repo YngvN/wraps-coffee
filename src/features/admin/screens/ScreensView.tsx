@@ -77,7 +77,7 @@ export function ScreensView() {
 
   const contentLabel = (content: ScreenSlotContent) => {
     if (content.kind === 'none') return t('admin.screens.slotNoneLabel')
-    if (content.kind === 'menu') return t('admin.screens.slotMenuLabel')
+    if (content.kind === 'catalogue') return t('admin.screens.slotCatalogueLabel')
     if (content.kind === 'event') {
       const displayMode = content.displayMode ?? 'calendar'
       if (displayMode === 'image') return t('admin.screens.slotEventImageLabel')
@@ -134,6 +134,7 @@ export function ScreensView() {
                 <Button onClick={() => openForm(null)}>{t('admin.screens.addScreen')}</Button>
               </div>
             </div>
+            <TranslatedText as="p" id="admin.screens.description" className="admin-page-description" />
 
             {screens.length === 0 ? (
               <p className="screens-view__empty">{t('admin.screens.noScreens')}</p>

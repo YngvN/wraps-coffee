@@ -9,9 +9,8 @@ Runs alongside an optional local server (`server/`) — a small Node/WebSocket p
 - **Owner admin dashboard** (`/admin`, `src/features/admin`) — real login (seeded `admin`/`1234` on first boot; see "Authentication" below), a sticky sidebar nav, and:
   - **Overview** — stat tiles (revenue, orders, top sellers, customers).
   - **Messages** — inbox for contact-form submissions (local, or pulled from the public website — see "Website integration"), markable as read.
-  - **Products** — full menu CRUD, bilingual (English/Norwegian) name/description, per-item or category-default pricing, allergen checkboxes, availability toggle.
+  - **Products** — organized as catalogues (e.g. "Food menu", a separate "Merch" catalogue for non-food items) → each catalogue's own categories → each category's own products, all admin-created/renamed/deleted (delete asks for confirmation) and drag-reorderable. Bilingual (English/Norwegian) name/description, an optional image on both categories and products, per-item or category-default pricing, an optional percentage- or amount-off discount (shown struck-through alongside the new price, highlighted on the item), allergen checkboxes, availability toggle.
   - **Events** — full CRUD for cafe events (recurring, postponed, cancelled occurrences; registration on/off).
-  - **Instagram** — manage which posts are featured.
   - **Contact info** — phone/email/address/opening hours.
   - **Orders** — online orders placed on the public website, pulled down live via the Neon bridge; change status here and it reflects back on the website's own order-status page.
   - **Screens** — the digital signage manager described below.
@@ -20,7 +19,7 @@ Runs alongside an optional local server (`server/`) — a small Node/WebSocket p
   - **Settings** — interface language, which sidebar items this cafe's dashboard shows, and a "For developers" API reference page (see below).
 - **Sidebar customization** (Settings → Sidebar items) — different cafes need different things; any section except Overview/Settings can be hidden from the sidebar entirely.
 - **Screens (digital signage)** (`/screens/:screenId`, `src/features/screens` + `src/features/admin/screens`) — configure any number of fullscreen kiosk displays, each showing up to 4 independent content slots:
-  - Per-slot content: a menu category, one of several event views (an upcoming-events calendar list, a single upcoming event's own photo or details by ordinal position, or every event in the current month with optional price/description), a single centered image, a QR code linking to an admin-typed URL (drawn in a single flat color matched to the pane's own contrast, no white background box), real-time transit departures, an hourly weather forecast, a message board post, a short admin-authored announcement, or nothing — freely changed without ever losing a hidden slot's own settings.
+  - Per-slot content: a catalogue (pick which one, then which of its categories to show), one of several event views (an upcoming-events calendar list, a single upcoming event's own photo or details by ordinal position, or every event in the current month with optional price/description), a single centered image, a QR code linking to an admin-typed URL (drawn in a single flat color matched to the pane's own contrast, no white background box), real-time transit departures, an hourly weather forecast, a message board post, a short admin-authored announcement, or nothing — freely changed without ever losing a hidden slot's own settings.
   - Per-slot slideshow rotation on a shared, screen-wide timer, with a fade or slide transition; dragging a border or opening an editor pauses the rotation until "Play" is pressed again.
   - An explicit "number of slots" (1-4) and on-screen arrangement, independent of whether each slot has content yet.
   - Text-size controls at every level, editable either live on the display itself or from the admin dashboard's tabbed screen editor.
@@ -50,6 +49,7 @@ Runs alongside an optional local server (`server/`) — a small Node/WebSocket p
 - **[sharp](https://sharp.pixelplumbing.com/)** — server-side image compression for uploaded images (generates `-small`/`-thumb` WebP variants).
 - **[pg](https://node-postgres.com/)** — direct Postgres client for the optional Neon bridge (`server/neonBridge.ts`), pushing/pulling business data (menu, events, contact info, messages, orders) to/from the public website's own database.
 - **[qrcode.react](https://github.com/zpao/qrcode.react)** — renders the "QR code" screen-slot kind as an SVG, drawn in a single flat color with a transparent background.
+- **[@dnd-kit](https://dndkit.com/)** — drag-and-drop reordering for the admin Products feature's catalogue/category/product lists (mouse and touch alike).
 
 ## Getting started
 
@@ -94,7 +94,7 @@ src/
       extensions/      # Ruter/Yr integration setup
       settings/        # Language, sidebar visibility, "For developers" docs
       screens/          # ScreensView (list) + tabbed ScreenForm (per-slot settings)
-      ...               # messages/ products/ events/ instagram/ contact/ orders/ overview/ login/ imageLibrary/
+      ...               # messages/ products/ events/ contact/ orders/ overview/ login/ imageLibrary/
     screens/            # Shared by the admin screen editor and the public kiosk display:
                         # SplitLayout, EventCalendarSlide/EventImageSlide/EventDetailsSlide/EventMonthSlide/ImageSlide/QrCodeSlide/TransitSlide/WeatherSlide,
                         # SlotContent, TextSizeEditor, GlobalTextSizeScaler, SlotEditor, ScreenToolbar

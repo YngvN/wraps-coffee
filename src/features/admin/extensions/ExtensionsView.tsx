@@ -67,6 +67,7 @@ export function ExtensionsView() {
   return (
     <div className="extensions-view">
       <TranslatedText as="h1" id="admin.extensions.title" />
+      <TranslatedText as="p" id="admin.extensions.description" className="admin-page-description" />
 
       <div className="extensions-view__lookup">
         <Button variant="secondary" onClick={handleLookupAddress} disabled={isLookingUp}>

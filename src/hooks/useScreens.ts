@@ -1,5 +1,5 @@
+import { useMemo } from 'react'
 import screensSeed from '../data/screens.json'
-import type { ProductCategory } from '../types/product'
 import type { BackgroundImage, LayoutNode, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SplitDirection, StageTimeline, TextSizes } from '../types/screen'
 import { clampRatio } from '../utils/screenLayout'
 import { isSlotActive, resolveStageValue } from '../utils/screenStages'
@@ -23,15 +23,15 @@ interface LegacyArrangement {
 /** The shape a content checkpoint took under the removed `'category'` kind — kept as its own local type (rather than `Extract<ScreenSlotContent, ...>`) so `migrateCategoryContent` keeps working once `'category'` is gone from `ScreenSlotContent` itself, since old persisted data can still literally contain one of these regardless of what the current type allows. */
 interface LegacyCategoryContent {
   kind: 'category'
-  category: ProductCategory
+  category: string
   textSizes?: TextSizes
   backgroundImage?: BackgroundImage
 }
 
 /**
- * Rewrites a `'category'` content checkpoint (kind removed — `'menu'`
+ * Rewrites a `'category'` content checkpoint (kind removed — `'catalogue'`
  * narrowed to one category via `categories: [category]` does everything it
- * did, and more, so there's nothing behaviorally lost) into its `'menu'`
+ * did, and more, so there's nothing behaviorally lost) into its `'catalogue'`
  * equivalent. Every other content checkpoint passes through unchanged.
  * Read-time only, like every other migration in this file — never writes
  * back to storage.
@@ -39,7 +39,23 @@ interface LegacyCategoryContent {
 function migrateCategoryContent(content: ScreenSlotContent): ScreenSlotContent {
   if (!content || (content as { kind?: string }).kind !== 'category') return content
   const legacy = content as unknown as LegacyCategoryContent
-  return { kind: 'menu', categories: [legacy.category], textSizes: legacy.textSizes, backgroundImage: legacy.backgroundImage }
+  return { kind: 'catalogue', categories: [legacy.category], textSizes: legacy.textSizes, backgroundImage: legacy.backgroundImage }
+}
+
+/**
+ * Rewrites the renamed `'menu'` kind (the products rework's catalogue/
+ * category model replaced the old fixed 7-category union — see
+ * `src/types/category.ts` — so the slide kind itself was renamed to
+ * `'catalogue'` to match) into its `'catalogue'` equivalent. `categories`
+ * (already just id strings, unaffected by the rename — see the products
+ * rework's migration note in `src/data/catalogues.json`) and `catalogueId`
+ * (left unset, falling back to the first/seeded catalogue) pass through
+ * unchanged. Every other content checkpoint passes through unchanged too.
+ */
+function migrateMenuKindRename(content: ScreenSlotContent): ScreenSlotContent {
+  if (!content || (content as { kind?: string }).kind !== 'menu') return content
+  const legacy = content as unknown as { categories?: string[]; textSizes?: TextSizes; backgroundImage?: BackgroundImage }
+  return { kind: 'catalogue', categories: legacy.categories, textSizes: legacy.textSizes, backgroundImage: legacy.backgroundImage }
 }
 
 /** The shape an `'announcement'` content checkpoint's `title`/`description` took before "Custom message" was simplified from a bilingual `{en, no}` pair to a single plain-text field. */
@@ -84,7 +100,7 @@ function migrateEventsContent(content: ScreenSlotContent): ScreenSlotContent {
 
 /** Runs every content-checkpoint migration in this file, in sequence — the single place `normalizeSlot` threads a raw checkpoint through all of them. */
 function migrateContent(content: ScreenSlotContent): ScreenSlotContent {
-  return migrateEventsContent(migrateAnnouncementContent(migrateCategoryContent(content)))
+  return migrateEventsContent(migrateAnnouncementContent(migrateMenuKindRename(migrateCategoryContent(content))))
 }
 
 /** The shape a persisted slot took before shared stages existed: one shared `isSlideshow` flag plus a flat, always-fully-populated list of rotating slides. */
@@ -308,14 +324,24 @@ function normalizeScreen(screen: ScreenConfig & Partial<LegacyArrangement> & { s
  * support reads a fresh but *raw* value straight from storage, which
  * callers here (e.g. `ScreenForm`'s unmount cleanup) shouldn't have to
  * re-normalize themselves.
+ *
+ * The normalize pass itself is memoized on `screens`' own reference —
+ * `useLocalStorage` only produces a new one when something *actually*
+ * changed (a real write, a cross-tab `storage` event, or a server-pushed
+ * sync update), never just because this hook's own caller re-rendered for
+ * an unrelated reason — so this avoids re-running the full migration/
+ * normalization walk (over every screen, every stage, every pane) on every
+ * render of every one of this hook's several callers (`ScreensView`,
+ * `ScreenForm`, `ScreenDisplay`, `SlideFields`).
  */
 export function useScreens() {
   const [screens, setScreens] = useLocalStorage<ScreenConfig[]>(STORAGE_KEY, screensSeed as ScreenConfig[])
+  const normalizedScreens = useMemo(() => screens.map(normalizeScreen), [screens])
 
   const setNormalizedScreens = (update: ScreenConfig[] | ((current: ScreenConfig[]) => ScreenConfig[])) => {
     if (typeof update === 'function') setScreens((current) => update(current.map(normalizeScreen)))
     else setScreens(update)
   }
 
-  return [screens.map(normalizeScreen), setNormalizedScreens] as const
+  return [normalizedScreens, setNormalizedScreens] as const
 }

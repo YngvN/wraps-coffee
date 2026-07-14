@@ -1,0 +1,17 @@
+@use '../styles/variables' as *;
+
+.discounted-price {
+  display: inline-flex;
+  gap: calc($spacing-unit / 2);
+  align-items: baseline;
+}
+
+.discounted-price__original {
+  text-decoration: line-through;
+  color: $color-text-muted;
+}
+
+.discounted-price__new {
+  color: $color-error;
+  font-weight: 600;
+}

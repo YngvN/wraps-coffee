@@ -38,7 +38,7 @@
   min-width: 0;
   // `font-size` here (not inherited by children — they set their own via
   // the same var) makes `ch` below resolve relative to the item-title
-  // size, matching `EventCalendarSlide`/`FullMenuSlide`'s own auto-fit
+  // size, matching `EventCalendarSlide`/`CatalogueSlide`'s own auto-fit
   // lists.
   font-size: var(--slide-item-title-size, 1.75rem);
   column-width: max(320px, 26ch);

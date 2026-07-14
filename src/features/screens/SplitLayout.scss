@@ -114,13 +114,21 @@
 
 // Overscanned past the pane's own edges and blurred — the overscan keeps the
 // blur's own soft edge from ever peeking in from outside the pane's visible
-// area, since `.split-layout__pane`'s `overflow: hidden` clips it away.
+// area, since `.split-layout__pane`'s `overflow: hidden` clips it away. The
+// heavy blurring itself is pre-baked server-side into the image (see
+// `getBlurredBackgroundUrl`/`server/uploads.ts`'s own `-blur` companion) —
+// this is deliberately just a cheap residual polish pass on top of an
+// already-soft, already-downsized image, not the full 20px blur of a
+// full-resolution one every frame. An upload saved before that variant
+// existed falls back to serving its unblurred original here, softened only
+// by this residual amount (a visible but graceful degradation, not fully
+// sharp) until it's naturally re-uploaded.
 .split-layout__pane-bg-image {
   position: absolute;
   inset: -30px;
   background-size: cover;
   background-position: center;
-  filter: blur(20px);
+  filter: blur(4px);
 }
 
 .split-layout__pane-bg-overlay {

@@ -1,5 +1,4 @@
 import type { LanguageCode } from '../i18n'
-import type { ProductCategory } from './product'
 
 /** How an image slide's picture fills its slot: shrunk to fit without cropping (the default), or scaled to fill the entire container, cropping as needed. */
 export type ImageFit = 'contain' | 'cover'
@@ -20,10 +19,12 @@ interface OwnBackgroundImageFields {
 
 /**
  * What a slot shows at one of its own content timeline's checkpoints
- * (see `ScreenSlot.content`): nothing, the menu (every category with
- * available items, laid out the same way as the public Menu page — or, via
- * `categories`, just a chosen subset of them, e.g. to split the full menu
- * across more than one screen, or narrowed to a single category), one of
+ * (see `ScreenSlot.content`): nothing, a catalogue (every one of its
+ * categories with available items, laid out the same way as the public Menu
+ * page — falls back to the first catalogue when `catalogueId` is unset, and
+ * via `categories`, just a chosen subset of that catalogue's own categories,
+ * e.g. to split a big catalogue across more than one screen, or narrow it to
+ * a single category), one of
  * the `'event'` kind's own `displayMode`s (see `EventDisplayMode` — an
  * upcoming-events calendar list, a single upcoming event's own photo or
  * details by ordinal position, or every event in the current month), a
@@ -32,7 +33,7 @@ interface OwnBackgroundImageFields {
  * single flat color (whichever of black/white the pane's own contrast-based
  * `--screen-text` resolves to, see `getScreenColorVars`) with no background
  * box of its own, so it reads as part of the pane rather than a pasted-in
- * sticker. A menu/event checkpoint's
+ * sticker. A catalogue/event checkpoint's
  * own `textSizes` is independent of its slot's other stages — e.g. it can
  * be bigger than the slot's other checkpoints — since editing one step's
  * pane is only ever meant to change how that one step looks. It falls back
@@ -69,7 +70,7 @@ interface OwnBackgroundImageFields {
  */
 export type ScreenSlotContent =
   | ({ kind: 'none' } & OwnBackgroundImageFields)
-  | ({ kind: 'menu'; categories?: ProductCategory[]; textSizes?: TextSizes } & OwnBackgroundImageFields)
+  | ({ kind: 'catalogue'; catalogueId?: string; categories?: string[]; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({
       kind: 'event'
       /** Falls back to `'calendar'` when unset. */

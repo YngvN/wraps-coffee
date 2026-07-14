@@ -36,6 +36,7 @@ interface SessionInfo {
 const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.products': 'products.json',
   'admin.categoryPrices': 'categoryPrices.json',
+  'admin.catalogues': 'catalogues.json',
   'admin.messages': 'messages.json',
   'admin.events': 'events.json',
   'admin.contactInfo': 'contactInfo.json',

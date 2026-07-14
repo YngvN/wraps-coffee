@@ -1,0 +1,153 @@
+@use '../styles/variables' as *;
+
+.language-tabs-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+}
+
+.language-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: $spacing-unit;
+  border-bottom: 1px solid $color-border;
+  padding-bottom: calc($spacing-unit / 2);
+}
+
+.language-tabs__list {
+  display: flex;
+  gap: calc($spacing-unit / 2);
+  flex-wrap: wrap;
+}
+
+.language-tabs__tab {
+  position: relative;
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  border: none;
+  border-radius: 6px 6px 0 0;
+  background: none;
+  color: $color-text-muted;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      color: $color-text;
+      background: $color-surface-hover;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+
+  &--active {
+    color: $color-text;
+  }
+}
+
+// The active tab's own underline — a `motion.span` sharing one `layoutId`
+// (see `LanguageTabs.tsx`) so switching tabs slides it from its old spot to
+// its new one instead of snapping.
+.language-tabs__tab-indicator {
+  position: absolute;
+  left: calc($spacing-unit / 2);
+  right: calc($spacing-unit / 2);
+  bottom: -1px;
+  height: 2px;
+  border-radius: 1px;
+  background: $color-accent;
+}
+
+.language-tabs__add {
+  position: relative;
+  margin-left: auto;
+}
+
+// Deliberately plain — no border/background of its own, same "simple
+// looking" treatment as the admin Products list's own "+ Add" rows (see
+// `.products-view__add-row`).
+.language-tabs__add-button {
+  display: inline-flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: $color-text-muted;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+      color: $color-text;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
+.language-tabs__picker {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  margin-top: 4px;
+  padding: calc($spacing-unit / 2);
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  background: $color-surface;
+  box-shadow: 0 4px 10px $color-shadow;
+}
+
+.language-tabs__picker-option {
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: $color-text;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
+// Clips the sliding field(s) below so the animation can't cause the modal
+// to scroll sideways mid-transition, same reasoning as `SlideTransition`'s
+// own `overflow-x: hidden` — this one just clips a single field's own small
+// slide instead of a whole view's full-width one.
+.language-tabs__content {
+  overflow-x: hidden;
+}
+
+.language-tabs__content-inner {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+}

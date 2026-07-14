@@ -14,6 +14,7 @@ const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
   'admin.messages': 'messages',
   'admin.products': 'products',
   'admin.categoryPrices': 'products',
+  'admin.catalogues': 'products',
   'admin.events': 'events',
   'admin.contactInfo': 'contact',
   'admin.screens': 'screens',

@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { Button, Checkbox, ImageUploadField, Input, Textarea } from '../../components'
+import { useCatalogues } from '../../hooks/useCatalogues'
 import { useEvents } from '../../hooks/useEvents'
 import { useExtensionsConfig } from '../../hooks/useExtensionsConfig'
 import { useMessageBoardPosts } from '../../hooks/useMessageBoardPosts'
 import { useMessageBoards } from '../../hooks/useMessageBoards'
 import { useScreens } from '../../hooks/useScreens'
 import { useLanguage } from '../../i18n'
-import type { ProductCategory } from '../../types/product'
 import {
   DEFAULT_EVENT_CALENDAR_COUNT,
   DEFAULT_MESSAGE_BOARD_COUNT,
@@ -19,7 +19,6 @@ import {
   type ScreenSlotContent,
 } from '../../types/screen'
 import { collectAnnouncementMessages } from '../../utils/announcements'
-import { CATEGORY_ORDER } from '../admin/products/categoryMeta'
 import { clampImageResizeScale, IMAGE_RESIZE_MAX_VIEWPORT_FRACTION, MAX_IMAGE_RESIZE_SCALE, MIN_IMAGE_RESIZE_SCALE } from '../../utils/screenLayout'
 import { formatOrdinal } from '../../utils/formatOrdinal'
 import { getSmallUrl } from '../../utils/responsiveImage'
@@ -57,7 +56,7 @@ function optionValueToContent(value: string, currentContent: ScreenSlotContent, 
     }
     return { kind: 'event', displayMode }
   }
-  return { kind: value as 'none' | 'menu' | 'weather' }
+  return { kind: value as 'none' | 'catalogue' | 'weather' }
 }
 
 interface SlideFieldsProps {
@@ -94,6 +93,7 @@ interface SlideFieldsProps {
  */
 export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, suggestedEventOrdinal }: SlideFieldsProps) {
   const { t, language } = useLanguage()
+  const [catalogues] = useCatalogues()
   const [extensionsConfig] = useExtensionsConfig()
   const [messageBoards] = useMessageBoards()
   const [messageBoardPosts] = useMessageBoardPosts()
@@ -145,12 +145,22 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
     onChange({ ...content, stopId })
   }
 
-  /** Toggles one category in/out of a "Full menu" slide's own `categories` — starting from every category checked (the standard, when `categories` is still absent) so unchecking the first one narrows it down from there, rather than from an empty set. */
-  const toggleMenuCategory = (category: ProductCategory, checked: boolean) => {
-    if (content.kind !== 'menu') return
-    const current = content.categories ?? CATEGORY_ORDER
-    const next = checked ? [...current, category] : current.filter((existing) => existing !== category)
-    onChange({ ...content, categories: CATEGORY_ORDER.filter((existing) => next.includes(existing)) })
+  /** The catalogue a "Catalogue" slide currently resolves to — its own `catalogueId` if set, else the first one, matching `CatalogueSlide`'s own fallback. */
+  const activeCatalogue = content.kind === 'catalogue' ? (catalogues.find((catalogue) => catalogue.id === content.catalogueId) ?? catalogues[0]) : undefined
+
+  /** Switches which catalogue a "Catalogue" slide shows — clears `categories`, since a category selection almost never carries over to a different catalogue (same precedent as switching a message board clearing its post selection). */
+  const setMenuCatalogueId = (catalogueId: string) => {
+    if (content.kind !== 'catalogue') return
+    onChange({ ...content, catalogueId, categories: undefined })
+  }
+
+  /** Toggles one category in/out of a "Catalogue" slide's own `categories` — starting from every one of the active catalogue's categories checked (the standard, when `categories` is still absent) so unchecking the first one narrows it down from there, rather than from an empty set. */
+  const toggleMenuCategory = (categoryId: string, checked: boolean) => {
+    if (content.kind !== 'catalogue' || !activeCatalogue) return
+    const allIds = activeCatalogue.categories.map((category) => category.id)
+    const current = content.categories ?? allIds
+    const next = checked ? [...current, categoryId] : current.filter((existing) => existing !== categoryId)
+    onChange({ ...content, categories: allIds.filter((existing) => next.includes(existing)) })
   }
 
   /** Switching boards clears `postId` — a post picked under the old board almost never belongs to the new one. */
@@ -222,7 +232,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
         onChange={(event) => onChange(optionValueToContent(event.target.value, content, suggestedEventOrdinal))}
       >
         <option value="none">{t('admin.screens.slotNoneLabel')}</option>
-        <option value="menu">{t('admin.screens.slotMenuLabel')}</option>
+        <option value="catalogue">{t('admin.screens.slotCatalogueLabel')}</option>
         <optgroup label={t('admin.screens.slotEventsGroupLabel')}>
           <option value="event:calendar">{t('admin.screens.slotEventCalendarLabel')}</option>
           <option value="event:image">{t('admin.screens.slotEventImageLabel')}</option>
@@ -311,20 +321,32 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
         </>
       )}
 
-      {content.kind === 'menu' && (
-        <div className="slide-fields__categories">
-          <span className="slide-fields__categories-label">{t('admin.screens.menuCategoriesLabel')}</span>
-          {CATEGORY_ORDER.map((category) => (
-            <Checkbox
-              key={category}
-              id={`${id}-category-${category}`}
-              label={t(`menu.categories.${category}.title`)}
-              checked={(content.categories ?? CATEGORY_ORDER).includes(category)}
-              onChange={(event) => toggleMenuCategory(category, event.target.checked)}
-            />
-          ))}
-        </div>
-      )}
+      {content.kind === 'catalogue' &&
+        (catalogues.length > 0 && activeCatalogue ? (
+          <>
+            <select aria-label={t('admin.screens.catalogueSelectLabel')} value={activeCatalogue.id} onChange={(event) => setMenuCatalogueId(event.target.value)}>
+              {catalogues.map((catalogue) => (
+                <option key={catalogue.id} value={catalogue.id}>
+                  {catalogue.name[language]}
+                </option>
+              ))}
+            </select>
+            <div className="slide-fields__categories">
+              <span className="slide-fields__categories-label">{t('admin.screens.catalogueCategoriesLabel')}</span>
+              {activeCatalogue.categories.map((category) => (
+                <Checkbox
+                  key={category.id}
+                  id={`${id}-category-${category.id}`}
+                  label={category.name[language]}
+                  checked={(content.categories ?? activeCatalogue.categories.map((c) => c.id)).includes(category.id)}
+                  onChange={(event) => toggleMenuCategory(category.id, event.target.checked)}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="slide-fields__hint">{t('admin.screens.catalogueNoCataloguesLabel')}</p>
+        ))}
 
       {content.kind === 'transit' &&
         (extensionsConfig.transit.selectedStops.length > 0 ? (

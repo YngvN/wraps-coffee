@@ -34,6 +34,7 @@ import {
 } from '../types/screen'
 import { findSiblingEventOrdinal } from '../utils/eventOrdinals'
 import { cloneSlot, deleteLeaf, emptySlot, listLeaves, splitLeaf } from '../utils/layoutTree'
+import { getBlurredBackgroundUrl } from '../utils/responsiveImage'
 import { backgroundImageTextStyle, borderColorStyle, getScreenColorVars } from '../utils/screenColors'
 import { isWithinScreensaverWindow } from '../utils/screensaver'
 import { hasOwnTextSizeFields, resolveContentBackgroundImage } from '../utils/screenSlots'
@@ -535,10 +536,11 @@ export function ScreenDisplay() {
     proceed?.()
   }
 
-  /** Hides this screen's own editing controls behind the shared PIN — only offered once one's actually been set from the admin dashboard, since there'd otherwise be no way back in. Routed through `requestPendingResizeAction` first, same reasoning as `handleStepStage`: locking is another way of stepping away from whatever stage a pane was just resized on. */
+  /** Hides this screen's own editing controls behind the shared PIN — only offered once one's actually been set from the admin dashboard, since there'd otherwise be no way back in. Routed through `requestPendingResizeAction` first, same reasoning as `handleStepStage`: locking is another way of stepping away from whatever stage a pane was just resized on. Also resumes stage playback (clearing `manuallyPaused`) — locking is the owner declaring "this is ready for the kiosk to run unattended," so it shouldn't still be sitting frozen on whichever stage happened to be showing. */
   const handleLockScreen = () => {
     requestPendingResizeAction(() => {
       setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, locked: true } : existing)))
+      setManuallyPaused(false)
     })
   }
 
@@ -702,7 +704,7 @@ export function ScreenDisplay() {
     >
       {screen.backgroundImage && (
         <div className="screen-display__bg">
-          <div className="screen-display__bg-image" style={{ backgroundImage: `url(${screen.backgroundImage.imageUrl})` }} />
+          <div className="screen-display__bg-image" style={{ backgroundImage: `url(${getBlurredBackgroundUrl(screen.backgroundImage.imageUrl)})` }} />
           {screen.backgroundImage.overlay !== 'none' && <div className={`screen-display__bg-overlay screen-display__bg-overlay--${screen.backgroundImage.overlay}`} />}
         </div>
       )}

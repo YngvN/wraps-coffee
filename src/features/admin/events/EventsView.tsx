@@ -40,6 +40,7 @@ export function EventsView() {
         <TranslatedText as="h1" id="admin.events.title" />
         <Button onClick={() => setEditingEvent(null)}>{t('admin.events.addEvent')}</Button>
       </div>
+      <TranslatedText as="p" id="admin.events.description" className="admin-page-description" />
 
       <ul className="events-view__list">
         <AnimatePresence initial={false}>

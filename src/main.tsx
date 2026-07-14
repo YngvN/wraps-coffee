@@ -8,7 +8,6 @@ import { OverviewView } from './features/admin/overview/OverviewView'
 import { MessagesView } from './features/admin/messages/MessagesView'
 import { ProductsView } from './features/admin/products/ProductsView'
 import { EventsView as AdminEventsView } from './features/admin/events/EventsView'
-import { InstagramView } from './features/admin/instagram/InstagramView'
 import { ContactInfoView } from './features/admin/contact/ContactInfoView'
 import { ImageLibraryView } from './features/admin/imageLibrary/ImageLibraryView'
 import { OrdersView } from './features/admin/orders/OrdersView'
@@ -40,7 +39,6 @@ const router = createBrowserRouter([
           { path: 'messages', element: <MessagesView /> },
           { path: 'products', element: <ProductsView /> },
           { path: 'events', element: <AdminEventsView /> },
-          { path: 'instagram', element: <InstagramView /> },
           { path: 'contact', element: <ContactInfoView /> },
           { path: 'orders', element: <OrdersView /> },
           { path: 'screens', element: <ScreensView /> },

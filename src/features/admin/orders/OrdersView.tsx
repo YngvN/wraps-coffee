@@ -30,6 +30,7 @@ export function OrdersView() {
   return (
     <div className="orders-view">
       <TranslatedText as="h1" id="admin.orders.title" />
+      <TranslatedText as="p" id="admin.orders.description" className="admin-page-description" />
 
       {orders.length === 0 ? (
         <p className="orders-view__empty">{t('admin.orders.noOrders')}</p>

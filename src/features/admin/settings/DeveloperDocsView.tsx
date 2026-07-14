@@ -14,6 +14,7 @@ function maskNeonUrl(url: string): string {
 const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.products', descKey: 'admin.settings.developerDocs.keyProducts' },
   { key: 'admin.categoryPrices', descKey: 'admin.settings.developerDocs.keyCategoryPrices' },
+  { key: 'admin.catalogues', descKey: 'admin.settings.developerDocs.keyCatalogues' },
   { key: 'admin.messages', descKey: 'admin.settings.developerDocs.keyMessages' },
   { key: 'admin.events', descKey: 'admin.settings.developerDocs.keyEvents' },
   { key: 'admin.contactInfo', descKey: 'admin.settings.developerDocs.keyContactInfo' },

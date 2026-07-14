@@ -4,7 +4,7 @@ import { useLanguage, type LanguageCode } from '../../i18n'
 import type { PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SlideTransitionDirection, SplitDirection, TextSizes } from '../../types/screen'
 import { backgroundImageTextStyle, slotBackgroundColorStyle } from '../../utils/screenColors'
 import type { PaneGrowthOrigin } from '../../utils/paneGrowth'
-import { pickImageVariant } from '../../utils/responsiveImage'
+import { getBlurredBackgroundUrl } from '../../utils/responsiveImage'
 import { resolveContentBackgroundImage } from '../../utils/screenSlots'
 import { resolvedCheckpointStage, resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage } from '../../utils/screenStages'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
@@ -159,7 +159,7 @@ export function LayoutPane({
             exit={{ opacity: 0 }}
             transition={transition}
           >
-            <div className="split-layout__pane-bg-image" style={{ backgroundImage: `url(${pickImageVariant(backgroundImage.imageUrl)})` }} />
+            <div className="split-layout__pane-bg-image" style={{ backgroundImage: `url(${getBlurredBackgroundUrl(backgroundImage.imageUrl)})` }} />
             {backgroundImage.overlay !== 'none' && <div className={`split-layout__pane-bg-overlay split-layout__pane-bg-overlay--${backgroundImage.overlay}`} />}
           </motion.div>
         )}

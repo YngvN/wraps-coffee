@@ -43,15 +43,16 @@
 }
 
 // Overscanned past the screen's own edges and blurred — same reasoning as a
-// slot's own background image (see `.split-layout__pane-bg-image`): the
-// overscan keeps the blur's soft edge from peeking in, clipped away by
+// slot's own background image (see `.split-layout__pane-bg-image`, including
+// why this is only a small residual live blur on top of a pre-baked one):
+// the overscan keeps the blur's soft edge from peeking in, clipped away by
 // `.screen-display`'s own `overflow: hidden`.
 .screen-display__bg-image {
   position: absolute;
   inset: -30px;
   background-size: cover;
   background-position: center;
-  filter: blur(20px);
+  filter: blur(4px);
 }
 
 .screen-display__bg-overlay {

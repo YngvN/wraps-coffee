@@ -51,16 +51,6 @@ export function EventsIcon(props: IconProps) {
   )
 }
 
-export function InstagramIcon(props: IconProps) {
-  return (
-    <Icon {...props}>
-      <rect x="3" y="7" width="18" height="12" rx="2" />
-      <circle cx="12" cy="13" r="3.5" />
-      <polyline points="8,7 10,4 14,4 16,7" />
-    </Icon>
-  )
-}
-
 export function ContactIcon(props: IconProps) {
   return (
     <Icon {...props}>

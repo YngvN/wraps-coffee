@@ -1,6 +1,6 @@
 import type { Client } from 'pg'
 import type { OrderRecord } from '../src/types/order'
-import type { AllergenCode, CategoryPrices, Price, Product, ProductCategory } from '../src/types/product'
+import type { AllergenCode, CategoryPrices, Price, Product } from '../src/types/product'
 import type { ContactInfo } from '../src/types/contactInfo'
 import type { ContactMessage } from '../src/types/message'
 import type { EventRecord } from '../src/types/event'
@@ -51,7 +51,7 @@ export async function pullProducts(client: Client): Promise<Product[]> {
   )
   return rows.map((row) => ({
     itemID: row.item_id,
-    category: row.category as ProductCategory,
+    category: row.category,
     name: { no: row.name_no, en: row.name_en },
     description: { no: row.description_no, en: row.description_en },
     price: priceFromColumns(row.price, row.price_takeaway, row.price_eat_in),
@@ -107,7 +107,7 @@ export async function pullCategoryPrices(client: Client): Promise<CategoryPrices
   const result: CategoryPrices = {}
   for (const row of rows) {
     const price = priceFromColumns(row.price, row.price_takeaway, row.price_eat_in)
-    if (price !== undefined) result[row.category as ProductCategory] = price
+    if (price !== undefined) result[row.category] = price
   }
   return result
 }

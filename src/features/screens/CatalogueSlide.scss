@@ -1,6 +1,6 @@
 @use '../../styles/variables' as *;
 
-.full-menu-slide {
+.catalogue-slide {
   display: flex;
   flex-direction: column;
   gap: $spacing-unit * 5;
@@ -20,7 +20,7 @@
   }
 }
 
-.full-menu-slide__category {
+.catalogue-slide__category {
   display: flex;
   flex-direction: column;
   gap: $spacing-unit * 3;
@@ -33,8 +33,8 @@
   }
 }
 
-.full-menu-slide__category-header {
-  // Its own positioning context for `.full-menu-slide__category-price`
+.catalogue-slide__category-header {
+  // Its own positioning context for `.catalogue-slide__category-price`
   // below — so it stays put at a fixed spot on the header no matter how
   // long the category's own title/description happen to be, rather than
   // being a normal flex sibling that gets pushed down onto its own line
@@ -48,7 +48,15 @@
   padding-right: 8rem;
 }
 
-.full-menu-slide__category-heading {
+.catalogue-slide__category-image {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.catalogue-slide__category-heading {
   min-width: 0;
   flex: 1 1 auto;
 
@@ -60,7 +68,7 @@
   }
 }
 
-.full-menu-slide__category-description {
+.catalogue-slide__category-description {
   margin: calc($spacing-unit / 2) 0 0;
   color: var(--screen-text-muted);
   font-style: italic;
@@ -68,7 +76,7 @@
   overflow-wrap: break-word;
 }
 
-.full-menu-slide__category-price {
+.catalogue-slide__category-price {
   position: absolute;
   top: 0;
   right: 0;
@@ -85,7 +93,7 @@
   padding: 0.15em 0.6em;
 }
 
-.full-menu-slide__items {
+.catalogue-slide__items {
   display: grid;
   // `font-size` here (not inherited by children — they set their own via
   // the same var) makes `ch` below resolve relative to the item-title size,
@@ -99,7 +107,8 @@
   list-style: none;
 }
 
-.full-menu-slide__item {
+.catalogue-slide__item {
+  position: relative;
   min-width: 0;
 
   h2 {
@@ -117,16 +126,56 @@
     // Scales with the description's own admin-adjustable size above (rather
     // than a flat rem value) so it stays legibly proportioned at any
     // text-size setting, while still reading smaller than the description.
-    &.full-menu-slide__item-allergens {
+    &.catalogue-slide__item-allergens {
       font-size: calc(var(--slide-description-size, 1.25rem) * 0.65);
       opacity: 0.8;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
   }
+
+  // A discounted item gets the same visible gold border as the admin
+  // Products list (see `ProductsView.scss`), plus a soft outward shadow for
+  // depth — theme-invariant, so it reads the same regardless of light/dark
+  // mode, rather than an inset "pressed" look.
+  &--discounted {
+    padding: calc($spacing-unit * 1.5);
+    border: 2px solid $color-gold;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px $color-shadow;
+  }
+
+  // Greyed out and desaturated (not skipped from rendering — it's still
+  // `available`, just temporarily unorderable) — the "Sold out" label
+  // (`.catalogue-slide__sold-out-label`) stamped over it is what actually
+  // names the state to a customer glancing at the display; this just makes
+  // it visually recede next to the items that can actually be ordered.
+  &--out-of-stock {
+    opacity: 0.5;
+    filter: grayscale(80%);
+  }
 }
 
-.full-menu-slide__item-line {
+.catalogue-slide__sold-out-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-8deg);
+  padding: 0.2em 0.8em;
+  border: 2px solid $color-gold;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-family: $font-heading;
+  font-size: var(--slide-item-title-size, 1.75rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.catalogue-slide__item-line {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -138,13 +187,22 @@
   }
 }
 
-.full-menu-slide__item-price {
+.catalogue-slide__item-image {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.catalogue-slide__item-price {
   font-size: var(--slide-item-price-size, 1.5rem);
   font-weight: 600;
   color: var(--screen-accent);
   white-space: nowrap;
   flex-shrink: 0;
-  // Same fixed black backdrop as .full-menu-slide__category-price, for the
+  // Same fixed black backdrop as .catalogue-slide__category-price, for the
   // same legibility reason.
   background: #000;
   border-radius: 0.4em;

@@ -25,21 +25,28 @@ export type DietaryTag = 'vegetarian' | 'vegan' | 'halal' | 'glutenFree' | 'dair
 /** Fixed display order for dietary tags — each tag's own value doubles as its i18n key (`menu.dietaryTags.items.<tag>.title`), unlike `AllergenCode`, since there's no pre-existing single-letter convention to preserve here. */
 export const DIETARY_TAG_ORDER: DietaryTag[] = ['vegetarian', 'vegan', 'halal', 'glutenFree', 'dairyFree']
 
-/** The site's fixed menu categories. Categories themselves are not admin-editable, only the products within them. */
-export type ProductCategory = 'salads' | 'wraps' | 'baguettes' | 'pizza' | 'nachos' | 'drinks' | 'smoothies'
+/** A percentage or flat-kr amount taken off a product's own price (see `applyDiscount`/`getEffectivePrice` in `src/utils/price.ts`) — an admin picks exactly one mode, mirroring `ProductForm`'s existing price `inherit`/`flat`/`dual` radio group's UI shape. */
+export type Discount = { type: 'percentage'; percentage: number } | { type: 'amount'; amount: number }
 
-/** Each category's admin-editable default price, shown in its menu header and used as the fallback for products without their own price. */
-export type CategoryPrices = Partial<Record<ProductCategory, Price>>
+/** Each category's admin-editable default price, keyed by `Category.id` (see `src/types/category.ts`) — shown in its menu header and used as the fallback for products without their own price. */
+export type CategoryPrices = Partial<Record<string, Price>>
 
 /** A single sellable menu product, editable via the admin Products view and rendered on the public Menu page. */
 export interface Product {
   itemID: string
-  category: ProductCategory
+  /** References a `Category.id` (see `src/types/category.ts`) within some `Catalogue`. */
+  category: string
   name: BilingualText
   description: BilingualText
+  /** Optional photo, set via `ImageUploadField` — shown as a thumbnail in the admin product list row and beside the item on the kiosk "Catalogue" slide. */
+  image?: string
   /** Price override for this item. Falls back to the category's default price when omitted. */
   price?: Price
+  /** Applies against `price` (or, when `price` is unset, the category's default price) at display time — never itself changes what's stored as the product's own price. */
+  discount?: Discount
   allergens: AllergenCode[]
   dietaryTags: DietaryTag[]
   available: boolean
+  /** Temporarily unavailable to order, independent of `available` (which controls whether it's shown at all) — a customer-facing display greys the item out and stamps a "Sold out" label over it rather than hiding it, so they can still see it exists. */
+  outOfStock?: boolean
 }

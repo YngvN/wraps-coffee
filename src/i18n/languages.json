@@ -435,7 +435,6 @@
           "messages": "Messages",
           "products": "Products",
           "events": "Events",
-          "instagram": "Instagram",
           "contact": "Contact info",
           "orders": "Orders",
           "screens": "Screens",
@@ -451,23 +450,21 @@
           "revenueToday": "Revenue today",
           "ordersToday": "Orders today",
           "topItems": "Top sellers this week",
-          "weeklyCustomers": "Customers this week"
+          "weeklyCustomers": "Customers this week",
+          "description": "A quick look at how the cafe is doing — revenue, orders, and top-selling items."
         },
         "messages": {
           "title": "Messages",
           "noMessages": "No messages yet.",
           "selectPrompt": "Select a message to read it.",
           "fromLabel": "From",
-          "receivedLabel": "Received"
+          "receivedLabel": "Received",
+          "description": "Contact-form messages from customers — select one to mark it as read."
         },
         "products": {
           "title": "Products",
           "addProduct": "Add product",
           "editProduct": "Edit product",
-          "nameEnLabel": "Name (English)",
-          "nameNoLabel": "Name (Norwegian)",
-          "descriptionEnLabel": "Description (English)",
-          "descriptionNoLabel": "Description (Norwegian)",
           "categoryLabel": "Category",
           "categoryPriceLabel": "Category default price",
           "priceLabel": "Price",
@@ -479,7 +476,32 @@
           "hiddenLabel": "Hidden",
           "allergensLabel": "Allergens",
           "dietaryTagsLabel": "Dietary tags",
-          "noProducts": "No products in this category yet."
+          "noProducts": "No products in this category yet.",
+          "addCatalogue": "Add catalogue",
+          "editCatalogue": "Edit catalogue",
+          "noCatalogues": "No catalogues yet.",
+          "confirmDeleteCatalogue": "Deleting this catalogue also deletes every category and product inside it. Are you sure?",
+          "addCategory": "Add category",
+          "editCategory": "Edit category",
+          "noCategories": "No categories in this catalogue yet.",
+          "categoryImageLabel": "Category image",
+          "confirmDeleteCategory": "Deleting this category also deletes every product inside it. Are you sure?",
+          "productImageLabel": "Product image",
+          "discountLabel": "Discount",
+          "discountNoneLabel": "No discount",
+          "discountPercentageLabel": "Percentage off",
+          "discountAmountLabel": "Amount off (kr)",
+          "cataloguePriceLabel": "Catalogue default price",
+          "outOfStockLabel": "Out of stock",
+          "soldOutLabel": "Sold out",
+          "description": "Organize what the cafe sells into catalogues — one for food and drink, another for merch, and so on.",
+          "categoriesDescription": "This catalogue's own categories — create, rename, reorder or delete them, and open one to manage its products.",
+          "productsDescription": "This category's own products — create, edit, reorder or delete them.",
+          "nameLabel": "Name",
+          "descriptionLabel": "Description",
+          "catalogueNameLabel": "Catalogue name",
+          "categoryNameLabel": "Category name",
+          "categoryDescriptionLabel": "Category description"
         },
         "events": {
           "title": "Events",
@@ -498,14 +520,8 @@
           "priceLabel": "Price",
           "repeatsWeeklyLabel": "Repeats weekly",
           "dayOfWeekLabel": "Day of week",
-          "statusLabel": "Status"
-        },
-        "instagram": {
-          "title": "Instagram posts",
-          "addPost": "Add post",
-          "imageUrlLabel": "Image URL",
-          "postUrlLabel": "Post URL",
-          "altLabel": "Alt text"
+          "statusLabel": "Status",
+          "description": "Create and manage cafe events, including recurring, postponed and cancelled occurrences."
         },
         "contact": {
           "title": "Contact info",
@@ -515,7 +531,8 @@
           "hoursTitle": "Opening hours",
           "closedLabel": "Closed",
           "openLabel": "Opens",
-          "closeLabel": "Closes"
+          "closeLabel": "Closes",
+          "description": "The phone number, email, address and opening hours shown on the public website."
         },
         "orders": {
           "title": "Orders",
@@ -531,7 +548,8 @@
             "ready": "Ready",
             "completed": "Completed",
             "cancelled": "Cancelled"
-          }
+          },
+          "description": "Online orders placed on the public website — update their status as they're prepared and picked up."
         },
         "screens": {
           "title": "Screens",
@@ -557,8 +575,6 @@
           "slotCountBadgeOne": "1 pane",
           "slotCountBadge": "{{count}} panes",
           "slotNoneLabel": "None",
-          "slotMenuLabel": "Menu",
-          "menuCategoriesLabel": "Categories to include",
           "slotEventsGroupLabel": "Events",
           "slotEventCalendarLabel": "Event calendar",
           "slotEventImageLabel": "Event image",
@@ -648,7 +664,12 @@
           },
           "messageBoardRotateSecondsLabel": "Seconds per post",
           "messageBoardCountLabel": "Max posts shown",
-          "messageBoardNoBoardsLabel": "No message boards yet — create one from the Message board tab"
+          "messageBoardNoBoardsLabel": "No message boards yet — create one from the Message board tab",
+          "slotCatalogueLabel": "Catalogue",
+          "catalogueCategoriesLabel": "Categories to include",
+          "catalogueSelectLabel": "Which catalogue",
+          "catalogueNoCataloguesLabel": "No catalogues created yet.",
+          "description": "Configure the fullscreen kiosk displays around the cafe — what each one shows, its layout, and its timing."
         },
         "common": {
           "save": "Save",
@@ -659,7 +680,9 @@
           "add": "Add",
           "done": "Done",
           "back": "Back",
-          "confirmDelete": "Are you sure you want to delete this?"
+          "confirmDelete": "Are you sure you want to delete this?",
+          "dragToReorder": "Drag to reorder",
+          "addLanguage": "Add language"
         },
         "imageLibrary": {
           "title": "Image library",
@@ -667,7 +690,8 @@
           "error": "Could not load the image library.",
           "addButton": "Add image",
           "dropHint": "Drop images to upload",
-          "uploadError": "One or more images failed to upload."
+          "uploadError": "One or more images failed to upload.",
+          "description": "Every image currently stored on the local server, for reference — upload new ones from wherever they're used."
         },
         "users": {
           "title": "Users",
@@ -692,7 +716,8 @@
           "resetPasswordError": "Could not reset the password",
           "cantDeleteSelf": "You can't delete your own account",
           "cantDeleteAdmin": "Sub-admin accounts can't delete an admin account",
-          "cantDeleteLastAdmin": "Can't delete the last remaining admin account"
+          "cantDeleteLastAdmin": "Can't delete the last remaining admin account",
+          "description": "Add and manage admin accounts, and control which dashboard sections a limited account can access."
         },
         "settings": {
           "title": "Settings",
@@ -764,8 +789,11 @@
             "regenerateButton": "Regenerate",
             "apiKeyUsage": "The public website's own contact/order forms need this key to submit — set it on that project's own side:",
             "apiKeyCaveat": "This is a lightweight deterrent against blind bot traffic, not a strong secret — it has to be embedded in the website's own public client bundle to be usable by real visitors, so treat it as extractable, not confidential.",
-            "developerKeyRoutesTitle": "Developer key routes"
-          }
+            "developerKeyRoutesTitle": "Developer key routes",
+            "keyCatalogues": "Catalogues, categories and their default prices/images — the admin Products feature's own hierarchy."
+          },
+          "description": "Interface language, the cafe's default pane language, clock format, and which sidebar sections this dashboard shows.",
+          "developersDescription": "Reference documentation for the local server's own HTTP and WebSocket API, for building a custom client against this cafe's data."
         },
         "extensions": {
           "title": "Extensions",
@@ -796,7 +824,8 @@
           "transitModeCableway": "Cable car",
           "transitModeFunicular": "Funicular",
           "transitModeLift": "Lift",
-          "transitModeUnknown": "Other"
+          "transitModeUnknown": "Other",
+          "description": "Enable and configure live transit departures and weather forecasts for the cafe's screens."
         },
         "messageBoard": {
           "title": "Message board",
@@ -815,7 +844,8 @@
           "editedLabel": "edited",
           "noPosts": "No posts yet.",
           "noBoards": "No boards yet.",
-          "boardMissingError": "This board no longer exists."
+          "boardMissingError": "This board no longer exists.",
+          "description": "Create boards of short posts to show on kiosk screens, optionally published to the public website too."
         }
       },
       "screenDisplay": {
@@ -1348,7 +1378,6 @@
           "messages": "Meldinger",
           "products": "Produkter",
           "events": "Arrangementer",
-          "instagram": "Instagram",
           "contact": "Kontaktinfo",
           "orders": "Bestillinger",
           "screens": "Skjermer",
@@ -1364,23 +1393,21 @@
           "revenueToday": "Omsetning i dag",
           "ordersToday": "Bestillinger i dag",
           "topItems": "Mest solgt denne uken",
-          "weeklyCustomers": "Kunder denne uken"
+          "weeklyCustomers": "Kunder denne uken",
+          "description": "Et raskt overblikk over hvordan kafeen går — omsetning, bestillinger og mest solgte varer."
         },
         "messages": {
           "title": "Meldinger",
           "noMessages": "Ingen meldinger ennå.",
           "selectPrompt": "Velg en melding for å lese den.",
           "fromLabel": "Fra",
-          "receivedLabel": "Mottatt"
+          "receivedLabel": "Mottatt",
+          "description": "Kontaktskjema-meldinger fra kunder — velg en for å merke den som lest."
         },
         "products": {
           "title": "Produkter",
           "addProduct": "Legg til produkt",
           "editProduct": "Rediger produkt",
-          "nameEnLabel": "Navn (engelsk)",
-          "nameNoLabel": "Navn (norsk)",
-          "descriptionEnLabel": "Beskrivelse (engelsk)",
-          "descriptionNoLabel": "Beskrivelse (norsk)",
           "categoryLabel": "Kategori",
           "categoryPriceLabel": "Standardpris for kategori",
           "priceLabel": "Pris",
@@ -1392,7 +1419,32 @@
           "hiddenLabel": "Skjult",
           "allergensLabel": "Allergener",
           "dietaryTagsLabel": "Kosthold-tagger",
-          "noProducts": "Ingen produkter i denne kategorien ennå."
+          "noProducts": "Ingen produkter i denne kategorien ennå.",
+          "addCatalogue": "Legg til katalog",
+          "editCatalogue": "Rediger katalog",
+          "noCatalogues": "Ingen kataloger ennå.",
+          "confirmDeleteCatalogue": "Sletting av denne katalogen sletter også alle kategorier og produkter i den. Er du sikker?",
+          "addCategory": "Legg til kategori",
+          "editCategory": "Rediger kategori",
+          "noCategories": "Ingen kategorier i denne katalogen ennå.",
+          "categoryImageLabel": "Kategoribilde",
+          "confirmDeleteCategory": "Sletting av denne kategorien sletter også alle produkter i den. Er du sikker?",
+          "productImageLabel": "Produktbilde",
+          "discountLabel": "Rabatt",
+          "discountNoneLabel": "Ingen rabatt",
+          "discountPercentageLabel": "Prosent avslag",
+          "discountAmountLabel": "Beløp avslag (kr)",
+          "cataloguePriceLabel": "Standardpris for katalog",
+          "outOfStockLabel": "Utsolgt",
+          "soldOutLabel": "Utsolgt",
+          "description": "Organiser det kafeen selger i kataloger — én for mat og drikke, én for merch, og så videre.",
+          "categoriesDescription": "Denne katalogens egne kategorier — opprett, gi nytt navn, endre rekkefølge eller slett dem, og åpne en for å administrere produktene i den.",
+          "productsDescription": "Denne kategoriens egne produkter — opprett, rediger, endre rekkefølge eller slett dem.",
+          "nameLabel": "Navn",
+          "descriptionLabel": "Beskrivelse",
+          "catalogueNameLabel": "Katalognavn",
+          "categoryNameLabel": "Kategorinavn",
+          "categoryDescriptionLabel": "Kategoribeskrivelse"
         },
         "events": {
           "title": "Arrangementer",
@@ -1411,14 +1463,8 @@
           "priceLabel": "Pris",
           "repeatsWeeklyLabel": "Gjentas ukentlig",
           "dayOfWeekLabel": "Ukedag",
-          "statusLabel": "Status"
-        },
-        "instagram": {
-          "title": "Instagram-innlegg",
-          "addPost": "Legg til innlegg",
-          "imageUrlLabel": "Bilde-URL",
-          "postUrlLabel": "Innleggs-URL",
-          "altLabel": "Alt-tekst"
+          "statusLabel": "Status",
+          "description": "Opprett og administrer kafearrangementer, inkludert gjentakende, utsatte og avlyste forekomster."
         },
         "contact": {
           "title": "Kontaktinfo",
@@ -1428,7 +1474,8 @@
           "hoursTitle": "Åpningstider",
           "closedLabel": "Stengt",
           "openLabel": "Åpner",
-          "closeLabel": "Stenger"
+          "closeLabel": "Stenger",
+          "description": "Telefonnummer, e-post, adresse og åpningstider som vises på nettsiden."
         },
         "orders": {
           "title": "Bestillinger",
@@ -1444,7 +1491,8 @@
             "ready": "Klar",
             "completed": "Fullført",
             "cancelled": "Kansellert"
-          }
+          },
+          "description": "Nettbestillinger lagt inn på nettsiden — oppdater status etter hvert som de klargjøres og hentes."
         },
         "screens": {
           "title": "Skjermer",
@@ -1470,8 +1518,6 @@
           "slotCountBadgeOne": "1 panel",
           "slotCountBadge": "{{count}} paneler",
           "slotNoneLabel": "Ingen",
-          "slotMenuLabel": "Meny",
-          "menuCategoriesLabel": "Kategorier som skal vises",
           "slotEventsGroupLabel": "Arrangementer",
           "slotEventCalendarLabel": "Arrangementskalender",
           "slotEventImageLabel": "Arrangementsbilde",
@@ -1561,7 +1607,12 @@
           },
           "messageBoardRotateSecondsLabel": "Sekunder per innlegg",
           "messageBoardCountLabel": "Maks antall innlegg",
-          "messageBoardNoBoardsLabel": "Ingen oppslagstavler ennå — opprett en fra Oppslagstavle-fanen"
+          "messageBoardNoBoardsLabel": "Ingen oppslagstavler ennå — opprett en fra Oppslagstavle-fanen",
+          "slotCatalogueLabel": "Katalog",
+          "catalogueCategoriesLabel": "Kategorier som skal vises",
+          "catalogueSelectLabel": "Hvilken katalog",
+          "catalogueNoCataloguesLabel": "Ingen kataloger opprettet ennå.",
+          "description": "Sett opp fullskjerms kiosk-skjermene rundt i kafeen — hva hver av dem viser, oppsettet og tidsbruken."
         },
         "common": {
           "save": "Lagre",
@@ -1572,7 +1623,9 @@
           "add": "Legg til",
           "done": "Ferdig",
           "back": "Tilbake",
-          "confirmDelete": "Er du sikker på at du vil slette dette?"
+          "confirmDelete": "Er du sikker på at du vil slette dette?",
+          "dragToReorder": "Dra for å endre rekkefølge",
+          "addLanguage": "Legg til språk"
         },
         "imageLibrary": {
           "title": "Bildebibliotek",
@@ -1580,7 +1633,8 @@
           "error": "Kunne ikke laste inn bildebiblioteket.",
           "addButton": "Legg til bilde",
           "dropHint": "Slipp bilder for å laste opp",
-          "uploadError": "Ett eller flere bilder kunne ikke lastes opp."
+          "uploadError": "Ett eller flere bilder kunne ikke lastes opp.",
+          "description": "Alle bilder som for øyeblikket ligger på den lokale serveren, til referanse — last opp nye der de faktisk brukes."
         },
         "users": {
           "title": "Brukere",
@@ -1605,7 +1659,8 @@
           "resetPasswordError": "Kunne ikke tilbakestille passordet",
           "cantDeleteSelf": "Du kan ikke slette din egen konto",
           "cantDeleteAdmin": "Underadmin-kontoer kan ikke slette en admin-konto",
-          "cantDeleteLastAdmin": "Kan ikke slette den siste gjenværende admin-kontoen"
+          "cantDeleteLastAdmin": "Kan ikke slette den siste gjenværende admin-kontoen",
+          "description": "Legg til og administrer admin-kontoer, og styr hvilke deler av dashbordet en begrenset konto har tilgang til."
         },
         "settings": {
           "title": "Innstillinger",
@@ -1677,8 +1732,11 @@
             "regenerateButton": "Generer ny",
             "apiKeyUsage": "Den offentlige nettsidens egne kontakt-/bestillingsskjemaer trenger denne nøkkelen for å sende inn — sett den opp på det prosjektets egen side:",
             "apiKeyCaveat": "Dette er et enkelt hinder mot blind bot-trafikk, ikke en sterk hemmelighet — den må bakes inn i nettsidens egen offentlige klientkode for å kunne brukes av ekte besøkende, så behandle den som synlig, ikke konfidensiell.",
-            "developerKeyRoutesTitle": "Ruter for utviklernøkkel"
-          }
+            "developerKeyRoutesTitle": "Ruter for utviklernøkkel",
+            "keyCatalogues": "Kataloger, kategorier og deres standardpriser/bilder — admin-produktfunksjonens egen hierarki."
+          },
+          "description": "Grensesnittspråk, kafeens standardspråk for paneler, klokkeformat, og hvilke sidemeny-seksjoner dette dashbordet viser.",
+          "developersDescription": "Referansedokumentasjon for den lokale serverens eget HTTP- og WebSocket-API, for å bygge en egen klient mot kafeens data."
         },
         "extensions": {
           "title": "Utvidelser",
@@ -1709,7 +1767,8 @@
           "transitModeCableway": "Taubane",
           "transitModeFunicular": "Kabelbane",
           "transitModeLift": "Heis",
-          "transitModeUnknown": "Annet"
+          "transitModeUnknown": "Annet",
+          "description": "Aktiver og sett opp sanntids kollektivavganger og værmelding for kafeens skjermer."
         },
         "messageBoard": {
           "title": "Oppslagstavle",
@@ -1728,7 +1787,8 @@
           "editedLabel": "redigert",
           "noPosts": "Ingen innlegg ennå.",
           "noBoards": "Ingen tavler ennå.",
-          "boardMissingError": "Denne tavlen finnes ikke lenger."
+          "boardMissingError": "Denne tavlen finnes ikke lenger.",
+          "description": "Lag oppslagstavler med korte innlegg som vises på kiosk-skjermer, eventuelt også publisert til nettsiden."
         }
       },
       "screenDisplay": {

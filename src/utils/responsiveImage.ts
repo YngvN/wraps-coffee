@@ -34,3 +34,9 @@ export function getSmallUrl(url: string): string {
   if (!url || !isOwnUploadUrl(url)) return url
   return `${url}?size=small`
 }
+
+/** The pre-blurred, downsized variant — for a pane's own blurred background layer (see `LayoutPane.tsx`), so the browser blurs a small already-soft image live (a cheap "polish" pass) instead of a full-resolution one every frame. Falls back to the original (still softened by that residual live blur) for an upload saved before this variant existed, or an external URL. */
+export function getBlurredBackgroundUrl(url: string): string {
+  if (!url || !isOwnUploadUrl(url)) return url
+  return `${url}?size=blur`
+}

@@ -10,8 +10,19 @@
 .products-view__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  flex-wrap: wrap;
   gap: $spacing-unit * 2;
+
+  // The title grows to fill whatever space is left — pushes a trailing
+  // "Add" button flush right, same as before, but also lets a leading
+  // `BackButton` (the categories/products drill-down views) sit ahead of it
+  // without needing a different layout rule for that case.
+  h1 {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    font-size: 1.25rem;
+  }
 }
 
 .products-view__category {
@@ -44,6 +55,26 @@
   padding: $spacing-unit calc($spacing-unit * 1.5);
   border: 1px solid $color-border;
   border-radius: 8px;
+
+  // A discounted product gets a visible gold border plus a soft outward
+  // shadow for depth — theme-invariant so it reads the same regardless of
+  // light/dark mode, and an outward glow rather than the inset `:active`
+  // "pressed" convention (see `Button.scss`), so it doesn't look like it's
+  // currently being clicked.
+  &--discounted {
+    border-color: $color-gold;
+    border-width: 2px;
+    box-shadow: 0 4px 10px $color-shadow;
+  }
+
+  // Greyed out (not hidden — it's still `available`, just temporarily
+  // unorderable) to match the same treatment the kiosk display gives it
+  // (see `CatalogueSlide.scss`); the "Sold out" `Badge` alongside its name
+  // is what actually names the state, this just visually recedes the row.
+  &--out-of-stock {
+    opacity: 0.55;
+    filter: grayscale(60%);
+  }
 }
 
 .products-view__item-info {
@@ -51,10 +82,61 @@
   align-items: center;
   gap: calc($spacing-unit * 0.75);
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .products-view__item-name {
   font-weight: 600;
+}
+
+.products-view__item-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+// A catalogue/category row's own name area doubles as its "open" button —
+// plain-looking (no default button chrome) so it reads as part of the row,
+// not a separate control, but still keyboard/touch-accessible as a real
+// `<button>`.
+.products-view__item-open {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: calc($spacing-unit / 2);
+  margin: calc($spacing-unit / -2);
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+
+  // The chevron (`ChevronRightIcon`) marking this row's own clickable area
+  // as leading somewhere — pushed flush to this button's own right edge
+  // (not the whole row's, which still has the separate Edit/Delete actions
+  // past it) via `margin-left: auto`, the flexbox way to flush a single
+  // item to the end of the remaining space.
+  svg {
+    margin-left: auto;
+    flex-shrink: 0;
+    color: $color-text-muted;
+  }
 }
 
 .products-view__allergen {
@@ -72,4 +154,51 @@
 .products-view__item-actions {
   display: flex;
   gap: calc($spacing-unit / 2);
+}
+
+.products-view__icon-button {
+  display: inline-flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+}
+
+// Hidden below this width so a row's Edit/Delete pair doesn't crowd out its
+// own name/badges on a narrow (phone-width) admin screen — the icon alone
+// (see `EditIcon`/`TrashIcon`) stays, still recognizable and still announced
+// correctly via each button's own `aria-label`.
+.products-view__button-label {
+  @media (max-width: 600px) {
+    display: none;
+  }
+}
+
+// The "+ Add category"/"+ Add product" row, sitting right after the list it
+// adds to (rather than up in the header, disconnected from it) — plain text
+// (no border/background of its own, no accent color), so it reads as part
+// of the list rather than a prominent call-to-action.
+.products-view__add-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  width: 100%;
+  margin-top: calc($spacing-unit / 2);
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: $color-text;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
 }

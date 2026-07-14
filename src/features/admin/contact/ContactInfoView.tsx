@@ -22,6 +22,7 @@ export function ContactInfoView() {
   return (
     <div className="contact-info-view">
       <TranslatedText as="h1" id="admin.contact.title" />
+      <TranslatedText as="p" id="admin.contact.description" className="admin-page-description" />
 
       <div className="contact-info-view__fields">
         <Input id="contact-phone" label={t('admin.contact.phoneLabel')} value={contactInfo.phone} onChange={(event) => updateField('phone', event.target.value)} />
