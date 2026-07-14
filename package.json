@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "concurrently -n vite,ws -c blue,magenta \"vite preview --host\" \"tsx server/index.ts\"",
+    "preview:kiosk": "concurrently -n vite,ws -c blue,magenta --kill-others \"vite preview --host\" \"tsx server/index.ts\"",
     "start:electron": "electron electron/main.cjs"
   },
   "dependencies": {

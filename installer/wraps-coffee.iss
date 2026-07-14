@@ -12,6 +12,14 @@
 #define AppExeName "start-wraps-coffee.bat"
 
 [Setup]
+; Fixed GUID (not the app name) so the uninstall registry key stays the same
+; across rebuilds/versions - that's what InitializeSetup below looks up to
+; detect an existing install, and what lets a future version upgrade cleanly
+; instead of installing side-by-side. Hardcoded (not via #define) since Inno's
+; own "{{ = literal {" escaping and the preprocessor's "{#name}" substitution
+; don't compose safely - the same raw GUID is repeated as a plain string
+; (no escaping needed there) in InitializeSetup below.
+AppId={{E4B0C442-1B1D-4B7A-9C2E-2D6D6E9E5A11}
 AppName={#AppName}
 AppVersion=1.0
 AppPublisher=Wraps & Coffee
@@ -51,6 +59,34 @@ Name: "{app}\server\uploads"
 function NodeIsInstalled: Boolean;
 begin
   Result := RegKeyExists(HKLM, 'SOFTWARE\Node.js');
+end;
+
+// Runs before the wizard even shows its first page. Without this, running the
+// installer again just overwrites the existing install's files in place with
+// no warning - which is fine for the app files themselves (ignoreversion), but
+// silently re-runs the full "install Node/npm install/npm build" sequence
+// every time and gives no chance to cleanly remove a previous install first.
+function InitializeSetup(): Boolean;
+var
+  UninstallString: String;
+  ResultCode: Integer;
+begin
+  Result := True;
+  if RegQueryStringValue(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{E4B0C442-1B1D-4B7A-9C2E-2D6D6E9E5A11}_is1', 'UninstallString', UninstallString) then
+  begin
+    case MsgBox('Wraps & Coffee is already installed.' + #13#10 + #13#10 +
+      'Click Yes to uninstall the existing version first (recommended), or No to install over it as-is.',
+      mbConfirmation, MB_YESNOCANCEL) of
+      IDYES:
+        begin
+          UninstallString := RemoveQuotes(UninstallString);
+          Exec(UninstallString, '/SILENT /NORESTART /SUPPRESSMSGBOXES', '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
+        end;
+      IDCANCEL:
+        Result := False;
+      // IDNO: fall through and install over the existing copy.
+    end;
+  end;
 end;
 
 // Used as {code:NodeBinDir} in [Run] below to call npm/node by full path
@@ -110,6 +146,10 @@ Type: filesandordirs; Name: "{app}\logs"
 Type: filesandordirs; Name: "{app}\server\data"
 Type: filesandordirs; Name: "{app}\server\uploads"
 
+[Tasks]
+Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
+
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\start-wraps-coffee.bat"
 Name: "{autoprograms}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\start-wraps-coffee.bat"; Tasks: desktopicon
