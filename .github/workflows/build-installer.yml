@@ -1,0 +1,37 @@
+name: Build Windows installer
+
+# Manually triggered (Actions tab -> Build Windows installer -> Run workflow)
+# rather than on every push, since compiling the installer isn't needed for
+# most commits and this keeps Actions usage to only when you actually want
+# a new WrapsCoffeeSetup.exe to hand to the client.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Download latest Node.js LTS installer
+        shell: pwsh
+        run: |
+          $releases = Invoke-RestMethod -Uri 'https://nodejs.org/dist/index.json'
+          $lts = $releases | Where-Object { $_.lts -ne $false } | Select-Object -First 1
+          $url = "https://nodejs.org/dist/$($lts.version)/node-$($lts.version)-x64.msi"
+          Write-Host "Downloading Node.js $($lts.version) ($($lts.lts)) from $url"
+          Invoke-WebRequest -Uri $url -OutFile 'installer/node-lts-x64.msi'
+
+      - name: Compile installer
+        shell: cmd
+        run: '"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\wraps-coffee.iss'
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WrapsCoffeeSetup
+          path: installer/Output/WrapsCoffeeSetup.exe

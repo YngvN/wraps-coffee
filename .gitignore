@@ -35,3 +35,8 @@ server/uploads/*
 
 # Agent instructions
 CLAUDE.md
+
+# Inno Setup installer build: compiled output and the third-party Node.js
+# installer the developer downloads and drops in installer/ before compiling.
+installer/Output
+installer/node-lts-x64.msi
