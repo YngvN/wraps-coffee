@@ -1,4 +1,5 @@
 import type { DepartureInfo, NearbyStop, WeatherHour } from '../types/extensions'
+import type { ScreenAddressSettings } from '../types/screenAddress'
 import type { AdminRole, AdminSession, DashboardSection } from '../types/sync'
 
 /**
@@ -20,6 +21,14 @@ export function wsUrl(): string {
   if (override) return override
   const port = (import.meta.env.VITE_WS_PORT as string | undefined) ?? '4000'
   return `ws://${window.location.hostname}:${port}`
+}
+
+/** This machine's own LAN-reachable IPv4 address (as seen by the local server itself), or `null` if it doesn't have one — public, no auth needed. Used by `ScreensView` to build a screen's `/screens/:id` link so it still works from a *different* device on the network even when the admin dashboard itself was opened via `localhost`. */
+export async function getLanIp(): Promise<string | null> {
+  const response = await fetch(`${serverBaseUrl()}/server-info`)
+  if (!response.ok) throw new Error('Could not fetch server info')
+  const { lanIp } = (await response.json()) as { lanIp: string | null }
+  return lanIp
 }
 
 /** Thrown when the local server rejects a login attempt or isn't reachable at all. */
@@ -191,6 +200,28 @@ export async function setNeonUrl(token: string, url: string | null): Promise<str
   }
   const { url: savedUrl } = (await response.json()) as { url: string | null }
   return savedUrl
+}
+
+/** How a screen's own `/screens/:screenId` link should be addressed (see Settings → Advanced) — public, no auth needed. */
+export async function getScreenAddressSettings(): Promise<ScreenAddressSettings> {
+  const response = await fetch(`${serverBaseUrl()}/screen-address`)
+  if (!response.ok) throw new Error('Could not load the screen address settings')
+  return response.json() as Promise<ScreenAddressSettings>
+}
+
+/** Saves the screen address settings — the local server applies any mDNS advertisement change immediately, no restart needed. `admin`/`subadmin` only. */
+export async function setScreenAddressSettings(token: string, settings: ScreenAddressSettings): Promise<ScreenAddressSettings> {
+  const response = await fetch(`${serverBaseUrl()}/screen-address`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(settings),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not save the screen address settings')
+  }
+  return response.json() as Promise<ScreenAddressSettings>
 }
 
 // --- Users (admin dashboard's own "Users" tab) -------------------------------

@@ -13,6 +13,7 @@ import {
   type LayoutNode,
   type PaneGrowthFallback,
   type PaneId,
+  type PreviewAspectRatio,
   type ScreenConfig,
   type ScreenSlot,
   type ScreenSlotContent,
@@ -40,7 +41,7 @@ import { BackgroundColorPicker } from '../../screens/BackgroundColorPicker'
 import { BackgroundEditor } from '../../screens/BackgroundEditor'
 import { GlobalTextSizeScaler, type SizeSnapshot } from '../../screens/GlobalTextSizeScaler'
 import { PaneEditor } from '../../screens/PaneEditor'
-import { ScaledScreenPreview, type PreviewAspectRatio } from '../../screens/ScaledScreenPreview'
+import { ScaledScreenPreview } from '../../screens/ScaledScreenPreview'
 import { SplitLayout } from '../../screens/SplitLayout'
 import { StageTabs } from '../../screens/StageTabs'
 import { LayoutIcon } from './LayoutIcon'
@@ -55,7 +56,7 @@ interface ScreenFormProps {
   onRouteChange?: (route: string | undefined) => void
 }
 
-/** The most common physical display shapes, offered as quick picks for the "Layout" tab's own live preview — purely a sanity-check tool for how the arrangement would look on a differently-shaped screen, not a persisted setting (resets to 16:9, the first entry, every time the form reopens). */
+/** The most common physical display shapes, offered as quick picks for the "Layout" tab's own live preview and persisted as the screen's own `previewAspectRatio` — also what its card in the admin Screens list is letterboxed to (see `ScreenCard`). Purely a preview aid either way; never affects the real kiosk display itself. */
 const PREVIEW_ASPECT_RATIOS: { ratio: PreviewAspectRatio; label: string }[] = [
   { ratio: { width: 16, height: 9 }, label: '16:9' },
   { ratio: { width: 9, height: 16 }, label: '9:16' },
@@ -101,8 +102,8 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
   const [editingTarget, setEditingTarget] = useState<'global' | 'layout' | 'borders' | 'background' | 'stages' | 'transitions' | 'screensaver' | 'other' | null>(null)
   /** `1` while opening a sub-view (slides in from the right, see `SlideTransition`), `-1` while going back (slides in from the left). Set right before whatever state change actually switches the view. */
   const [direction, setDirection] = useState<1 | -1>(1)
-  /** Which physical display shape the "Layout" tab's own live preview is currently sized to — a local sanity-check tool, not a persisted screen setting. */
-  const [previewAspectRatio, setPreviewAspectRatio] = useState<PreviewAspectRatio>(PREVIEW_ASPECT_RATIOS[0].ratio)
+  /** Which physical display shape the "Layout" tab's own live preview is currently sized to — persisted as the screen's own `previewAspectRatio` (see `handleSubmit`). */
+  const [previewAspectRatio, setPreviewAspectRatio] = useState<PreviewAspectRatio>(screen?.previewAspectRatio ?? PREVIEW_ASPECT_RATIOS[0].ratio)
   const [liveTextSizes, setLiveTextSizes] = useState<TextSizes>(screen?.textSizes ?? DEFAULT_TEXT_SIZES)
   /** Which stage a pane's own tab is currently showing fields for — shared across every pane tab (switching which pane you're viewing doesn't change it), since stages are a screen-wide sequence, not a per-pane one. */
   const [activeStage, setActiveStage] = useState(1)
@@ -586,6 +587,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
             onResizeDivider={handleResizeDivider}
             onEditSlide={handleSelectTab}
             onSplitPane={handleSplitPane}
+            disableSplitOnTouch
             onClearPane={handleClearPane}
             onDeletePane={handleDeletePane}
             selectedLeafId={activeLeafId ?? undefined}
@@ -736,7 +738,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
         // this form doesn't explicitly track) from the freshest persisted
         // data, so a Save right after a live sub-panel edit can't revert it.
         ...(latestScreen ?? screen),
-        screenID: screen?.screenID ?? `${Date.now()}`,
+        screenID: screen?.screenID ?? `screen-${crypto.randomUUID()}`,
         name,
         layout: draft.layout,
         paneSlots: draft.paneSlots,
@@ -748,6 +750,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
         showSlotBorders,
         hideScrollbar,
         useScreensaver,
+        previewAspectRatio,
       })
     }
 

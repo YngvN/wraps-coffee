@@ -66,7 +66,11 @@ interface OwnBackgroundImageFields {
  * (`stopId`, referencing `ExtensionsConfig['transit']['selectedStops']`),
  * and `'weather'` shows an hourly forecast for the cafe's own address —
  * neither renders anything (see `TransitSlide`/`WeatherSlide`) unless its
- * integration is enabled.
+ * integration is enabled. `'time'` is a live-ticking clock/date/weekday/week
+ * number (see `TimeDisplayMode`) — its own `fontSize` is independent of
+ * every other kind's `textSizes`, and its `'time'` display mode's `units`
+ * can be narrowed to a single digit group so a full clock can be split
+ * across sibling panes (see `TimeSlide`).
  */
 export type ScreenSlotContent =
   | ({ kind: 'none' } & OwnBackgroundImageFields)
@@ -112,6 +116,29 @@ export type ScreenSlotContent =
       count?: number
       textSizes?: TextSizes
     } & OwnBackgroundImageFields)
+  | ({
+      kind: 'time'
+      /** Falls back to `'time'` (a live clock) when unset. */
+      displayMode?: TimeDisplayMode
+      /** Used only when `displayMode` is `'time'` (or unset) — which of the clock's own digit groups this pane shows, in canonical hour/minute/second order regardless of this array's own order. Narrowing it to a single unit (e.g. just `['hours']`) is what lets a clock be split across more than one pane — one pane showing just the hour, a sibling pane just the minute — for a big segmented-clock look. Falls back to all three. */
+      units?: TimeUnit[]
+      /** Used only when `displayMode` is `'time'` (or unset) — whether the colon(s) between shown digit groups blink once per second, classic-digital-clock style. Has no visible effect with only one unit shown (no colon to blink at all). Falls back to `true`. */
+      blinkColon?: boolean
+      /** Used only when `displayMode` is `'date'` — how much of the date is spelled out, from the weekday name plus full month (`'full'`) down to all-numeric (`'short'`); see `getDateFormatOptions`, which maps this to `Intl.DateTimeFormat` options by hand rather than its own `dateStyle` shorthand, since that shorthand can't have its year suppressed. Falls back to `'long'`. */
+      dateStyle?: TimeDateStyle
+      /** Used only when `displayMode` is `'date'` — whether the year is included. Falls back to `false`: a screen showing today's date usually doesn't need the year restated. */
+      showYear?: boolean
+      /** Used only when `displayMode` is `'weekday'` — `Intl.DateTimeFormat`'s own `weekday` granularity, from the full day name (`'long'`, e.g. "Monday") down to a single letter (`'narrow'`, e.g. "M"). Falls back to `'long'`. */
+      weekdayStyle?: TimeWeekdayStyle
+      /**
+       * This pane's own font size (rem), deliberately independent of the
+       * shared per-slot `textSizes` system (`heading`/`itemTitle`/etc.) —
+       * a clock/date pane's ideal size (e.g. one huge digit filling a
+       * narrow split-off pane) doesn't correspond to any of those roles.
+       * Falls back to `DEFAULT_TIME_FONT_SIZE`.
+       */
+      fontSize?: number
+    } & OwnBackgroundImageFields)
 
 /** How a `'messageboard'` slide shows its board's posts: one admin-picked post, an auto-rotating carousel, or every post stacked in a scrollable column. */
 export type MessageBoardDisplayMode = 'single' | 'rotating' | 'list'
@@ -124,6 +151,24 @@ export const DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS = 8
 
 /** Used when a `'messageboard'` slide's own `count` is unset. */
 export const DEFAULT_MESSAGE_BOARD_COUNT = 10
+
+/** What a `'time'` slide shows: a live clock, the full date, just the weekday name, or the ISO week number. */
+export type TimeDisplayMode = 'time' | 'date' | 'weekday' | 'weekNumber'
+
+/** One digit group of a `'time'` slide's own clock, in `'time'` display mode. */
+export type TimeUnit = 'hours' | 'minutes' | 'seconds'
+
+/** `Intl.DateTimeFormatOptions['dateStyle']`, reused as-is for a `'time'` slide's `'date'` display mode. */
+export type TimeDateStyle = 'full' | 'long' | 'medium' | 'short'
+
+/** `Intl.DateTimeFormatOptions['weekday']`, reused as-is for a `'time'` slide's `'weekday'` display mode. */
+export type TimeWeekdayStyle = 'long' | 'short' | 'narrow'
+
+/** Used when a `'time'` slide's own `units` is unset (`'time'` display mode only) — a full clock. */
+export const DEFAULT_TIME_UNITS: TimeUnit[] = ['hours', 'minutes', 'seconds']
+
+/** Used when a `'time'` slide's own `fontSize` is unset. Deliberately larger than `DEFAULT_TEXT_SIZES.heading` — a clock is usually the sole focus of its pane. */
+export const DEFAULT_TIME_FONT_SIZE = 6
 
 /**
  * How an `'event'` slide shows the cafe's events: `'calendar'` lists the
@@ -235,6 +280,15 @@ export const SCREEN_BACKGROUND_COLORS: ScreenBackgroundColorOption[] = [
 /** Used when a screen has no `backgroundColor` of its own yet. */
 export const DEFAULT_SCREEN_BACKGROUND_COLOR = '#ffffff'
 
+/** A ratio (e.g. `{ width: 16, height: 9 }` for "16:9") a screen's own preview is shaped to — see `ScaledScreenPreview`'s own doc comment for how this drives its internal reference resolution. */
+export interface PreviewAspectRatio {
+  width: number
+  height: number
+}
+
+/** Used when a screen has no `previewAspectRatio` of its own yet — a standard landscape display. */
+export const DEFAULT_PREVIEW_ASPECT_RATIO: PreviewAspectRatio = { width: 16, height: 9 }
+
 /**
  * Font sizes (in rem) for the text roles shared by every slide, adjustable
  * per screen via the in-display text size editor. `price` is a category's
@@ -310,6 +364,8 @@ export interface ScreenConfig {
   backgroundColor?: string
   /** A background image for the whole screen (blurred, scaled to cover, same technique as a slot's own — see `BackgroundImage`), shown behind every pane that doesn't have its own background color/image. Falls back to none when absent. */
   backgroundImage?: BackgroundImage
+  /** Which physical display shape this screen is meant for — purely a sanity-check/preview aid (the "Layout" tab's own live preview, and each screen's card in the admin Screens list), never affects the real kiosk display itself (`ScreenDisplay` always fills whatever the actual browser/device window's own shape is). Falls back to `DEFAULT_PREVIEW_ASPECT_RATIO` (16:9) when absent. */
+  previewAspectRatio?: PreviewAspectRatio
   /** Whether this screen's own editing controls (its toolbar's "Edit appearance" button, each pane's hover-revealed edit button, and its draggable resize dividers) are hidden — a deterrent against casual tampering at the physical display, not real security, since unlocking just takes the shared PIN set from the admin Screens dashboard (`useScreenLockPin`), stored in the same plain browser storage as everything else here. Falls back to `false` (unlocked) when absent. */
   locked?: boolean
   /** Whether this screen goes black during the shared screensaver schedule's own window (set once, for every screen, from the admin dashboard's "Screen saver" button — see `useScreensaverSchedule`). A whole-screen effect, not per-slot. Has no effect at all — and its own checkbox stays hidden — until a schedule's actually been set. Falls back to `false` (never) when absent. */

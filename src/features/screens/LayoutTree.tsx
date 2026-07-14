@@ -30,6 +30,7 @@ interface LayoutTreeProps {
   selectedLeafId?: PaneId
   /** Hover-to-split/clear/delete affordances — see `LayoutPane`'s own props of the same name. `canDelete` (true once `root` has more than one leaf) is computed once by `SplitLayout` and threaded straight through, rather than recomputed at every leaf. */
   onSplitPane?: (leafId: PaneId, axis: SplitDirection, edge: 'start' | 'end') => void
+  disableSplitOnTouch?: boolean
   onClearPane?: (leafId: PaneId) => void
   onDeletePane?: (leafId: PaneId) => void
   canDelete: boolean
@@ -66,6 +67,7 @@ export function LayoutTree({
   gridTransition,
   selectedLeafId,
   onSplitPane,
+  disableSplitOnTouch,
   onClearPane,
   onDeletePane,
   canDelete,
@@ -94,6 +96,7 @@ export function LayoutTree({
         reducedMotion={reducedMotion}
         selected={node.id === selectedLeafId}
         onSplitPane={onSplitPane}
+        disableSplitOnTouch={disableSplitOnTouch}
         onClearPane={onClearPane}
         onDeletePane={onDeletePane}
         canDelete={canDelete}
@@ -126,6 +129,7 @@ export function LayoutTree({
         gridTransition={gridTransition}
         selectedLeafId={selectedLeafId}
         onSplitPane={onSplitPane}
+        disableSplitOnTouch={disableSplitOnTouch}
         onClearPane={onClearPane}
         onDeletePane={onDeletePane}
         canDelete={canDelete}
@@ -150,6 +154,7 @@ export function LayoutTree({
         gridTransition={gridTransition}
         selectedLeafId={selectedLeafId}
         onSplitPane={onSplitPane}
+        disableSplitOnTouch={disableSplitOnTouch}
         onClearPane={onClearPane}
         onDeletePane={onDeletePane}
         canDelete={canDelete}

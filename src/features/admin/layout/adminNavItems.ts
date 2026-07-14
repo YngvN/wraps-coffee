@@ -1,5 +1,4 @@
 import {
-  ContactIcon,
   EventsIcon,
   ExtensionsIcon,
   ImagesIcon,
@@ -10,12 +9,13 @@ import {
   ProductsIcon,
   ScreensIcon,
   SettingsIcon,
+  StoreIcon,
   UsersIcon,
 } from './AdminNavIcons'
 
 /**
  * One entry in the admin sidebar nav: a route segment and its translation
- * key. `toggleable` marks items a cafe can opt out of showing (see
+ * key. `toggleable` marks items a store can opt out of showing (see
  * `useSidebarSettings`) — `overview` and `settings` are never hidden, one
  * being the dashboard home and the other where that very choice is made.
  * Plain data (not a component), kept in its own file — separate from
@@ -27,7 +27,7 @@ export const NAV_ITEMS = [
   { to: 'messages', id: 'admin.nav.messages', adminOnly: false, toggleable: true },
   { to: 'products', id: 'admin.nav.products', adminOnly: false, toggleable: true },
   { to: 'events', id: 'admin.nav.events', adminOnly: false, toggleable: true },
-  { to: 'contact', id: 'admin.nav.contact', adminOnly: false, toggleable: true },
+  { to: 'store', id: 'admin.nav.store', adminOnly: false, toggleable: true },
   { to: 'orders', id: 'admin.nav.orders', adminOnly: false, toggleable: true },
   { to: 'screens', id: 'admin.nav.screens', adminOnly: false, toggleable: true },
   { to: 'extensions', id: 'admin.nav.extensions', adminOnly: false, toggleable: true },
@@ -50,7 +50,7 @@ export const ADMIN_NAV_ICONS = {
   messages: MessagesIcon,
   products: ProductsIcon,
   events: EventsIcon,
-  contact: ContactIcon,
+  store: StoreIcon,
   orders: OrdersIcon,
   screens: ScreensIcon,
   extensions: ExtensionsIcon,

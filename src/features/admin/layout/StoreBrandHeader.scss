@@ -1,0 +1,20 @@
+@use '../../../styles/variables' as *;
+
+.store-brand-header {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+}
+
+.store-brand-header__logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.store-brand-header__name {
+  font-weight: 700;
+  font-size: 1rem;
+  color: $color-text;
+}

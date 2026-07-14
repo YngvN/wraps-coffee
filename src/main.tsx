@@ -8,13 +8,16 @@ import { OverviewView } from './features/admin/overview/OverviewView'
 import { MessagesView } from './features/admin/messages/MessagesView'
 import { ProductsView } from './features/admin/products/ProductsView'
 import { EventsView as AdminEventsView } from './features/admin/events/EventsView'
-import { ContactInfoView } from './features/admin/contact/ContactInfoView'
+import { StoreSettingsView } from './features/admin/store/StoreSettingsView'
 import { ImageLibraryView } from './features/admin/imageLibrary/ImageLibraryView'
 import { OrdersView } from './features/admin/orders/OrdersView'
 import { ScreensView } from './features/admin/screens/ScreensView'
 import { ExtensionsView } from './features/admin/extensions/ExtensionsView'
 import { MessageBoardView } from './features/admin/messageBoard/MessageBoardView'
 import { SettingsView } from './features/admin/settings/SettingsView'
+import { NotFoundRedirect } from './features/admin/layout/NotFoundRedirect'
+import { NotFoundView } from './features/admin/layout/NotFoundView'
+import { StoreBrandingEffect } from './features/admin/layout/StoreBrandingEffect'
 import { UsersView } from './features/admin/users/UsersView'
 import { LanguageProvider } from './i18n'
 import { ScreenDisplay } from './pages/ScreenDisplay'
@@ -39,7 +42,7 @@ const router = createBrowserRouter([
           { path: 'messages', element: <MessagesView /> },
           { path: 'products', element: <ProductsView /> },
           { path: 'events', element: <AdminEventsView /> },
-          { path: 'contact', element: <ContactInfoView /> },
+          { path: 'store', element: <StoreSettingsView /> },
           { path: 'orders', element: <OrdersView /> },
           { path: 'screens', element: <ScreensView /> },
           { path: 'extensions', element: <ExtensionsView /> },
@@ -47,16 +50,19 @@ const router = createBrowserRouter([
           { path: 'images', element: <ImageLibraryView /> },
           { path: 'users', element: <UsersView /> },
           { path: 'settings', element: <SettingsView /> },
+          { path: '*', element: <NotFoundView /> },
         ],
       },
     ],
   },
   { path: '/screens/:screenId', element: <ScreenDisplay /> },
+  { path: '*', element: <NotFoundRedirect /> },
 ])
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <LanguageProvider>
+      <StoreBrandingEffect />
       <RouterProvider router={router} />
     </LanguageProvider>
   </StrictMode>,

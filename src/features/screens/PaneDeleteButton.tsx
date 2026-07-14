@@ -1,6 +1,6 @@
+import { TrashIcon } from '../../components'
 import { useLanguage } from '../../i18n'
 import './PaneCornerButton.scss'
-import { TrashIcon } from './TrashIcon'
 
 interface PaneDeleteButtonProps {
   onClick: () => void

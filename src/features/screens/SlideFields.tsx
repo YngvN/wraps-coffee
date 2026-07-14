@@ -12,11 +12,17 @@ import {
   DEFAULT_MESSAGE_BOARD_COUNT,
   DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS,
   DEFAULT_QR_CODE_SIZE,
+  DEFAULT_TIME_FONT_SIZE,
+  DEFAULT_TIME_UNITS,
   MIN_QR_CODE_SIZE,
   type EventDisplayMode,
   type MessageBoardDisplayMode,
   type MessageBoardOrder,
   type ScreenSlotContent,
+  type TimeDateStyle,
+  type TimeDisplayMode,
+  type TimeUnit,
+  type TimeWeekdayStyle,
 } from '../../types/screen'
 import { collectAnnouncementMessages } from '../../utils/announcements'
 import { clampImageResizeScale, IMAGE_RESIZE_MAX_VIEWPORT_FRACTION, MAX_IMAGE_RESIZE_SCALE, MIN_IMAGE_RESIZE_SCALE } from '../../utils/screenLayout'
@@ -45,6 +51,7 @@ function optionValueToContent(value: string, currentContent: ScreenSlotContent, 
   if (value === 'transit') return { kind: 'transit', stopId: '' }
   if (value === 'messageboard') return { kind: 'messageboard' }
   if (value === 'announcement') return { kind: 'announcement', title: '', description: '' }
+  if (value === 'time') return { kind: 'time' }
   if (value.startsWith('event:')) {
     const displayMode = value.slice('event:'.length) as EventDisplayMode
     if (displayMode === 'image' || displayMode === 'details') {
@@ -224,6 +231,44 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
     onChange({ ...content, showDescription })
   }
 
+  const setTimeDisplayMode = (displayMode: TimeDisplayMode) => {
+    if (content.kind !== 'time') return
+    onChange({ ...content, displayMode })
+  }
+
+  /** Keeps `units` in canonical hour/minute/second order regardless of the order they were toggled in — same "filter the fixed order down" technique as `toggleMenuCategory`. */
+  const setTimeUnit = (unit: TimeUnit, checked: boolean) => {
+    if (content.kind !== 'time') return
+    const current = content.units ?? DEFAULT_TIME_UNITS
+    const next = checked ? [...current, unit] : current.filter((existing) => existing !== unit)
+    onChange({ ...content, units: DEFAULT_TIME_UNITS.filter((existing) => next.includes(existing)) })
+  }
+
+  const setTimeBlinkColon = (blinkColon: boolean) => {
+    if (content.kind !== 'time') return
+    onChange({ ...content, blinkColon })
+  }
+
+  const setTimeDateStyle = (dateStyle: TimeDateStyle) => {
+    if (content.kind !== 'time') return
+    onChange({ ...content, dateStyle })
+  }
+
+  const setTimeShowYear = (showYear: boolean) => {
+    if (content.kind !== 'time') return
+    onChange({ ...content, showYear })
+  }
+
+  const setTimeWeekdayStyle = (weekdayStyle: TimeWeekdayStyle) => {
+    if (content.kind !== 'time') return
+    onChange({ ...content, weekdayStyle })
+  }
+
+  const setTimeFontSize = (fontSize: number) => {
+    if (content.kind !== 'time') return
+    onChange({ ...content, fontSize })
+  }
+
   return (
     <div className="slide-fields">
       <select
@@ -243,6 +288,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
         <option value="qrcode">{t('admin.screens.slotQrCodeLabel')}</option>
         <option value="transit">{t('admin.screens.slotTransitLabel')}</option>
         <option value="weather">{t('admin.screens.slotWeatherLabel')}</option>
+        <option value="time">{t('admin.screens.slotTimeLabel')}</option>
         <option value="messageboard">{t('admin.screens.slotMessageBoardLabel')}</option>
         <option value="announcement">{t('admin.screens.slotAnnouncementLabel')}</option>
       </select>
@@ -510,6 +556,90 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
               setIsMessagePickerOpen(false)
             }}
           />
+        </>
+      )}
+
+      {content.kind === 'time' && (
+        <>
+          <select
+            aria-label={t('admin.screens.timeDisplayModeLabel')}
+            value={content.displayMode ?? 'time'}
+            onChange={(event) => setTimeDisplayMode(event.target.value as TimeDisplayMode)}
+          >
+            <option value="time">{t('admin.screens.timeModeTimeLabel')}</option>
+            <option value="date">{t('admin.screens.timeModeDateLabel')}</option>
+            <option value="weekday">{t('admin.screens.timeModeWeekdayLabel')}</option>
+            <option value="weekNumber">{t('admin.screens.timeModeWeekNumberLabel')}</option>
+          </select>
+
+          {(content.displayMode ?? 'time') === 'time' && (
+            <div className="slide-fields__categories">
+              <span className="slide-fields__categories-label">{t('admin.screens.timeUnitsLabel')}</span>
+              <Checkbox
+                id={`${id}-time-hours`}
+                label={t('admin.screens.timeUnitHoursLabel')}
+                checked={(content.units ?? DEFAULT_TIME_UNITS).includes('hours')}
+                onChange={(event) => setTimeUnit('hours', event.target.checked)}
+              />
+              <Checkbox
+                id={`${id}-time-minutes`}
+                label={t('admin.screens.timeUnitMinutesLabel')}
+                checked={(content.units ?? DEFAULT_TIME_UNITS).includes('minutes')}
+                onChange={(event) => setTimeUnit('minutes', event.target.checked)}
+              />
+              <Checkbox
+                id={`${id}-time-seconds`}
+                label={t('admin.screens.timeUnitSecondsLabel')}
+                checked={(content.units ?? DEFAULT_TIME_UNITS).includes('seconds')}
+                onChange={(event) => setTimeUnit('seconds', event.target.checked)}
+              />
+            </div>
+          )}
+
+          {(content.displayMode ?? 'time') === 'time' && (
+            <Checkbox
+              id={`${id}-time-blink-colon`}
+              label={t('admin.screens.timeBlinkColonLabel')}
+              checked={content.blinkColon ?? true}
+              onChange={(event) => setTimeBlinkColon(event.target.checked)}
+            />
+          )}
+
+          {content.displayMode === 'date' && (
+            <>
+              <select aria-label={t('admin.screens.timeDateStyleLabel')} value={content.dateStyle ?? 'long'} onChange={(event) => setTimeDateStyle(event.target.value as TimeDateStyle)}>
+                <option value="full">{t('admin.screens.timeDateStyleFullLabel')}</option>
+                <option value="long">{t('admin.screens.timeDateStyleLongLabel')}</option>
+                <option value="medium">{t('admin.screens.timeDateStyleMediumLabel')}</option>
+                <option value="short">{t('admin.screens.timeDateStyleShortLabel')}</option>
+              </select>
+              <Checkbox
+                id={`${id}-time-show-year`}
+                label={t('admin.screens.timeShowYearLabel')}
+                checked={Boolean(content.showYear)}
+                onChange={(event) => setTimeShowYear(event.target.checked)}
+              />
+            </>
+          )}
+
+          {content.displayMode === 'weekday' && (
+            <select
+              aria-label={t('admin.screens.timeWeekdayStyleLabel')}
+              value={content.weekdayStyle ?? 'long'}
+              onChange={(event) => setTimeWeekdayStyle(event.target.value as TimeWeekdayStyle)}
+            >
+              <option value="long">{t('admin.screens.timeWeekdayStyleLongLabel')}</option>
+              <option value="short">{t('admin.screens.timeWeekdayStyleShortLabel')}</option>
+              <option value="narrow">{t('admin.screens.timeWeekdayStyleNarrowLabel')}</option>
+            </select>
+          )}
+
+          <label className="slide-fields__slider">
+            <span>
+              {t('admin.screens.timeFontSizeLabel')} — {content.fontSize ?? DEFAULT_TIME_FONT_SIZE}rem
+            </span>
+            <input type="range" min={1} max={20} step={0.5} value={content.fontSize ?? DEFAULT_TIME_FONT_SIZE} onChange={(event) => setTimeFontSize(Number(event.target.value))} />
+          </label>
         </>
       )}
     </div>

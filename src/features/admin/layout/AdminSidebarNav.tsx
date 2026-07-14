@@ -5,6 +5,7 @@ import { useSidebarSettings } from '../../../hooks/useSidebarSettings'
 import { useLanguage } from '../../../i18n'
 import type { ToggleableSidebarItem } from '../../../types/sidebarSettings'
 import { ADMIN_NAV_ICONS, NAV_ITEMS } from './adminNavItems'
+import { StoreBrandHeader } from './StoreBrandHeader'
 import './AdminSidebarNav.scss'
 
 interface AdminSidebarNavProps {
@@ -32,23 +33,26 @@ export function AdminSidebarNav({ onNavigate }: AdminSidebarNavProps) {
 
   return (
     <nav className="admin-sidebar-nav">
-      <ul className="admin-sidebar-nav__list">
-        {visibleItems.map((item) => {
-          const NavIcon = ADMIN_NAV_ICONS[item.to]
-          return (
-            <li key={item.to}>
-              <NavLink
-                to={item.to}
-                onClick={onNavigate}
-                className={({ isActive }) => `admin-sidebar-nav__link${isActive ? ' admin-sidebar-nav__link--active' : ''}`}
-              >
-                <NavIcon className="admin-sidebar-nav__icon" />
-                <TranslatedText id={item.id} />
-              </NavLink>
-            </li>
-          )
-        })}
-      </ul>
+      <div className="admin-sidebar-nav__top">
+        <StoreBrandHeader />
+        <ul className="admin-sidebar-nav__list">
+          {visibleItems.map((item) => {
+            const NavIcon = ADMIN_NAV_ICONS[item.to]
+            return (
+              <li key={item.to}>
+                <NavLink
+                  to={item.to}
+                  onClick={onNavigate}
+                  className={({ isActive }) => `admin-sidebar-nav__link${isActive ? ' admin-sidebar-nav__link--active' : ''}`}
+                >
+                  <NavIcon className="admin-sidebar-nav__icon" />
+                  <TranslatedText id={item.id} />
+                </NavLink>
+              </li>
+            )
+          })}
+        </ul>
+      </div>
       <div className="admin-sidebar-nav__footer">
         <button type="button" className="admin-sidebar-nav__back" onClick={handleLogout}>
           {t('admin.nav.logout')}

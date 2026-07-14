@@ -21,7 +21,7 @@ function daysBetween(from: Date, to: Date): number {
 }
 
 /** Combines a `YYYY-MM-DD` date string and `HH:MM` time string into a `Date`. */
-function toDateTime(date: string, time: string): Date {
+export function toDateTime(date: string, time: string): Date {
   return new Date(`${date}T${time}:00`)
 }
 

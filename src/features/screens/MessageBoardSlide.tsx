@@ -1,9 +1,10 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
+import { useDateFormatPreference } from '../../hooks/useDateFormatPreference'
 import { useMessageBoardPosts } from '../../hooks/useMessageBoardPosts'
-import { useLanguage } from '../../i18n'
 import { DEFAULT_MESSAGE_BOARD_COUNT, DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS, type MessageBoardDisplayMode, type MessageBoardOrder } from '../../types/screen'
 import type { MessageBoardPost } from '../../types/messageBoard'
+import { formatDate } from '../../utils/dateFormat'
 import { isPostExpired, sortMessageBoardPosts } from '../../utils/messageBoard'
 import { getSmallUrl } from '../../utils/responsiveImage'
 import './MessageBoardSlide.scss'
@@ -19,14 +20,14 @@ interface MessageBoardSlideProps {
 
 /** One post's own title/image/body, plus its poster's name and timestamp at the bottom — shared by every display mode below. */
 function MessageBoardPostContent({ post }: { post: MessageBoardPost }) {
-  const { language } = useLanguage()
+  const [dateFormat] = useDateFormatPreference()
   return (
     <div className="message-board-slide__post">
       <h2 className="message-board-slide__post-title">{post.title}</h2>
       {post.imageUrl && <img className="message-board-slide__post-image" src={getSmallUrl(post.imageUrl)} alt="" />}
       <p className="message-board-slide__post-body">{post.body}</p>
       <p className="message-board-slide__post-meta">
-        {post.authorUsername} · {new Date(post.createdAt).toLocaleDateString(language)}
+        {post.authorUsername} · {formatDate(new Date(post.createdAt), dateFormat)}
       </p>
     </div>
   )

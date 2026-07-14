@@ -40,6 +40,7 @@ import { isWithinScreensaverWindow } from '../utils/screensaver'
 import { hasOwnTextSizeFields, resolveContentBackgroundImage } from '../utils/screenSlots'
 import {
   currentStage,
+  getPersistedSlotTextSizes,
   isResizeToFitConflict,
   resolveSlotBackgroundColor,
   resolveSlotBackgroundImage,
@@ -78,12 +79,6 @@ function screenAppearanceToCssVars(textSizes: TextSizes, backgroundColor: string
     ...borderColorStyle(borderColor),
     ...backgroundImageTextStyle(backgroundImage?.overlay),
   } as CSSProperties
-}
-
-/** The persisted (non-live-draft) effective text sizes for a pane at a given stage: its own resolved override, else the screen's own, else the global default. Used both as the shared fallback for that stage's content and as what editing "the pane" (rather than one specific stage) reads/writes. */
-function getPersistedSlotTextSizes(screen: ScreenConfig, leafId: PaneId, stage: number): TextSizes {
-  const slot = screen.paneSlots[leafId]
-  return (slot && resolveSlotTextSizes(slot, stage)) ?? screen.textSizes ?? DEFAULT_TEXT_SIZES
 }
 
 /** Which appearance settings are currently open for editing: the whole screen's defaults (incl. background color), one specific pane (by id), or nothing. */
@@ -225,9 +220,13 @@ export function ScreenDisplay() {
    * Starts `true` — a freshly opened display (e.g. a kiosk device just
    * booting up and loading this page) sits on its first stage until someone
    * explicitly presses Play, rather than immediately cycling through
-   * content unattended.
+   * content unattended — *unless* this load carries the dashboard's own
+   * `launch` marker (see `ScreensView.handleOpenScreen`), which treats
+   * "open" as "deploy it" and should autoplay immediately. Checked directly
+   * in this lazy initializer (rather than an effect calling `setManuallyPaused`
+   * after mount) so the very first render already reflects it.
    */
-  const [manuallyPaused, setManuallyPaused] = useState(true)
+  const [manuallyPaused, setManuallyPaused] = useState(() => !new URLSearchParams(window.location.search).has('launch'))
   /** The toolbar's own fast-forward toggle — while on, stages advance every 2 seconds instead of the screen's own configured `slideDurationSeconds`. */
   const [fastForward, setFastForward] = useState(false)
 
@@ -271,6 +270,27 @@ export function ScreenDisplay() {
     const interval = setInterval(() => setScreensaverTestLabelPosition(randomScreensaverTestLabelPosition()), 4000)
     return () => clearInterval(interval)
   }, [screen?.screensaverTestActive])
+
+  /**
+   * If this display was just launched from the dashboard's "Open" action
+   * (see `ScreensView.handleOpenScreen`), best-effort requests fullscreen —
+   * treating "open" as "deploy it," not a plain preview. The "starts
+   * locked" and "starts autoplaying" halves of that don't belong here:
+   * locking is already written by `handleOpenScreen` itself before this tab
+   * even opens (so `screen.locked` is simply already `true` by the time
+   * this component first reads it), and autoplaying is `manuallyPaused`'s
+   * own lazy initial state above — neither needs a `setState` call inside
+   * this effect. `requestFullscreen` needs an active user gesture, which a
+   * mount effect in a freshly-opened tab typically isn't — attempted
+   * anyway (harmless if silently rejected; the toolbar's own
+   * `FullscreenToggle` remains the reliable fallback). Strips the marker
+   * from the visible URL right after, mount-only.
+   */
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has('launch')) return
+    document.documentElement.requestFullscreen?.().catch(() => {})
+    window.history.replaceState(null, '', window.location.pathname)
+  }, [])
 
   if (!screen) {
     return (
@@ -696,6 +716,9 @@ export function ScreenDisplay() {
 
   const screensaverActive = Boolean(screen.useScreensaver && (screen.screensaverTestActive || isWithinScreensaverWindow(screensaverSchedule, now)))
 
+  /** Whether this browser tab can edit this screen at all — a logged-in admin session, and not currently locked. Without a session, every editing affordance (the toolbar's edit controls, the Lock button, resizing/splitting/clearing/deleting a pane, dropping an image onto one) is hidden entirely, not just disabled — this page is otherwise fully public (see the route in `main.tsx`), so someone who merely happens to load a kiosk's own URL shouldn't be able to touch its layout or content. The "Unlock" button on an already-locked screen is deliberately *not* gated on this — unlocking is already behind its own PIN, the same "physical deterrent" model `useScreenLockPin` documents, independent of remote login. */
+  const canEdit = Boolean(session) && !screen.locked
+
   return (
     <div
       className={`screen-display${screen.hideScrollbar ? ' screen-display--hide-scrollbar' : ''}${screen.locked ? ' screen-display--locked' : ''}`}
@@ -709,7 +732,7 @@ export function ScreenDisplay() {
         </div>
       )}
       <ScreenToolbar>
-        {!screen.locked && (
+        {canEdit && (
           <>
             <span className="screen-toolbar__label">{screen.name}</span>
             {screen.useStages && (screen.stageCount ?? 1) > 1 && (
@@ -747,6 +770,7 @@ export function ScreenDisplay() {
             <LockIcon />
           </button>
         ) : (
+          canEdit &&
           pin && (
             <button type="button" className="screen-toolbar__button" onClick={handleLockScreen}>
               {t('screenDisplay.lock.lockButton')}
@@ -758,15 +782,15 @@ export function ScreenDisplay() {
         key={screen.screenID}
         screen={effectiveScreen}
         resolveTextSizes={resolveTextSizes}
-        onEditSlide={screen.locked ? undefined : openSlotEditor}
+        onEditSlide={canEdit ? openSlotEditor : undefined}
         stage={stage}
         forcedStage={forcedStage}
-        onResizeDivider={screen.locked ? undefined : handleResizeDivider}
+        onResizeDivider={canEdit ? handleResizeDivider : undefined}
         onDragStateChange={handleDragStateChange}
-        onDropImage={screen.locked ? undefined : handleDropImage}
-        onSplitPane={screen.locked ? undefined : handleSplitPane}
-        onClearPane={screen.locked ? undefined : handleClearPane}
-        onDeletePane={screen.locked ? undefined : handleDeletePane}
+        onDropImage={canEdit ? handleDropImage : undefined}
+        onSplitPane={canEdit ? handleSplitPane : undefined}
+        onClearPane={canEdit ? handleClearPane : undefined}
+        onDeletePane={canEdit ? handleDeletePane : undefined}
         defaultPaneLanguage={defaultPaneLanguage}
       />
 

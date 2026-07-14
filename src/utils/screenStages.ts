@@ -1,5 +1,5 @@
 import type { LanguageCode } from '../i18n'
-import type { BackgroundImage, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, StageTimeline, TextSizes } from '../types/screen'
+import { DEFAULT_TEXT_SIZES, type BackgroundImage, type PaneId, type ScreenConfig, type ScreenSlot, type ScreenSlotContent, type StageTimeline, type TextSizes } from '../types/screen'
 import { isResizeToFitImage } from './screenSlots'
 
 /**
@@ -40,6 +40,12 @@ export function resolveSlotBackgroundImage(slot: ScreenSlot, stage: number): Bac
 
 export function resolveSlotTextSizes(slot: ScreenSlot, stage: number): TextSizes | undefined {
   return resolveStageValue(slot.textSizes, stage)
+}
+
+/** The persisted (non-live-draft) effective text sizes for a pane at a given stage: its own resolved override, else the screen's own, else the global default. Used both as the shared fallback for that stage's content and as what editing "the pane" (rather than one specific stage) reads/writes in `ScreenDisplay`, and by `ScreenCard`'s own read-only list preview. */
+export function getPersistedSlotTextSizes(screen: ScreenConfig, leafId: PaneId, stage: number): TextSizes {
+  const slot = screen.paneSlots[leafId]
+  return (slot && resolveSlotTextSizes(slot, stage)) ?? screen.textSizes ?? DEFAULT_TEXT_SIZES
 }
 
 /** This slot's own language override at `stage` — `undefined` means "use the cafe's own Standard pane language" (see `useDefaultPaneLanguage`), whether because nothing was ever set or because it was explicitly reset back to it. */

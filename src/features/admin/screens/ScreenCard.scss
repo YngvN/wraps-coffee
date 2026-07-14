@@ -1,0 +1,163 @@
+@use '../../../styles/variables' as *;
+
+.screen-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+}
+
+// Background/text come from --screen-* custom properties (see
+// getScreenColorVars), reflecting each screen's own chosen color so any
+// letterbox bars around a differently-shaped preview (see
+// ScaledScreenPreview's own `fit="contain"`) match the real display rather
+// than a generic card background.
+.screen-card__preview {
+  position: relative;
+  height: 200px;
+  background: var(--screen-bg);
+  color: var(--screen-text);
+}
+
+.screen-card__stage-stepper {
+  position: absolute;
+  bottom: $spacing-unit;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+}
+
+.screen-card__stage-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid $color-border;
+  border-radius: 999px;
+  background: $color-surface;
+  color: $color-text;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
+.screen-card__stage-label {
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  border: 1px solid $color-border;
+  border-radius: 999px;
+  background: $color-surface;
+  color: $color-text;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.screen-card__footer {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+}
+
+.screen-card__info {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit * 0.75);
+  flex-wrap: wrap;
+}
+
+.screen-card__name {
+  font-weight: 600;
+}
+
+.screen-card__url {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  flex-wrap: wrap;
+
+  a {
+    @media (hover: hover) {
+      &:hover {
+        opacity: 0.8;
+      }
+    }
+  }
+}
+
+// The URL itself, clicking it copies it to the clipboard — a plain button
+// rather than `Button` so it reads as the link's own text, not a separate
+// pill-shaped action next to it.
+.screen-card__url-code {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  overflow: hidden;
+  max-width: 100%;
+  padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: $color-text-muted;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  svg {
+    flex-shrink: 0;
+  }
+
+  code {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8rem;
+    color: inherit;
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-shadow;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
+.screen-card__url-copied {
+  font-size: 0.8rem;
+  color: $color-accent;
+}
+
+.screen-card__actions {
+  display: flex;
+  gap: calc($spacing-unit / 2);
+
+  // `EditDeleteButtons`' own label-hiding rule only kicks in below a 600px
+  // *viewport*, which never happens on a wide monitor even though this
+  // footer's own 3-button row (Edit/Duplicate/Delete, wider than the
+  // 2-button Products/Events lists it's shared with) is always too narrow
+  // for full text labels at this card's own fixed ~280-320px width (see
+  // `.screens-view__list`) — so this footer always goes icon-only,
+  // regardless of viewport.
+  .edit-delete-buttons__label {
+    display: none;
+  }
+}

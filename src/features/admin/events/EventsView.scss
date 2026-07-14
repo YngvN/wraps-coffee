@@ -14,6 +14,18 @@
   gap: $spacing-unit * 2;
 }
 
+.events-view__group {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+}
+
+.events-view__group-title {
+  margin: 0;
+  font-size: 1rem;
+  color: $color-text;
+}
+
 .events-view__list {
   display: flex;
   flex-direction: column;
@@ -36,13 +48,19 @@
 
 .events-view__item-info {
   display: flex;
-  align-items: center;
-  gap: calc($spacing-unit * 0.75);
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
 }
 
 .events-view__item-title {
   font-weight: 600;
+}
+
+.events-view__item-meta {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit * 0.75);
+  flex-wrap: wrap;
 }
 
 .events-view__item-date {

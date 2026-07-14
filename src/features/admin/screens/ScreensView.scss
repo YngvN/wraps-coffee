@@ -7,6 +7,16 @@
   max-width: 900px;
 }
 
+// Applied directly to the list view's own root (one of `SlideTransition`'s
+// two branches, alongside the "Edit screen"/"Add screen" form view) rather
+// than relying on `.screens-view`'s own gap — that only reaches its direct
+// children, and this branch sits one level deeper, inside `SlideTransition`.
+.screens-view__list-view {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 3;
+}
+
 .screens-view__header {
   display: flex;
   align-items: center;
@@ -18,6 +28,35 @@
 .screens-view__header-actions {
   display: flex;
   gap: $spacing-unit;
+}
+
+// Matches `.products-view__add-row` (Products' own "Add category"/"Add
+// product" affordance) — a full-width, left-aligned ghost button below the
+// list rather than a filled `Button` in the header.
+.screens-view__add-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  width: 100%;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: $color-text;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
 }
 
 // The "Edit screen"/"Add screen" view (replacing the list entirely, not a
@@ -52,10 +91,17 @@
   color: $color-text-muted;
 }
 
+// A responsive grid of cards (see `ScreenCard`) — a fixed size (280-320px,
+// never stretched to fill a row's own leftover space, unlike a `1fr` track)
+// regardless of how many columns fit, so screens of different shapes
+// (portrait/landscape, see `ScaledScreenPreview`'s own `fit="contain"`)
+// still read as a uniform gallery. Only shrinks (toward its own 280px floor,
+// then fewer columns per row) once the viewport itself gets too narrow to
+// hold a wider one.
 .screens-view__list {
-  display: flex;
-  flex-direction: column;
-  gap: calc($spacing-unit / 2);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
+  gap: $spacing-unit * 2;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -63,116 +109,4 @@
 
 .screens-view__item {
   display: flex;
-  align-items: flex-start;
-  gap: $spacing-unit * 1.5;
-  padding: $spacing-unit calc($spacing-unit * 1.5);
-  border: 1px solid $color-border;
-  border-radius: 8px;
-}
-
-// Background/text come from --screen-* custom properties (see
-// getScreenColorVars), reflecting each screen's own chosen color so the
-// preview matches what the display actually looks like.
-.screens-view__item-preview {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 72px;
-  height: 54px;
-  overflow: hidden;
-  border: 1px solid $color-border;
-  border-radius: 6px;
-  background: var(--screen-bg);
-  color: var(--screen-text);
-}
-
-.screens-view__item-body {
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-unit;
-  min-width: 0;
-  flex: 1;
-}
-
-.screens-view__item-info {
-  display: flex;
-  align-items: center;
-  gap: calc($spacing-unit * 0.75);
-  flex-wrap: wrap;
-}
-
-.screens-view__item-name {
-  font-weight: 600;
-}
-
-.screens-view__item-slots {
-  color: $color-text-muted;
-  font-size: 0.875rem;
-}
-
-.screens-view__item-url {
-  display: flex;
-  align-items: center;
-  gap: $spacing-unit;
-  flex-wrap: wrap;
-
-  a {
-    @media (hover: hover) {
-      &:hover {
-        opacity: 0.8;
-      }
-    }
-  }
-}
-
-// The URL itself, clicking it copies it to the clipboard (see `handleCopy`)
-// — a plain button rather than `Button` so it reads as the link's own text,
-// not a separate pill-shaped action next to it.
-.screens-view__item-url-code {
-  display: flex;
-  align-items: center;
-  gap: calc($spacing-unit / 2);
-  overflow: hidden;
-  max-width: 320px;
-  padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: $color-text-muted;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-
-  svg {
-    flex-shrink: 0;
-  }
-
-  code {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 0.8rem;
-    color: inherit;
-  }
-
-  @media (hover: hover) {
-    &:hover {
-      background: $color-shadow;
-    }
-  }
-
-  &:active {
-    box-shadow: inset 0 2px 4px $color-shadow;
-  }
-}
-
-.screens-view__item-url-copied {
-  font-size: 0.8rem;
-  color: $color-accent;
-}
-
-.screens-view__item-actions {
-  display: flex;
-  gap: calc($spacing-unit / 2);
 }

@@ -1,0 +1,79 @@
+@use '../../../styles/variables' as *;
+
+.advanced-settings {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 1.5;
+  max-width: 560px;
+}
+
+.advanced-settings__modes {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  margin: 0;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: 1px solid $color-border;
+  border-radius: 8px;
+
+  legend {
+    padding: 0 calc($spacing-unit / 2);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+}
+
+.advanced-settings__mode {
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-unit;
+  cursor: pointer;
+
+  input[type='radio'] {
+    margin-top: calc($spacing-unit / 4);
+  }
+}
+
+.advanced-settings__mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+  font-size: 0.875rem;
+
+  strong {
+    color: $color-text;
+  }
+
+  span {
+    color: $color-text-muted;
+  }
+}
+
+.advanced-settings__mdns-field {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+}
+
+.advanced-settings__mdns-preview {
+  margin: 0;
+  font-family: $font-mono, monospace;
+  font-size: 0.8125rem;
+  color: $color-text;
+}
+
+.advanced-settings__caveat,
+.advanced-settings__error {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: $color-text-muted;
+}
+
+.advanced-settings__error {
+  color: $color-error;
+}
+
+.advanced-settings__saved {
+  font-size: 0.875rem;
+  color: $color-success;
+}

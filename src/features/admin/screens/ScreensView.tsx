@@ -1,25 +1,26 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useState, type CSSProperties } from 'react'
-import { BackButton, Badge, Button, SlideTransition, TranslatedText } from '../../../components'
+import { useEffect, useState } from 'react'
+import { BackButton, Button, PlusIcon, SlideTransition, TranslatedText } from '../../../components'
 import { useBackLevel } from '../../../hooks/useBackLevel'
+import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { useScreenLockPin } from '../../../hooks/useScreenLockPin'
 import { useScreens } from '../../../hooks/useScreens'
 import { useScreensaverSchedule } from '../../../hooks/useScreensaverSchedule'
 import { useLanguage } from '../../../i18n'
 import { goBack } from '../../../lib/backStack'
-import { DEFAULT_SCREEN_BACKGROUND_COLOR, type ScreenConfig, type ScreenSlot, type ScreenSlotContent } from '../../../types/screen'
+import { getLanIp, getScreenAddressSettings } from '../../../lib/localServer'
+import type { ScreenConfig } from '../../../types/screen'
+import { DEFAULT_SCREEN_ADDRESS_SETTINGS, type ScreenAddressSettings } from '../../../types/screenAddress'
+import { useStoreSettings } from '../../../hooks/useStoreSettings'
 import { countLeaves } from '../../../utils/layoutTree'
-import { getScreenColorVars } from '../../../utils/screenColors'
-import { resolveSlotContent } from '../../../utils/screenStages'
-import { CopyIcon } from './CopyIcon'
+import { deriveMdnsName } from '../../../utils/mdnsName'
 import { CreatePinModal } from './CreatePinModal'
-import { LayoutIcon } from './LayoutIcon'
+import { ScreenCard } from './ScreenCard'
 import { ScreenForm } from './ScreenForm'
-import { getScreenPreviewPattern } from './screenPreviewPattern'
 import { ScreensaverScheduleModal } from './ScreensaverScheduleModal'
 import './ScreensView.scss'
 
-/** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link, plus the "Create pin" button that sets the one shared PIN every screen's own "Lock screen" button locks behind, and the "Screen saver" button that sets the one shared daily window every screen's own "Use screensaver" checkbox opts into. */
+/** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link (addressed per Settings → Advanced's `ScreenAddressSettings`), plus the "Create pin" button that sets the one shared PIN every screen's own "Lock screen" button locks behind, and the "Screen saver" button that sets the one shared daily window every screen's own "Use screensaver" checkbox opts into. "Open" treats launching a screen as deploying it, not previewing it — see `handleOpenScreen`. */
 export function ScreensView() {
   const { t } = useLanguage()
   const [screens, setScreens] = useScreens()
@@ -33,6 +34,37 @@ export function ScreensView() {
   const [direction, setDirection] = useState<1 | -1>(1)
   /** The screen form's own currently open sub-view (e.g. "Resize slots"), shown next to the form view's own title — see `ScreenForm`'s `onRouteChange`. Reset on close so a stale route doesn't flash before the next open's fresh form reports its own. */
   const [formRoute, setFormRoute] = useState<string | undefined>(undefined)
+  /** This machine's own LAN IP, used in place of `localhost`/`127.0.0.1` when building each screen's link below — so a URL copied from a dashboard opened via `localhost` still works when pasted into a *different* device (a kiosk display) on the network. Only fetched when actually needed (see the effect below); stays `null` (falling back to `window.location.hostname` as-is) if the lookup fails or isn't applicable. */
+  const [lanIp, setLanIp] = useState<string | null>(null)
+  /** How a screen's own link should be addressed (see Settings → Advanced) — `automatic` (the default) defers to the LAN-IP detection above; `custom`/`mdns` override it outright. Fetched once; falls back to `automatic` while loading or if the lookup fails. */
+  const [addressSettings, setAddressSettings] = useState<ScreenAddressSettings>(DEFAULT_SCREEN_ADDRESS_SETTINGS)
+  /** A screen queued to open once a PIN has just been set — see `handleOpenScreen`/`CreatePinModal`'s `onSaved`. `null` outside of that gated flow (including while the pin modal is open for its own plain "Create/change pin" button). */
+  const [pendingOpenScreen, setPendingOpenScreen] = useState<{ screen: ScreenConfig; url: string } | null>(null)
+  const [storeSettings] = useStoreSettings()
+  const [defaultPaneLanguage] = useDefaultPaneLanguage()
+
+  useEffect(() => {
+    getScreenAddressSettings()
+      .then(setAddressSettings)
+      .catch(() => setAddressSettings(DEFAULT_SCREEN_ADDRESS_SETTINGS))
+  }, [])
+
+  useEffect(() => {
+    if (addressSettings.mode !== 'automatic') return
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') return
+    getLanIp()
+      .then(setLanIp)
+      .catch(() => setLanIp(null))
+  }, [addressSettings.mode])
+
+  const screenHost =
+    addressSettings.mode === 'custom' && addressSettings.customHost
+      ? addressSettings.customHost
+      : addressSettings.mode === 'mdns' && storeSettings.name.trim()
+        ? `${deriveMdnsName(storeSettings.name)}.local`
+        : window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+          ? (lanIp ?? window.location.hostname)
+          : window.location.hostname
 
   const isFormOpen = editingScreen !== undefined
   const openForm = (target: ScreenConfig | null) => {
@@ -71,32 +103,8 @@ export function ScreensView() {
    * editing either one afterwards can't accidentally affect the other.
    */
   const handleDuplicate = (screen: ScreenConfig) => {
-    const copy: ScreenConfig = { ...(JSON.parse(JSON.stringify(screen)) as ScreenConfig), screenID: `${Date.now()}`, name: t('admin.screens.duplicateName', { name: screen.name }) }
+    const copy: ScreenConfig = { ...(JSON.parse(JSON.stringify(screen)) as ScreenConfig), screenID: `screen-${crypto.randomUUID()}`, name: t('admin.screens.duplicateName', { name: screen.name }) }
     setScreens((current) => [...current, copy])
-  }
-
-  const contentLabel = (content: ScreenSlotContent) => {
-    if (content.kind === 'none') return t('admin.screens.slotNoneLabel')
-    if (content.kind === 'catalogue') return t('admin.screens.slotCatalogueLabel')
-    if (content.kind === 'event') {
-      const displayMode = content.displayMode ?? 'calendar'
-      if (displayMode === 'image') return t('admin.screens.slotEventImageLabel')
-      if (displayMode === 'details') return t('admin.screens.slotEventDetailsLabel')
-      if (displayMode === 'month') return t('admin.screens.slotEventMonthLabel')
-      return t('admin.screens.slotEventCalendarLabel')
-    }
-    if (content.kind === 'image') return t('admin.screens.slotImageLabel')
-    if (content.kind === 'qrcode') return t('admin.screens.slotQrCodeLabel')
-    if (content.kind === 'transit') return t('admin.screens.slotTransitLabel')
-    if (content.kind === 'weather') return t('admin.screens.slotWeatherLabel')
-    if (content.kind === 'messageboard') return t('admin.screens.slotMessageBoardLabel')
-    return t('admin.screens.slotAnnouncementLabel')
-  }
-
-  /** A slot's summary text: its stage-1 content's own label (every slot is guaranteed a stage-1 checkpoint), or `null` if it's "none" there. A screen with stages on may show different content at other stages — see the stage-count badge below for that. */
-  const slotSummary = (slot: ScreenSlot) => {
-    const content = resolveSlotContent(slot, 1)
-    return content.kind === 'none' ? null : contentLabel(content)
   }
 
   const handleCopy = (screen: ScreenConfig, url: string) => {
@@ -104,6 +112,37 @@ export function ScreensView() {
       setCopiedID(screen.screenID)
       setTimeout(() => setCopiedID((current) => (current === screen.screenID ? null : current)), 2000)
     })
+  }
+
+  /**
+   * Actually launches a screen's display in a new tab — this is meant as a
+   * "deploy it" action, not a plain preview, so it locks the screen right
+   * here (a plain event-handler write, before the new tab even opens,
+   * rather than a `setState` call inside `ScreenDisplay`'s own mount
+   * effect) and appends a one-time `launch` marker that page's effect
+   * looks for to best-effort request fullscreen (autoplaying is separately
+   * covered by that page's `manuallyPaused` initial state noticing the
+   * same marker). Called once a PIN is confirmed to exist (see
+   * `handleOpenScreen` below).
+   */
+  const launchScreen = (screen: ScreenConfig, url: string) => {
+    if (!screen.locked) setScreens((current) => current.map((existing) => (existing.screenID === screen.screenID ? { ...existing, locked: true } : existing)))
+    window.open(`${url}${url.includes('?') ? '&' : '?'}launch=1`, '_blank')
+  }
+
+  /** "Open" a screen from the dashboard: this is meant as a "deploy it" action, not a plain preview, so it always locks + autoplays the display it opens — which means a PIN must exist first (a locked screen with no PIN would trap the owner out of their own display). Without one, stashes the target and opens `CreatePinModal` instead of navigating; with one already set, launches immediately. */
+  const handleOpenScreen = (screen: ScreenConfig, url: string) => {
+    if (!pin) {
+      setPendingOpenScreen({ screen, url })
+      setPinModalOpen(true)
+      return
+    }
+    launchScreen(screen, url)
+  }
+
+  const closePinModal = () => {
+    setPinModalOpen(false)
+    setPendingOpenScreen(null)
   }
 
   return (
@@ -121,7 +160,7 @@ export function ScreensView() {
             <ScreenForm screen={editingScreen ?? null} onSave={handleSave} onCancel={closeForm} onRouteChange={setFormRoute} />
           </div>
         ) : (
-          <div>
+          <div className="screens-view__list-view">
             <div className="screens-view__header">
               <TranslatedText as="h1" id="admin.screens.title" />
               <div className="screens-view__header-actions">
@@ -131,10 +170,14 @@ export function ScreensView() {
                 <Button variant="secondary" onClick={() => setScreensaverModalOpen(true)}>
                   {screensaverSchedule ? t('admin.screens.changeScreensaverButton') : t('admin.screens.screensaverButton')}
                 </Button>
-                <Button onClick={() => openForm(null)}>{t('admin.screens.addScreen')}</Button>
               </div>
             </div>
             <TranslatedText as="p" id="admin.screens.description" className="admin-page-description" />
+
+            <button type="button" className="screens-view__add-row" onClick={() => openForm(null)}>
+              <PlusIcon />
+              {t('admin.screens.addScreen')}
+            </button>
 
             {screens.length === 0 ? (
               <p className="screens-view__empty">{t('admin.screens.noScreens')}</p>
@@ -142,7 +185,7 @@ export function ScreensView() {
               <ul className="screens-view__list">
                 <AnimatePresence initial={false}>
                   {screens.map((screen) => {
-                    const url = `${window.location.origin}/screens/${screen.screenID}`
+                    const url = `${window.location.protocol}//${screenHost}${window.location.port ? `:${window.location.port}` : ''}/screens/${screen.screenID}`
                     const tree = screen.layout[1] ?? Object.values(screen.layout)[0]
                     const slotCount = tree ? countLeaves(tree) : 0
                     const slotCountLabel = slotCount === 1 ? t('admin.screens.slotCountBadgeOne') : t('admin.screens.slotCountBadge', { count: slotCount })
@@ -155,49 +198,18 @@ export function ScreensView() {
                         exit={{ opacity: 0, y: -8 }}
                         transition={{ duration: 0.15 }}
                       >
-                        <div
-                          className="screens-view__item-preview"
-                          style={getScreenColorVars(screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR) as CSSProperties}
-                          title={slotCountLabel}
-                        >
-                          <LayoutIcon layout={getScreenPreviewPattern(screen)} width={56} height={42} />
-                        </div>
-                        <div className="screens-view__item-body">
-                          <div className="screens-view__item-info">
-                            <span className="screens-view__item-name">{screen.name}</span>
-                            <Badge variant="info">{slotCountLabel}</Badge>
-                            {screen.useStages && (screen.stageCount ?? 1) > 1 && (
-                              <Badge variant="info">{t('admin.screens.stageCountBadge', { count: screen.stageCount ?? 1 })}</Badge>
-                            )}
-                            <span className="screens-view__item-slots">
-                              {Object.values(screen.paneSlots)
-                                .map(slotSummary)
-                                .filter((summary): summary is string => summary !== null)
-                                .join(' · ')}
-                            </span>
-                          </div>
-                          <div className="screens-view__item-url">
-                            <button type="button" className="screens-view__item-url-code" onClick={() => handleCopy(screen, url)}>
-                              <CopyIcon />
-                              <code>{url}</code>
-                            </button>
-                            {copiedID === screen.screenID && <span className="screens-view__item-url-copied">{t('admin.screens.urlCopied')}</span>}
-                            <a href={url} target="_blank" rel="noopener noreferrer">
-                              {t('admin.screens.openInNewTab')}
-                            </a>
-                          </div>
-                          <div className="screens-view__item-actions">
-                            <Button variant="secondary" onClick={() => openForm(screen)}>
-                              {t('admin.common.edit')}
-                            </Button>
-                            <Button variant="secondary" onClick={() => handleDuplicate(screen)}>
-                              {t('admin.common.duplicate')}
-                            </Button>
-                            <Button variant="secondary" onClick={() => handleDelete(screen)}>
-                              {t('admin.common.delete')}
-                            </Button>
-                          </div>
-                        </div>
+                        <ScreenCard
+                          screen={screen}
+                          url={url}
+                          defaultPaneLanguage={defaultPaneLanguage}
+                          slotCountLabel={slotCountLabel}
+                          copied={copiedID === screen.screenID}
+                          onCopy={() => handleCopy(screen, url)}
+                          onOpen={() => handleOpenScreen(screen, url)}
+                          onEdit={() => openForm(screen)}
+                          onDuplicate={() => handleDuplicate(screen)}
+                          onDelete={() => handleDelete(screen)}
+                        />
                       </motion.li>
                     )
                   })}
@@ -208,7 +220,14 @@ export function ScreensView() {
         )}
       </SlideTransition>
 
-      <CreatePinModal open={pinModalOpen} onClose={() => setPinModalOpen(false)} />
+      <CreatePinModal
+        open={pinModalOpen}
+        onClose={closePinModal}
+        description={pendingOpenScreen ? t('admin.screens.createPinRequiredDescription') : undefined}
+        onSaved={() => {
+          if (pendingOpenScreen) launchScreen(pendingOpenScreen.screen, pendingOpenScreen.url)
+        }}
+      />
       <ScreensaverScheduleModal open={screensaverModalOpen} onClose={() => setScreensaverModalOpen(false)} />
     </div>
   )

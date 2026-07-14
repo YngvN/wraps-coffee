@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { Button, Checkbox, ImageUploadField, Input, Textarea } from '../../../components'
-import { useLanguage } from '../../../i18n'
+import { Button, Checkbox, ImageUploadField, Input, LanguageTabs, Textarea } from '../../../components'
+import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
+import { availableLanguages, useLanguage, type LanguageCode } from '../../../i18n'
 import type { EventRecord } from '../../../types/event'
+import { initialActiveLanguages } from '../../../utils/bilingual'
 import './EventForm.scss'
 
 interface EventFormProps {
@@ -14,29 +16,46 @@ interface EventFormProps {
 const WEEKDAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 
 /**
- * Create/edit form for a single event: bilingual title/location/description,
- * schedule, capacity/price, a simple weekly-recurrence toggle and status.
- * Advanced fields (participants, contact person, menu highlights, tags,
- * exceptions) aren't exposed here — they're preserved unchanged on edit and
- * default to empty on create.
+ * Create/edit form for a single event: bilingual title/description (one
+ * language shown at a time, via `LanguageTabs` — same pattern as the
+ * Products forms), location, schedule, capacity/price, a simple
+ * weekly-recurrence toggle and status. Setting status to "Postponed" reveals
+ * its own new date/start/end time fields (`postponedDetails`) — required for
+ * the event to actually have a valid upcoming occurrence to show on screens
+ * at all (see `getNextOccurrence`); leaving them unset silently drops the
+ * event from every screen once its original date passes. Advanced fields
+ * (participants, contact person, menu highlights, tags, exceptions) aren't
+ * exposed here — they're preserved unchanged on edit and default to empty on
+ * create.
  */
 export function EventForm({ event, onSave, onCancel }: EventFormProps) {
   const { t } = useLanguage()
-  const [titleEn, setTitleEn] = useState(event?.title.en ?? '')
-  const [titleNo, setTitleNo] = useState(event?.title.no ?? '')
+  const [defaultPaneLanguage] = useDefaultPaneLanguage()
+  const [title, setTitle] = useState(event?.title ?? { en: '', no: '' })
+  const [description, setDescription] = useState(event?.description ?? { en: '', no: '' })
+  const [activeLanguages, setActiveLanguages] = useState<LanguageCode[]>(() =>
+    initialActiveLanguages(defaultPaneLanguage, [event?.title, event?.description], availableLanguages.map((language) => language.code)),
+  )
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(defaultPaneLanguage)
   const [category, setCategory] = useState(event?.category ?? '')
   const [date, setDate] = useState(event?.date ?? '')
   const [time, setTime] = useState(event?.time ?? '')
   const [endTime, setEndTime] = useState(event?.endTime ?? '')
   const [locationAddress, setLocationAddress] = useState(event?.location.address ?? '')
-  const [descriptionEn, setDescriptionEn] = useState(event?.description.en ?? '')
-  const [descriptionNo, setDescriptionNo] = useState(event?.description.no ?? '')
   const [capacity, setCapacity] = useState(event?.capacity ?? 0)
   const [price, setPrice] = useState(event?.price ?? 0)
   const [repeatsWeekly, setRepeatsWeekly] = useState(event?.recurring ?? false)
   const [dayOfWeek, setDayOfWeek] = useState(event?.recurrence?.dayOfWeek ?? 0)
   const [status, setStatus] = useState<EventRecord['status']>(event?.status ?? 'scheduled')
+  const [postponedNewDate, setPostponedNewDate] = useState(event?.postponedDetails?.newDate ?? '')
+  const [postponedNewTime, setPostponedNewTime] = useState(event?.postponedDetails?.newTime ?? '')
+  const [postponedNewEndTime, setPostponedNewEndTime] = useState(event?.postponedDetails?.newEndTime ?? '')
   const [imageUrl, setImageUrl] = useState(event?.imageUrl ?? '')
+
+  const addLanguage = (language: LanguageCode) => {
+    setActiveLanguages([...activeLanguages, language])
+    setSelectedLanguage(language)
+  }
 
   const handleSubmit = (formEvent: FormEvent<HTMLFormElement>) => {
     formEvent.preventDefault()
@@ -44,7 +63,7 @@ export function EventForm({ event, onSave, onCancel }: EventFormProps) {
     onSave({
       ...event,
       eventID: event?.eventID ?? `${Date.now()}`,
-      title: { en: titleEn, no: titleNo },
+      title,
       category,
       date,
       time,
@@ -53,7 +72,7 @@ export function EventForm({ event, onSave, onCancel }: EventFormProps) {
       recurrence: repeatsWeekly ? { frequency: 'weekly', dayOfWeek } : null,
       exceptions: event?.exceptions,
       location: { name: event?.location.name ?? { en: 'Wraps & Coffee', no: 'Wraps & Coffee' }, address: locationAddress },
-      description: { en: descriptionEn, no: descriptionNo },
+      description,
       capacity,
       attendeesCount: event?.attendeesCount ?? 0,
       price,
@@ -63,7 +82,7 @@ export function EventForm({ event, onSave, onCancel }: EventFormProps) {
       contactPerson: event?.contactPerson,
       menuItems: event?.menuItems ?? [],
       status,
-      postponedDetails: event?.postponedDetails ?? { newDate: null, newTime: null, newEndTime: null },
+      postponedDetails: { newDate: postponedNewDate || null, newTime: postponedNewTime || null, newEndTime: postponedNewEndTime || null },
       imageUrl,
       registrationRequired: event?.registrationRequired ?? false,
     })
@@ -71,10 +90,22 @@ export function EventForm({ event, onSave, onCancel }: EventFormProps) {
 
   return (
     <form className="event-form" onSubmit={handleSubmit}>
-      <div className="event-form__row">
-        <Input id="event-title-en" label={t('admin.events.titleEnLabel')} value={titleEn} onChange={(e) => setTitleEn(e.target.value)} required />
-        <Input id="event-title-no" label={t('admin.events.titleNoLabel')} value={titleNo} onChange={(e) => setTitleNo(e.target.value)} required />
-      </div>
+      <LanguageTabs activeLanguages={activeLanguages} selected={selectedLanguage} onSelect={setSelectedLanguage} onAddLanguage={addLanguage} addLabelKey="admin.common.addLanguage">
+        <Input
+          id="event-title"
+          label={t('admin.events.titleLabel')}
+          value={title[selectedLanguage]}
+          onChange={(e) => setTitle({ ...title, [selectedLanguage]: e.target.value })}
+          required={selectedLanguage === defaultPaneLanguage}
+        />
+
+        <Textarea
+          id="event-description"
+          label={t('admin.events.descriptionLabel')}
+          value={description[selectedLanguage]}
+          onChange={(e) => setDescription({ ...description, [selectedLanguage]: e.target.value })}
+        />
+      </LanguageTabs>
 
       <Input id="event-category" label={t('admin.events.categoryLabel')} value={category} onChange={(e) => setCategory(e.target.value)} required />
 
@@ -91,11 +122,6 @@ export function EventForm({ event, onSave, onCancel }: EventFormProps) {
         onChange={(e) => setLocationAddress(e.target.value)}
         required
       />
-
-      <div className="event-form__row">
-        <Textarea id="event-description-en" label={t('admin.events.descriptionEnLabel')} value={descriptionEn} onChange={(e) => setDescriptionEn(e.target.value)} />
-        <Textarea id="event-description-no" label={t('admin.events.descriptionNoLabel')} value={descriptionNo} onChange={(e) => setDescriptionNo(e.target.value)} />
-      </div>
 
       <div className="event-form__row">
         <Input
@@ -134,11 +160,28 @@ export function EventForm({ event, onSave, onCancel }: EventFormProps) {
       <label className="event-form__field">
         <span>{t('admin.events.statusLabel')}</span>
         <select value={status} onChange={(e) => setStatus(e.target.value as EventRecord['status'])}>
-          <option value="scheduled">{t('admin.events.statusLabel')}: scheduled</option>
-          <option value="postponed">{t('admin.events.statusLabel')}: postponed</option>
-          <option value="cancelled">{t('admin.events.statusLabel')}: cancelled</option>
+          <option value="scheduled">{t('admin.events.statusScheduledLabel')}</option>
+          <option value="postponed">{t('admin.events.statusPostponedLabel')}</option>
+          <option value="cancelled">{t('admin.events.statusCancelledLabel')}</option>
         </select>
       </label>
+
+      {status === 'postponed' && (
+        <div className="event-form__postponed">
+          <p className="event-form__postponed-hint">{t('admin.events.postponedHint')}</p>
+          <div className="event-form__row">
+            <Input id="event-postponed-date" label={t('admin.events.postponedNewDateLabel')} type="date" value={postponedNewDate} onChange={(e) => setPostponedNewDate(e.target.value)} />
+            <Input id="event-postponed-time" label={t('admin.events.postponedNewTimeLabel')} type="time" value={postponedNewTime} onChange={(e) => setPostponedNewTime(e.target.value)} />
+            <Input
+              id="event-postponed-end-time"
+              label={t('admin.events.postponedNewEndTimeLabel')}
+              type="time"
+              value={postponedNewEndTime}
+              onChange={(e) => setPostponedNewEndTime(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="event-form__actions">
         <Button type="button" variant="secondary" onClick={onCancel}>

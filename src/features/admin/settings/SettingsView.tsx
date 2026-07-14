@@ -1,26 +1,34 @@
 import { useState } from 'react'
 import { BackButton, Button, Card, Checkbox, SlideTransition, TranslatedText } from '../../../components'
 import { availableLanguages, useLanguage } from '../../../i18n'
+import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useClockFormatPreference, type ClockFormat } from '../../../hooks/useClockFormatPreference'
+import { useDateFormatPreference, type DateFormat } from '../../../hooks/useDateFormatPreference'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { useSidebarSettings } from '../../../hooks/useSidebarSettings'
 import type { ToggleableSidebarItem } from '../../../types/sidebarSettings'
 import { ADMIN_NAV_ICONS, NAV_ITEMS } from '../layout/adminNavItems'
+import { AdvancedSettingsView } from './AdvancedSettingsView'
 import { DeveloperDocsView } from './DeveloperDocsView'
 import './SettingsView.scss'
 
 const CLOCK_FORMATS: ClockFormat[] = ['24h', '12h']
+const DATE_FORMATS: DateFormat[] = ['dmy', 'mdy']
 
-/** Admin-wide settings: the interface language, the cafe's own Standard pane language (the default kiosk panes render their content in, independent of the interface language above — see `useDefaultPaneLanguage`, overridable per pane from its own "Language" sub-menu), the shared clock format (24-hour or 12-hour AM/PM — used everywhere a wall-clock time is shown: the weather forecast, admin timestamps, and the screensaver schedule's own time pickers), which sidebar items this cafe's dashboard shows (different cafes use different features — a cafe with no online ordering or no digital signage can hide those tabs entirely), and a "For developers" sub-view documenting the local server's own API. More device/account-level preferences land here over time. */
+type SubView = 'main' | 'developers' | 'advanced'
+
+/** Admin-wide settings: the interface language, the cafe's own Standard pane language (the default kiosk panes render their content in, independent of the interface language above — see `useDefaultPaneLanguage`, overridable per pane from its own "Language" sub-menu), the shared clock format (24-hour or 12-hour AM/PM) and date format (day-month-year or month-day-year — used everywhere a wall-clock time/plain date is shown: the weather forecast, admin timestamps, uploaded-image/message-board-post dates, the screensaver schedule's own time pickers, and a "time" pane's own shorthand date), which sidebar items this cafe's dashboard shows (different cafes use different features — a cafe with no online ordering or no digital signage can hide those tabs entirely), a "For developers" sub-view documenting the local server's own API, and (admin/subadmin only) an "Advanced" sub-view for how a screen's own link should be addressed (see `AdvancedSettingsView`). More device/account-level preferences land here over time. */
 export function SettingsView() {
   const { t, language, setLanguage } = useLanguage()
+  const { session } = useAdminSession()
   const [defaultPaneLanguage, setDefaultPaneLanguage] = useDefaultPaneLanguage()
   const [clockFormat, setClockFormat] = useClockFormatPreference()
+  const [dateFormat, setDateFormat] = useDateFormatPreference()
   const [sidebarSettings, setSidebarSettings] = useSidebarSettings()
   const toggleableItems = NAV_ITEMS.filter((item) => item.toggleable)
-  /** Whether the "For developers" sub-view (replacing the whole settings list until its own Back button is pressed) is open. */
-  const [showDeveloperDocs, setShowDeveloperDocs] = useState(false)
-  /** `1` while opening the sub-view (slides in from the right, see `SlideTransition`), `-1` while going back. */
+  /** Which sub-view (replacing the whole settings list until its own Back button is pressed) is open, if any. */
+  const [subView, setSubView] = useState<SubView>('main')
+  /** `1` while opening a sub-view (slides in from the right, see `SlideTransition`), `-1` while going back. */
   const [direction, setDirection] = useState<1 | -1>(1)
 
   const toggleSidebarItem = (item: ToggleableSidebarItem, visible: boolean) => {
@@ -28,26 +36,35 @@ export function SettingsView() {
     setSidebarSettings({ ...sidebarSettings, hiddenItems })
   }
 
-  const openDeveloperDocs = () => {
+  const openSubView = (view: SubView) => {
     setDirection(1)
-    setShowDeveloperDocs(true)
+    setSubView(view)
   }
 
-  const closeDeveloperDocs = () => {
+  const closeSubView = () => {
     setDirection(-1)
-    setShowDeveloperDocs(false)
+    setSubView('main')
   }
 
   return (
-    <SlideTransition viewKey={showDeveloperDocs ? 'developers' : 'main'} direction={direction}>
-      {showDeveloperDocs ? (
+    <SlideTransition viewKey={subView} direction={direction}>
+      {subView === 'developers' ? (
         <div className="settings-view">
           <div className="settings-view__docs-header">
-            <BackButton onClick={closeDeveloperDocs}>{t('admin.common.back')}</BackButton>
+            <BackButton onClick={closeSubView}>{t('admin.common.back')}</BackButton>
             <TranslatedText as="h1" id="admin.settings.developersTitle" />
           </div>
           <TranslatedText as="p" id="admin.settings.developersDescription" className="admin-page-description" />
           <DeveloperDocsView />
+        </div>
+      ) : subView === 'advanced' ? (
+        <div className="settings-view">
+          <div className="settings-view__docs-header">
+            <BackButton onClick={closeSubView}>{t('admin.common.back')}</BackButton>
+            <TranslatedText as="h1" id="admin.settings.advanced.title" />
+          </div>
+          <TranslatedText as="p" id="admin.settings.advanced.description" className="admin-page-description" />
+          <AdvancedSettingsView />
         </div>
       ) : (
         <div className="settings-view">
@@ -96,6 +113,20 @@ export function SettingsView() {
               ))}
             </div>
           </Card>
+          <Card title={t('admin.settings.dateFormatLabel')}>
+            <div className="settings-view__date-format-options">
+              {DATE_FORMATS.map((format) => (
+                <button
+                  key={format}
+                  type="button"
+                  className={`settings-view__date-format-option${format === dateFormat ? ' settings-view__date-format-option--active' : ''}`}
+                  onClick={() => setDateFormat(format)}
+                >
+                  {t(format === 'dmy' ? 'admin.settings.dateFormatDmyLabel' : 'admin.settings.dateFormatMdyLabel')}
+                </button>
+              ))}
+            </div>
+          </Card>
           <Card title={t('admin.settings.sidebarItemsTitle')}>
             <p className="settings-view__sidebar-items-hint">{t('admin.settings.sidebarItemsHint')}</p>
             <ul className="settings-view__sidebar-items">
@@ -118,10 +149,18 @@ export function SettingsView() {
           </Card>
           <Card title={t('admin.settings.developersTitle')}>
             <p className="settings-view__developers-hint">{t('admin.settings.developersHint')}</p>
-            <Button type="button" variant="secondary" onClick={openDeveloperDocs}>
+            <Button type="button" variant="secondary" onClick={() => openSubView('developers')}>
               {t('admin.settings.developersButton')}
             </Button>
           </Card>
+          {session?.role !== 'limited' && (
+            <Card title={t('admin.settings.advanced.title')}>
+              <p className="settings-view__developers-hint">{t('admin.settings.advanced.hint')}</p>
+              <Button type="button" variant="secondary" onClick={() => openSubView('advanced')}>
+                {t('admin.settings.advanced.button')}
+              </Button>
+            </Card>
+          )}
         </div>
       )}
     </SlideTransition>

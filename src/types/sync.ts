@@ -6,8 +6,10 @@ export const SYNCED_KEYS = [
   'admin.messages',
   'admin.events',
   'admin.contactInfo',
+  'admin.storeSettings',
   'admin.textSizePresets',
   'admin.clockFormat',
+  'admin.dateFormat',
   'admin.paneLanguage',
   'admin.screenLockPin',
   'admin.screensaverSchedule',
@@ -24,11 +26,11 @@ export type SyncedKey = (typeof SYNCED_KEYS)[number]
 /** A user's role. `admin` and `subadmin` have full rights over every section; `limited` is scoped to `allowedSections`. */
 export type AdminRole = 'admin' | 'subadmin' | 'limited'
 
-/** Dashboard sections a `limited` account can be scoped to. Matches every `AdminSidebarNav` item except `overview` (always visible), `images`/`users` (admin/subadmin only, never assignable to a `limited` account), and `settings` (a personal/device preference, not a permissioned section). */
-export type DashboardSection = 'messages' | 'products' | 'events' | 'contact' | 'orders' | 'screens' | 'extensions' | 'messageboard'
+/** Dashboard sections a `limited` account can be scoped to. Matches every `AdminSidebarNav` item except `overview` (always visible), `images`/`users` (admin/subadmin only, never assignable to a `limited` account), and `settings` (a personal/device preference, not a permissioned section). `store` covers both `admin.storeSettings` (company name/logo/favicon) and `admin.contactInfo` (nested inside that same admin page as a sub-view) as one unit — was `contact` before Contact info moved under Store settings; see `useSidebarSettings`/`store/loadUsers`'s "remap on read" migration for any already-persisted `'contact'` value. */
+export type DashboardSection = 'messages' | 'products' | 'events' | 'store' | 'orders' | 'screens' | 'extensions' | 'messageboard'
 
 /** Runtime list matching `DashboardSection`, in the same order `AdminSidebarNav` shows them — used to build a `limited` account's own section-picker checkboxes (see `UserForm`). */
-export const DASHBOARD_SECTIONS: DashboardSection[] = ['messages', 'products', 'events', 'contact', 'orders', 'screens', 'extensions', 'messageboard']
+export const DASHBOARD_SECTIONS: DashboardSection[] = ['messages', 'products', 'events', 'store', 'orders', 'screens', 'extensions', 'messageboard']
 
 /** The session info returned by `/login` and attached to every authenticated request. */
 export interface AdminSession {

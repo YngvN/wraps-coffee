@@ -51,11 +51,13 @@ export function EventsIcon(props: IconProps) {
   )
 }
 
-export function ContactIcon(props: IconProps) {
+export function StoreIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <circle cx="12" cy="9" r="5" />
-      <polygon points="12,21 8,13 16,13" />
+      <path d="M4 10 L4 20 L20 20 L20 10" />
+      <path d="M3 4 H21 L22 10 H2 Z" />
+      <line x1="9" y1="20" x2="9" y2="14" />
+      <line x1="15" y1="20" x2="15" y2="14" />
     </Icon>
   )
 }

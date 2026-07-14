@@ -3,8 +3,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Alert, Button, Card, Input, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
+import { useStoreSettings } from '../../../hooks/useStoreSettings'
 import { useLanguage } from '../../../i18n'
 import { login, LoginError } from '../../../lib/localServer'
+import { StoreBrandHeader } from '../layout/StoreBrandHeader'
 import './AdminLogin.scss'
 
 /**
@@ -18,6 +20,7 @@ export function AdminLogin() {
   const { t } = useLanguage()
   const navigate = useNavigate()
   const { setActiveSession } = useAdminSession()
+  const [storeSettings] = useStoreSettings()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -42,7 +45,7 @@ export function AdminLogin() {
     <div className="admin-login">
       <Card className="admin-login__card">
         <form className="admin-login__form" onSubmit={handleSubmit}>
-          <TranslatedText as="h1" id="admin.login.title" />
+          {storeSettings.name.trim() ? <StoreBrandHeader /> : <TranslatedText as="h1" id="admin.login.title" />}
           <Input
             id="admin-username"
             label={t('admin.login.usernameLabel')}

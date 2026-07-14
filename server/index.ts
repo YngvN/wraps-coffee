@@ -1,8 +1,12 @@
 import { createServer } from 'node:http'
+import { networkInterfaces } from 'node:os'
 import { WebSocketServer, type WebSocket } from 'ws'
+import type { ScreenAddressSettings } from '../src/types/screenAddress'
+import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
 import { handleDepartures, handleLookup, handleWeather } from './extensions'
 import { bearerToken, CORS_HEADERS, readJsonBody, sendJson } from './http'
+import * as mdns from './mdns'
 import * as neonBridge from './neonBridge'
 import * as store from './store'
 import { handleDeleteUpload, handleServeUpload, handleUpload, listUploads } from './uploads'
@@ -16,7 +20,8 @@ const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
   'admin.categoryPrices': 'products',
   'admin.catalogues': 'products',
   'admin.events': 'events',
-  'admin.contactInfo': 'contact',
+  'admin.contactInfo': 'store',
+  'admin.storeSettings': 'store',
   'admin.screens': 'screens',
   'admin.textSizePresets': 'screens',
   'admin.screenLockPin': 'screens',
@@ -29,6 +34,22 @@ const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
 
 function isSyncedKey(value: unknown): value is SyncedKey {
   return typeof value === 'string' && (SYNCED_KEYS as readonly string[]).includes(value)
+}
+
+/** This machine's own LAN-reachable IPv4 address (the first non-internal one found), or `null` if there isn't one (e.g. offline). Lets a client that's reaching this server via `localhost` (the common case when the admin dashboard and server run on the same machine) still build links — e.g. a screen's `/screens/:id` URL — that work from a *different* device on the network. */
+function getLanIp(): string | null {
+  const interfaces = networkInterfaces()
+  for (const addresses of Object.values(interfaces)) {
+    for (const address of addresses ?? []) {
+      if (address.family === 'IPv4' && !address.internal) return address.address
+    }
+  }
+  return null
+}
+
+/** The store's own configured name (see `admin.storeSettings`, a regular synced key), or `""` if it hasn't been set yet — used to derive the mDNS name a screen's link advertises (see `mdns.apply`). */
+function currentStoreName(): string {
+  return (store.get('admin.storeSettings')?.value as StoreSettings | undefined)?.name ?? ''
 }
 
 const httpServer = createServer((req, res) => {
@@ -53,6 +74,14 @@ const httpServer = createServer((req, res) => {
         sendJson(res, 200, { token, ...session })
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // Public, no auth — just this machine's own network address, needed to build
+  // a LAN-reachable URL (e.g. a screen's link) from a page that may itself
+  // have been opened via `localhost`.
+  if (req.method === 'GET' && url.pathname === '/server-info') {
+    sendJson(res, 200, { lanIp: getLanIp() })
     return
   }
 
@@ -196,6 +225,45 @@ const httpServer = createServer((req, res) => {
         neonBridge.restart()
         console.log(`[neon] ${session.username} ${newUrl ? 'updated' : 'cleared'} the Neon database URL`)
         sendJson(res, 200, { url: newUrl })
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // How a screen's own `/screens/:screenId` link should be addressed (see
+  // Settings → Advanced). Public read (nothing sensitive in it, and it's
+  // used to build a plain display link); admin/subadmin-only write, same
+  // posture as the Neon URL above.
+  if (req.method === 'GET' && url.pathname === '/screen-address') {
+    sendJson(res, 200, store.getScreenAddressSettings())
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/screen-address') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can edit the screen address settings' })
+      return
+    }
+    readJsonBody(req)
+      .then((body) => {
+        const { mode, customHost } = body as { mode?: string; customHost?: string }
+        if (mode !== 'automatic' && mode !== 'custom' && mode !== 'mdns') {
+          sendJson(res, 400, { error: 'Invalid mode' })
+          return
+        }
+        const settings: ScreenAddressSettings = {
+          mode,
+          customHost: typeof customHost === 'string' ? customHost.trim() || undefined : undefined,
+        }
+        store.setScreenAddressSettings(settings)
+        mdns.apply(settings, currentStoreName())
+        console.log(`[screen-address] ${session.username} set mode to "${settings.mode}"`)
+        sendJson(res, 200, settings)
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
     return
@@ -375,6 +443,12 @@ wss.on('connection', (socket) => {
 
       applyUpdate(key, value)
       neonBridge.pushIfRelevant(key, value)
+      // Renaming the store should update a live mDNS advertisement
+      // immediately, without needing to revisit Settings → Advanced.
+      if (key === 'admin.storeSettings') {
+        const screenAddressSettings = store.getScreenAddressSettings()
+        if (screenAddressSettings.mode === 'mdns') mdns.apply(screenAddressSettings, (value as StoreSettings).name)
+      }
       console.log(`[ws] ${session.username} wrote ${key}`)
       return
     }
@@ -418,6 +492,7 @@ process.on('unhandledRejection', (error) => {
 
 store.load()
 neonBridge.start(applyUpdate, broadcastError)
+mdns.apply(store.getScreenAddressSettings(), currentStoreName())
 httpServer.listen(PORT, () => {
   console.log(`[server] listening on http://0.0.0.0:${PORT}`)
 })

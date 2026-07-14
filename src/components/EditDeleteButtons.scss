@@ -1,0 +1,17 @@
+@use '../styles/variables' as *;
+
+.edit-delete-buttons__button {
+  display: inline-flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+}
+
+// Hidden below this width so a row's Edit/Delete pair doesn't crowd out its
+// own name/badges on a narrow (phone-width) admin screen — the icon alone
+// (see `EditIcon`/`TrashIcon`) stays, still recognizable and still announced
+// correctly via each button's own `aria-label`.
+.edit-delete-buttons__label {
+  @media (max-width: 600px) {
+    display: none;
+  }
+}

@@ -6,6 +6,8 @@ import './PaneSplitZones.scss'
 interface PaneSplitZonesProps {
   /** `edge` is which side of the middle line the new pane lands on ('start': left/top; 'end': right/bottom) — decided from the actual click position relative to the pane's own center, not which piece was clicked (see this component's own doc comment). The split itself is always an even 50/50 (see `splitLeaf`). */
   onSplit: (axis: SplitDirection, edge: 'start' | 'end') => void
+  /** Makes the zone pieces themselves untappable (not just their hover preview) on a touch-only device — see `PaneSplitZones.scss`. Only set by `ScreenForm.tsx`'s own preview, which has explicit "Split pane horizontally"/"Split pane vertically" buttons underneath as a substitute; omit (as `ScreenDisplay.tsx`'s live editing overlay does) where tapping the preview is the only way to split at all. */
+  disableOnTouch?: boolean
 }
 
 type Piece = 'north' | 'south' | 'west' | 'east'
@@ -34,7 +36,7 @@ const PIECE_AXIS: Record<Piece, SplitDirection> = {
  * which piece was clicked — north and south, for instance, both flank the
  * *same* vertical line and don't inherently know which side of it either.
  */
-export function PaneSplitZones({ onSplit }: PaneSplitZonesProps) {
+export function PaneSplitZones({ onSplit, disableOnTouch }: PaneSplitZonesProps) {
   const { t } = useLanguage()
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -55,7 +57,7 @@ export function PaneSplitZones({ onSplit }: PaneSplitZonesProps) {
   }
 
   return (
-    <div ref={containerRef} className="pane-split-zones">
+    <div ref={containerRef} className={`pane-split-zones${disableOnTouch ? ' pane-split-zones--touch-disabled' : ''}`}>
       {(['north', 'south', 'west', 'east'] as Piece[]).map((piece) => (
         <button
           key={piece}

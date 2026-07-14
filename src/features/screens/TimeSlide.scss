@@ -1,0 +1,29 @@
+@use '../../styles/variables' as *;
+
+.time-slide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  padding: 0.5em;
+
+  span {
+    font-family: $font-heading;
+    font-size: var(--time-slide-font-size, 6rem);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    text-align: center;
+    overflow-wrap: break-word;
+  }
+
+  &__colon--blink {
+    animation: time-slide-blink 1s steps(1) infinite;
+  }
+}
+
+@keyframes time-slide-blink {
+  50% {
+    opacity: 0;
+  }
+}

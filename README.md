@@ -50,6 +50,7 @@ Runs alongside an optional local server (`server/`) — a small Node/WebSocket p
 - **[pg](https://node-postgres.com/)** — direct Postgres client for the optional Neon bridge (`server/neonBridge.ts`), pushing/pulling business data (menu, events, contact info, messages, orders) to/from the public website's own database.
 - **[qrcode.react](https://github.com/zpao/qrcode.react)** — renders the "QR code" screen-slot kind as an SVG, drawn in a single flat color with a transparent background.
 - **[@dnd-kit](https://dndkit.com/)** — drag-and-drop reordering for the admin Products feature's catalogue/category/product lists (mouse and touch alike).
+- **[bonjour-service](https://github.com/onlxltd/bonjour-service)** — advertises a friendly `<name>.local` mDNS hostname for this machine (Settings → Advanced's "Auto .local name" screen-address mode).
 
 ## Getting started
 

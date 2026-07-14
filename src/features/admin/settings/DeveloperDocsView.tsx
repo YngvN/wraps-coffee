@@ -18,8 +18,10 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.messages', descKey: 'admin.settings.developerDocs.keyMessages' },
   { key: 'admin.events', descKey: 'admin.settings.developerDocs.keyEvents' },
   { key: 'admin.contactInfo', descKey: 'admin.settings.developerDocs.keyContactInfo' },
+  { key: 'admin.storeSettings', descKey: 'admin.settings.developerDocs.keyStoreSettings' },
   { key: 'admin.textSizePresets', descKey: 'admin.settings.developerDocs.keyTextSizePresets' },
   { key: 'admin.clockFormat', descKey: 'admin.settings.developerDocs.keyClockFormat' },
+  { key: 'admin.dateFormat', descKey: 'admin.settings.developerDocs.keyDateFormat' },
   { key: 'admin.paneLanguage', descKey: 'admin.settings.developerDocs.keyPaneLanguage' },
   { key: 'admin.screenLockPin', descKey: 'admin.settings.developerDocs.keyScreenLockPin' },
   { key: 'admin.screensaverSchedule', descKey: 'admin.settings.developerDocs.keyScreensaverSchedule' },
@@ -128,6 +130,23 @@ export function DeveloperDocsView() {
 → 200 { "ok": true }`}</code>
         </pre>
         <p>{t('admin.settings.developerDocs.roleText')}</p>
+
+        <p>{t('admin.settings.developerDocs.serverInfoText')}</p>
+        <pre>
+          <code>{`GET /server-info                  (public — no token needed)
+→ 200 { "lanIp": "192.168.1.23" | null }`}</code>
+        </pre>
+
+        <p>{t('admin.settings.developerDocs.screenAddressText')}</p>
+        <pre>
+          <code>{`GET /screen-address                (public — no token needed)
+→ 200 { "mode": "automatic" | "custom" | "mdns", "customHost"?: string, "mdnsName"?: string }
+
+POST /screen-address                (Authorization: Bearer <token>, admin/subadmin only)
+{ "mode": "automatic" | "custom" | "mdns", "customHost"?: string, "mdnsName"?: string }
+→ 200 { "mode", "customHost"?, "mdnsName"? }   (mdnsName is sanitized server-side to lowercase alphanumeric + hyphens)
+→ 403 { "error": "..." }   (a "limited" account's own token)`}</code>
+        </pre>
       </Card>
 
       <Card title={t('admin.settings.developerDocs.usersTitle')}>

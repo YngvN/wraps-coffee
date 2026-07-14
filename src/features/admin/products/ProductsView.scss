@@ -156,21 +156,9 @@
   gap: calc($spacing-unit / 2);
 }
 
-.products-view__icon-button {
-  display: inline-flex;
-  align-items: center;
-  gap: calc($spacing-unit / 2);
-}
-
-// Hidden below this width so a row's Edit/Delete pair doesn't crowd out its
-// own name/badges on a narrow (phone-width) admin screen — the icon alone
-// (see `EditIcon`/`TrashIcon`) stays, still recognizable and still announced
-// correctly via each button's own `aria-label`.
-.products-view__button-label {
-  @media (max-width: 600px) {
-    display: none;
-  }
-}
+// Edit/Delete's own icon-button/label-hiding rules now live in the shared
+// `EditDeleteButtons.scss` (`src/components/`), since that component is no
+// longer products-scoped.
 
 // The "+ Add category"/"+ Add product" row, sitting right after the list it
 // adds to (rather than up in the header, disconnected from it) — plain text

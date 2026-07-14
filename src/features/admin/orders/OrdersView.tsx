@@ -1,5 +1,6 @@
 import { Badge, Card, TranslatedText } from '../../../components'
 import { useClockFormatPreference } from '../../../hooks/useClockFormatPreference'
+import { useDateFormatPreference } from '../../../hooks/useDateFormatPreference'
 import { useOrders } from '../../../hooks/useOrders'
 import { useLanguage } from '../../../i18n'
 import type { OrderRecord, OrderStatus } from '../../../types/order'
@@ -21,6 +22,7 @@ const STATUS_BADGE_VARIANT: Record<OrderStatus, 'info' | 'warning' | 'success' |
 export function OrdersView() {
   const { t, language } = useLanguage()
   const [clockFormat] = useClockFormatPreference()
+  const [dateFormat] = useDateFormatPreference()
   const [orders, setOrders] = useOrders()
 
   const updateStatus = (id: string, status: OrderStatus) => {
@@ -63,7 +65,7 @@ export function OrdersView() {
                     {t('admin.orders.pickupTimeLabel')}: {order.pickupTime}
                   </span>
                   <span>
-                    {t('admin.orders.placedLabel')}: {formatDateTime(new Date(order.createdAt), language, clockFormat)}
+                    {t('admin.orders.placedLabel')}: {formatDateTime(new Date(order.createdAt), language, clockFormat, dateFormat)}
                   </span>
                   <span className="orders-view__total">
                     {t('admin.orders.totalLabel')}: {order.totalPrice.toFixed(0)} kr

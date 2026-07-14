@@ -17,7 +17,7 @@ interface SplitLayoutProps {
   screen: ScreenConfig
   /** Resolves the effective (persisted, its own override, or live-drafted while being edited) text sizes for a given pane at a given stage. */
   resolveTextSizes: (leafId: PaneId, stage: number, content: ScreenSlotContent) => TextSizes
-  /** Called when a pane's hover-revealed edit button is clicked, with that pane's own stable id. Omit (along with `onResizeDivider`) to render the panes read-only, with neither edit buttons nor drag handles — e.g. while the screen is locked. */
+  /** Called when a pane's hover-revealed edit button is clicked, with that pane's own stable id. Omit (along with `onResizeDivider`) to render the panes read-only, with neither edit buttons nor drag handles — e.g. while the screen is locked, or with no logged-in admin session at all. */
   onEditSlide?: (leafId: PaneId) => void
   /** The current stage (1-indexed), resolved by the caller from its own shared rotation timer. */
   stage: number
@@ -27,14 +27,16 @@ interface SplitLayoutProps {
   onResizeDivider?: (patch: Partial<ScreenConfig>) => void
   /** Reports when a divider drag starts and stops — lets the caller (e.g. pausing the shared stage rotation for the duration, see `ScreenDisplay`) react to a drag in progress without needing to track live ratios itself. */
   onDragStateChange?: (isDragging: boolean) => void
-  /** Called when an image file is dropped directly onto a pane, with that pane's own stable id and the dropped file — the caller owns uploading it and deciding what to do with the result (see `ScreenDisplay`'s own handler, which sets that pane's content to the uploaded image at `fit: 'cover'`). Omit (like `onEditSlide`/`onResizeDivider`) to disable entirely, e.g. while the screen is locked. */
+  /** Called when an image file is dropped directly onto a pane, with that pane's own stable id and the dropped file — the caller owns uploading it and deciding what to do with the result (see `ScreenDisplay`'s own handler, which sets that pane's content to the uploaded image at `fit: 'cover'`). Omit (like `onEditSlide`/`onResizeDivider`) to disable entirely, e.g. while the screen is locked, or with no logged-in admin session at all. */
   onDropImage?: (leafId: PaneId, file: File) => void
   /** The cafe's own Standard pane language (see `useDefaultPaneLanguage`) — what a pane's own rendered content (menu items, event descriptions, etc.) falls back to when it has no language override of its own at the current stage (see `resolveSlotLanguage`). */
   defaultPaneLanguage: LanguageCode
   /** Draws a persistent highlight ring around this one pane, if any — distinct from `editingFocus`'s own transient pulse-flash, this stays on for as long as the caller says so (e.g. the admin form's own "Layout" preview, mirroring which pane's own editor is currently open beneath it). */
   selectedLeafId?: PaneId
-  /** Hovering close to a pane's own middle (either axis) reveals a "Split" line/label there — see `PaneSplitZones`; clicking splits it into two, both halves starting with the original's own duplicated content. Omit (like `onEditSlide`) to disable, e.g. while the screen is locked. */
+  /** Hovering close to a pane's own middle (either axis) reveals a "Split" line/label there — see `PaneSplitZones`; clicking splits it into two, both halves starting with the original's own duplicated content. Omit (like `onEditSlide`) to disable, e.g. while the screen is locked, or with no logged-in admin session at all. */
   onSplitPane?: (leafId: PaneId, axis: SplitDirection, edge: 'start' | 'end') => void
+  /** Set by `ScreenForm.tsx`'s own preview only — see `PaneSplitZones`' prop of the same underlying purpose (`disableOnTouch`) for why it's not the default everywhere `onSplitPane` is used. */
+  disableSplitOnTouch?: boolean
   /** Hovering a pane reveals a top-left button resetting its content/background/text-size back to blank. */
   onClearPane?: (leafId: PaneId) => void
   /** Hovering a pane reveals a top-right delete button, handing its own freed space to its sibling — never shown on a lone root pane. */
@@ -78,6 +80,7 @@ export function SplitLayout({
   defaultPaneLanguage,
   selectedLeafId,
   onSplitPane,
+  disableSplitOnTouch,
   onClearPane,
   onDeletePane,
 }: SplitLayoutProps) {
@@ -313,6 +316,7 @@ export function SplitLayout({
         onCommit={onResizeDivider ? handleCommit : undefined}
         gridTransition={gridTransition}
         onSplitPane={onSplitPane}
+        disableSplitOnTouch={disableSplitOnTouch}
         onClearPane={onClearPane}
         onDeletePane={onDeletePane}
         canDelete={leaves.length > 1}

@@ -8,6 +8,12 @@
   padding: $spacing-unit * 3 $spacing-unit * 2;
 }
 
+.admin-sidebar-nav__top {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+}
+
 .admin-sidebar-nav__list {
   display: flex;
   flex-direction: column;

@@ -116,10 +116,12 @@
   opacity: 0;
 }
 
-// Real hover only — touch devices skip both the line and the label
-// entirely rather than risk either getting stuck on-screen after a tap
-// (see CLAUDE.md's own touch-safety convention); the zone pieces
-// themselves stay tappable either way, just without the preview.
+// Real hover only — a touchscreen with no true hover skips just the line
+// and label preview (rather than risk either getting stuck on-screen
+// after a tap, see CLAUDE.md's own touch-safety convention); the zone
+// pieces themselves stay tappable either way here, since by default there's
+// no substitute gesture to fall back to (see `ScreenDisplay.tsx`'s own live
+// editing overlay, which renders `PaneSplitZones` with no `disableOnTouch`).
 @media (hover: hover) {
   .pane-split-zones:has(.pane-split-zone--north:hover, .pane-split-zone--south:hover) .pane-split-zones__row-line {
     opacity: 1;
@@ -131,5 +133,18 @@
 
   .pane-split-zones:has(.pane-split-zone:hover) .pane-split-zones__label {
     opacity: 1;
+  }
+}
+
+// The admin's own dedicated "screen layout editor" (`ScreenForm.tsx`) passes
+// `disableOnTouch` here, since it (unlike `ScreenDisplay.tsx`'s live editing
+// overlay) has explicit "Split pane horizontally"/"Split pane vertically"
+// buttons underneath as a real substitute — so on a touch-only device (no
+// real hover at all; a hover-capable touchscreen laptop is untouched) the
+// zone pieces stop being tappable entirely, rather than risk an accidental
+// silent split with no preview to warn it was about to happen.
+@media (hover: none) {
+  .pane-split-zones--touch-disabled .pane-split-zone {
+    pointer-events: none;
   }
 }

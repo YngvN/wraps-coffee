@@ -6,7 +6,7 @@ import './ContactInfoView.scss'
 
 const WEEKDAY_KEYS: (keyof ContactInfo['hours'])[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
-/** Admin view for editing the cafe's phone/email/address and per-day opening hours. Edits show up live in the site footer. */
+/** Admin view for editing the store's phone/email/address and per-day opening hours — reached as a sub-view of Store settings. Pushed to the public website's own database via the Neon bridge, if configured. */
 export function ContactInfoView() {
   const { t } = useLanguage()
   const [contactInfo, setContactInfo] = useContactInfo()

@@ -17,9 +17,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'Wraps & Coffee',
-        short_name: 'Wraps & Coffee',
-        description: 'Wraps & Coffee cafe website, menu, events and screen displays.',
+        name: 'Store Dashboard',
+        short_name: 'Store Dashboard',
+        description: 'Admin dashboard and kiosk screen displays for a store/business.',
         theme_color: '#dfa93e',
         background_color: '#ffffff',
         display: 'standalone',

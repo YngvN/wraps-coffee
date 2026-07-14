@@ -1,0 +1,67 @@
+@use '../../../styles/variables' as *;
+
+.logo-list-editor__list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  margin: 0 0 $spacing-unit;
+  padding: 0;
+  list-style: none;
+}
+
+.logo-list-editor__item {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  padding: $spacing-unit;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+}
+
+.logo-list-editor__remove {
+  align-self: flex-start;
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: $color-error;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
+.logo-list-editor__add-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  width: 100%;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: $color-text;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}

@@ -38,6 +38,21 @@
   flex-wrap: wrap;
 }
 
+.event-form__postponed {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  padding: $spacing-unit * 1.5;
+  border: 1px solid $color-border;
+  border-radius: 6px;
+}
+
+.event-form__postponed-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: $color-text-muted;
+}
+
 .event-form__actions {
   display: flex;
   justify-content: flex-end;

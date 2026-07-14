@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
 import { Card, TranslatedText } from '../../../components'
 import { useClockFormatPreference } from '../../../hooks/useClockFormatPreference'
+import { useDateFormatPreference } from '../../../hooks/useDateFormatPreference'
 import { useMessages } from '../../../hooks/useMessages'
 import { useLanguage } from '../../../i18n'
 import { formatDateTime } from '../../../utils/clockFormat'
@@ -12,6 +13,7 @@ import './MessagesView.scss'
 export function MessagesView() {
   const { t, language } = useLanguage()
   const [clockFormat] = useClockFormatPreference()
+  const [dateFormat] = useDateFormatPreference()
   const [messages, setMessages] = useMessages()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected = messages.find((message) => message.id === selectedId) ?? null
@@ -44,7 +46,7 @@ export function MessagesView() {
                   {t('admin.messages.fromLabel')}: {selected.name} ({selected.email})
                 </p>
                 <p className="messages-view__meta">
-                  {t('admin.messages.receivedLabel')}: {formatDateTime(new Date(selected.receivedAt), language, clockFormat)}
+                  {t('admin.messages.receivedLabel')}: {formatDateTime(new Date(selected.receivedAt), language, clockFormat, dateFormat)}
                 </p>
                 <p className="messages-view__body">{selected.message}</p>
               </motion.div>

@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DEFAULT_EXTENSIONS_CONFIG } from '../src/types/extensions'
+import { DEFAULT_SCREEN_ADDRESS_SETTINGS, type ScreenAddressSettings } from '../src/types/screenAddress'
 import { DEFAULT_SIDEBAR_SETTINGS } from '../src/types/sidebarSettings'
 import { SYNCED_KEYS, type AdminRole, type DashboardSection, type SyncedKey } from '../src/types/sync'
 
@@ -40,8 +41,10 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.messages': 'messages.json',
   'admin.events': 'events.json',
   'admin.contactInfo': 'contactInfo.json',
+  'admin.storeSettings': 'storeSettings.json',
   'admin.textSizePresets': 'textSizePresets.json',
   'admin.clockFormat': null,
+  'admin.dateFormat': null,
   'admin.paneLanguage': null,
   'admin.screenLockPin': null,
   'admin.screensaverSchedule': null,
@@ -58,6 +61,7 @@ const HARDCODED_DEFAULTS: Partial<Record<SyncedKey, unknown>> = {
   'admin.screenLockPin': null,
   'admin.screensaverSchedule': null,
   'admin.clockFormat': '24h',
+  'admin.dateFormat': 'dmy',
   // The cafe's own default language for kiosk pane content — set to
   // Norwegian on a fresh install per the explicit ask (see the "Standard
   // pane language" Settings card); each pane can still override it
@@ -99,6 +103,14 @@ let users: AdminUser[] = []
 function loadUsers() {
   if (existsSync(USERS_FILE)) {
     users = JSON.parse(readFileSync(USERS_FILE, 'utf-8')) as AdminUser[]
+    // Contact info moved from its own top-level `contact` DashboardSection
+    // to nest under the new `store` one (see `src/types/sync.ts`) — remap
+    // any already-persisted `'contact'` entry so a `limited` account
+    // scoped to it before this change doesn't silently lose that access.
+    for (const user of users) {
+      if (!user.allowedSections) continue
+      user.allowedSections = user.allowedSections.map((section) => ((section as string) === 'contact' ? 'store' : section))
+    }
     return
   }
   // Seeded on first boot with exactly one account. Plain-text password for
@@ -260,4 +272,22 @@ export function getNeonDatabaseUrl(): string | null {
 
 export function setNeonDatabaseUrl(url: string | null) {
   writeFileSync(NEON_URL_FILE, JSON.stringify({ url }), 'utf-8')
+}
+
+// How a screen's own `/screens/:screenId` link should be addressed (see
+// Settings → Advanced) — same "small standalone file, not a synced key"
+// shape as the Neon database URL above, since it's a machine-level setting
+// rather than data that needs to sync/broadcast to every connected client.
+
+const SCREEN_ADDRESS_FILE = join(DATA_DIR, 'screen-address-settings.json')
+
+export function getScreenAddressSettings(): ScreenAddressSettings {
+  if (existsSync(SCREEN_ADDRESS_FILE)) {
+    return JSON.parse(readFileSync(SCREEN_ADDRESS_FILE, 'utf-8')) as ScreenAddressSettings
+  }
+  return DEFAULT_SCREEN_ADDRESS_SETTINGS
+}
+
+export function setScreenAddressSettings(settings: ScreenAddressSettings) {
+  writeFileSync(SCREEN_ADDRESS_FILE, JSON.stringify(settings), 'utf-8')
 }

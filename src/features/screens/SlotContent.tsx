@@ -8,6 +8,7 @@ import { EventMonthSlide } from './EventMonthSlide'
 import { ImageSlide } from './ImageSlide'
 import { MessageBoardSlide } from './MessageBoardSlide'
 import { QrCodeSlide } from './QrCodeSlide'
+import { TimeSlide } from './TimeSlide'
 import { TransitSlide } from './TransitSlide'
 import { WeatherSlide } from './WeatherSlide'
 
@@ -30,6 +31,18 @@ export function SlotContent({ slot }: SlotContentProps) {
   if (slot.kind === 'transit') return <TransitSlide stopId={slot.stopId} />
   if (slot.kind === 'weather') return <WeatherSlide />
   if (slot.kind === 'announcement') return <AnnouncementSlide title={slot.title} description={slot.description} />
+  if (slot.kind === 'time')
+    return (
+      <TimeSlide
+        displayMode={slot.displayMode}
+        units={slot.units}
+        blinkColon={slot.blinkColon}
+        dateStyle={slot.dateStyle}
+        showYear={slot.showYear}
+        weekdayStyle={slot.weekdayStyle}
+        fontSize={slot.fontSize}
+      />
+    )
   if (slot.kind === 'messageboard')
     return (
       <MessageBoardSlide boardId={slot.boardId} displayMode={slot.displayMode} postId={slot.postId} order={slot.order} rotateSeconds={slot.rotateSeconds} count={slot.count} />

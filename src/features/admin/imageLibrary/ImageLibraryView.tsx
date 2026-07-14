@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { Alert, Spinner, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
+import { useDateFormatPreference } from '../../../hooks/useDateFormatPreference'
 import { useLanguage } from '../../../i18n'
 import { listUploads, SessionExpiredError, uploadImage, type UploadedImage } from '../../../lib/localServer'
+import { formatDate } from '../../../utils/dateFormat'
 import { getThumbnailUrl } from '../../../utils/responsiveImage'
 import './ImageLibraryView.scss'
 
@@ -22,7 +24,8 @@ function formatSize(bytes: number): string {
  * that's deliberately follow-up work, not this pass.
  */
 export function ImageLibraryView() {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
+  const [dateFormat] = useDateFormatPreference()
   const { session, clearSession } = useAdminSession()
   const [images, setImages] = useState<UploadedImage[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -141,7 +144,7 @@ export function ImageLibraryView() {
               <img src={getThumbnailUrl(image.url)} alt="" className="image-library__thumb" loading="lazy" />
               <span className="image-library__filename">{image.filename}</span>
               <span className="image-library__meta">
-                {formatSize(image.sizeBytes)} · {new Date(image.uploadedAt).toLocaleDateString(language)}
+                {formatSize(image.sizeBytes)} · {formatDate(new Date(image.uploadedAt), dateFormat)}
               </span>
             </li>
           ))}

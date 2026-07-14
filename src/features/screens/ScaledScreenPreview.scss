@@ -1,9 +1,14 @@
 .scaled-screen-preview {
   position: relative;
   width: 100%;
-  // `aspect-ratio` itself is set inline (see `ScaledScreenPreview.tsx`), driven by its own `aspectRatio` prop.
+  // `aspect-ratio` itself is set inline (see `ScaledScreenPreview.tsx`), driven by its own `aspectRatio` prop — only in `fit="width"` mode.
   overflow: hidden;
   border-radius: 8px;
+
+  // `fit="contain"`: the box is sized by its own parent instead (a fixed-size grid card), not by `aspectRatio`.
+  &--contain {
+    height: 100%;
+  }
 }
 
 .scaled-screen-preview__canvas {
@@ -11,4 +16,11 @@
   top: 0;
   left: 0;
   transform-origin: top left;
+
+  // `fit="contain"`: centered within the (possibly differently-shaped) box instead of pinned to its top-left corner — see the `translate(-50%, -50%)` this pairs with in `ScaledScreenPreview.tsx`.
+  &--contain {
+    top: 50%;
+    left: 50%;
+    transform-origin: center;
+  }
 }
