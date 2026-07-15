@@ -89,9 +89,9 @@ begin
   end;
 end;
 
-// Used as {code:NodeBinDir} in [Run] below to call npm/node by full path
-// rather than relying on PATH, since a Node install performed earlier in this
-// same installer run hasn't refreshed this process's environment yet.
+// Used to call npm/node by full path rather than relying on PATH, since a
+// Node install performed earlier in this same installer run hasn't refreshed
+// this process's environment yet.
 function NodeBinDir(Param: String): String;
 var
   Path: String;
@@ -106,34 +106,92 @@ begin
     Result := ExpandConstant('{pf}') + '\nodejs\';
 end;
 
+// Node install / npm install / npm run build / scheduled-task registration
+// used to be plain [Run] entries, but Inno's [Run] section does not check
+// exit codes - if any of these failed, Setup silently moved on and reported
+// "completed successfully" regardless, leaving an install with no dist/ and
+// no node_modules and no way to tell why. Running them here via Exec lets
+// each one's exit code actually be checked and surfaced.
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+  NpmCmd: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    if not NodeIsInstalled then
+    begin
+      WizardForm.StatusLabel.Caption := 'Installing Node.js...';
+      if not Exec('msiexec.exe', '/i "' + ExpandConstant('{tmp}\node-lts-x64.msi') + '" /qn /norestart', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+      begin
+        MsgBox('Installing Node.js failed (exit code ' + IntToStr(ResultCode) + '). Setup cannot continue.', mbError, MB_OK);
+        Abort;
+      end;
+    end;
+
+    // Opt-in (see [Tasks] below) - antivirus real-time scanning interfering with
+    // npm's file writes mid-extraction is a real cause of the "corrupted tarball
+    // data" errors npm install can report. Best-effort: if Defender isn't the
+    // active AV or this is managed by group policy, it just fails silently and
+    // npm install proceeds as it would have anyway.
+    if WizardIsTaskSelected('defenderexclusion') then
+    begin
+      WizardForm.StatusLabel.Caption := 'Adding a Windows Defender exclusion...';
+      Exec('powershell.exe',
+        '-NoProfile -Command "Add-MpPreference -ExclusionPath ' + #39 + ExpandConstant('{app}') + #39 +
+        '; Add-MpPreference -ExclusionPath ' + #39 + ExpandConstant('{localappdata}') + '\npm-cache' + #39 + '"',
+        '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    end;
+
+    NpmCmd := NodeBinDir('') + 'npm.cmd';
+
+    WizardForm.StatusLabel.Caption := 'Installing dependencies (this can take several minutes)...';
+    if not Exec(NpmCmd, 'install', ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+    begin
+      MsgBox('npm install failed (exit code ' + IntToStr(ResultCode) + ').' + #13#10 + #13#10 +
+        'Setup cannot continue. Check this machine''s internet connection and try again, or open a Command ' +
+        'Prompt in ' + ExpandConstant('{app}') + ' and run "npm install" manually to see the full error.',
+        mbError, MB_OK);
+      Abort;
+    end;
+
+    WizardForm.StatusLabel.Caption := 'Building the app...';
+    if not Exec(NpmCmd, 'run build', ExpandConstant('{app}'), SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+    begin
+      MsgBox('npm run build failed (exit code ' + IntToStr(ResultCode) + ').' + #13#10 + #13#10 +
+        'Setup cannot continue. Open a Command Prompt in ' + ExpandConstant('{app}') +
+        ' and run "npm run build" manually to see the full error.', mbError, MB_OK);
+      Abort;
+    end;
+
+    if not Exec('schtasks.exe', '/Create /TN "WrapsCoffeeLauncher" /TR "\"' + ExpandConstant('{app}') +
+      '\start-wraps-coffee.bat\"" /SC ONLOGON /RL HIGHEST /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+      MsgBox('Could not register the auto-start task (exit code ' + IntToStr(ResultCode) + '). ' +
+        'Wraps & Coffee is installed and can still be launched manually, but won''t start automatically on restart.',
+        mbInformation, MB_OK);
+  end;
+end;
+
 [Run]
-; 1. Install Node.js only if it isn't already present.
-Filename: "msiexec.exe"; Parameters: "/i ""{tmp}\node-lts-x64.msi"" /qn /norestart"; StatusMsg: "Installing Node.js..."; Check: not NodeIsInstalled; Flags: waituntilterminated
-
-; 2. Install dependencies (this also runs Electron's own postinstall download)
-;    and build the frontend. Full path to npm.cmd — see NodeBinDir above.
-Filename: "{code:NodeBinDir}npm.cmd"; Parameters: "install"; WorkingDir: "{app}"; StatusMsg: "Installing dependencies (this can take several minutes)..."; Flags: runhidden waituntilterminated
-Filename: "{code:NodeBinDir}npm.cmd"; Parameters: "run build"; WorkingDir: "{app}"; StatusMsg: "Building the app..."; Flags: runhidden waituntilterminated
-
-; 3. Open the ports the local server and preview server listen on, so other
-;    devices on the cafe's LAN (kiosk screens, a second admin's phone) can
-;    reach this machine without a firewall prompt with nobody there to click
-;    "Allow". profile=any is deliberate: this machine is expected to stay on
-;    one trusted network, not roam between networks like a laptop would.
+; Open the ports the local server and preview server listen on, so other
+; devices on the cafe's LAN (kiosk screens, a second admin's phone) can
+; reach this machine without a firewall prompt with nobody there to click
+; "Allow". profile=any is deliberate: this machine is expected to stay on
+; one trusted network, not roam between networks like a laptop would.
+; Left as a plain best-effort [Run] entry (unlike the steps above) since a
+; failure here only affects LAN reachability, not whether the app runs at all.
 Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""Wraps & Coffee"" dir=in action=allow protocol=TCP localport=4000,4173 profile=any"; Flags: runhidden
 
-; 4. Register the real auto-start-on-restart mechanism: fires at every logon,
-;    i.e. every restart of a kiosk PC that auto-logs-in one user.
-Filename: "schtasks.exe"; Parameters: "/Create /TN ""WrapsCoffeeLauncher"" /TR ""\""{app}\start-wraps-coffee.bat\"""" /SC ONLOGON /RL HIGHEST /F"; Flags: runhidden
-
-; 5. Offer to launch right away, without waiting for a restart. "nowait" is
-;    required here: the script's own watchdog loop never returns, so waiting
-;    for it to exit would leave the wizard's Finish page open forever.
+; Offer to launch right away, without waiting for a restart. "nowait" is
+; required here: the script's own watchdog loop never returns, so waiting
+; for it to exit would leave the wizard's Finish page open forever.
 Filename: "{app}\start-wraps-coffee.bat"; Description: "Launch Wraps & Coffee now"; Flags: postinstall shellexec nowait skipifsilent
 
 [UninstallRun]
 Filename: "schtasks.exe"; Parameters: "/Delete /TN ""WrapsCoffeeLauncher"" /F"; Flags: runhidden
 Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Wraps & Coffee"""; Flags: runhidden
+; Harmless no-op if the "defenderexclusion" task was never selected at install time.
+Filename: "powershell.exe"; Parameters: "-NoProfile -Command ""Remove-MpPreference -ExclusionPath '{app}'; Remove-MpPreference -ExclusionPath '{localappdata}\npm-cache'"""; Flags: runhidden
 
 [UninstallDelete]
 ; Removes everything npm install / npm run build / the running app generated
@@ -148,6 +206,7 @@ Type: filesandordirs; Name: "{app}\server\uploads"
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
+Name: "defenderexclusion"; Description: "Add a Windows Defender exclusion for the install folder (helps avoid install failures caused by antivirus interference, e.g. ""corrupted tarball"" errors during npm install)"; GroupDescription: "Troubleshooting:"; Flags: unchecked
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\start-wraps-coffee.bat"
