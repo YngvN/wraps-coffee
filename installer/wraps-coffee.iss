@@ -47,6 +47,8 @@ Source: "..\tsconfig.app.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\tsconfig.node.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\index.html"; DestDir: "{app}"; Flags: ignoreversion
 Source: "start-wraps-coffee.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "open-in-browser.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "print-qr.cjs"; DestDir: "{app}"; Flags: ignoreversion
 Source: "node-lts-x64.msi"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: not NodeIsInstalled
 
 ; Ensure these exist even though their gitignored contents are excluded above —
@@ -210,5 +212,6 @@ Name: "defenderexclusion"; Description: "Add a Windows Defender exclusion for th
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\start-wraps-coffee.bat"
+Name: "{autoprograms}\{#AppName} (Open in Browser)"; Filename: "{app}\open-in-browser.bat"
 Name: "{autoprograms}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\start-wraps-coffee.bat"; Tasks: desktopicon

@@ -27,6 +27,29 @@ if exist "node_modules\electron\dist\electron.exe" (
   start "" msedge --kiosk "%WRAPS_COFFEE_URL%" --edge-kiosk-type=fullscreen --no-first-run --disable-session-crashed-bubble
 )
 
+rem Looks up the LAN IP fresh from the server itself (server/index.ts's own
+rem /server-info endpoint - the same source of truth the app uses internally
+rem for its own screen links) rather than parsing ipconfig, which is fragile
+rem across Windows locales (its output is translated).
+for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "try { (Invoke-RestMethod -Uri 'http://localhost:4000/server-info' -TimeoutSec 3).lanIp } catch {}"`) do set "LAN_IP=%%i"
+
+echo.
+echo   Wraps ^& Coffee is running:
+echo     On this PC:        %WRAPS_COFFEE_URL%
+rem Note: LAN_IP was set outside this block (line above, top-level), which is
+rem why plain %LAN_IP% expansion is safe to read here - a variable set *and*
+rem read within the same parenthesized block would need delayed expansion
+rem (!LAN_IP!) instead, since cmd.exe substitutes %var% once at parse time,
+rem before any command inside the block has actually run.
+if not "%LAN_IP%"=="" (
+  echo     On other devices:  http://%LAN_IP%:4173/admin
+  echo.
+  node "%APPDIR%print-qr.cjs" "http://%LAN_IP%:4173/admin"
+) else (
+  echo     ^(couldn't detect a LAN IP - this machine may be offline^)
+)
+echo.
+
 echo Watching the server - this window can be closed at any time, the app keeps running.
 :watchdog
 timeout /t 10 /nobreak >nul

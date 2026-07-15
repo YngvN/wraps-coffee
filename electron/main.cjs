@@ -60,9 +60,33 @@ async function createWindow() {
   const kioskWindow = new BrowserWindow({
     kiosk: true,
     autoHideMenuBar: true,
+    show: false,
   })
+
+  // Forwards the renderer's own console (including uncaught-exception stack
+  // traces) into this process's stdout, which start-wraps-coffee.bat already
+  // redirects to logs\electron.log - the only way to see *why* a blank white
+  // window happened without plugging a monitor/keyboard into the kiosk PC to
+  // open DevTools interactively.
+  kioskWindow.webContents.on('console-message', (_event, _level, message, line, sourceId) => {
+    console.log(`[page console] ${sourceId}:${line} ${message}`)
+  })
+  kioskWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.error(`[did-fail-load] ${errorCode} ${errorDescription} (${validatedURL})`)
+  })
+  kioskWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[render-process-gone]', details)
+  })
+
+  if (process.env.WRAPS_COFFEE_DEBUG === '1') {
+    kioskWindow.webContents.openDevTools({ mode: 'detach' })
+  }
+
   kioskWindow.loadURL(APP_URL)
-  kioskWindow.once('ready-to-show', () => loadingWindow.close())
+  kioskWindow.once('ready-to-show', () => {
+    loadingWindow.close()
+    kioskWindow.show()
+  })
 }
 
 app.whenReady().then(createWindow)
