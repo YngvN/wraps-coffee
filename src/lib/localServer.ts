@@ -281,3 +281,50 @@ export async function resetUserPassword(token: string, id: string, password: str
     throw new Error(body.error ?? 'Could not reset the password')
   }
 }
+
+// --- Backup (Settings → Backup) ----------------------------------------------
+
+/** Whether the server-side sibling `WrapsCoffeeBackup` folder exists, and when it was last updated — `null` if it's never been written to yet. `admin`/`subadmin` only. */
+export async function getBackupStatus(token: string): Promise<{ folderBackupAvailable: boolean; updatedAt: string | null }> {
+  const response = await fetch(`${serverBaseUrl()}/backups/status`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 403) throw new Error('Only admin/subadmin accounts can view backup status')
+  if (!response.ok) throw new Error('Could not load backup status')
+  return response.json() as Promise<{ folderBackupAvailable: boolean; updatedAt: string | null }>
+}
+
+/** Downloads a fresh backup zip (every synced key, user account, and uploaded image) as a `Blob` — the caller turns this into a browser download via `URL.createObjectURL`. `admin`/`subadmin` only. */
+export async function createBackup(token: string): Promise<Blob> {
+  const response = await fetch(`${serverBaseUrl()}/backups`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 403) throw new Error('Only admin/subadmin accounts can create a backup')
+  if (!response.ok) throw new Error('Could not create a backup')
+  return response.blob()
+}
+
+/** Restores from an uploaded backup zip, overwriting all current data. `admin`/`subadmin` only. */
+export async function restoreBackupFromZip(token: string, file: File): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/backups/restore`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/zip', Authorization: `Bearer ${token}` },
+    body: file,
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not restore from this backup zip')
+  }
+}
+
+/** Restores directly from the sibling `WrapsCoffeeBackup` folder on the server's own disk, overwriting all current data. `admin`/`subadmin` only. */
+export async function restoreFromBackupFolder(token: string): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/backups/restore-from-folder`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not restore from the backup folder')
+  }
+}

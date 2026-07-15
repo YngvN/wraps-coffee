@@ -166,11 +166,17 @@ begin
       Abort;
     end;
 
-    if not Exec('schtasks.exe', '/Create /TN "WrapsCoffeeLauncher" /TR "\"' + ExpandConstant('{app}') +
-      '\start-wraps-coffee.bat\"" /SC ONLOGON /RL HIGHEST /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-      MsgBox('Could not register the auto-start task (exit code ' + IntToStr(ResultCode) + '). ' +
-        'Wraps & Coffee is installed and can still be launched manually, but won''t start automatically on restart.',
-        mbInformation, MB_OK);
+    // See [Tasks] below - "autostart" is checked by default (it's the whole
+    // point of this installer), but left visible/optional rather than always
+    // silently registering a logon task.
+    if WizardIsTaskSelected('autostart') then
+    begin
+      if not Exec('schtasks.exe', '/Create /TN "WrapsCoffeeLauncher" /TR "\"' + ExpandConstant('{app}') +
+        '\start-wraps-coffee.bat\"" /SC ONLOGON /RL HIGHEST /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+        MsgBox('Could not register the auto-start task (exit code ' + IntToStr(ResultCode) + '). ' +
+          'Wraps & Coffee is installed and can still be launched manually, but won''t start automatically on restart.',
+          mbInformation, MB_OK);
+    end;
   end;
 end;
 
@@ -207,6 +213,11 @@ Type: filesandordirs; Name: "{app}\server\data"
 Type: filesandordirs; Name: "{app}\server\uploads"
 
 [Tasks]
+; No "unchecked" flag - Inno checks a task by default unless told otherwise,
+; so this is on by default (it's the whole point of installing this on a
+; kiosk PC) while still being a visible, untickable choice rather than a
+; silent unconditional action.
+Name: "autostart"; Description: "Launch automatically when Windows starts (recommended)"; GroupDescription: "Additional shortcuts:"
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 Name: "defenderexclusion"; Description: "Add a Windows Defender exclusion for the install folder (helps avoid install failures caused by antivirus interference, e.g. ""corrupted tarball"" errors during npm install)"; GroupDescription: "Troubleshooting:"; Flags: unchecked
 

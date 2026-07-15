@@ -4,6 +4,7 @@ import { basename, dirname, extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import sharp from 'sharp'
+import { mirrorFile } from './backup'
 import { CORS_HEADERS, sendJson } from './http'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -71,18 +72,26 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse, ho
 
   const id = randomUUID()
   const filename = `${id}.${ext}`
-  writeFileSync(join(UPLOADS_DIR, filename), buffer)
+  const originalPath = join(UPLOADS_DIR, filename)
+  writeFileSync(originalPath, buffer)
+  mirrorFile(originalPath)
 
   try {
     const small = await sharp(buffer).resize({ width: 800, withoutEnlargement: true }).webp({ quality: 70 }).toBuffer()
-    writeFileSync(join(UPLOADS_DIR, `${id}-small.webp`), small)
+    const smallPath = join(UPLOADS_DIR, `${id}-small.webp`)
+    writeFileSync(smallPath, small)
+    mirrorFile(smallPath)
     const thumb = await sharp(buffer).resize({ width: 240, withoutEnlargement: true }).webp({ quality: 50 }).toBuffer()
-    writeFileSync(join(UPLOADS_DIR, `${id}-thumb.webp`), thumb)
+    const thumbPath = join(UPLOADS_DIR, `${id}-thumb.webp`)
+    writeFileSync(thumbPath, thumb)
+    mirrorFile(thumbPath)
     // Downsized before blurring — blurred content has no fine detail to lose,
     // so this is both a faster sharp pass and a much smaller file than
     // blurring the full-resolution original live in the browser every frame.
     const blurred = await sharp(buffer).resize({ width: 480, withoutEnlargement: true }).blur(20).webp({ quality: 60 }).toBuffer()
-    writeFileSync(join(UPLOADS_DIR, `${id}-blur.webp`), blurred)
+    const blurPath = join(UPLOADS_DIR, `${id}-blur.webp`)
+    writeFileSync(blurPath, blurred)
+    mirrorFile(blurPath)
   } catch (error) {
     console.error('[uploads] compression failed, original still saved:', error)
   }
@@ -126,6 +135,9 @@ export function handleDeleteUpload(res: ServerResponse, requestedFilename: strin
   for (const name of [safeName, `${stem}-small.webp`, `${stem}-thumb.webp`, `${stem}-blur.webp`]) {
     const filePath = join(UPLOADS_DIR, name)
     if (existsSync(filePath)) unlinkSync(filePath)
+    // Mirrors the deletion too (mirrorFile removes its own copy when the
+    // source no longer exists) so the backup doesn't accumulate orphans.
+    mirrorFile(filePath)
   }
 
   res.writeHead(204, CORS_HEADERS)

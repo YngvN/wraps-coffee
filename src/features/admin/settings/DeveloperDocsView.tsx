@@ -25,6 +25,7 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.paneLanguage', descKey: 'admin.settings.developerDocs.keyPaneLanguage' },
   { key: 'admin.screenLockPin', descKey: 'admin.settings.developerDocs.keyScreenLockPin' },
   { key: 'admin.screensaverSchedule', descKey: 'admin.settings.developerDocs.keyScreensaverSchedule' },
+  { key: 'admin.dashboardScreensaver', descKey: 'admin.settings.developerDocs.keyDashboardScreensaver' },
   { key: 'admin.screens', descKey: 'admin.settings.developerDocs.keyScreens' },
   { key: 'admin.extensions', descKey: 'admin.settings.developerDocs.keyExtensions' },
   { key: 'admin.sidebarSettings', descKey: 'admin.settings.developerDocs.keySidebarSettings' },
@@ -229,6 +230,25 @@ GET /uploads                      (Authorization: Bearer <token> — lists every
 
 DELETE /uploads/<filename>        (Authorization: Bearer <token>)
 → 204   (also removes its -small/-thumb companions; idempotent)`}</code>
+        </pre>
+      </Card>
+
+      <Card title={t('admin.settings.developerDocs.backupTitle')}>
+        <p>{t('admin.settings.developerDocs.backupIntro')}</p>
+        <pre>
+          <code>{`GET /backups/status               (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "folderBackupAvailable": boolean, "updatedAt": string | null }
+
+GET /backups                      (Authorization: Bearer <token>, admin/subadmin only)
+→ 200, Content-Type: application/zip, Content-Disposition: attachment; filename="wrapscoffee-backup-...zip"
+
+POST /backups/restore              (Authorization: Bearer <token>, admin/subadmin only, Content-Type: application/zip, body = raw zip bytes)
+→ 200 { "ok": true }
+→ 400 { "error": "..." }   (not a recognized backup zip)
+
+POST /backups/restore-from-folder  (Authorization: Bearer <token>, admin/subadmin only, no body)
+→ 200 { "ok": true }
+→ 400 { "error": "..." }   (no sibling WrapsCoffeeBackup folder found)`}</code>
         </pre>
       </Card>
 

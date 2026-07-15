@@ -1,21 +1,23 @@
 import { useState } from 'react'
-import { BackButton, Button, Card, Checkbox, SlideTransition, TranslatedText } from '../../../components'
+import { BackButton, Button, Card, Checkbox, Input, SlideTransition, TranslatedText } from '../../../components'
 import { availableLanguages, useLanguage } from '../../../i18n'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useClockFormatPreference, type ClockFormat } from '../../../hooks/useClockFormatPreference'
+import { useDashboardScreensaverSettings } from '../../../hooks/useDashboardScreensaverSettings'
 import { useDateFormatPreference, type DateFormat } from '../../../hooks/useDateFormatPreference'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { useSidebarSettings } from '../../../hooks/useSidebarSettings'
 import type { ToggleableSidebarItem } from '../../../types/sidebarSettings'
 import { ADMIN_NAV_ICONS, NAV_ITEMS } from '../layout/adminNavItems'
 import { AdvancedSettingsView } from './AdvancedSettingsView'
+import { BackupSettingsView } from './BackupSettingsView'
 import { DeveloperDocsView } from './DeveloperDocsView'
 import './SettingsView.scss'
 
 const CLOCK_FORMATS: ClockFormat[] = ['24h', '12h']
 const DATE_FORMATS: DateFormat[] = ['dmy', 'mdy']
 
-type SubView = 'main' | 'developers' | 'advanced'
+type SubView = 'main' | 'developers' | 'advanced' | 'backup'
 
 /** Admin-wide settings: the interface language, the cafe's own Standard pane language (the default kiosk panes render their content in, independent of the interface language above — see `useDefaultPaneLanguage`, overridable per pane from its own "Language" sub-menu), the shared clock format (24-hour or 12-hour AM/PM) and date format (day-month-year or month-day-year — used everywhere a wall-clock time/plain date is shown: the weather forecast, admin timestamps, uploaded-image/message-board-post dates, the screensaver schedule's own time pickers, and a "time" pane's own shorthand date), which sidebar items this cafe's dashboard shows (different cafes use different features — a cafe with no online ordering or no digital signage can hide those tabs entirely), a "For developers" sub-view documenting the local server's own API, and (admin/subadmin only) an "Advanced" sub-view for how a screen's own link should be addressed (see `AdvancedSettingsView`). More device/account-level preferences land here over time. */
 export function SettingsView() {
@@ -25,6 +27,7 @@ export function SettingsView() {
   const [clockFormat, setClockFormat] = useClockFormatPreference()
   const [dateFormat, setDateFormat] = useDateFormatPreference()
   const [sidebarSettings, setSidebarSettings] = useSidebarSettings()
+  const [screensaverSettings, setScreensaverSettings] = useDashboardScreensaverSettings()
   const toggleableItems = NAV_ITEMS.filter((item) => item.toggleable)
   /** Which sub-view (replacing the whole settings list until its own Back button is pressed) is open, if any. */
   const [subView, setSubView] = useState<SubView>('main')
@@ -34,6 +37,11 @@ export function SettingsView() {
   const toggleSidebarItem = (item: ToggleableSidebarItem, visible: boolean) => {
     const hiddenItems = visible ? sidebarSettings.hiddenItems.filter((hidden) => hidden !== item) : [...sidebarSettings.hiddenItems, item]
     setSidebarSettings({ ...sidebarSettings, hiddenItems })
+  }
+
+  const handleScreensaverIdleMinutesChange = (value: string) => {
+    const parsed = Math.round(Number(value))
+    setScreensaverSettings({ ...screensaverSettings, idleMinutes: Number.isFinite(parsed) && parsed > 0 ? parsed : 1 })
   }
 
   const openSubView = (view: SubView) => {
@@ -65,6 +73,15 @@ export function SettingsView() {
           </div>
           <TranslatedText as="p" id="admin.settings.advanced.description" className="admin-page-description" />
           <AdvancedSettingsView />
+        </div>
+      ) : subView === 'backup' ? (
+        <div className="settings-view">
+          <div className="settings-view__docs-header">
+            <BackButton onClick={closeSubView}>{t('admin.common.back')}</BackButton>
+            <TranslatedText as="h1" id="admin.settings.backup.title" />
+          </div>
+          <TranslatedText as="p" id="admin.settings.backup.description" className="admin-page-description" />
+          <BackupSettingsView />
         </div>
       ) : (
         <div className="settings-view">
@@ -147,6 +164,25 @@ export function SettingsView() {
               })}
             </ul>
           </Card>
+          <Card title={t('admin.settings.dashboardScreensaver.title')}>
+            <p className="settings-view__developers-hint">{t('admin.settings.dashboardScreensaver.hint')}</p>
+            <Checkbox
+              id="dashboard-screensaver-enabled"
+              label={t('admin.settings.dashboardScreensaver.enableLabel')}
+              checked={screensaverSettings.enabled}
+              onChange={(event) => setScreensaverSettings({ ...screensaverSettings, enabled: event.target.checked })}
+            />
+            {screensaverSettings.enabled && (
+              <Input
+                id="dashboard-screensaver-idle-minutes"
+                type="number"
+                min={1}
+                label={t('admin.settings.dashboardScreensaver.idleMinutesLabel')}
+                value={screensaverSettings.idleMinutes}
+                onChange={(event) => handleScreensaverIdleMinutesChange(event.target.value)}
+              />
+            )}
+          </Card>
           <Card title={t('admin.settings.developersTitle')}>
             <p className="settings-view__developers-hint">{t('admin.settings.developersHint')}</p>
             <Button type="button" variant="secondary" onClick={() => openSubView('developers')}>
@@ -158,6 +194,14 @@ export function SettingsView() {
               <p className="settings-view__developers-hint">{t('admin.settings.advanced.hint')}</p>
               <Button type="button" variant="secondary" onClick={() => openSubView('advanced')}>
                 {t('admin.settings.advanced.button')}
+              </Button>
+            </Card>
+          )}
+          {session?.role !== 'limited' && (
+            <Card title={t('admin.settings.backup.title')}>
+              <p className="settings-view__developers-hint">{t('admin.settings.backup.hint')}</p>
+              <Button type="button" variant="secondary" onClick={() => openSubView('backup')}>
+                {t('admin.settings.backup.button')}
               </Button>
             </Card>
           )}

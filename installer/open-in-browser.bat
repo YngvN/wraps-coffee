@@ -9,7 +9,7 @@ rem can change between reboots.
 for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "try { (Invoke-RestMethod -Uri 'http://localhost:4000/server-info' -TimeoutSec 3).lanIp } catch {}"`) do set "LAN_IP=%%i"
 
 if not "%LAN_IP%"=="" (
-  start "" "http://%LAN_IP%:4173/admin"
+  start "" "http://%LAN_IP%:4173/admin/login"
 ) else (
-  start "" "http://localhost:4173/admin"
+  start "" "http://localhost:4173/admin/login"
 )

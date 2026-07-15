@@ -2,6 +2,8 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { mirrorFile } from './backup'
+import { DEFAULT_DASHBOARD_SCREENSAVER_SETTINGS } from '../src/types/dashboardScreensaver'
 import { DEFAULT_EXTENSIONS_CONFIG } from '../src/types/extensions'
 import { DEFAULT_SCREEN_ADDRESS_SETTINGS, type ScreenAddressSettings } from '../src/types/screenAddress'
 import { DEFAULT_SIDEBAR_SETTINGS } from '../src/types/sidebarSettings'
@@ -48,6 +50,7 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.paneLanguage': null,
   'admin.screenLockPin': null,
   'admin.screensaverSchedule': null,
+  'admin.dashboardScreensaver': null,
   'admin.screens': 'screens.json',
   'admin.extensions': null,
   'admin.sidebarSettings': null,
@@ -60,6 +63,7 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
 const HARDCODED_DEFAULTS: Partial<Record<SyncedKey, unknown>> = {
   'admin.screenLockPin': null,
   'admin.screensaverSchedule': null,
+  'admin.dashboardScreensaver': DEFAULT_DASHBOARD_SCREENSAVER_SETTINGS,
   'admin.clockFormat': '24h',
   'admin.dateFormat': 'dmy',
   // The cafe's own default language for kiosk pane content — set to
@@ -95,6 +99,7 @@ function loadKey(key: SyncedKey) {
   const entry: StoredEntry = { seeded: true, value }
   state.set(key, entry)
   writeFileSync(filePath, JSON.stringify(entry), 'utf-8')
+  mirrorFile(filePath)
 }
 
 const USERS_FILE = join(DATA_DIR, 'admin-users.json')
@@ -118,6 +123,7 @@ function loadUsers() {
   // low-risk follow-up, not blocking.
   users = [{ id: 'admin', username: 'admin', password: '1234', role: 'admin' }]
   writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf-8')
+  mirrorFile(USERS_FILE)
 }
 
 const SESSIONS_FILE = join(DATA_DIR, 'sessions.json')
@@ -131,6 +137,7 @@ function loadSessions() {
 
 function persistSessions() {
   writeFileSync(SESSIONS_FILE, JSON.stringify([...sessions.entries()]), 'utf-8')
+  mirrorFile(SESSIONS_FILE)
 }
 
 /** Loads (or seeds, on first boot) every synced key, the admin users file, and any still-valid sessions. Call once at server startup. */
@@ -151,7 +158,9 @@ export function get(key: SyncedKey): StoredEntry | undefined {
 export function set(key: SyncedKey, value: unknown) {
   const entry: StoredEntry = { seeded: false, value }
   state.set(key, entry)
-  writeFileSync(dataFilePath(key), JSON.stringify(entry), 'utf-8')
+  const filePath = dataFilePath(key)
+  writeFileSync(filePath, JSON.stringify(entry), 'utf-8')
+  mirrorFile(filePath)
 }
 
 /** A snapshot scoped to just `keys` — see "Scoped subscriptions" in the sync-server plan. */
@@ -170,6 +179,7 @@ export function verifyLogin(username: string, password: string): AdminUser | nul
 
 function persistUsers() {
   writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf-8')
+  mirrorFile(USERS_FILE)
 }
 
 /** Every user account, minus its password — for listing in the admin dashboard's own Users tab (see "Add Users" in the codebase's own todo). */
@@ -249,6 +259,7 @@ export function getDeveloperApiKey(): string | null {
 export function regenerateDeveloperApiKey(): string {
   const key = randomBytes(24).toString('hex')
   writeFileSync(API_KEY_FILE, JSON.stringify({ key }), 'utf-8')
+  mirrorFile(API_KEY_FILE)
   return key
 }
 
@@ -272,6 +283,7 @@ export function getNeonDatabaseUrl(): string | null {
 
 export function setNeonDatabaseUrl(url: string | null) {
   writeFileSync(NEON_URL_FILE, JSON.stringify({ url }), 'utf-8')
+  mirrorFile(NEON_URL_FILE)
 }
 
 // How a screen's own `/screens/:screenId` link should be addressed (see
@@ -290,4 +302,5 @@ export function getScreenAddressSettings(): ScreenAddressSettings {
 
 export function setScreenAddressSettings(settings: ScreenAddressSettings) {
   writeFileSync(SCREEN_ADDRESS_FILE, JSON.stringify(settings), 'utf-8')
+  mirrorFile(SCREEN_ADDRESS_FILE)
 }

@@ -13,6 +13,7 @@ export const SYNCED_KEYS = [
   'admin.paneLanguage',
   'admin.screenLockPin',
   'admin.screensaverSchedule',
+  'admin.dashboardScreensaver',
   'admin.screens',
   'admin.extensions',
   'admin.sidebarSettings',

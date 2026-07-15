@@ -4,6 +4,7 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import type { ScreenAddressSettings } from '../src/types/screenAddress'
 import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
+import * as backup from './backup'
 import { handleDepartures, handleLookup, handleWeather } from './extensions'
 import { bearerToken, CORS_HEADERS, readJsonBody, sendJson } from './http'
 import * as mdns from './mdns'
@@ -269,6 +270,92 @@ const httpServer = createServer((req, res) => {
     return
   }
 
+  // Backup/restore (Settings → Backup) — admin/subadmin only, same posture
+  // as the routes above. See server/backup.ts for the actual file-level
+  // logic; this block is just auth + response plumbing, matching the rest
+  // of this file's own convention.
+  if (req.method === 'GET' && url.pathname === '/backups/status') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view backup status' })
+      return
+    }
+    sendJson(res, 200, backup.backupStatus())
+    return
+  }
+
+  if (req.method === 'GET' && url.pathname === '/backups') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can create a backup' })
+      return
+    }
+    const zipBuffer = backup.createBackupZip()
+    res.writeHead(200, {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="wrapscoffee-backup-${new Date().toISOString().slice(0, 10)}.zip"`,
+      ...CORS_HEADERS,
+    })
+    res.end(zipBuffer)
+    console.log(`[backup] ${session.username} downloaded a backup zip`)
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/backups/restore') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can restore a backup' })
+      return
+    }
+    backup
+      .readRestoreZipBody(req)
+      .then((zipBuffer) => {
+        const result = backup.restoreBackupFromZip(zipBuffer)
+        if (!result.ok) {
+          sendJson(res, 400, { error: result.error })
+          return
+        }
+        store.load()
+        console.log(`[backup] ${session.username} restored from an uploaded backup zip`)
+        sendJson(res, 200, { ok: true })
+      })
+      .catch(() => sendJson(res, 413, { error: 'File too large' }))
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/backups/restore-from-folder') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can restore a backup' })
+      return
+    }
+    const result = backup.restoreFromBackupFolder()
+    if (!result.ok) {
+      sendJson(res, 400, { error: result.error })
+      return
+    }
+    store.load()
+    console.log(`[backup] ${session.username} restored from the sibling WrapsCoffeeBackup folder`)
+    sendJson(res, 200, { ok: true })
+    return
+  }
+
   // Account management (the admin dashboard's own "Users" tab) —
   // admin/subadmin only, same posture as the developer API key/Neon URL
   // routes above. Three extra rules beyond the plain role gate, enforced
@@ -490,6 +577,7 @@ process.on('unhandledRejection', (error) => {
   process.exit(1)
 })
 
+backup.restoreFromSiblingBackupIfFresh()
 store.load()
 neonBridge.start(applyUpdate, broadcastError)
 mdns.apply(store.getScreenAddressSettings(), currentStoreName())

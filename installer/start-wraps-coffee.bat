@@ -9,7 +9,7 @@ rem otherwise (see wraps-coffee.iss for why Electron's own binary download can
 rem fail on a restrictive network even when the rest of npm install succeeds).
 
 set "APPDIR=%~dp0"
-set "WRAPS_COFFEE_URL=http://localhost:4173/admin"
+set "WRAPS_COFFEE_URL=http://localhost:4173/admin/login"
 cd /d "%APPDIR%"
 if not exist logs mkdir logs
 
@@ -42,9 +42,9 @@ rem read within the same parenthesized block would need delayed expansion
 rem (!LAN_IP!) instead, since cmd.exe substitutes %var% once at parse time,
 rem before any command inside the block has actually run.
 if not "%LAN_IP%"=="" (
-  echo     On other devices:  http://%LAN_IP%:4173/admin
+  echo     On other devices:  http://%LAN_IP%:4173/admin/login
   echo.
-  node "%APPDIR%print-qr.cjs" "http://%LAN_IP%:4173/admin"
+  node "%APPDIR%print-qr.cjs" "http://%LAN_IP%:4173/admin/login"
 ) else (
   echo     ^(couldn't detect a LAN IP - this machine may be offline^)
 )

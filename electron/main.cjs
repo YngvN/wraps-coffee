@@ -1,12 +1,16 @@
 // CommonJS on purpose: package.json sets "type": "module", which would make a
 // plain .js file load as ESM here; Electron's main process is simplest as CJS.
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, Tray, Menu, nativeImage } = require('electron')
 const http = require('node:http')
+const path = require('node:path')
+
+let tray = null
+let kioskWindow = null
 
 // Kept in sync with the URL constant at the top of installer/start-wraps-coffee.bat.
-// Point this at a specific /screens/:screenId instead of /admin if this machine
-// is a signage screen rather than the owner's own dashboard machine.
-const APP_URL = process.env.WRAPS_COFFEE_URL ?? 'http://localhost:4173/admin'
+// Point this at a specific /screens/:screenId instead of /admin/login if this
+// machine is a signage screen rather than the owner's own dashboard machine.
+const APP_URL = process.env.WRAPS_COFFEE_URL ?? 'http://localhost:4173/admin/login'
 
 const POLL_INTERVAL_MS = 1000
 const POLL_TIMEOUT_MS = 60000
@@ -37,7 +41,39 @@ function waitForServer(url, timeoutMs) {
   })
 }
 
+/**
+ * Icon in the notification area ("hidden taskbar" icons on Windows) - the
+ * kiosk window has no title bar or close button by design, so this is the
+ * only way to tell at a glance that the app is running, bring it back to
+ * the front, or quit it without going through Task Manager. Reuses the
+ * existing PWA app icon (public/android-chrome-192x192.png) rather than
+ * shipping a separate tray-specific asset.
+ */
+function createTray() {
+  const iconPath = path.join(__dirname, '..', 'public', 'android-chrome-192x192.png')
+  const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
+  tray = new Tray(icon)
+  tray.setToolTip('Wraps & Coffee')
+
+  const showWindow = () => {
+    if (!kioskWindow) return
+    kioskWindow.show()
+    kioskWindow.focus()
+  }
+
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Show Wraps & Coffee', click: showWindow },
+      { type: 'separator' },
+      { label: 'Quit Wraps & Coffee', click: () => app.quit() },
+    ]),
+  )
+  tray.on('click', showWindow)
+}
+
 async function createWindow() {
+  createTray()
+
   const loadingWindow = new BrowserWindow({
     width: 480,
     height: 200,
@@ -57,7 +93,7 @@ async function createWindow() {
     return
   }
 
-  const kioskWindow = new BrowserWindow({
+  kioskWindow = new BrowserWindow({
     kiosk: true,
     autoHideMenuBar: true,
     show: false,

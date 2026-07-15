@@ -1,0 +1,27 @@
+@use '../../../styles/variables' as *;
+
+// Always solid black regardless of light/dark theme - same reasoning as the
+// kiosk display's own screensaver (ScreenDisplay.scss): the point is to rest
+// the screen, not to follow the app's own theme. z-index above Modal's
+// (1000) so it still covers the screen even if something was left open.
+.dashboard-screensaver {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: #000;
+}
+
+// Drifts to a new random spot every few seconds (see DashboardScreensaver.tsx)
+// - the top/left transition is what makes each jump read as a slide instead
+// of a jarring teleport.
+.dashboard-screensaver__text {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  opacity: 0.6;
+  font-family: $font-sans;
+  font-size: 2rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: top 1.5s ease, left 1.5s ease;
+}
