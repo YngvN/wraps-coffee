@@ -82,6 +82,16 @@ export function ScreensIcon(props: IconProps) {
   )
 }
 
+/** Two overlapping monitors — distinguishes "Display Manager" (several physical displays across possibly several machines) from the single-monitor `ScreensIcon` (one screen's own content). */
+export function DisplayManagerIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="1" y="3" width="14" height="10" rx="1.5" />
+      <rect x="9" y="9" width="14" height="10" rx="1.5" />
+    </Icon>
+  )
+}
+
 export function ExtensionsIcon(props: IconProps) {
   return (
     <Icon {...props}>

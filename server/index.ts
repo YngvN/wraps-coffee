@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { WebSocketServer, type WebSocket } from 'ws'
+import type { DisplayMachine, DisplayMonitor } from '../src/types/displayMachine'
 import type { ScreenAddressSettings } from '../src/types/screenAddress'
 import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
@@ -27,6 +28,7 @@ const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
   'admin.textSizePresets': 'screens',
   'admin.screenLockPin': 'screens',
   'admin.screensaverSchedule': 'screens',
+  'admin.displayMachines': 'displaymanager',
   'admin.extensions': 'extensions',
   'admin.orders': 'orders',
   'admin.messageBoards': 'messageboard',
@@ -51,6 +53,38 @@ function getLanIp(): string | null {
 /** The store's own configured name (see `admin.storeSettings`, a regular synced key), or `""` if it hasn't been set yet — used to derive the mDNS name a screen's link advertises (see `mdns.apply`). */
 function currentStoreName(): string {
   return (store.get('admin.storeSettings')?.value as StoreSettings | undefined)?.name ?? ''
+}
+
+/**
+ * Upserts one machine's heartbeat into the stored `admin.displayMachines`
+ * array, preserving each existing monitor's own `assignedScreenID` (matched
+ * by monitor `id`) rather than wiping admin-made assignments on every
+ * heartbeat. Deliberately synchronous end-to-end (reads current state,
+ * computes the merged array, and the caller writes it back all within one
+ * `readJsonBody(req).then(...)` callback with no further `await` in between)
+ * — two heartbeats arriving close together can't race each other as long as
+ * that invariant holds, since a JS callback always runs to completion before
+ * the next one starts. Don't introduce an `await` between reading and
+ * writing here without re-checking that reasoning.
+ */
+function mergeDisplayMachineHeartbeat(
+  current: DisplayMachine[],
+  heartbeat: { machineID: string; label: string; connectionType: DisplayMachine['connectionType']; monitors: { id: string; label: string }[] },
+): DisplayMachine[] {
+  const existing = current.find((machine) => machine.machineID === heartbeat.machineID)
+  const monitors: DisplayMonitor[] = heartbeat.monitors.map((monitor) => ({
+    id: monitor.id,
+    label: monitor.label,
+    assignedScreenID: existing?.monitors.find((existingMonitor) => existingMonitor.id === monitor.id)?.assignedScreenID ?? null,
+  }))
+  const updated: DisplayMachine = {
+    machineID: heartbeat.machineID,
+    label: heartbeat.label,
+    connectionType: heartbeat.connectionType,
+    monitors,
+    lastSeenAt: new Date().toISOString(),
+  }
+  return existing ? current.map((machine) => (machine.machineID === heartbeat.machineID ? updated : machine)) : [...current, updated]
 }
 
 const httpServer = createServer((req, res) => {
@@ -83,6 +117,36 @@ const httpServer = createServer((req, res) => {
   // have been opened via `localhost`.
   if (req.method === 'GET' && url.pathname === '/server-info') {
     sendJson(res, 200, { lanIp: getLanIp() })
+    return
+  }
+
+  // Public, no auth — a machine (or a plain browser tab, see /display-connect)
+  // self-reporting its own presence/monitors, same LAN-trust posture as
+  // /server-info and GET /screen-address above. Actually *assigning* a Screen
+  // to a monitor is a deliberate admin edit and goes through the normal
+  // authenticated synced-key write path instead (see admin.displayMachines
+  // in SECTION_BY_KEY) — never through this route.
+  if (req.method === 'POST' && url.pathname === '/display-machines/heartbeat') {
+    readJsonBody(req)
+      .then((body) => {
+        const { machineID, label, connectionType, monitors } = body as {
+          machineID?: string
+          label?: string
+          connectionType?: string
+          monitors?: { id?: string; label?: string }[]
+        }
+        if (!machineID || !label || (connectionType !== 'electron' && connectionType !== 'url') || !Array.isArray(monitors)) {
+          sendJson(res, 400, { error: 'Malformed heartbeat body' })
+          return
+        }
+        const cleanMonitors = monitors
+          .filter((monitor): monitor is { id: string; label: string } => typeof monitor.id === 'string' && typeof monitor.label === 'string')
+        const current = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
+        const merged = mergeDisplayMachineHeartbeat(current, { machineID, label, connectionType, monitors: cleanMonitors })
+        applyUpdate('admin.displayMachines', merged)
+        sendJson(res, 200, { ok: true })
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
     return
   }
 
@@ -581,6 +645,11 @@ backup.restoreFromSiblingBackupIfFresh()
 store.load()
 neonBridge.start(applyUpdate, broadcastError)
 mdns.apply(store.getScreenAddressSettings(), currentStoreName())
+// Always on, regardless of the opt-in hostname mode above — see
+// advertiseServerPresence's own doc comment for why this needs to be a
+// separate advertisement. 4173 matches vite preview's own default port
+// (see installer/start-wraps-coffee.bat and package.json's "preview" script).
+mdns.advertiseServerPresence(PORT, 4173)
 httpServer.listen(PORT, () => {
   console.log(`[server] listening on http://0.0.0.0:${PORT}`)
 })

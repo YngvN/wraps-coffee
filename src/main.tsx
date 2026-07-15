@@ -11,6 +11,7 @@ import { EventsView as AdminEventsView } from './features/admin/events/EventsVie
 import { StoreSettingsView } from './features/admin/store/StoreSettingsView'
 import { ImageLibraryView } from './features/admin/imageLibrary/ImageLibraryView'
 import { OrdersView } from './features/admin/orders/OrdersView'
+import { DisplayManagerView } from './features/admin/displayManager/DisplayManagerView'
 import { ScreensView } from './features/admin/screens/ScreensView'
 import { ExtensionsView } from './features/admin/extensions/ExtensionsView'
 import { MessageBoardView } from './features/admin/messageBoard/MessageBoardView'
@@ -20,6 +21,8 @@ import { NotFoundView } from './features/admin/layout/NotFoundView'
 import { StoreBrandingEffect } from './features/admin/layout/StoreBrandingEffect'
 import { UsersView } from './features/admin/users/UsersView'
 import { LanguageProvider } from './i18n'
+import { DisplayConnect } from './pages/DisplayConnect'
+import { DisplayStandby } from './pages/DisplayStandby'
 import { ScreenDisplay } from './pages/ScreenDisplay'
 import './styles/global.scss'
 
@@ -45,6 +48,7 @@ const router = createBrowserRouter([
           { path: 'store', element: <StoreSettingsView /> },
           { path: 'orders', element: <OrdersView /> },
           { path: 'screens', element: <ScreensView /> },
+          { path: 'displaymanager', element: <DisplayManagerView /> },
           { path: 'extensions', element: <ExtensionsView /> },
           { path: 'messageboard', element: <MessageBoardView /> },
           { path: 'images', element: <ImageLibraryView /> },
@@ -56,6 +60,8 @@ const router = createBrowserRouter([
     ],
   },
   { path: '/screens/:screenId', element: <ScreenDisplay /> },
+  { path: '/display-standby', element: <DisplayStandby /> },
+  { path: '/display-connect', element: <DisplayConnect /> },
   { path: '*', element: <NotFoundRedirect /> },
 ])
 

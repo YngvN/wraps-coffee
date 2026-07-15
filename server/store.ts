@@ -52,6 +52,7 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.screensaverSchedule': null,
   'admin.dashboardScreensaver': null,
   'admin.screens': 'screens.json',
+  'admin.displayMachines': null,
   'admin.extensions': null,
   'admin.sidebarSettings': null,
   'admin.orders': null,
@@ -64,6 +65,7 @@ const HARDCODED_DEFAULTS: Partial<Record<SyncedKey, unknown>> = {
   'admin.screenLockPin': null,
   'admin.screensaverSchedule': null,
   'admin.dashboardScreensaver': DEFAULT_DASHBOARD_SCREENSAVER_SETTINGS,
+  'admin.displayMachines': [],
   'admin.clockFormat': '24h',
   'admin.dateFormat': 'dmy',
   // The cafe's own default language for kiosk pane content — set to

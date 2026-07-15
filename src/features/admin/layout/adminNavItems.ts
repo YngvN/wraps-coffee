@@ -1,4 +1,5 @@
 import {
+  DisplayManagerIcon,
   EventsIcon,
   ExtensionsIcon,
   ImagesIcon,
@@ -30,6 +31,7 @@ export const NAV_ITEMS = [
   { to: 'store', id: 'admin.nav.store', adminOnly: false, toggleable: true },
   { to: 'orders', id: 'admin.nav.orders', adminOnly: false, toggleable: true },
   { to: 'screens', id: 'admin.nav.screens', adminOnly: false, toggleable: true },
+  { to: 'displaymanager', id: 'admin.nav.displayManager', adminOnly: false, toggleable: true },
   { to: 'extensions', id: 'admin.nav.extensions', adminOnly: false, toggleable: true },
   { to: 'messageboard', id: 'admin.nav.messageBoard', adminOnly: false, toggleable: true },
   // Spans uploads from every section rather than belonging to one, so —
@@ -53,6 +55,7 @@ export const ADMIN_NAV_ICONS = {
   store: StoreIcon,
   orders: OrdersIcon,
   screens: ScreensIcon,
+  displaymanager: DisplayManagerIcon,
   extensions: ExtensionsIcon,
   messageboard: MessageBoardIcon,
   images: ImagesIcon,

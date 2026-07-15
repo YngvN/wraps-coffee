@@ -719,6 +719,23 @@ export function ScreenDisplay() {
   /** Whether this browser tab can edit this screen at all — a logged-in admin session, and not currently locked. Without a session, every editing affordance (the toolbar's edit controls, the Lock button, resizing/splitting/clearing/deleting a pane, dropping an image onto one) is hidden entirely, not just disabled — this page is otherwise fully public (see the route in `main.tsx`), so someone who merely happens to load a kiosk's own URL shouldn't be able to touch its layout or content. The "Unlock" button on an already-locked screen is deliberately *not* gated on this — unlocking is already behind its own PIN, the same "physical deterrent" model `useScreenLockPin` documents, independent of remote login. */
   const canEdit = Boolean(session) && !screen.locked
 
+  /**
+   * Set only by an unattended display window the Display Manager itself
+   * opened (a monitor Electron manages, or `/display-connect` once a Screen
+   * is assigned) — never by `ScreensView`'s own `?launch=1` preview, where
+   * on-site staff still need the physical-unlock affordance. Deliberately
+   * overrides the `canEdit`-independent "Unlock" padlock documented above:
+   * an unattended display has nobody there to unlock it anyway, so showing
+   * that icon would just be visual noise. Read the same way `launch` is
+   * (a plain `URLSearchParams` check, not `useSearchParams` — unused
+   * elsewhere in this app) but, unlike `launch`, never stripped from the
+   * URL — nothing is looking at this window's address bar, and stripping it
+   * would break a reload/reconnect.
+   */
+  const isUnattended = new URLSearchParams(window.location.search).has('unattended')
+  /** Set by `/display-connect` (a plain browser tab acting as a display, no Electron/OS-level fullscreen available) so a manual fullscreen button is still reachable — rendered inside the existing `ScreenToolbar`, which already fades out after inactivity on its own. */
+  const showFullscreenButton = new URLSearchParams(window.location.search).has('showFullscreenButton')
+
   return (
     <div
       className={`screen-display${screen.hideScrollbar ? ' screen-display--hide-scrollbar' : ''}${screen.locked ? ' screen-display--locked' : ''}`}
@@ -759,24 +776,26 @@ export function ScreenDisplay() {
             </button>
           </>
         )}
-        {screen.locked ? (
-          <button
-            type="button"
-            className="screen-toolbar__button screen-toolbar__button--icon"
-            onClick={() => setUnlockModalOpen(true)}
-            aria-label={t('screenDisplay.lock.unlockButton')}
-            title={t('screenDisplay.lock.unlockButton')}
-          >
-            <LockIcon />
-          </button>
-        ) : (
-          canEdit &&
-          pin && (
-            <button type="button" className="screen-toolbar__button" onClick={handleLockScreen}>
-              {t('screenDisplay.lock.lockButton')}
+        {!canEdit && showFullscreenButton && <FullscreenToggle />}
+        {!isUnattended &&
+          (screen.locked ? (
+            <button
+              type="button"
+              className="screen-toolbar__button screen-toolbar__button--icon"
+              onClick={() => setUnlockModalOpen(true)}
+              aria-label={t('screenDisplay.lock.unlockButton')}
+              title={t('screenDisplay.lock.unlockButton')}
+            >
+              <LockIcon />
             </button>
-          )
-        )}
+          ) : (
+            canEdit &&
+            pin && (
+              <button type="button" className="screen-toolbar__button" onClick={handleLockScreen}>
+                {t('screenDisplay.lock.lockButton')}
+              </button>
+            )
+          ))}
       </ScreenToolbar>
       <SplitLayout
         key={screen.screenID}

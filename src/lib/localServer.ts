@@ -1,3 +1,4 @@
+import type { DisplayConnectionType } from '../types/displayMachine'
 import type { DepartureInfo, NearbyStop, WeatherHour } from '../types/extensions'
 import type { ScreenAddressSettings } from '../types/screenAddress'
 import type { AdminRole, AdminSession, DashboardSection } from '../types/sync'
@@ -29,6 +30,26 @@ export async function getLanIp(): Promise<string | null> {
   if (!response.ok) throw new Error('Could not fetch server info')
   const { lanIp } = (await response.json()) as { lanIp: string | null }
   return lanIp
+}
+
+// --- Display Manager (Settings-adjacent, but a public/no-auth machine self-report — see server/index.ts's own comment on this route) ---
+
+/** Self-reports this machine/tab's presence and current monitor list — best-effort, same posture as `logout`: a failure (server unreachable) just means this display doesn't show up in the Display Manager yet, not something worth surfacing to whoever's looking at an otherwise-working kiosk screen. */
+export async function registerDisplayHeartbeat(input: {
+  machineID: string
+  label: string
+  connectionType: DisplayConnectionType
+  monitors: { id: string; label: string }[]
+}): Promise<void> {
+  try {
+    await fetch(`${serverBaseUrl()}/display-machines/heartbeat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+  } catch {
+    // Ignore — see above.
+  }
 }
 
 /** Thrown when the local server rejects a login attempt or isn't reachable at all. */

@@ -438,6 +438,7 @@
           "store": "Store settings",
           "orders": "Orders",
           "screens": "Screens",
+          "displayManager": "Display Manager",
           "extensions": "Extensions",
           "logout": "Log out",
           "images": "Images",
@@ -721,6 +722,15 @@
           "description": "Configure the fullscreen kiosk displays around the store — what each one shows, its layout, and its timing.",
           "createPinRequiredDescription": "Set a PIN so this screen can be locked before it opens — enter a new 4-digit PIN."
         },
+        "displayManager": {
+          "title": "Display Manager",
+          "description": "Every machine or browser tab that's registered itself as a display, and which Screen (if any) each of its monitors currently shows.",
+          "empty": "No displays have connected yet. A kiosk machine registers itself automatically; a plain browser tab can too, at /display-connect.",
+          "viaUrlBadge": "Via URL",
+          "electronBadge": "Kiosk machine",
+          "lastSeen": "Last seen {{date}}",
+          "unassignedOption": "— Unassigned (shows the screensaver) —"
+        },
         "common": {
           "save": "Save",
           "cancel": "Cancel",
@@ -823,6 +833,7 @@
             "keyScreensaverSchedule": "The shared daily screensaver start/end window.",
             "keyDashboardScreensaver": "The admin dashboard/login screensaver's own on/off and idle-timeout-minutes settings.",
             "keyScreens": "Every configured kiosk screen — layout, panes, content.",
+            "keyDisplayMachines": "Every machine/browser tab that's registered as a display, its monitors, and which Screen (if any) each shows.",
             "keyExtensions": "Ruter/Yr integration setup — chosen stops, forecast hours.",
             "keySidebarSettings": "Which admin sidebar items are shown.",
             "keyOrders": "Online orders placed on the public website, pulled down live.",
@@ -830,6 +841,8 @@
             "keyMessageBoardPosts": "Every message-board post, across every board.",
             "uploadsTitle": "Image uploads",
             "uploadsIntro": "Uploading also generates two compressed WebP companions (a \"small\" and a \"thumb\" variant) alongside the original, requestable via a ?size= query param.",
+            "displayManagerTitle": "Display Manager",
+            "displayManagerIntro": "How a machine or browser tab registers itself as a display (see the Display Manager sidebar section) and how a Screen gets assigned to one of its monitors.",
             "backupTitle": "Backup",
             "backupIntro": "server/backup.ts mirrors server/data and server/uploads to a sibling WrapsCoffeeBackup folder continuously (see Settings → Backup). These routes are the manual side of it — a point-in-time zip download, and two ways to restore.",
             "extensionsTitle": "Extensions proxy (transit + weather)",
@@ -1490,6 +1503,7 @@
           "store": "Butikkinnstillinger",
           "orders": "Bestillinger",
           "screens": "Skjermer",
+          "displayManager": "Skjermbehandling",
           "extensions": "Utvidelser",
           "logout": "Logg ut",
           "images": "Bilder",
@@ -1773,6 +1787,15 @@
           "description": "Sett opp fullskjerms kiosk-skjermene rundt i butikken — hva hver av dem viser, oppsettet og tidsbruken.",
           "createPinRequiredDescription": "Angi en PIN slik at denne skjermen kan låses før den åpnes — skriv inn en ny firesifret PIN."
         },
+        "displayManager": {
+          "title": "Skjermbehandling",
+          "description": "Hver maskin eller nettleserfane som har registrert seg selv som en skjerm, og hvilken Skjerm (hvis noen) hver av dens monitorer viser nå.",
+          "empty": "Ingen skjermer har koblet til ennå. En kioskmaskin registrerer seg selv automatisk; en vanlig nettleserfane kan også, på /display-connect.",
+          "viaUrlBadge": "Via URL",
+          "electronBadge": "Kioskmaskin",
+          "lastSeen": "Sist sett {{date}}",
+          "unassignedOption": "— Ikke tildelt (viser skjermspareren) —"
+        },
         "common": {
           "save": "Lagre",
           "cancel": "Avbryt",
@@ -1875,6 +1898,7 @@
             "keyScreensaverSchedule": "Det delte daglige start-/sluttvinduet for skjermspareren.",
             "keyDashboardScreensaver": "Admin-dashbordets/innloggingens egen skjermsparer — på/av og minutter uten aktivitet.",
             "keyScreens": "Hver konfigurerte kioskskjerm — oppsett, paneler, innhold.",
+            "keyDisplayMachines": "Hver maskin/nettleserfane som er registrert som en skjerm, dens monitorer, og hvilken Skjerm (hvis noen) hver av dem viser.",
             "keyExtensions": "Oppsett for Ruter/Yr-integrasjonen — valgte stopp, antall timer værmelding.",
             "keySidebarSettings": "Hvilke elementer som vises i sidemenyen.",
             "keyOrders": "Nettbestillinger fra den offentlige nettsiden, hentet ned live.",
@@ -1882,6 +1906,8 @@
             "keyMessageBoardPosts": "Alle innlegg på oppslagstavlen, på tvers av alle tavler.",
             "uploadsTitle": "Bildeopplasting",
             "uploadsIntro": "Opplasting genererer også to komprimerte WebP-varianter (en «small» og en «thumb») ved siden av originalen, hentbare via en ?size=-parameter.",
+            "displayManagerTitle": "Skjermbehandling",
+            "displayManagerIntro": "Hvordan en maskin eller nettleserfane registrerer seg selv som en skjerm (se Skjermbehandling-seksjonen i sidemenyen) og hvordan en Skjerm tildeles en av dens monitorer.",
             "backupTitle": "Sikkerhetskopi",
             "backupIntro": "server/backup.ts speiler server/data og server/uploads kontinuerlig til en søsteremappe kalt WrapsCoffeeBackup (se Innstillinger → Sikkerhetskopi). Disse rutene er den manuelle siden av det — en zip-nedlasting på et gitt tidspunkt, og to måter å gjenopprette på.",
             "extensionsTitle": "Extensions-proxy (kollektivtransport + vær)",

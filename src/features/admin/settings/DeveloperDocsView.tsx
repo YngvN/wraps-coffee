@@ -27,6 +27,7 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.screensaverSchedule', descKey: 'admin.settings.developerDocs.keyScreensaverSchedule' },
   { key: 'admin.dashboardScreensaver', descKey: 'admin.settings.developerDocs.keyDashboardScreensaver' },
   { key: 'admin.screens', descKey: 'admin.settings.developerDocs.keyScreens' },
+  { key: 'admin.displayMachines', descKey: 'admin.settings.developerDocs.keyDisplayMachines' },
   { key: 'admin.extensions', descKey: 'admin.settings.developerDocs.keyExtensions' },
   { key: 'admin.sidebarSettings', descKey: 'admin.settings.developerDocs.keySidebarSettings' },
   { key: 'admin.orders', descKey: 'admin.settings.developerDocs.keyOrders' },
@@ -230,6 +231,21 @@ GET /uploads                      (Authorization: Bearer <token> — lists every
 
 DELETE /uploads/<filename>        (Authorization: Bearer <token>)
 → 204   (also removes its -small/-thumb companions; idempotent)`}</code>
+        </pre>
+      </Card>
+
+      <Card title={t('admin.settings.developerDocs.displayManagerTitle')}>
+        <p>{t('admin.settings.developerDocs.displayManagerIntro')}</p>
+        <pre>
+          <code>{`POST /display-machines/heartbeat  (public — no token needed, same LAN-trust posture as /server-info)
+{ "machineID": "...", "label": "...", "connectionType": "electron" | "url", "monitors": [{ "id": "...", "label": "..." }] }
+→ 200 { "ok": true }
+→ 400 { "error": "..." }   (malformed body)
+
+Upserts by machineID into admin.displayMachines (a regular synced key, see Live data above) —
+preserves each existing monitor's own assignedScreenID (matched by monitor id) rather than
+overwriting it. Actually assigning a Screen to a monitor is a normal authenticated write to that
+same key from the Display Manager page, not this route.`}</code>
         </pre>
       </Card>
 

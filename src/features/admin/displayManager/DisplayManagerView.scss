@@ -1,0 +1,83 @@
+@use '../../../styles/variables' as *;
+
+.display-manager-view__empty {
+  color: $color-text-muted;
+  font-size: 0.875rem;
+}
+
+.display-manager-view__machines {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 1.5;
+}
+
+.display-manager-view__machine-header {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  margin-bottom: $spacing-unit;
+
+  .input-field {
+    flex: 1;
+  }
+}
+
+.display-manager-view__badge {
+  flex-shrink: 0;
+  padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &--url {
+    background: $color-accent;
+    color: $color-accent-contrast;
+  }
+
+  &--electron {
+    background: $color-border;
+    color: $color-text;
+  }
+}
+
+.display-manager-view__last-seen {
+  margin: 0 0 $spacing-unit;
+  font-size: 0.8125rem;
+  color: $color-text-muted;
+}
+
+.display-manager-view__monitors {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.display-manager-view__monitor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit;
+  padding: calc($spacing-unit / 2) 0;
+  border-top: 1px solid $color-border;
+
+  &:first-child {
+    border-top: none;
+  }
+}
+
+.display-manager-view__monitor-label {
+  font-size: 0.875rem;
+}
+
+.display-manager-view__monitor-select {
+  padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
+  border: 1px solid $color-border;
+  border-radius: 6px;
+  background: $color-bg;
+  color: $color-text;
+  font-size: 0.875rem;
+}
