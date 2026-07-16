@@ -1,13 +1,13 @@
 import { useState } from 'react'
-import { Badge, BackButton, DiscountedPrice, EditDeleteButtons, Modal, PlusIcon, TranslatedText } from '../../../components'
+import { Badge, BackButton, ChevronRightIcon, DiscountedPrice, EditDeleteButtons, Modal, PlusIcon, TranslatedText } from '../../../components'
 import { useCategoryPrices } from '../../../hooks/useCategoryPrices'
 import { useProducts } from '../../../hooks/useProducts'
 import { useLanguage } from '../../../i18n'
 import type { Category } from '../../../types/category'
 import type { Price, Product } from '../../../types/product'
 import { getEffectivePrice } from '../../../utils/price'
+import { isProductOutOfStock } from '../../../utils/productStock'
 import { getThumbnailUrl } from '../../../utils/responsiveImage'
-import { ChevronRightIcon } from './ChevronRightIcon'
 import { ProductForm } from './ProductForm'
 import { SortableList } from './SortableList'
 import './ProductsView.scss'
@@ -47,6 +47,11 @@ export function ProductListView({ category, catalogueCategories, cataloguePrice,
     setProducts([...products.filter((product) => product.category !== category.id), ...reordered])
   }
 
+  /** Fast inline quantity edit right in the list (see `.products-view__stock-quick-edit`), for when stock changes throughout the day and opening the full edit form each time would be too slow — writes through the same synced-key setter every other edit in this file already uses. */
+  const handleStockQuantityChange = (product: Product, stockQuantity: number) => {
+    setProducts(products.map((existing) => (existing.itemID === product.itemID ? { ...existing, stockQuantity } : existing)))
+  }
+
   return (
     <div className="products-view">
       <div className="products-view__header">
@@ -67,7 +72,7 @@ export function ProductListView({ category, catalogueCategories, cataloguePrice,
             const effective = showPrice ? getEffectivePrice(product.price ?? categoryPrices[category.id] ?? cataloguePrice, product.discount) : undefined
             return (
               <div
-                className={`products-view__item${product.discount ? ' products-view__item--discounted' : ''}${product.outOfStock ? ' products-view__item--out-of-stock' : ''}`}
+                className={`products-view__item${product.discount ? ' products-view__item--discounted' : ''}${isProductOutOfStock(product) ? ' products-view__item--out-of-stock' : ''}`}
               >
                 <button type="button" className="products-view__item-open" onClick={() => setEditingProduct(product)}>
                   {product.image && <img className="products-view__item-thumb" src={getThumbnailUrl(product.image)} alt="" />}
@@ -87,11 +92,23 @@ export function ProductListView({ category, catalogueCategories, cataloguePrice,
                     <Badge variant={product.available ? 'success' : 'neutral'}>
                       {product.available ? t('admin.products.availableLabel') : t('admin.products.hiddenLabel')}
                     </Badge>
-                    {product.outOfStock && <Badge variant="warning">{t('admin.products.soldOutLabel')}</Badge>}
+                    {isProductOutOfStock(product) && <Badge variant="warning">{t('admin.products.soldOutLabel')}</Badge>}
                   </div>
                   <ChevronRightIcon />
                 </button>
                 <div className="products-view__item-actions">
+                  {product.trackStock && (
+                    <input
+                      type="number"
+                      min={0}
+                      className="products-view__stock-quick-edit"
+                      aria-label={t('admin.products.stockQuantityLabel')}
+                      title={t('admin.products.stockQuantityLabel')}
+                      value={product.stockQuantity ?? 0}
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={(event) => handleStockQuantityChange(product, Math.max(0, Math.round(Number(event.target.value)) || 0))}
+                    />
+                  )}
                   <EditDeleteButtons onEdit={() => setEditingProduct(product)} onDelete={() => handleDelete(product)} />
                 </div>
               </div>

@@ -1,5 +1,4 @@
 import {
-  DisplayManagerIcon,
   EventsIcon,
   ExtensionsIcon,
   ImagesIcon,
@@ -10,7 +9,6 @@ import {
   ProductsIcon,
   ScreensIcon,
   SettingsIcon,
-  StoreIcon,
   UsersIcon,
 } from './AdminNavIcons'
 
@@ -28,10 +26,8 @@ export const NAV_ITEMS = [
   { to: 'messages', id: 'admin.nav.messages', adminOnly: false, toggleable: true },
   { to: 'products', id: 'admin.nav.products', adminOnly: false, toggleable: true },
   { to: 'events', id: 'admin.nav.events', adminOnly: false, toggleable: true },
-  { to: 'store', id: 'admin.nav.store', adminOnly: false, toggleable: true },
   { to: 'orders', id: 'admin.nav.orders', adminOnly: false, toggleable: true },
   { to: 'screens', id: 'admin.nav.screens', adminOnly: false, toggleable: true },
-  { to: 'displaymanager', id: 'admin.nav.displayManager', adminOnly: false, toggleable: true },
   { to: 'extensions', id: 'admin.nav.extensions', adminOnly: false, toggleable: true },
   { to: 'messageboard', id: 'admin.nav.messageBoard', adminOnly: false, toggleable: true },
   // Spans uploads from every section rather than belonging to one, so —
@@ -52,10 +48,8 @@ export const ADMIN_NAV_ICONS = {
   messages: MessagesIcon,
   products: ProductsIcon,
   events: EventsIcon,
-  store: StoreIcon,
   orders: OrdersIcon,
   screens: ScreensIcon,
-  displaymanager: DisplayManagerIcon,
   extensions: ExtensionsIcon,
   messageboard: MessageBoardIcon,
   images: ImagesIcon,

@@ -5,6 +5,7 @@ import type { ContactInfo } from '../src/types/contactInfo'
 import type { ContactMessage } from '../src/types/message'
 import type { EventRecord } from '../src/types/event'
 import type { MessageBoardPost } from '../src/types/messageBoard'
+import { isProductOutOfStock } from '../src/utils/productStock'
 
 /**
  * Row ↔ app-type mapping and the push/pull SQL for every key the Neon bridge
@@ -42,11 +43,25 @@ interface ProductRow {
   price_eat_in: string | null
   allergens: string[]
   available: boolean
+  /**
+   * Computed at push time from *this* repo's own `trackStock`/`stockQuantity`
+   * (or the plain manual `outOfStock` checkbox when stock tracking is off) —
+   * see `isProductOutOfStock` in `src/utils/productStock.ts`. The website
+   * only ever needs the final "can this be ordered right now" answer, not
+   * the raw stock count, so no quantity column is exposed here.
+   *
+   * Requires a matching migration on the *separate* website repo's own
+   * `products` table (e.g. `alter table products add column out_of_stock
+   * boolean not null default false;`) plus its own ordering flow actually
+   * checking it before checkout — this file can prepare this app's own side
+   * of that, but can't make the change in that other project.
+   */
+  out_of_stock: boolean
 }
 
 export async function pullProducts(client: Client): Promise<Product[]> {
   const { rows } = await client.query<ProductRow>(
-    `select item_id, category, name_no, name_en, description_no, description_en, price, price_takeaway, price_eat_in, allergens, available
+    `select item_id, category, name_no, name_en, description_no, description_en, price, price_takeaway, price_eat_in, allergens, available, out_of_stock
      from products order by category, item_id`,
   )
   return rows.map((row) => ({
@@ -59,6 +74,8 @@ export async function pullProducts(client: Client): Promise<Product[]> {
     // The public website's own `products` table has no dietary-tags column yet — this repo's own value never round-trips through it.
     dietaryTags: [],
     available: row.available,
+    // Pulled back in as the plain manual flag — trackStock/stockQuantity are never round-tripped through the website, only their computed answer (see the ProductRow field's own doc comment above).
+    outOfStock: row.out_of_stock,
   }))
 }
 
@@ -69,8 +86,8 @@ export async function pushProducts(client: Client, products: Product[]): Promise
     for (const product of products) {
       const cols = priceColumns(product.price)
       await client.query(
-        `insert into products (item_id, category, name_no, name_en, description_no, description_en, price, price_takeaway, price_eat_in, allergens, available)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        `insert into products (item_id, category, name_no, name_en, description_no, description_en, price, price_takeaway, price_eat_in, allergens, available, out_of_stock)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
         [
           product.itemID,
           product.category,
@@ -83,6 +100,7 @@ export async function pushProducts(client: Client, products: Product[]): Promise
           cols.price_eat_in,
           product.allergens,
           product.available,
+          isProductOutOfStock(product),
         ],
       )
     }

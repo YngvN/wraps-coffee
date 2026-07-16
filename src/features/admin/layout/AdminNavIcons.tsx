@@ -51,16 +51,6 @@ export function EventsIcon(props: IconProps) {
   )
 }
 
-export function StoreIcon(props: IconProps) {
-  return (
-    <Icon {...props}>
-      <path d="M4 10 L4 20 L20 20 L20 10" />
-      <path d="M3 4 H21 L22 10 H2 Z" />
-      <line x1="9" y1="20" x2="9" y2="14" />
-      <line x1="15" y1="20" x2="15" y2="14" />
-    </Icon>
-  )
-}
 
 export function OrdersIcon(props: IconProps) {
   return (
@@ -78,16 +68,6 @@ export function ScreensIcon(props: IconProps) {
       <rect x="2" y="4" width="20" height="13" rx="2" />
       <line x1="8" y1="21" x2="16" y2="21" />
       <line x1="12" y1="17" x2="12" y2="21" />
-    </Icon>
-  )
-}
-
-/** Two overlapping monitors — distinguishes "Display Manager" (several physical displays across possibly several machines) from the single-monitor `ScreensIcon` (one screen's own content). */
-export function DisplayManagerIcon(props: IconProps) {
-  return (
-    <Icon {...props}>
-      <rect x="1" y="3" width="14" height="10" rx="1.5" />
-      <rect x="9" y="9" width="14" height="10" rx="1.5" />
     </Icon>
   )
 }

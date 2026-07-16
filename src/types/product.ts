@@ -47,6 +47,10 @@ export interface Product {
   allergens: AllergenCode[]
   dietaryTags: DietaryTag[]
   available: boolean
-  /** Temporarily unavailable to order, independent of `available` (which controls whether it's shown at all) — a customer-facing display greys the item out and stamps a "Sold out" label over it rather than hiding it, so they can still see it exists. */
+  /** Temporarily unavailable to order, independent of `available` (which controls whether it's shown at all) — a customer-facing display greys the item out and stamps a "Sold out" label over it rather than hiding it, so they can still see it exists. Ignored once `trackStock` is on — see `isProductOutOfStock` in `src/utils/productStock.ts`, the one place this and `stockQuantity` are reconciled into a single answer. */
   outOfStock?: boolean
+  /** Whether this product's out-of-stock state is derived from `stockQuantity` instead of the plain manual `outOfStock` checkbox above. */
+  trackStock?: boolean
+  /** Only meaningful when `trackStock` is on. Decremented automatically as real orders come in (see `server/index.ts`'s `reconcileStockForOrders`), restored if an order is later cancelled, and editable directly (the product form, plus a quick inline field in the product list). */
+  stockQuantity?: number
 }

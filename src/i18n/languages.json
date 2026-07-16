@@ -430,6 +430,12 @@
           "error": "Invalid username or password.",
           "serverUnreachable": "Could not reach the local server. Is it running?"
         },
+        "windowControls": {
+          "minimizeLabel": "Minimize",
+          "enterFullscreenLabel": "Enter fullscreen",
+          "exitFullscreenLabel": "Exit fullscreen",
+          "closeLabel": "Close"
+        },
         "nav": {
           "overview": "Overview",
           "messages": "Messages",
@@ -500,8 +506,13 @@
           "cataloguePriceLabel": "Catalogue default price",
           "outOfStockLabel": "Out of stock",
           "soldOutLabel": "Sold out",
+          "trackStockLabel": "Track stock",
+          "stockQuantityLabel": "Stock quantity",
           "description": "Organize what the store sells into catalogues — one for food and drink, another for merch, and so on.",
           "categoriesDescription": "This catalogue's own categories — create, rename, reorder or delete them, and open one to manage its products.",
+          "viewAllProducts": "View all products",
+          "allProductsTitle": "All products",
+          "allProductsDescription": "Every product in this catalogue, across every category, as a quick visual overview — click one to edit it.",
           "productsDescription": "This category's own products — create, edit, reorder or delete them.",
           "nameLabel": "Name",
           "descriptionLabel": "Description",
@@ -792,6 +803,8 @@
           "dateFormatMdyLabel": "12/31/2026 (month/day/year)",
           "sidebarItemsTitle": "Sidebar items",
           "sidebarItemsHint": "Turn off anything this store doesn't use — hidden items are removed from the sidebar entirely, for everyone, until turned back on here.",
+          "storeHint": "Company name, slogan, logos, favicon, and contact info.",
+          "storeButton": "Edit store settings",
           "dashboardScreensaver": {
             "title": "Dashboard screensaver",
             "hint": "After a period of inactivity, shows a solid black screen with the store's name drifting around — for the admin dashboard and login screen only, independent of the kiosk screens' own scheduled screensaver. Disappears on the next mouse movement, touch, or key press.",
@@ -869,7 +882,8 @@
             "apiKeyCaveat": "This is a lightweight deterrent against blind bot traffic, not a strong secret — it has to be embedded in the website's own public client bundle to be usable by real visitors, so treat it as extractable, not confidential.",
             "developerKeyRoutesTitle": "Developer key routes",
             "keyCatalogues": "Catalogues, categories and their default prices/images — the admin Products feature's own hierarchy.",
-            "screenAddressText": "How a screen's own display link is addressed (see Settings → Advanced):"
+            "screenAddressText": "How a screen's own display link is addressed (see Settings → Advanced):",
+            "windowLaunchMethodText": "Which window a Windows machine opens the kiosk display in at boot (see Settings → Advanced) — read by installer/start-wraps-coffee.bat, not applied live:"
           },
           "description": "Interface language, the store's default pane language, clock format, and which sidebar sections this dashboard shows.",
           "developersDescription": "Reference documentation for the local server's own HTTP and WebSocket API, for building a custom client against this store's data.",
@@ -893,7 +907,17 @@
             "customHostPlaceholder": "e.g. 192.168.1.50 or store-kiosk.local",
             "mdnsPreview": "Screens will be reachable at {{name}}.local",
             "mdnsCaveat": "Works automatically on most Apple devices and Linux. Windows needs Bonjour installed to resolve it, and some bare Android devices or smart-TV boxes may not support it at all.",
-            "mdnsNoStoreName": "Set a store name in Store settings first."
+            "mdnsNoStoreName": "Set a store name in Store settings first.",
+            "launchMethodLegend": "Which window should the kiosk display open in?",
+            "launchMethodLoadError": "Could not load the window launch method.",
+            "launchMethodSaveError": "Could not save the window launch method.",
+            "launchMethodAutoLabel": "Automatic (recommended)",
+            "launchMethodAutoDescription": "Opens a native Electron kiosk window if Electron installed successfully, otherwise falls back to a Microsoft Edge kiosk window.",
+            "launchMethodElectronLabel": "Electron",
+            "launchMethodElectronDescription": "Always opens the native Electron kiosk window, even if it failed to install last time.",
+            "launchMethodEdgeLabel": "Microsoft Edge (kiosk mode)",
+            "launchMethodEdgeDescription": "Always opens a fullscreen Microsoft Edge window instead of Electron — useful for comparing the two.",
+            "launchMethodCaveat": "Takes effect the next time this machine starts (or restarts) Wraps & Coffee, not immediately."
           },
           "backup": {
             "title": "Backup",
@@ -977,6 +1001,7 @@
         },
         "emptyLabel": "This screen has nothing to show yet.",
         "dropImageHint": "Drop to set image",
+        "noConnection": "No connection to the server — showing stored content",
         "stageIndicator": "Step {{current}} of {{total}}",
         "playStages": "Play",
         "previousStage": "Previous stage",
@@ -1495,6 +1520,12 @@
           "error": "Feil brukernavn eller passord.",
           "serverUnreachable": "Fant ikke den lokale serveren. Kjører den?"
         },
+        "windowControls": {
+          "minimizeLabel": "Minimer",
+          "enterFullscreenLabel": "Gå til fullskjerm",
+          "exitFullscreenLabel": "Avslutt fullskjerm",
+          "closeLabel": "Lukk"
+        },
         "nav": {
           "overview": "Oversikt",
           "messages": "Meldinger",
@@ -1565,8 +1596,13 @@
           "cataloguePriceLabel": "Standardpris for katalog",
           "outOfStockLabel": "Utsolgt",
           "soldOutLabel": "Utsolgt",
+          "trackStockLabel": "Følg lagerbeholdning",
+          "stockQuantityLabel": "Antall på lager",
           "description": "Organiser det butikken selger i kataloger — én for mat og drikke, én for merch, og så videre.",
           "categoriesDescription": "Denne katalogens egne kategorier — opprett, gi nytt navn, endre rekkefølge eller slett dem, og åpne en for å administrere produktene i den.",
+          "viewAllProducts": "Vis alle produkter",
+          "allProductsTitle": "Alle produkter",
+          "allProductsDescription": "Hvert produkt i denne katalogen, på tvers av alle kategorier, som en rask visuell oversikt — klikk på ett for å redigere det.",
           "productsDescription": "Denne kategoriens egne produkter — opprett, rediger, endre rekkefølge eller slett dem.",
           "nameLabel": "Navn",
           "descriptionLabel": "Beskrivelse",
@@ -1857,6 +1893,8 @@
           "dateFormatMdyLabel": "12/31/2026 (måned/dag/år)",
           "sidebarItemsTitle": "Elementer i sidemenyen",
           "sidebarItemsHint": "Skru av det denne butikken ikke bruker — skjulte elementer fjernes helt fra sidemenyen, for alle, helt til de skrus på igjen her.",
+          "storeHint": "Firmanavn, slagord, logoer, favoritt-ikon og kontaktinfo.",
+          "storeButton": "Rediger butikkinnstillinger",
           "dashboardScreensaver": {
             "title": "Skjermsparer for dashbordet",
             "hint": "Etter en periode uten aktivitet vises en helsvart skjerm med butikkens navn som glir rundt — kun for admin-dashbordet og innloggingsskjermen, uavhengig av kioskskjermenes egen planlagte skjermsparer. Forsvinner ved neste musbevegelse, berøring, eller tastetrykk.",
@@ -1934,7 +1972,8 @@
             "apiKeyCaveat": "Dette er et enkelt hinder mot blind bot-trafikk, ikke en sterk hemmelighet — den må bakes inn i nettsidens egen offentlige klientkode for å kunne brukes av ekte besøkende, så behandle den som synlig, ikke konfidensiell.",
             "developerKeyRoutesTitle": "Ruter for utviklernøkkel",
             "keyCatalogues": "Kataloger, kategorier og deres standardpriser/bilder — admin-produktfunksjonens egen hierarki.",
-            "screenAddressText": "Hvordan en skjerms egen visningslenke adresseres (se Innstillinger → Avansert):"
+            "screenAddressText": "Hvordan en skjerms egen visningslenke adresseres (se Innstillinger → Avansert):",
+            "windowLaunchMethodText": "Hvilket vindu en Windows-maskin åpner kioskskjermen i ved oppstart (se Innstillinger → Avansert) — leses av installer/start-wraps-coffee.bat, trer ikke i kraft umiddelbart:"
           },
           "description": "Grensesnittspråk, butikkens standardspråk for paneler, klokkeformat, og hvilke sidemeny-seksjoner dette dashbordet viser.",
           "developersDescription": "Referansedokumentasjon for den lokale serverens eget HTTP- og WebSocket-API, for å bygge en egen klient mot butikkens data.",
@@ -1958,7 +1997,17 @@
             "customHostPlaceholder": "f.eks. 192.168.1.50 eller store-kiosk.local",
             "mdnsPreview": "Skjermer vil være tilgjengelige på {{name}}.local",
             "mdnsCaveat": "Fungerer automatisk på de fleste Apple-enheter og Linux. Windows trenger Bonjour installert for å slå det opp, og enkelte rene Android-enheter eller smart-TV-bokser støtter det kanskje ikke i det hele tatt.",
-            "mdnsNoStoreName": "Angi et butikknavn i Butikkinnstillinger først."
+            "mdnsNoStoreName": "Angi et butikknavn i Butikkinnstillinger først.",
+            "launchMethodLegend": "Hvilket vindu skal kioskskjermen åpnes i?",
+            "launchMethodLoadError": "Kunne ikke laste inn vindusmetoden.",
+            "launchMethodSaveError": "Kunne ikke lagre vindusmetoden.",
+            "launchMethodAutoLabel": "Automatisk (anbefalt)",
+            "launchMethodAutoDescription": "Åpner et nativt Electron-kioskvindu hvis Electron ble installert, ellers faller den tilbake til et Microsoft Edge-kioskvindu.",
+            "launchMethodElectronLabel": "Electron",
+            "launchMethodElectronDescription": "Åpner alltid det native Electron-kioskvinduet, selv om det ikke ble installert forrige gang.",
+            "launchMethodEdgeLabel": "Microsoft Edge (kioskmodus)",
+            "launchMethodEdgeDescription": "Åpner alltid et fullskjerms Microsoft Edge-vindu i stedet for Electron — nyttig for å sammenligne de to.",
+            "launchMethodCaveat": "Trer i kraft neste gang denne maskinen starter (eller starter på nytt) Wraps & Coffee, ikke umiddelbart."
           },
           "backup": {
             "title": "Sikkerhetskopi",
@@ -2042,6 +2091,7 @@
         },
         "emptyLabel": "Denne skjermen har ikke noe å vise ennå.",
         "dropImageHint": "Slipp for å sette bilde",
+        "noConnection": "Ingen forbindelse til serveren — viser lagret innhold",
         "stageIndicator": "Steg {{current}} av {{total}}",
         "playStages": "Spill av",
         "previousStage": "Forrige steg",

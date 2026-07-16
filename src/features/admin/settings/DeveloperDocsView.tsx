@@ -149,6 +149,17 @@ POST /screen-address                (Authorization: Bearer <token>, admin/subadm
 → 200 { "mode", "customHost"?, "mdnsName"? }   (mdnsName is sanitized server-side to lowercase alphanumeric + hyphens)
 → 403 { "error": "..." }   (a "limited" account's own token)`}</code>
         </pre>
+
+        <p>{t('admin.settings.developerDocs.windowLaunchMethodText')}</p>
+        <pre>
+          <code>{`GET /window-launch-method          (public — no token needed)
+→ 200 { "method": "auto" | "electron" | "edge" }
+
+POST /window-launch-method         (Authorization: Bearer <token>, admin/subadmin only)
+{ "method": "auto" | "electron" | "edge" }
+→ 200 { "method" }
+→ 403 { "error": "..." }   (a "limited" account's own token)`}</code>
+        </pre>
       </Card>
 
       <Card title={t('admin.settings.developerDocs.usersTitle')}>

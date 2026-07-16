@@ -4,6 +4,7 @@ import type { ClientMessage, ServerMessage, SyncedKey } from '../types/sync'
 type Listener = (value: unknown) => void
 type SnapshotEntry = { seeded: boolean; value: unknown }
 type ErrorListener = (message: string, detail?: string) => void
+type ConnectionListener = (connected: boolean) => void
 
 const INITIAL_RECONNECT_DELAY_MS = 500
 const MAX_RECONNECT_DELAY_MS = 10_000
@@ -15,6 +16,9 @@ const listeners = new Map<SyncedKey, Set<Listener>>()
 /** Subscribers to server-broadcast operational errors (see `ErrorMessage`) — not tied to any key, so kept separate from the per-key registry above. */
 const errorListeners = new Set<ErrorListener>()
 
+/** Subscribers to this tab's shared-socket connection state (see `setConnected`) — e.g. a kiosk screen's "showing stored content" watermark. */
+const connectionListeners = new Set<ConnectionListener>()
+
 /** Keys this tab has ever declared to the server via `hello`, re-sent in full on every reconnect (the server's own interest map for this connection was just recreated empty). */
 const declaredKeys = new Set<SyncedKey>()
 
@@ -23,9 +27,17 @@ const pendingWrites = new Map<SyncedKey, ReturnType<typeof setTimeout>>()
 let socket: WebSocket | null = null
 let authToken: string | null = null
 let reconnectDelay = INITIAL_RECONNECT_DELAY_MS
+let connected = false
 
 function notify(key: SyncedKey, value: unknown) {
   for (const listener of listeners.get(key) ?? []) listener(value)
+}
+
+/** Updates the shared connection flag and notifies subscribers, but only on an actual change — every `open`/`close` socket event calls this even when the state didn't move (e.g. a `close` right after another `close`), so this is what keeps listeners from re-rendering on a no-op. */
+function setConnected(next: boolean) {
+  if (connected === next) return
+  connected = next
+  for (const listener of connectionListeners) listener(connected)
 }
 
 /** Reads whatever this tab already has for `key` — session tier first, then local — to compare against a seeded snapshot value. */
@@ -86,6 +98,7 @@ function ensureSocket(): WebSocket {
 
   ws.addEventListener('open', () => {
     reconnectDelay = INITIAL_RECONNECT_DELAY_MS
+    setConnected(true)
     // A reconnect means the server's interest map for this connection was
     // just recreated empty — re-declare everything, not just new keys.
     sendHello([...declaredKeys])
@@ -103,7 +116,10 @@ function ensureSocket(): WebSocket {
     else if (message.type === 'error') for (const listener of errorListeners) listener(message.message, message.detail)
   })
 
-  ws.addEventListener('close', scheduleReconnect)
+  ws.addEventListener('close', () => {
+    setConnected(false)
+    scheduleReconnect()
+  })
   ws.addEventListener('error', () => ws.close())
 
   return ws
@@ -146,6 +162,16 @@ export function subscribeToErrors(listener: ErrorListener): () => void {
   ensureSocket()
   return () => {
     errorListeners.delete(listener)
+  }
+}
+
+/** Subscribes to this tab's shared-socket connection state — `true` once `open` fires, `false` from `close` until the next successful reconnect (see `scheduleReconnect`'s exponential backoff). Connects (or reuses) the shared socket same as `subscribe`, and calls `listener` immediately with the current state so a caller doesn't have to wait for the next transition to know where things stand. Returns an unsubscribe function. */
+export function subscribeToConnectionStatus(listener: ConnectionListener): () => void {
+  connectionListeners.add(listener)
+  ensureSocket()
+  listener(connected)
+  return () => {
+    connectionListeners.delete(listener)
   }
 }
 

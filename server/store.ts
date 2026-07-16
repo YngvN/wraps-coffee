@@ -8,6 +8,7 @@ import { DEFAULT_EXTENSIONS_CONFIG } from '../src/types/extensions'
 import { DEFAULT_SCREEN_ADDRESS_SETTINGS, type ScreenAddressSettings } from '../src/types/screenAddress'
 import { DEFAULT_SIDEBAR_SETTINGS } from '../src/types/sidebarSettings'
 import { SYNCED_KEYS, type AdminRole, type DashboardSection, type SyncedKey } from '../src/types/sync'
+import { DEFAULT_WINDOW_LAUNCH_SETTINGS, type WindowLaunchSettings } from '../src/types/windowLaunch'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = join(__dirname, 'data')
@@ -305,4 +306,23 @@ export function getScreenAddressSettings(): ScreenAddressSettings {
 export function setScreenAddressSettings(settings: ScreenAddressSettings) {
   writeFileSync(SCREEN_ADDRESS_FILE, JSON.stringify(settings), 'utf-8')
   mirrorFile(SCREEN_ADDRESS_FILE)
+}
+
+// Which window a Windows machine opens the kiosk display in at boot (see
+// Settings → Advanced, and installer/start-wraps-coffee.bat's own
+// `:launch_window` subroutine, the actual reader of this) — same
+// "small standalone file, not a synced key" shape as the two settings above.
+
+const WINDOW_LAUNCH_FILE = join(DATA_DIR, 'window-launch-settings.json')
+
+export function getWindowLaunchSettings(): WindowLaunchSettings {
+  if (existsSync(WINDOW_LAUNCH_FILE)) {
+    return JSON.parse(readFileSync(WINDOW_LAUNCH_FILE, 'utf-8')) as WindowLaunchSettings
+  }
+  return DEFAULT_WINDOW_LAUNCH_SETTINGS
+}
+
+export function setWindowLaunchSettings(settings: WindowLaunchSettings) {
+  writeFileSync(WINDOW_LAUNCH_FILE, JSON.stringify(settings), 'utf-8')
+  mirrorFile(WINDOW_LAUNCH_FILE)
 }

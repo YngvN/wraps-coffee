@@ -28,10 +28,10 @@ export type SyncedKey = (typeof SYNCED_KEYS)[number]
 /** A user's role. `admin` and `subadmin` have full rights over every section; `limited` is scoped to `allowedSections`. */
 export type AdminRole = 'admin' | 'subadmin' | 'limited'
 
-/** Dashboard sections a `limited` account can be scoped to. Matches every `AdminSidebarNav` item except `overview` (always visible), `images`/`users` (admin/subadmin only, never assignable to a `limited` account), and `settings` (a personal/device preference, not a permissioned section). `store` covers both `admin.storeSettings` (company name/logo/favicon) and `admin.contactInfo` (nested inside that same admin page as a sub-view) as one unit — was `contact` before Contact info moved under Store settings; see `useSidebarSettings`/`store/loadUsers`'s "remap on read" migration for any already-persisted `'contact'` value. */
+/** Dashboard sections a `limited` account can be scoped to. Matches every `AdminSidebarNav` item except `overview` (always visible), `images`/`users` (admin/subadmin only, never assignable to a `limited` account), and `settings` (a personal/device preference, not a permissioned section) — plus `store` and `displaymanager`, neither of which has a sidebar item of its own anymore (`store` is reached as a submenu of Settings, `displaymanager` as a submenu of Screens) but both remain their own assignable permission scope. `store` covers both `admin.storeSettings` (company name/logo/favicon) and `admin.contactInfo` (nested inside that same admin page as a sub-view) as one unit. */
 export type DashboardSection = 'messages' | 'products' | 'events' | 'store' | 'orders' | 'screens' | 'displaymanager' | 'extensions' | 'messageboard'
 
-/** Runtime list matching `DashboardSection`, in the same order `AdminSidebarNav` shows them — used to build a `limited` account's own section-picker checkboxes (see `UserForm`). */
+/** Runtime list matching `DashboardSection`, in the same order `AdminSidebarNav` shows them (`store`/`displaymanager` included even though neither has its own sidebar item anymore) — used to build a `limited` account's own section-picker checkboxes (see `UserForm`). */
 export const DASHBOARD_SECTIONS: DashboardSection[] = ['messages', 'products', 'events', 'store', 'orders', 'screens', 'displaymanager', 'extensions', 'messageboard']
 
 /** The session info returned by `/login` and attached to every authenticated request. */

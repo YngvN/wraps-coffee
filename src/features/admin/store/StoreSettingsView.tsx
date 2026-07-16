@@ -8,6 +8,11 @@ import './StoreSettingsView.scss'
 
 type SubView = 'main' | 'contact'
 
+interface StoreSettingsViewProps {
+  /** Returns to the Settings main list — this view is reached only as a Settings submenu, not its own top-level route, so it has no back button of its own for its main (non-"contact") state. */
+  onBack: () => void
+}
+
 /**
  * Company branding for this store/business: name, slogan, one or more
  * logos, and a favicon (see `StoreSettings`) — the name/first logo also
@@ -15,9 +20,10 @@ type SubView = 'main' | 'contact'
  * tab title, and the favicon updates the browser tab icon, all live (see
  * `StoreBrandingEffect`). "Contact info" (phone/email/address/hours) opens
  * as a sub-view here, same `SlideTransition`/`BackButton` pattern as
- * Settings → "For developers"/"Advanced".
+ * Settings → "For developers"/"Advanced". Rendered from `SettingsView` as
+ * a submenu, hence the `onBack` prop instead of a route of its own.
  */
-export function StoreSettingsView() {
+export function StoreSettingsView({ onBack }: StoreSettingsViewProps) {
   const { t } = useLanguage()
   const [storeSettings, setStoreSettings] = useStoreSettings()
   /** Which sub-view (replacing the main form until its own Back button is pressed) is open, if any. */
@@ -47,7 +53,10 @@ export function StoreSettingsView() {
         </div>
       ) : (
         <div className="store-settings-view">
-          <TranslatedText as="h1" id="admin.store.title" />
+          <div className="store-settings-view__sub-header">
+            <BackButton onClick={onBack}>{t('admin.common.back')}</BackButton>
+            <TranslatedText as="h1" id="admin.store.title" />
+          </div>
           <TranslatedText as="p" id="admin.store.description" className="admin-page-description" />
 
           <Card title={t('admin.store.nameCardTitle')}>

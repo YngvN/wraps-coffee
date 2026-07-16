@@ -1,12 +1,11 @@
 import { useState } from 'react'
-import { BackButton, EditDeleteButtons, Modal, PlusIcon, TranslatedText } from '../../../components'
+import { BackButton, ChevronRightIcon, EditDeleteButtons, Modal, PlusIcon, TranslatedText } from '../../../components'
 import { useCategoryPrices } from '../../../hooks/useCategoryPrices'
 import { useProducts } from '../../../hooks/useProducts'
 import { useLanguage } from '../../../i18n'
 import type { Catalogue, Category } from '../../../types/category'
 import { getThumbnailUrl } from '../../../utils/responsiveImage'
 import { CategoryForm } from './CategoryForm'
-import { ChevronRightIcon } from './ChevronRightIcon'
 import { SortableList } from './SortableList'
 import './ProductsView.scss'
 
@@ -14,11 +13,12 @@ interface CategoriesViewProps {
   catalogue: Catalogue
   onSaveCatalogue: (catalogue: Catalogue) => void
   onOpenCategory: (categoryId: string) => void
+  onOpenAllProducts: () => void
   onBack: () => void
 }
 
-/** One catalogue's own categories: drag-reorderable, create/rename/delete (with confirm — deleting a category also drops every product inside it and its own default-price entry), click through to that category's products. */
-export function CategoriesView({ catalogue, onSaveCatalogue, onOpenCategory, onBack }: CategoriesViewProps) {
+/** One catalogue's own categories: drag-reorderable, create/rename/delete (with confirm — deleting a category also drops every product inside it and its own default-price entry), click through to that category's products. A "View all products" row above the category list opens `AllProductsView` — every product in this catalogue at once, as a card grid, for a quick visual scan instead of drilling category by category. */
+export function CategoriesView({ catalogue, onSaveCatalogue, onOpenCategory, onOpenAllProducts, onBack }: CategoriesViewProps) {
   const { t, language } = useLanguage()
   const [products, setProducts] = useProducts()
   const [categoryPrices, setCategoryPrices] = useCategoryPrices()
@@ -50,6 +50,13 @@ export function CategoriesView({ catalogue, onSaveCatalogue, onOpenCategory, onB
         <h1>{catalogue.name[language]}</h1>
       </div>
       <TranslatedText as="p" id="admin.products.categoriesDescription" className="admin-page-description" />
+
+      <div className="products-view__item products-view__view-all-products">
+        <button type="button" className="products-view__item-open" onClick={onOpenAllProducts}>
+          <span className="products-view__item-name">{t('admin.products.viewAllProducts')}</span>
+          <ChevronRightIcon />
+        </button>
+      </div>
 
       {catalogue.categories.length === 0 ? (
         <p className="products-view__empty">{t('admin.products.noCategories')}</p>

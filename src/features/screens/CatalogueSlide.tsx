@@ -5,6 +5,7 @@ import { useProducts } from '../../hooks/useProducts'
 import { useLanguage } from '../../i18n'
 import { formatPrice, getEffectivePrice } from '../../utils/price'
 import { allergenNames, dietaryTagNames } from '../../utils/productLabels'
+import { isProductOutOfStock } from '../../utils/productStock'
 import { getSmallUrl } from '../../utils/responsiveImage'
 import './CatalogueSlide.scss'
 
@@ -49,7 +50,7 @@ export function CatalogueSlide({ catalogueId, categories }: CatalogueSlideProps)
                 return (
                   <li
                     key={item.itemID}
-                    className={`catalogue-slide__item${item.discount ? ' catalogue-slide__item--discounted' : ''}${item.outOfStock ? ' catalogue-slide__item--out-of-stock' : ''}`}
+                    className={`catalogue-slide__item${item.discount ? ' catalogue-slide__item--discounted' : ''}${isProductOutOfStock(item) ? ' catalogue-slide__item--out-of-stock' : ''}`}
                   >
                     <div className="catalogue-slide__item-line">
                       {item.image && <img className="catalogue-slide__item-image" src={getSmallUrl(item.image)} alt="" />}
@@ -71,7 +72,7 @@ export function CatalogueSlide({ catalogueId, categories }: CatalogueSlideProps)
                         {t('menu.dietaryTags.title')}: {dietaryTagNames(item.dietaryTags, t)}
                       </p>
                     )}
-                    {item.outOfStock && <span className="catalogue-slide__sold-out-label">{t('admin.products.soldOutLabel')}</span>}
+                    {isProductOutOfStock(item) && <span className="catalogue-slide__sold-out-label">{t('admin.products.soldOutLabel')}</span>}
                   </li>
                 )
               })}

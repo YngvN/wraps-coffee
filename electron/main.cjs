@@ -1,6 +1,6 @@
 // CommonJS on purpose: package.json sets "type": "module", which would make a
 // plain .js file load as ESM here; Electron's main process is simplest as CJS.
-const { app, BrowserWindow, Tray, Menu, nativeImage, screen } = require('electron')
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, screen } = require('electron')
 const http = require('node:http')
 const path = require('node:path')
 const displayManager = require('./displayManager.cjs')
@@ -140,6 +140,34 @@ function sendHeartbeat(baseUrl, machineID, label, monitors) {
   })
 }
 
+/**
+ * Backs the admin dashboard's own minimize/fullscreen/close window-control
+ * buttons (see `preload.cjs`, `src/hooks/useElectronWindowControls.ts`) —
+ * kiosk mode has no native title bar for these, so the page draws its own
+ * and calls back here. Registered once, globally, but resolves the actual
+ * `BrowserWindow` from `event.sender` rather than assuming `kioskWindow`, so
+ * it stays correct if this preload script is ever attached to more than one
+ * window. "Fullscreen" here means kiosk mode specifically (not plain OS
+ * fullscreen) — Electron treats the two as distinct, and kiosk mode is what
+ * actually hides the frame/taskbar this app relies on.
+ */
+function registerWindowControlHandlers() {
+  ipcMain.on('window:minimize', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.minimize()
+  })
+  ipcMain.on('window:close', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.close()
+  })
+  ipcMain.handle('window:toggle-fullscreen', (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window) return false
+    const next = !window.isKiosk()
+    window.setKiosk(next)
+    return next
+  })
+  ipcMain.handle('window:is-fullscreen', (event) => BrowserWindow.fromWebContents(event.sender)?.isKiosk() ?? false)
+}
+
 /** Wires the console/error-forwarding + optional DevTools setup already established for the original single kiosk window onto any managed window — kept as one shared helper rather than duplicating it per window. */
 function instrumentWindow(window) {
   window.webContents.on('console-message', (_event, _level, message, line, sourceId) => {
@@ -191,7 +219,12 @@ async function startServerRole(role) {
     return
   }
 
-  kioskWindow = new BrowserWindow({ kiosk: true, autoHideMenuBar: true, show: false })
+  kioskWindow = new BrowserWindow({
+    kiosk: true,
+    autoHideMenuBar: true,
+    show: false,
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs') },
+  })
   instrumentWindow(kioskWindow)
   kioskWindow.loadURL(appUrl)
   kioskWindow.once('ready-to-show', () => {
@@ -216,6 +249,18 @@ async function startDisplayRole(role) {
 }
 
 async function main() {
+  // Removes the native File/Edit/View/Window/Help menu bar app-wide -
+  // without this, only the windows this file explicitly sets
+  // `autoHideMenuBar: true` on (the main kiosk window, managed monitor
+  // windows) avoid it; any *other* window Electron creates on its own
+  // behalf - e.g. the admin dashboard's "Open" button doing a plain
+  // `window.open()`, which Electron turns into a brand-new default
+  // BrowserWindow unless told otherwise - would still show it. A kiosk app
+  // has no use for that menu on any window, ever, so this is app-wide
+  // rather than something to repeat per window.
+  Menu.setApplicationMenu(null)
+
+  registerWindowControlHandlers()
   createTray()
   currentRole = await roleSetup.getOrCreateRole()
   if (currentRole.role === 'display') await startDisplayRole(currentRole)

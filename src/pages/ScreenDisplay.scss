@@ -68,6 +68,29 @@
   }
 }
 
+// A quiet "showing stored content" watermark (see useConnectionStatus) —
+// shares the toolbar's own z-index so it stays visible over the screensaver
+// too, since a disconnected screen not knowing whether its own scheduled
+// screensaver window is still current is exactly when this matters most.
+// `pointer-events: none` since it's a passive indicator, not a control.
+.screen-display__connection-badge {
+  position: fixed;
+  top: $spacing-unit * 2;
+  left: $spacing-unit * 2;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid $color-border;
+  border-radius: 999px;
+  background: $color-surface;
+  color: $color-text;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 // Sits above the slots but below the toolbar (z-index: 10, see
 // ScreenToolbar.scss) so the lock icon / "Edit appearance" button stay
 // reachable while the screensaver's active.

@@ -2,7 +2,10 @@ import { createServer } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { WebSocketServer, type WebSocket } from 'ws'
 import type { DisplayMachine, DisplayMonitor } from '../src/types/displayMachine'
+import type { OrderRecord } from '../src/types/order'
+import type { Product } from '../src/types/product'
 import type { ScreenAddressSettings } from '../src/types/screenAddress'
+import type { WindowLaunchSettings } from '../src/types/windowLaunch'
 import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
 import * as backup from './backup'
@@ -334,6 +337,43 @@ const httpServer = createServer((req, res) => {
     return
   }
 
+  // Which window a Windows machine opens the kiosk display in at boot (see
+  // Settings → Advanced) — read by installer/start-wraps-coffee.bat's own
+  // `:launch_window` subroutine via a plain HTTP GET (a .bat script has no
+  // WebSocket client). Public read (nothing sensitive, and a display-only
+  // machine with no login of its own still needs to read it); admin/subadmin
+  // -only write, same posture as the Neon URL/screen-address routes above.
+  if (req.method === 'GET' && url.pathname === '/window-launch-method') {
+    sendJson(res, 200, store.getWindowLaunchSettings())
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/window-launch-method') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can edit the window launch method' })
+      return
+    }
+    readJsonBody(req)
+      .then((body) => {
+        const { method } = body as { method?: string }
+        if (method !== 'auto' && method !== 'electron' && method !== 'edge') {
+          sendJson(res, 400, { error: 'Invalid method' })
+          return
+        }
+        const settings: WindowLaunchSettings = { method }
+        store.setWindowLaunchSettings(settings)
+        console.log(`[window-launch-method] ${session.username} set method to "${settings.method}"`)
+        sendJson(res, 200, settings)
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
   // Backup/restore (Settings → Backup) — admin/subadmin only, same posture
   // as the routes above. See server/backup.ts for the actual file-level
   // logic; this block is just auth + response plumbing, matching the rest
@@ -546,8 +586,63 @@ function broadcastError(message: string, detail?: string) {
   for (const socket of interestSets.keys()) send(socket, { type: 'error', message, detail })
 }
 
+/**
+ * `admin.orders` is inbound-only and gets *fully replaced* on every pull (a
+ * full reconcile pass on every Neon reconnect, plus a debounced pull on
+ * every `orders_changed` NOTIFY — see `neonBridge.ts`'s own module doc
+ * comment), so naively decrementing stock whenever "an order is present"
+ * would re-decrement the same order every time it's re-delivered. Diffing
+ * against what was stored immediately before this exact write is what makes
+ * this safe — called from `applyUpdate` below, the one place that "before"
+ * value is still readable, right before it gets overwritten.
+ *
+ * A brand-new order (not cancelled on arrival) reserves stock for its items;
+ * an existing order that's *newly* transitioned to `cancelled` restores
+ * whatever was reserved for it — an order shouldn't permanently consume
+ * inventory if it never actually happened. Only ever touches products with
+ * `trackStock` on; a manual stock edit from the admin UI needs none of this,
+ * it's already a normal authenticated write to `admin.products` that goes
+ * through the generic WS `write` handler on its own.
+ */
+function reconcileStockForOrders(previousOrders: OrderRecord[], incomingOrders: OrderRecord[]) {
+  const previousByID = new Map(previousOrders.map((order) => [order.id, order]))
+  const products = (store.get('admin.products')?.value as Product[] | undefined) ?? []
+  if (products.length === 0) return
+
+  // itemID -> net quantity to subtract from stock (negative restores it).
+  const deltas = new Map<string, number>()
+
+  for (const order of incomingOrders) {
+    const previous = previousByID.get(order.id)
+    if (!previous) {
+      if (order.status === 'cancelled') continue
+      for (const item of order.items) deltas.set(item.itemID, (deltas.get(item.itemID) ?? 0) + item.quantity)
+    } else if (previous.status !== 'cancelled' && order.status === 'cancelled') {
+      for (const item of order.items) deltas.set(item.itemID, (deltas.get(item.itemID) ?? 0) - item.quantity)
+    }
+  }
+
+  if (deltas.size === 0) return
+
+  let changed = false
+  const updatedProducts = products.map((product) => {
+    const delta = deltas.get(product.itemID)
+    if (!delta || !product.trackStock) return product
+    changed = true
+    return { ...product, stockQuantity: Math.max(0, (product.stockQuantity ?? 0) - delta) }
+  })
+
+  if (!changed) return
+  applyUpdate('admin.products', updatedProducts)
+  neonBridge.pushIfRelevant('admin.products', updatedProducts)
+  console.log(`[stock] adjusted stock from order changes (${deltas.size} product(s))`)
+}
+
 /** Persists a synced-key write and broadcasts it to every interested LAN client — the one path both a client's own WS `write` and the Neon bridge's own pulls go through, so neither has to duplicate the other's plumbing. */
 function applyUpdate(key: SyncedKey, value: unknown) {
+  if (key === 'admin.orders') {
+    reconcileStockForOrders((store.get('admin.orders')?.value as OrderRecord[] | undefined) ?? [], value as OrderRecord[])
+  }
   store.set(key, value)
   broadcastUpdate(key, value)
 }

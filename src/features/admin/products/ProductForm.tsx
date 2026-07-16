@@ -27,7 +27,7 @@ interface ProductFormProps {
   onCancel: () => void
 }
 
-/** Create/edit form for a single menu product: bilingual name/description, category, image, price, discount, allergen and dietary-tag checkboxes, availability, and out-of-stock (temporarily unorderable, but still shown, unlike unavailable). */
+/** Create/edit form for a single menu product: bilingual name/description, category, image, price, discount, allergen and dietary-tag checkboxes, availability, and out-of-stock (temporarily unorderable, but still shown, unlike unavailable) — either set manually, or, once "Track stock" is on, derived automatically from a live quantity instead (see `isProductOutOfStock` in `src/utils/productStock.ts`; the manual checkbox is hidden while stock tracking owns the answer). */
 export function ProductForm({ product, defaultCategoryId, catalogueCategories, onSave, onCancel }: ProductFormProps) {
   const { t, language } = useLanguage()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
@@ -50,6 +50,8 @@ export function ProductForm({ product, defaultCategoryId, catalogueCategories, o
   const [dietaryTags, setDietaryTags] = useState<DietaryTag[]>(product?.dietaryTags ?? [])
   const [available, setAvailable] = useState(product?.available ?? true)
   const [outOfStock, setOutOfStock] = useState(product?.outOfStock ?? false)
+  const [trackStock, setTrackStock] = useState(product?.trackStock ?? false)
+  const [stockQuantity, setStockQuantity] = useState(product?.stockQuantity ?? 0)
 
   const addLanguage = (nextLanguage: LanguageCode) => {
     setActiveLanguages([...activeLanguages, nextLanguage])
@@ -83,6 +85,8 @@ export function ProductForm({ product, defaultCategoryId, catalogueCategories, o
       dietaryTags,
       available,
       outOfStock,
+      trackStock,
+      stockQuantity,
     })
   }
 
@@ -214,7 +218,20 @@ export function ProductForm({ product, defaultCategoryId, catalogueCategories, o
       </fieldset>
 
       <Checkbox id="product-available" label={t('admin.products.availableLabel')} checked={available} onChange={(event) => setAvailable(event.target.checked)} />
-      <Checkbox id="product-out-of-stock" label={t('admin.products.outOfStockLabel')} checked={outOfStock} onChange={(event) => setOutOfStock(event.target.checked)} />
+
+      <Checkbox id="product-track-stock" label={t('admin.products.trackStockLabel')} checked={trackStock} onChange={(event) => setTrackStock(event.target.checked)} />
+      {trackStock ? (
+        <Input
+          id="product-stock-quantity"
+          type="number"
+          min={0}
+          label={t('admin.products.stockQuantityLabel')}
+          value={stockQuantity}
+          onChange={(event) => setStockQuantity(Math.max(0, Math.round(Number(event.target.value)) || 0))}
+        />
+      ) : (
+        <Checkbox id="product-out-of-stock" label={t('admin.products.outOfStockLabel')} checked={outOfStock} onChange={(event) => setOutOfStock(event.target.checked)} />
+      )}
 
       <div className="product-form__actions">
         <Button type="button" variant="secondary" onClick={onCancel}>

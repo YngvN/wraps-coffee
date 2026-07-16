@@ -49,6 +49,18 @@
   }
 }
 
+// A second, independent setting/save flow (the window launch method) below
+// the screen-address one above — a top border stands in for a section
+// break, since both share the same flex column and its own `gap` alone
+// wouldn't visually separate two unrelated settings.
+.advanced-settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 1.5;
+  padding-top: $spacing-unit * 1.5;
+  border-top: 1px solid $color-border;
+}
+
 .advanced-settings__mdns-field {
   display: flex;
   flex-direction: column;

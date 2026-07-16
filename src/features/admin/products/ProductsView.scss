@@ -37,6 +37,13 @@
   color: $color-text-muted;
 }
 
+// Pinned above the category list (see CategoriesView) - a plain `products-view__item`
+// row like any other, just tinted so it doesn't read as one more (deletable,
+// reorderable) category among the rest below it.
+.products-view__view-all-products {
+  background: $color-surface;
+}
+
 .products-view__list {
   display: flex;
   flex-direction: column;
@@ -153,7 +160,20 @@
 
 .products-view__item-actions {
   display: flex;
+  align-items: center;
   gap: calc($spacing-unit / 2);
+}
+
+// Fast quantity edit right in the list — kept small since it sits alongside
+// the Edit/Delete icon buttons, not styled like a full form field.
+.products-view__stock-quick-edit {
+  width: 3.5rem;
+  padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
+  border: 1px solid $color-border;
+  border-radius: 6px;
+  background: $color-bg;
+  color: $color-text;
+  font-size: 0.875rem;
 }
 
 // Edit/Delete's own icon-button/label-hiding rules now live in the shared

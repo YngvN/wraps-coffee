@@ -7,12 +7,14 @@ import { FullscreenToggle } from '../features/screens/FullscreenToggle'
 import { GlobalTextSizeScaler, type SizeSnapshot } from '../features/screens/GlobalTextSizeScaler'
 import { KeepEditPrompt, type SlotEditChanges } from '../features/screens/KeepEditPrompt'
 import { LockIcon } from '../features/screens/LockIcon'
+import { NoConnectionIcon } from '../features/screens/NoConnectionIcon'
 import { ScreenToolbar } from '../features/screens/ScreenToolbar'
 import { SlotEditor } from '../features/screens/SlotEditor'
 import { SplitLayout } from '../features/screens/SplitLayout'
 import { StagePlaybackControls } from '../features/screens/StagePlaybackControls'
 import { UnlockScreenModal } from '../features/screens/UnlockScreenModal'
 import { useAdminSession } from '../hooks/useAdminSession'
+import { useConnectionStatus } from '../hooks/useConnectionStatus'
 import { useDefaultPaneLanguage } from '../hooks/useDefaultPaneLanguage'
 import { useScreenLockPin } from '../hooks/useScreenLockPin'
 import { useScreens } from '../hooks/useScreens'
@@ -161,6 +163,7 @@ export function ScreenDisplay() {
   const { screenId } = useParams<{ screenId: string }>()
   const { session, clearSession } = useAdminSession()
   const [screens, setScreens] = useScreens()
+  const connected = useConnectionStatus()
   const [screensaverSchedule] = useScreensaverSchedule()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
   const screen = screens.find((candidate) => candidate.screenID === screenId)
@@ -746,6 +749,11 @@ export function ScreenDisplay() {
         <div className="screen-display__bg">
           <div className="screen-display__bg-image" style={{ backgroundImage: `url(${getBlurredBackgroundUrl(screen.backgroundImage.imageUrl)})` }} />
           {screen.backgroundImage.overlay !== 'none' && <div className={`screen-display__bg-overlay screen-display__bg-overlay--${screen.backgroundImage.overlay}`} />}
+        </div>
+      )}
+      {!connected && (
+        <div className="screen-display__connection-badge" title={t('screenDisplay.noConnection')} aria-label={t('screenDisplay.noConnection')}>
+          <NoConnectionIcon />
         </div>
       )}
       <ScreenToolbar>

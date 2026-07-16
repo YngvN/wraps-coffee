@@ -2,6 +2,7 @@ import type { DisplayConnectionType } from '../types/displayMachine'
 import type { DepartureInfo, NearbyStop, WeatherHour } from '../types/extensions'
 import type { ScreenAddressSettings } from '../types/screenAddress'
 import type { AdminRole, AdminSession, DashboardSection } from '../types/sync'
+import type { WindowLaunchSettings } from '../types/windowLaunch'
 
 /**
  * Derives the local LAN sync server's HTTP origin from the page's own
@@ -243,6 +244,28 @@ export async function setScreenAddressSettings(token: string, settings: ScreenAd
     throw new Error(body.error ?? 'Could not save the screen address settings')
   }
   return response.json() as Promise<ScreenAddressSettings>
+}
+
+/** Which window a Windows machine opens the kiosk display in at boot (see Settings → Advanced) — public, no auth needed. */
+export async function getWindowLaunchSettings(): Promise<WindowLaunchSettings> {
+  const response = await fetch(`${serverBaseUrl()}/window-launch-method`)
+  if (!response.ok) throw new Error('Could not load the window launch settings')
+  return response.json() as Promise<WindowLaunchSettings>
+}
+
+/** Saves the window launch method — takes effect next time `start-wraps-coffee.bat` runs (on the next restart), not live. `admin`/`subadmin` only. */
+export async function setWindowLaunchSettings(token: string, settings: WindowLaunchSettings): Promise<WindowLaunchSettings> {
+  const response = await fetch(`${serverBaseUrl()}/window-launch-method`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(settings),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not save the window launch settings')
+  }
+  return response.json() as Promise<WindowLaunchSettings>
 }
 
 // --- Users (admin dashboard's own "Users" tab) -------------------------------

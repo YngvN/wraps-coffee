@@ -1,12 +1,12 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
-import { Button, EditDeleteButtons, Modal, SlideTransition, TranslatedText } from '../../../components'
+import { Button, ChevronRightIcon, EditDeleteButtons, Modal, SlideTransition, TranslatedText } from '../../../components'
 import { useCatalogues } from '../../../hooks/useCatalogues'
 import { useLanguage } from '../../../i18n'
 import type { Catalogue } from '../../../types/category'
+import { AllProductsView } from './AllProductsView'
 import { CatalogueForm } from './CatalogueForm'
 import { CategoriesView } from './CategoriesView'
-import { ChevronRightIcon } from './ChevronRightIcon'
 import { ProductListView } from './ProductListView'
 import './ProductsView.scss'
 
@@ -17,6 +17,7 @@ export function ProductsView() {
   const [editingCatalogue, setEditingCatalogue] = useState<Catalogue | null | undefined>(undefined)
   const [openCatalogueId, setOpenCatalogueId] = useState<string | null>(null)
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null)
+  const [showAllProducts, setShowAllProducts] = useState(false)
   /** `1` while drilling into a deeper view, `-1` while going back — see `SlideTransition`. */
   const [direction, setDirection] = useState<1 | -1>(1)
 
@@ -46,6 +47,7 @@ export function ProductsView() {
     setDirection(-1)
     setOpenCatalogueId(null)
     setOpenCategoryId(null)
+    setShowAllProducts(false)
   }
   const handleOpenCategory = (categoryId: string) => {
     setDirection(1)
@@ -55,10 +57,18 @@ export function ProductsView() {
     setDirection(-1)
     setOpenCategoryId(null)
   }
+  const handleOpenAllProducts = () => {
+    setDirection(1)
+    setShowAllProducts(true)
+  }
+  const handleBackFromAllProducts = () => {
+    setDirection(-1)
+    setShowAllProducts(false)
+  }
 
   const saveOpenCatalogue = (catalogue: Catalogue) => setCatalogues(catalogues.map((existing) => (existing.id === catalogue.id ? catalogue : existing)))
 
-  const view = openCatalogue && openCategory ? 'products' : openCatalogue ? 'categories' : 'catalogues'
+  const view = openCatalogue && openCategory ? 'products' : openCatalogue && showAllProducts ? 'allProducts' : openCatalogue ? 'categories' : 'catalogues'
 
   return (
     <>
@@ -70,8 +80,16 @@ export function ProductsView() {
             cataloguePrice={openCatalogue.price}
             onBack={handleBackToCategories}
           />
+        ) : view === 'allProducts' && openCatalogue ? (
+          <AllProductsView catalogue={openCatalogue} onBack={handleBackFromAllProducts} />
         ) : view === 'categories' && openCatalogue ? (
-          <CategoriesView catalogue={openCatalogue} onSaveCatalogue={saveOpenCatalogue} onOpenCategory={handleOpenCategory} onBack={handleBackToCatalogues} />
+          <CategoriesView
+            catalogue={openCatalogue}
+            onSaveCatalogue={saveOpenCatalogue}
+            onOpenCategory={handleOpenCategory}
+            onOpenAllProducts={handleOpenAllProducts}
+            onBack={handleBackToCatalogues}
+          />
         ) : (
           <div className="products-view">
             <div className="products-view__header">

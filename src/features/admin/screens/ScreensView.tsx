@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
-import { BackButton, Button, PlusIcon, SlideTransition, TranslatedText } from '../../../components'
+import { BackButton, Button, ChevronRightIcon, PlusIcon, SlideTransition, TranslatedText } from '../../../components'
 import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { useScreenLockPin } from '../../../hooks/useScreenLockPin'
@@ -14,13 +14,14 @@ import { DEFAULT_SCREEN_ADDRESS_SETTINGS, type ScreenAddressSettings } from '../
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
 import { countLeaves } from '../../../utils/layoutTree'
 import { deriveMdnsName } from '../../../utils/mdnsName'
+import { DisplayManagerView } from '../displayManager/DisplayManagerView'
 import { CreatePinModal } from './CreatePinModal'
 import { ScreenCard } from './ScreenCard'
 import { ScreenForm } from './ScreenForm'
 import { ScreensaverScheduleModal } from './ScreensaverScheduleModal'
 import './ScreensView.scss'
 
-/** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link (addressed per Settings → Advanced's `ScreenAddressSettings`), plus the "Create pin" button that sets the one shared PIN every screen's own "Lock screen" button locks behind, and the "Screen saver" button that sets the one shared daily window every screen's own "Use screensaver" checkbox opts into. "Open" treats launching a screen as deploying it, not previewing it — see `handleOpenScreen`. */
+/** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link (addressed per Settings → Advanced's `ScreenAddressSettings`), plus the "Create pin" button that sets the one shared PIN every screen's own "Lock screen" button locks behind, and the "Screen saver" button that sets the one shared daily window every screen's own "Use screensaver" checkbox opts into. "Open" treats launching a screen as deploying it, not previewing it — see `handleOpenScreen`. A "Display Manager" row above the screen list opens `DisplayManagerView` — every machine/monitor that's ever registered, with a Screen-assignment selector per monitor. */
 export function ScreensView() {
   const { t } = useLanguage()
   const [screens, setScreens] = useScreens()
@@ -30,7 +31,9 @@ export function ScreensView() {
   const [pinModalOpen, setPinModalOpen] = useState(false)
   const [screensaverModalOpen, setScreensaverModalOpen] = useState(false)
   const [copiedID, setCopiedID] = useState<string | null>(null)
-  /** `1` while opening the form (slides in from the right, see `SlideTransition`), `-1` while closing it back to the list (slides in from the left). Set right before whatever state change actually switches the view. */
+  /** Whether the "Display Manager" sub-view (every registered machine/monitor, with its own Screen-assignment selector) is open in place of the screen list. */
+  const [showDisplayManager, setShowDisplayManager] = useState(false)
+  /** `1` while opening the form or Display Manager (slides in from the right, see `SlideTransition`), `-1` while closing back to the list (slides in from the left). Set right before whatever state change actually switches the view. */
   const [direction, setDirection] = useState<1 | -1>(1)
   /** The screen form's own currently open sub-view (e.g. "Resize slots"), shown next to the form view's own title — see `ScreenForm`'s `onRouteChange`. Reset on close so a stale route doesn't flash before the next open's fresh form reports its own. */
   const [formRoute, setFormRoute] = useState<string | undefined>(undefined)
@@ -145,10 +148,21 @@ export function ScreensView() {
     setPendingOpenScreen(null)
   }
 
+  const openDisplayManager = () => {
+    setDirection(1)
+    setShowDisplayManager(true)
+  }
+  const closeDisplayManager = () => {
+    setDirection(-1)
+    setShowDisplayManager(false)
+  }
+
+  const view = isFormOpen ? 'form' : showDisplayManager ? 'displayManager' : 'list'
+
   return (
     <div className="screens-view">
-      <SlideTransition viewKey={isFormOpen ? 'form' : 'list'} direction={direction}>
-        {isFormOpen ? (
+      <SlideTransition viewKey={view} direction={direction}>
+        {view === 'form' ? (
           <div>
             <div className="screens-view__form-header">
               <BackButton onClick={goBack}>{t('admin.common.back')}</BackButton>
@@ -159,6 +173,8 @@ export function ScreensView() {
             </div>
             <ScreenForm screen={editingScreen ?? null} onSave={handleSave} onCancel={closeForm} onRouteChange={setFormRoute} />
           </div>
+        ) : view === 'displayManager' ? (
+          <DisplayManagerView onBack={closeDisplayManager} />
         ) : (
           <div className="screens-view__list-view">
             <div className="screens-view__header">
@@ -173,6 +189,13 @@ export function ScreensView() {
               </div>
             </div>
             <TranslatedText as="p" id="admin.screens.description" className="admin-page-description" />
+
+            <div className="screens-view__display-manager-row">
+              <button type="button" className="screens-view__display-manager-open" onClick={openDisplayManager}>
+                <span className="screens-view__display-manager-name">{t('admin.displayManager.title')}</span>
+                <ChevronRightIcon />
+              </button>
+            </div>
 
             <button type="button" className="screens-view__add-row" onClick={() => openForm(null)}>
               <PlusIcon />

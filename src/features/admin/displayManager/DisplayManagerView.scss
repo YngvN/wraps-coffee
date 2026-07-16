@@ -1,5 +1,11 @@
 @use '../../../styles/variables' as *;
 
+.display-manager-view__header {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+}
+
 .display-manager-view__empty {
   color: $color-text-muted;
   font-size: 0.875rem;
