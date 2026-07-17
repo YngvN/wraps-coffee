@@ -5,7 +5,66 @@
   flex-direction: column;
   justify-content: space-between;
   height: 100%;
-  padding: $spacing-unit * 3 $spacing-unit * 2;
+}
+
+// `position: fixed` (not just `sticky`, unlike the `<aside>` it visually
+// sits inside) so it can grow past the `<aside>`'s own reserved
+// `$sidebar-rail-width` on hover without shifting the page layout — it
+// simply overlays on top of the content area for as long as it's expanded,
+// the same technique the reference theme's own `.first-menu` uses.
+.admin-sidebar-nav--desktop {
+  position: fixed;
+  top: 56px; // AdminTopNavbar.scss's own height
+  left: 0;
+  z-index: 27;
+  width: $sidebar-rail-width;
+  height: calc(100vh - 56px);
+  background: $color-surface;
+  border-right: 1px solid $color-border;
+  overflow: hidden;
+  transition: width 180ms ease;
+
+  &.admin-sidebar-nav--expanded {
+    width: $sidebar-rail-width-expanded;
+  }
+}
+
+// Wraps `__top` + `__footer` (not the flyout panels, which are separate
+// `position: fixed` siblings) — this, not the icon list alone, is what the
+// hover-to-expand listeners are on, so hovering *anywhere* in the rail's
+// full height (including the gap below the icons) expands it, not just
+// directly over an icon.
+// `position: relative` anchors the pin-toggle button's own `position:
+// absolute` (see below), which is deliberately not part of this flex
+// layout at all. It also needs its own `z-index` here — without one, this
+// (a plain static box otherwise) would paint *beneath* the tier-2/tier-3
+// flyouts regardless of their own z-index values, since unpositioned
+// content always sits under any positioned+z-indexed sibling. The rail is
+// meant to be the topmost layer (the flyouts slide out from underneath
+// it), so it needs to actually outrank them here. It also needs its own
+// opaque `background` (not just a higher z-index) — otherwise, being
+// transparent, it would let the tier-2 panel's own background show
+// straight through it wherever they overlap (i.e. everywhere except the
+// icons/buttons themselves) even while numerically on top.
+//
+// This element (not `.admin-sidebar-nav` itself) is also where the
+// desktop rail's own inset padding lives — `.admin-sidebar-nav` has none
+// of its own for the desktop variant, specifically so this rail fills
+// `.admin-sidebar-nav--desktop`'s entire box edge-to-edge (matching its
+// own z-index:3/background). Padding *there* instead would leave a bare
+// strip of `.admin-sidebar-nav--desktop`'s own background around the
+// rail's edges with no z-index/opaque covering of its own, letting the
+// flyouts show through that strip despite the rail nominally being "on
+// top."
+.admin-sidebar-nav__rail {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  padding: $spacing-unit * 3 calc($spacing-unit * 1.5);
+  background: $color-surface;
 }
 
 .admin-sidebar-nav__top {
@@ -17,22 +76,45 @@
 .admin-sidebar-nav__list {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: calc($spacing-unit / 2);
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
+// The desktop rail's own link — icon-only by default, growing into an
+// icon+label row once `.admin-sidebar-nav--expanded` is on the ancestor
+// rail. This element itself is *always* `width: 100%` of its `<li>` (which
+// itself always fills the rail's current width via the `<ul>`'s own
+// `align-items: stretch` — see below), never given its own fixed width or
+// a `margin: auto` to center it within a wider parent. That auto-margin
+// approach is what caused the earlier jump: centering a fixed-width box
+// with `margin: 0 auto` requires the browser to resolve "auto" against
+// whatever the surrounding width currently is, and doing that *while* the
+// rail's own width is simultaneously animating has no stable value to
+// interpolate — the link's own box (and the icon inside it) visibly
+// hitched into its new position instead of sliding smoothly. With the
+// link always full-width and the icon pinned by a constant `padding-left`
+// (tuned to land exactly where it'd sit if centered in the collapsed
+// 72px-rail/44px-tall row) plus permanent `justify-content: flex-start`,
+// there is now only one thing animating at all — the rail's own `width` —
+// and the icon's position is a fixed offset from the left edge regardless
+// of it.
 .admin-sidebar-nav__link {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: $spacing-unit;
-  padding: $spacing-unit calc($spacing-unit * 1.5);
-  border-radius: 8px;
+  width: 100%;
+  height: 44px;
+  padding: 0 0 0 calc($spacing-unit * 1.5);
+  border-radius: 10px;
   color: $color-text-muted;
   text-decoration: none;
-  font-weight: 600;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background-color 0.15s ease, color 0.15s ease, border-radius 180ms ease;
 
   @media (hover: hover) {
     &:hover {
@@ -46,24 +128,151 @@
   }
 
   &--active {
-    background: $color-surface;
+    background: $color-surface-hover;
     color: $color-accent;
   }
 }
 
+.admin-sidebar-nav--expanded .admin-sidebar-nav__link {
+  border-radius: 8px;
+}
+
 .admin-sidebar-nav__icon {
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
+}
+
+// Stays at its natural (`auto`) width the whole time — the collapsed 44px
+// link box's own `overflow: hidden` is what actually hides it, not a
+// width toggle on the label itself, so there's only ever one thing
+// (the link's own `width`) driving the reveal, not two separately
+// animated dimensions that could fall out of sync.
+.admin-sidebar-nav__link-label {
+  opacity: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: opacity 120ms ease;
+}
+
+.admin-sidebar-nav--expanded .admin-sidebar-nav__link-label {
+  opacity: 1;
+}
+
+// Marks a rail item as having a tier-2 flyout (Products/Screens/Settings)
+// — same fade-in treatment as the label next to it, pushed to the row's
+// far right via `margin-left: auto`.
+.admin-sidebar-nav__link-chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.admin-sidebar-nav--expanded .admin-sidebar-nav__link-chevron {
+  opacity: 0.6;
 }
 
 .admin-sidebar-nav__footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  flex-direction: column;
   gap: $spacing-unit;
   padding-top: $spacing-unit * 2;
   border-top: 1px solid $color-border;
+}
+
+// Collapsed desktop rail: no room to show "Log out" text next to the icon
+// rail sensibly at 72px wide, so the footer is hidden outright rather than
+// squeezed — it reappears once the rail expands (see below). The
+// pin-toggle button (below) is deliberately *not* part of this group —
+// it stays visible and fixed in place whether the footer is showing or not.
+.admin-sidebar-nav--desktop:not(.admin-sidebar-nav--expanded) .admin-sidebar-nav__footer {
+  display: none;
+}
+
+// Expanded desktop rail: logout + theme toggle sit side by side (a row),
+// not stacked — same treatment the mobile variant already uses.
+.admin-sidebar-nav--expanded .admin-sidebar-nav__footer {
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+// Pin-toggle button, sitting just above the footer. Deliberately
+// `position: absolute` (relative to `.rail`, see its own `position:
+// relative` above) rather than a normal flex child of `.rail`'s own
+// top/footer space-between — that would tie its vertical position to the
+// footer's own box height, which changes shape (hidden vs. column vs. row)
+// between collapsed/expanded, making the button visibly jump. Anchoring it
+// at a constant `bottom` offset instead means it stays at the same height
+// and stays visible in every rail state, footer included or not.
+.admin-sidebar-nav__pin-toggle {
+  position: absolute;
+  // Centered on the collapsed 72px-wide rail (matching where the icons
+  // above visually sit) by default — overridden below to sit flush right
+  // once the rail expands, alongside the footer's own row-aligned content.
+  left: 50%;
+  transform: translateX(-50%);
+  // Clears (from the *rail's own outer edge*, not its content edge — see
+  // below) the rail's own bottom padding, plus the footer's expanded-state
+  // height (padding-top + border + one row of icon-sized content), plus a
+  // gap — so the two don't overlap when the footer is visible. This is a
+  // constant rather than derived from the footer's actual current height
+  // (see the comment above), but it does have to start from the rail's
+  // own padding: `bottom`/`right` on an absolutely-positioned child are
+  // resolved against the *padding edge* of the containing block (`.rail`),
+  // which is unaffected by `.rail`'s *own* padding — while the footer,
+  // an ordinary flex child, sits inset *by* that same padding. Without
+  // adding it back in here, this constant would undercount by exactly
+  // `.rail`'s own bottom padding and the two would overlap.
+  bottom: calc($spacing-unit * 6 + 37px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: $color-text-muted;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+      color: $color-text;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+
+  &--active {
+    color: $color-accent;
+
+    svg {
+      transform: rotate(180deg);
+    }
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.2s ease;
+  }
+}
+
+.admin-sidebar-nav--expanded .admin-sidebar-nav__pin-toggle {
+  left: auto;
+  // Matches `.rail`'s own right padding (see the `bottom` comment above
+  // for why this can't just be `0`), so this lines up flush with the
+  // footer's own inset content (e.g. the theme toggle) instead of sitting
+  // further out past it.
+  right: calc($spacing-unit * 1.5);
+  transform: none;
 }
 
 .admin-sidebar-nav__back {
@@ -73,13 +282,148 @@
   color: $color-text-muted;
   text-decoration: none;
   font-family: inherit;
-  font-size: 0.875rem;
-  text-align: left;
+  font-size: 0.75rem;
+  text-align: center;
   cursor: pointer;
+  white-space: nowrap;
 
   @media (hover: hover) {
     &:hover {
       color: $color-text;
     }
   }
+}
+
+// Tier-2/tier-3 flyout panels — always in the DOM once anything is active
+// (see AdminSidebarNav.tsx's own state), never unmounted/hidden-then-
+// reshown between two different active sections, so switching what's
+// hovered only ever swaps the *content* inside, matching the interaction
+// this was explicitly asked for. `left` assumes the rail is at its
+// *expanded* width — true for as long as tier-2 can be showing at all,
+// since `isRailExpanded` and tier-2 share one open/close timer
+// (`openCluster`/`scheduleCloseCluster` in AdminSidebarNav.tsx) precisely
+// so the rail's right edge and this panel's left edge always line up,
+// with no dead gap between them while crossing from one to the other.
+//
+// Hidden state sits at `translateX(-100%)` — exactly one panel-width to
+// the left of its own resting position — so it slides out from directly
+// underneath the panel before it (the rail, for tier-2; tier-2 itself, for
+// tier-3, since both panels share the same 240px width) rather than
+// fading in place. `visibility` still switches too (not just relying on
+// the transform), so a hidden panel is genuinely un-paintable rather than
+// merely nudged off to the side — its own `transition-delay` is what lets
+// the slide-out finish before `visibility: hidden` actually lands, while
+// showing switches `visibility` on immediately so the slide-in is visible
+// from its very first frame.
+.admin-sidebar-nav__flyout {
+  position: fixed;
+  top: 56px; // AdminTopNavbar.scss's own height
+  left: $sidebar-rail-width-expanded;
+  // Beneath `.admin-sidebar-nav__rail`'s own z-index (3) — see that rule's
+  // own comment for why the rail needs an explicit z-index at all here.
+  z-index: 2;
+  width: 240px;
+  height: calc(100vh - 56px);
+  overflow-y: auto;
+  padding: calc($spacing-unit * 1.5) $spacing-unit;
+  background: $color-surface;
+  border: 1px solid $color-border;
+  border-left: none;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(-100%);
+  transition: transform 200ms ease, opacity 200ms ease, visibility 0s linear 200ms;
+
+  &--visible {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(0);
+    transition: transform 200ms ease, opacity 200ms ease, visibility 0s linear 0s;
+  }
+
+  // Behind tier-2 (rather than sharing its z-index), so while hidden and
+  // overlapping tier-2's own box (see the comment above), it never has a
+  // chance to paint over tier-2 even mid-transition.
+  &--tier3 {
+    left: calc($sidebar-rail-width-expanded + 240px);
+    z-index: 1;
+  }
+}
+
+.admin-sidebar-nav__flyout-header {
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  font-weight: 700;
+  color: $color-text;
+}
+
+.admin-sidebar-nav__flyout-section {
+  padding: calc($spacing-unit / 2) $spacing-unit 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: $color-text-muted;
+}
+
+.admin-sidebar-nav__flyout-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit;
+  padding: calc($spacing-unit * 0.75) $spacing-unit;
+  border-radius: 6px;
+  color: $color-text;
+  text-decoration: none;
+  font-size: 0.875rem;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+      color: $color-accent;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+
+  &--expandable svg {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    opacity: 0.6;
+  }
+}
+
+// --- Mobile overlay variant: today's original plain labeled list, unchanged ---
+
+.admin-sidebar-nav--mobile {
+  padding: $spacing-unit * 3 $spacing-unit * 2;
+}
+
+.admin-sidebar-nav__list--mobile {
+  align-items: stretch;
+  gap: calc($spacing-unit / 2);
+}
+
+.admin-sidebar-nav__link--mobile {
+  width: auto;
+  height: auto;
+  justify-content: flex-start;
+  gap: $spacing-unit;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.admin-sidebar-nav--mobile .admin-sidebar-nav__footer {
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.admin-sidebar-nav--mobile .admin-sidebar-nav__back {
+  font-size: 0.875rem;
+  text-align: left;
 }

@@ -66,7 +66,13 @@ interface OwnBackgroundImageFields {
  * (`stopId`, referencing `ExtensionsConfig['transit']['selectedStops']`),
  * and `'weather'` shows an hourly forecast for the cafe's own address —
  * neither renders anything (see `TransitSlide`/`WeatherSlide`) unless its
- * integration is enabled. `'time'` is a live-ticking clock/date/weekday/week
+ * integration is enabled. Unlike transit, `'weather'`'s own display
+ * settings (`forecastHours`, `showWind`, `showHumidity`,
+ * `showPrecipitationProbability`, `showUvIndex`, `showPressure`) live on
+ * the slide itself rather than in `ExtensionsConfig` — the Integrations tab
+ * only toggles whether weather is enabled at all, so different weather
+ * panes across a screen (or across screens) can each show different detail
+ * fields. `'time'` is a live-ticking clock/date/weekday/week
  * number (see `TimeDisplayMode`) — its own `fontSize` is independent of
  * every other kind's `textSizes`, and its `'time'` display mode's `units`
  * can be narrowed to a single digit group so a full clock can be split
@@ -98,7 +104,22 @@ export type ScreenSlotContent =
       size?: number
     } & OwnBackgroundImageFields)
   | ({ kind: 'transit'; stopId?: string; textSizes?: TextSizes } & OwnBackgroundImageFields)
-  | ({ kind: 'weather'; textSizes?: TextSizes } & OwnBackgroundImageFields)
+  | ({
+      kind: 'weather'
+      /** How many hours ahead the forecast list shows. Falls back to `DEFAULT_WEATHER_FORECAST_HOURS`. */
+      forecastHours?: number
+      /** Show wind speed (m/s) alongside temperature. Falls back to `false`. */
+      showWind?: boolean
+      /** Show relative humidity (%). Falls back to `false`. */
+      showHumidity?: boolean
+      /** Show precipitation probability (%), when MET's forecast includes one for that hour. Falls back to `false`. */
+      showPrecipitationProbability?: boolean
+      /** Show the UV index, when MET reports one (daylight hours only). Falls back to `false`. */
+      showUvIndex?: boolean
+      /** Show air pressure at sea level (hPa). Falls back to `false`. */
+      showPressure?: boolean
+      textSizes?: TextSizes
+    } & OwnBackgroundImageFields)
   | ({ kind: 'announcement'; title: string; description: string; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({
       kind: 'messageboard'
@@ -182,6 +203,9 @@ export type EventDisplayMode = 'calendar' | 'image' | 'details' | 'month'
 
 /** Used when an `'event'` slide's own `count` is unset (`'calendar'` mode only). */
 export const DEFAULT_EVENT_CALENDAR_COUNT = 4
+
+/** Used when a `'weather'` slide's own `forecastHours` is unset. */
+export const DEFAULT_WEATHER_FORECAST_HOURS = 6
 
 /** Used when a `'qrcode'` slide's own `size` is unset — fills as much of its pane as it can. */
 export const DEFAULT_QR_CODE_SIZE = 100

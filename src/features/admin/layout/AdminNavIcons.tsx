@@ -112,18 +112,32 @@ export function MessageBoardIcon(props: IconProps) {
   )
 }
 
+/** A bell — the admin top navbar's own notifications shortcut (new orders + out-of-stock tracked products), matching this file's shared `currentColor`-stroked conventions. */
+export function BellIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M6 8a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6.5H4c.5-1 2-2.5 2-6.5Z" />
+      <path d="M9.5 17.5a2.5 2.5 0 0 0 5 0" />
+    </Icon>
+  )
+}
+
+/** A hex nut (hexagonal outline with a round hole through its center) — the rail/navbar's own settings shortcut. */
 export function SettingsIcon(props: IconProps) {
   return (
     <Icon {...props}>
-      <circle cx="12" cy="12" r="4" />
-      <line x1="12" y1="1" x2="12" y2="4" />
-      <line x1="12" y1="20" x2="12" y2="23" />
-      <line x1="1" y1="12" x2="4" y2="12" />
-      <line x1="20" y1="12" x2="23" y2="12" />
-      <line x1="4.5" y1="4.5" x2="6.5" y2="6.5" />
-      <line x1="17.5" y1="17.5" x2="19.5" y2="19.5" />
-      <line x1="4.5" y1="19.5" x2="6.5" y2="17.5" />
-      <line x1="17.5" y1="6.5" x2="19.5" y2="4.5" />
+      <path d="M12 2 L20 6.75 L20 16.25 L12 21 L4 16.25 L4 6.75 Z" />
+      <circle cx="12" cy="11.5" r="3.2" />
+    </Icon>
+  )
+}
+
+/** A chevron pointing right, next to a plain vertical line — `AdminSidebarNav`'s own pin-toggle button, above the footer. Rotates 180° via its own `--active` modifier class when pinned open, becoming a chevron-left-next-to-a-line, so the same one glyph reads as both "pin open" and "un-pin" depending on state, rather than needing two separate icons. */
+export function PinSidebarIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 6l6 6-6 6" />
+      <line x1="18" y1="4" x2="18" y2="20" />
     </Icon>
   )
 }

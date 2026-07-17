@@ -14,6 +14,7 @@ import {
   DEFAULT_QR_CODE_SIZE,
   DEFAULT_TIME_FONT_SIZE,
   DEFAULT_TIME_UNITS,
+  DEFAULT_WEATHER_FORECAST_HOURS,
   MIN_QR_CODE_SIZE,
   type EventDisplayMode,
   type MessageBoardDisplayMode,
@@ -150,6 +151,36 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
   const setTransitStopId = (stopId: string) => {
     if (content.kind !== 'transit') return
     onChange({ ...content, stopId })
+  }
+
+  const setWeatherForecastHours = (forecastHours: number) => {
+    if (content.kind !== 'weather') return
+    onChange({ ...content, forecastHours })
+  }
+
+  const setWeatherShowWind = (showWind: boolean) => {
+    if (content.kind !== 'weather') return
+    onChange({ ...content, showWind })
+  }
+
+  const setWeatherShowHumidity = (showHumidity: boolean) => {
+    if (content.kind !== 'weather') return
+    onChange({ ...content, showHumidity })
+  }
+
+  const setWeatherShowPrecipitationProbability = (showPrecipitationProbability: boolean) => {
+    if (content.kind !== 'weather') return
+    onChange({ ...content, showPrecipitationProbability })
+  }
+
+  const setWeatherShowUvIndex = (showUvIndex: boolean) => {
+    if (content.kind !== 'weather') return
+    onChange({ ...content, showUvIndex })
+  }
+
+  const setWeatherShowPressure = (showPressure: boolean) => {
+    if (content.kind !== 'weather') return
+    onChange({ ...content, showPressure })
   }
 
   /** The catalogue a "Catalogue" slide currently resolves to — its own `catalogueId` if set, else the first one, matching `CatalogueSlide`'s own fallback. */
@@ -409,6 +440,39 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
         ) : (
           <p className="slide-fields__hint">{t('admin.screens.transitNoStopsConfiguredLabel')}</p>
         ))}
+
+      {content.kind === 'weather' && (
+        <>
+          <label className="slide-fields__number-field">
+            <span>{t('admin.screens.weatherForecastHoursLabel')}</span>
+            <input type="number" min={1} max={48} value={content.forecastHours ?? DEFAULT_WEATHER_FORECAST_HOURS} onChange={(event) => setWeatherForecastHours(Number(event.target.value))} />
+          </label>
+          <div className="slide-fields__categories">
+            <span className="slide-fields__categories-label">{t('admin.screens.weatherDetailsLabel')}</span>
+            <p className="slide-fields__hint">{t('admin.screens.weatherDetailsHint')}</p>
+            <Checkbox id={`${id}-weather-wind`} label={t('admin.screens.weatherShowWindLabel')} checked={Boolean(content.showWind)} onChange={(event) => setWeatherShowWind(event.target.checked)} />
+            <Checkbox
+              id={`${id}-weather-humidity`}
+              label={t('admin.screens.weatherShowHumidityLabel')}
+              checked={Boolean(content.showHumidity)}
+              onChange={(event) => setWeatherShowHumidity(event.target.checked)}
+            />
+            <Checkbox
+              id={`${id}-weather-precipitation-probability`}
+              label={t('admin.screens.weatherShowPrecipitationProbabilityLabel')}
+              checked={Boolean(content.showPrecipitationProbability)}
+              onChange={(event) => setWeatherShowPrecipitationProbability(event.target.checked)}
+            />
+            <Checkbox id={`${id}-weather-uv`} label={t('admin.screens.weatherShowUvIndexLabel')} checked={Boolean(content.showUvIndex)} onChange={(event) => setWeatherShowUvIndex(event.target.checked)} />
+            <Checkbox
+              id={`${id}-weather-pressure`}
+              label={t('admin.screens.weatherShowPressureLabel')}
+              checked={Boolean(content.showPressure)}
+              onChange={(event) => setWeatherShowPressure(event.target.checked)}
+            />
+          </div>
+        </>
+      )}
 
       {content.kind === 'messageboard' &&
         (messageBoards.length > 0 ? (

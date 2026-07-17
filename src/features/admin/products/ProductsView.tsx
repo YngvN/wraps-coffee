@@ -1,7 +1,9 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Button, ChevronRightIcon, EditDeleteButtons, Modal, SlideTransition, TranslatedText } from '../../../components'
 import { useCatalogues } from '../../../hooks/useCatalogues'
+import { useRecentlyOpened } from '../../../hooks/useRecentlyOpened'
 import { useLanguage } from '../../../i18n'
 import type { Catalogue } from '../../../types/category'
 import { AllProductsView } from './AllProductsView'
@@ -14,12 +16,56 @@ import './ProductsView.scss'
 export function ProductsView() {
   const { t, language } = useLanguage()
   const [catalogues, setCatalogues] = useCatalogues()
+  const { record: recordRecentlyOpened } = useRecentlyOpened()
   const [editingCatalogue, setEditingCatalogue] = useState<Catalogue | null | undefined>(undefined)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [openCatalogueId, setOpenCatalogueId] = useState<string | null>(null)
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null)
   const [showAllProducts, setShowAllProducts] = useState(false)
   /** `1` while drilling into a deeper view, `-1` while going back — see `SlideTransition`. */
   const [direction, setDirection] = useState<1 | -1>(1)
+  /** Guards the deep-link effect below so it only ever actually opens the drill-down once — `catalogues` starts out as the bundled seed and only gets its real contents once the WS snapshot arrives a moment later, so this effect has to keep re-checking as `catalogues` updates rather than running once on mount; without this ref it would re-open the drill-down on every later `catalogues` change too, even long after the admin has since navigated elsewhere. */
+  const consumedDeepLinkRef = useRef(false)
+
+  /**
+   * Deep-link support: `?catalogueId=<id>&categoryId=<id>` opens straight
+   * into that catalogue (and, if given, that category) instead of
+   * requiring clicks through the list — what the sidebar's tier-2 flyout
+   * (and "recently opened" entries) actually navigate to. Depends on
+   * `catalogues` (not just mount) since the target may not exist yet in it
+   * on the very first render (see `consumedDeepLinkRef`); once found, the
+   * state updates are deferred via `queueMicrotask` rather than called
+   * directly in the effect body, which is what this codebase's own "no
+   * synchronous setState in an effect" lint rule requires (see
+   * `useIdleTimer.ts` for the same rule hit elsewhere) — `setSearchParams`
+   * itself is exempt from that rule, so stripping the params happens
+   * directly, right here.
+   */
+  useEffect(() => {
+    if (consumedDeepLinkRef.current) return
+    const catalogueId = searchParams.get('catalogueId')
+    const catalogue = catalogueId ? catalogues.find((candidate) => candidate.id === catalogueId) : undefined
+    if (!catalogue) return
+    consumedDeepLinkRef.current = true
+    const categoryId = searchParams.get('categoryId')
+    const category = categoryId ? catalogue.categories.find((candidate) => candidate.id === categoryId) : undefined
+    const wantsAllProducts = Boolean(searchParams.get('allProducts'))
+    queueMicrotask(() => {
+      setOpenCatalogueId(catalogue.id)
+      if (category) {
+        setOpenCategoryId(category.id)
+        recordRecentlyOpened('category', category.id, category.name[language])
+      } else if (wantsAllProducts) {
+        setShowAllProducts(true)
+      }
+    })
+    setSearchParams((current) => {
+      current.delete('catalogueId')
+      current.delete('categoryId')
+      current.delete('allProducts')
+      return current
+    })
+  }, [catalogues, searchParams, setSearchParams, language, recordRecentlyOpened])
 
   const isFormOpen = editingCatalogue !== undefined
   const closeForm = () => setEditingCatalogue(undefined)
@@ -52,6 +98,8 @@ export function ProductsView() {
   const handleOpenCategory = (categoryId: string) => {
     setDirection(1)
     setOpenCategoryId(categoryId)
+    const category = openCatalogue?.categories.find((candidate) => candidate.id === categoryId)
+    if (category) recordRecentlyOpened('category', category.id, category.name[language])
   }
   const handleBackToCategories = () => {
     setDirection(-1)

@@ -49,6 +49,14 @@
   display: flex;
   align-items: baseline;
   gap: $spacing-unit * 2;
+
+  &--cancelled {
+    opacity: 0.5;
+
+    .transit-slide__destination {
+      text-decoration: line-through;
+    }
+  }
 }
 
 .transit-slide__mode-icon {
@@ -75,6 +83,20 @@
 }
 
 .transit-slide__time {
+  color: var(--screen-text-muted);
+  font-size: var(--slide-description-size, 1.25rem);
+  white-space: nowrap;
+}
+
+.transit-slide__line-name {
+  display: block;
+  color: var(--screen-text-muted);
+  font-size: var(--slide-description-size, 1.25rem);
+}
+
+.transit-slide__platform {
+  flex-shrink: 0;
+  align-self: center;
   color: var(--screen-text-muted);
   font-size: var(--slide-description-size, 1.25rem);
   white-space: nowrap;

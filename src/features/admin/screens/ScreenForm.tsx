@@ -47,6 +47,9 @@ import { StageTabs } from '../../screens/StageTabs'
 import { LayoutIcon } from './LayoutIcon'
 import './ScreenForm.scss'
 
+/** Every named sub-view `editingTarget` can hold (`null` is the main tabbed view, not one of these) — exported so `ScreensView`'s own `?tab=` deep-link query param has something to validate against. */
+export type ScreenFormTarget = 'global' | 'layout' | 'borders' | 'background' | 'stages' | 'transitions' | 'screensaver' | 'other'
+
 interface ScreenFormProps {
   /** The screen being edited, or `null` when creating a new one. */
   screen: ScreenConfig | null
@@ -54,6 +57,8 @@ interface ScreenFormProps {
   onCancel: () => void
   /** Reports this form's own currently open sub-view by name (e.g. "Layout"), or `undefined` while showing its main tabbed content — lets the parent's `Modal` show it as a "Edit screen - Layout" breadcrumb next to its title. */
   onRouteChange?: (route: string | undefined) => void
+  /** Opens straight to this sub-view instead of the main tabbed view — for deep-linking in from the sidebar's tier-3 flyout or a "recently opened" entry (see `ScreensView`'s `?tab=` query param). Only consumed once, on mount. */
+  initialTarget?: ScreenFormTarget
 }
 
 /** The most common physical display shapes, offered as quick picks for the "Layout" tab's own live preview and persisted as the screen's own `previewAspectRatio` — also what its card in the admin Screens list is letterboxed to (see `ScreenCard`). Purely a preview aid either way; never affects the real kiosk display itself. */
@@ -93,13 +98,13 @@ function nextDefaultScreenName(screens: ScreenConfig[], prefix: string): string 
  * is available here too, so the whole screen can be configured externally
  * without ever opening the live display.
  */
-export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFormProps) {
+export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTarget }: ScreenFormProps) {
   const { t } = useLanguage()
   const [screens, setScreens] = useScreens()
   const [screensaverSchedule] = useScreensaverSchedule()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
-  /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the interactive "Layout" grid, the pane-border color editor, the screen's own whole-screen "Background" color/image editor, the "Steps" (use-stages/count/duration/transition) editor, the "Screen saver" editor, the "Other settings" editor, or neither. A pane's own fields (content, background, text size) aren't one of these — they're owned by `PaneEditor` itself, which manages its own sub-view navigation internally (see the active-pane tab render below). */
-  const [editingTarget, setEditingTarget] = useState<'global' | 'layout' | 'borders' | 'background' | 'stages' | 'transitions' | 'screensaver' | 'other' | null>(null)
+  /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the interactive "Layout" grid, the pane-border color editor, the screen's own whole-screen "Background" color/image editor, the "Steps" (use-stages/count/duration/transition) editor, the "Screen saver" editor, the "Other settings" editor, or neither. A pane's own fields (content, background, text size) aren't one of these — they're owned by `PaneEditor` itself, which manages its own sub-view navigation internally (see the active-pane tab render below). Seeded from `initialTarget` via a lazy initializer (not an effect) when this form was opened via a deep link straight into a sub-view. */
+  const [editingTarget, setEditingTarget] = useState<ScreenFormTarget | null>(() => initialTarget ?? null)
   /** `1` while opening a sub-view (slides in from the right, see `SlideTransition`), `-1` while going back (slides in from the left). Set right before whatever state change actually switches the view. */
   const [direction, setDirection] = useState<1 | -1>(1)
   /** Which physical display shape the "Layout" tab's own live preview is currently sized to — persisted as the screen's own `previewAspectRatio` (see `handleSubmit`). */
@@ -378,6 +383,34 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange }: ScreenFo
     setEditingTarget(null)
     onRouteChange?.(undefined)
   }
+
+  /**
+   * Reports the deep-linked-in sub-view's own breadcrumb label to the
+   * parent, matching what each `openXEditor` function above does for a
+   * normal click-driven open — `editingTarget` itself is already seeded
+   * from `initialTarget` via the lazy `useState` initializer above (not
+   * here), since directly calling one of those `openXEditor` functions
+   * would call `setEditingTarget`/`setDirection` synchronously inside this
+   * effect, which the "set-state-in-effect" lint rule flags (see
+   * `useIdleTimer.ts` for the same rule hit elsewhere in this codebase).
+   * `onRouteChange` is a plain prop callback, not a tracked `useState`
+   * setter, so reporting it from here is fine.
+   */
+  useEffect(() => {
+    if (!initialTarget) return
+    const label = {
+      global: t('admin.screens.editTextSize'),
+      background: t('admin.screens.backgroundLabel'),
+      layout: t('admin.screens.layoutLabel'),
+      borders: t('admin.screens.bordersLabel'),
+      stages: t('admin.screens.stagesLabel'),
+      transitions: t('admin.screens.transitionsLabel'),
+      screensaver: t('admin.screens.screensaverLabel'),
+      other: t('admin.screens.otherSettingsLabel'),
+    }[initialTarget]
+    onRouteChange?.(label)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only meant to run once, right on mount, reporting the breadcrumb for whatever sub-view `initialTarget` deep-linked straight into.
+  }, [])
 
   /** Switches which stage the active pane's own tab bar has selected, reseeding the live text-size buffer to match. */
   const handleActiveStageChange = (stage: number) => {

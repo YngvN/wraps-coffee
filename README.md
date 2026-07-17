@@ -51,6 +51,7 @@ Runs alongside an optional local server (`server/`) — a small Node/WebSocket p
 - **[qrcode.react](https://github.com/zpao/qrcode.react)** — renders the "QR code" screen-slot kind as an SVG, drawn in a single flat color with a transparent background.
 - **[@dnd-kit](https://dndkit.com/)** — drag-and-drop reordering for the admin Products feature's catalogue/category/product lists (mouse and touch alike).
 - **[bonjour-service](https://github.com/onlxltd/bonjour-service)** — advertises a friendly `<name>.local` mDNS hostname for this machine (Settings → Advanced's "Auto .local name" screen-address mode).
+- **[simple-icons](https://simpleicons.org/)** — CC0-licensed official brand SVG marks, used for the real logos shown in the Extensions page's "Coming soon" integrations directory.
 
 ## Getting started
 
@@ -108,3 +109,9 @@ src/
   utils/               # Pure helper functions (event occurrence/date logic, screen layout math, etc.)
   main.tsx             # Entry point: providers and route definitions
 ```
+
+## Credits
+
+The admin dashboard's top navbar + cascading sidebar layout is adapted from [Kamilica's AgentFire admin CodePen](https://codepen.io/Kamilica/pen/XRbvaL) (structure only — colors/typography are this app's own theme).
+
+The Integrations page's "activate" checkbox is adapted from a [Uiverse.io](https://uiverse.io/) checkbox by chase2k25 (structure/animation only — colors are this app's own theme).

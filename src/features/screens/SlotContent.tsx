@@ -29,7 +29,17 @@ export function SlotContent({ slot }: SlotContentProps) {
   if (slot.kind === 'image') return <ImageSlide imageUrl={slot.imageUrl} fit={slot.fit} resizeToFit={slot.resizeToFit} />
   if (slot.kind === 'qrcode') return <QrCodeSlide url={slot.url} size={slot.size} />
   if (slot.kind === 'transit') return <TransitSlide stopId={slot.stopId} />
-  if (slot.kind === 'weather') return <WeatherSlide />
+  if (slot.kind === 'weather')
+    return (
+      <WeatherSlide
+        forecastHours={slot.forecastHours}
+        showWind={slot.showWind}
+        showHumidity={slot.showHumidity}
+        showPrecipitationProbability={slot.showPrecipitationProbability}
+        showUvIndex={slot.showUvIndex}
+        showPressure={slot.showPressure}
+      />
+    )
   if (slot.kind === 'announcement') return <AnnouncementSlide title={slot.title} description={slot.description} />
   if (slot.kind === 'time')
     return (

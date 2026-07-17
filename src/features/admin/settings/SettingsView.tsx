@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { BackButton, Button, Card, Checkbox, Input, SlideTransition, TranslatedText } from '../../../components'
 import { availableLanguages, useLanguage } from '../../../i18n'
 import { useAdminSession } from '../../../hooks/useAdminSession'
@@ -19,6 +20,7 @@ const CLOCK_FORMATS: ClockFormat[] = ['24h', '12h']
 const DATE_FORMATS: DateFormat[] = ['dmy', 'mdy']
 
 type SubView = 'main' | 'developers' | 'advanced' | 'backup' | 'store'
+const DEEP_LINKABLE_SUB_VIEWS: SubView[] = ['developers', 'advanced', 'backup', 'store']
 
 /** Admin-wide settings: the interface language, the cafe's own Standard pane language (the default kiosk panes render their content in, independent of the interface language above — see `useDefaultPaneLanguage`, overridable per pane from its own "Language" sub-menu), the shared clock format (24-hour or 12-hour AM/PM) and date format (day-month-year or month-day-year — used everywhere a wall-clock time/plain date is shown: the weather forecast, admin timestamps, uploaded-image/message-board-post dates, the screensaver schedule's own time pickers, and a "time" pane's own shorthand date), which sidebar items this cafe's dashboard shows (different cafes use different features — a cafe with no online ordering or no digital signage can hide those tabs entirely), a "For developers" sub-view documenting the local server's own API, and (admin/subadmin only) an "Advanced" sub-view for how a screen's own link should be addressed (see `AdvancedSettingsView`). More device/account-level preferences land here over time. */
 export function SettingsView() {
@@ -30,10 +32,31 @@ export function SettingsView() {
   const [sidebarSettings, setSidebarSettings] = useSidebarSettings()
   const [screensaverSettings, setScreensaverSettings] = useDashboardScreensaverSettings()
   const toggleableItems = NAV_ITEMS.filter((item) => item.toggleable)
-  /** Which sub-view (replacing the whole settings list until its own Back button is pressed) is open, if any. */
-  const [subView, setSubView] = useState<SubView>('main')
+  const [searchParams, setSearchParams] = useSearchParams()
+  /**
+   * Which sub-view (replacing the whole settings list until its own Back
+   * button is pressed) is open, if any — seeded from `?view=` (the
+   * sidebar's tier-2 Settings flyout, see `AdminSidebarNav`) via a plain
+   * lazy initializer, safe here (unlike `ScreensView`/`ProductsView`'s own
+   * deep-link handling) since every `SubView` is static, not tied to any
+   * remotely-synced list that might not have loaded yet.
+   */
+  const [subView, setSubView] = useState<SubView>(() => {
+    const view = searchParams.get('view')
+    return view && DEEP_LINKABLE_SUB_VIEWS.includes(view as SubView) ? (view as SubView) : 'main'
+  })
   /** `1` while opening a sub-view (slides in from the right, see `SlideTransition`), `-1` while going back. */
   const [direction, setDirection] = useState<1 | -1>(1)
+
+  /** Strips `?view=` from the URL once consumed above — a real external-system side effect (the URL), not a React state update. */
+  useEffect(() => {
+    if (!searchParams.get('view')) return
+    setSearchParams((current) => {
+      current.delete('view')
+      return current
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only meant to run once, right on mount, clearing whatever deep-link param this page happened to be opened with.
+  }, [])
 
   const toggleSidebarItem = (item: ToggleableSidebarItem, visible: boolean) => {
     const hiddenItems = visible ? sidebarSettings.hiddenItems.filter((hidden) => hidden !== item) : [...sidebarSettings.hiddenItems, item]

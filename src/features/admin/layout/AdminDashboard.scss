@@ -1,24 +1,70 @@
 @use '../../../styles/variables' as *;
 
+// A flex column: `AdminTopNavbar` (fixed height, its own sticky positioning)
+// stacked above `.admin-dashboard__body`, which holds the actual
+// sidebar+content row — kept as two separate flex containers (rather than
+// one) so the navbar spans the full width above both, not just above the
+// content column.
 .admin-dashboard {
   display: flex;
-  align-items: stretch;
+  flex-direction: column;
   width: 100%;
   min-height: 100vh;
 }
 
+.admin-dashboard__body {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  flex: 1;
+}
+
+// The mobile overlay variant overrides this with its own explicit width
+// (see the `max-width: 800px` block below) — this base width is really
+// just the desktop icon rail's. `transition: width` matches
+// `AdminSidebarNav.scss`'s own floating-rail width transition (180ms ease)
+// so the reserved layout space and the visual rail widen in lockstep when
+// pinned, instead of the content jumping ahead of/behind the rail's own
+// animation.
 .admin-dashboard__sidebar {
   flex-shrink: 0;
-  width: 240px;
+  width: $sidebar-rail-width;
   border-right: 1px solid $color-border;
   background: $color-surface;
+  transition: width 180ms ease;
+}
+
+// Pinning the rail open (see `AdminSidebarNav`'s own pin-toggle button)
+// widens this reserved space to match, so `.admin-dashboard__content`
+// (its `flex: 1` sibling) actually slides over rather than being covered
+// by the rail, which otherwise only ever floats on top via `position: fixed`
+// (see `AdminSidebarNav.scss`).
+.admin-dashboard__sidebar--pinned {
+  width: $sidebar-rail-width-expanded;
 }
 
 .admin-dashboard__sidebar--desktop {
   position: sticky;
-  top: 0;
-  height: 100vh;
+  // Below AdminTopNavbar.scss's own 56px height, so it sticks right under
+  // the navbar instead of behind it.
+  top: 56px;
+  height: calc(100vh - 56px);
   overflow-y: auto;
+  // `position: sticky` (like `fixed`) forms its own stacking context —
+  // without an explicit z-index here, that context sits at the "auto"
+  // layer among this element's own siblings (`.admin-dashboard__content`
+  // and its descendants), *regardless* of `AdminSidebarNav.scss`'s own
+  // z-index:27 on the `<nav>` inside it: a descendant's z-index only
+  // orders it among *its own* siblings, it doesn't lift its ancestor's
+  // stacking layer. Any content in `.admin-dashboard__content` that forms
+  // its own stacking context the same way (e.g. `ScaledScreenPreview`'s
+  // `position: absolute` + `transform` canvas) ends up in that same "auto"
+  // layer too, and — being later in the DOM — paints on top of the
+  // sidebar and its flyouts despite nav's own z-index. An explicit z-index
+  // here (matching nav's own) fixes that at the source, rather than
+  // chasing every individual thing inside `__content` that happens to
+  // create a stacking context of its own.
+  z-index: 27;
 }
 
 .admin-dashboard__sidebar--mobile {
@@ -42,10 +88,9 @@
   color: $color-text-muted;
 }
 
-.admin-dashboard__toggle {
-  display: none;
-}
-
+// The mobile sidebar toggle button itself now lives in `AdminTopNavbar`
+// (which is always in-flow, not a fixed overlay), so unlike before, no
+// extra top padding is needed here to keep content clear of it.
 @media (max-width: 800px) {
   .admin-dashboard__sidebar--desktop {
     display: none;
@@ -53,52 +98,6 @@
 
   .admin-dashboard__content {
     padding: $spacing-unit * 3 $spacing-unit * 2 $spacing-unit * 2;
-    padding-top: $spacing-unit * 8;
-  }
-
-  .admin-dashboard__toggle {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    position: fixed;
-    top: $spacing-unit * 2;
-    left: $spacing-unit * 2;
-    z-index: 30;
-    width: 36px;
-    height: 36px;
-    border-radius: 6px;
-    border: 1px solid $color-border;
-    background: $color-bg;
-    cursor: pointer;
-
-    span {
-      display: block;
-      width: 18px;
-      height: 2px;
-      border-radius: 1px;
-      background: $color-text;
-      transition: transform 0.2s ease, opacity 0.2s ease;
-    }
-
-    &:active {
-      box-shadow: inset 0 2px 4px $color-shadow;
-    }
-
-    &--open span {
-      &:nth-child(1) {
-        transform: translateY(6px) rotate(45deg);
-      }
-
-      &:nth-child(2) {
-        opacity: 0;
-      }
-
-      &:nth-child(3) {
-        transform: translateY(-6px) rotate(-45deg);
-      }
-    }
   }
 
   .admin-dashboard__scrim {

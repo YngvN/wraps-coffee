@@ -1,0 +1,30 @@
+@use '../../../styles/variables' as *;
+
+.fetched-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.fetched-logo--on-dark {
+  background: #1a1a1a;
+  padding: 3px;
+}
+
+.fetched-logo--monogram {
+  background: hsl(var(--monogram-hue) 55% 45% / 0.16);
+  color: hsl(var(--monogram-hue) 45% 32%);
+  font-family: $font-dashboard-sans;
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+[data-theme='dark'] .fetched-logo--monogram {
+  color: hsl(var(--monogram-hue) 70% 78%);
+}

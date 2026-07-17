@@ -156,7 +156,7 @@ export function isOwnUploadUrl(url: string): boolean {
   return url.startsWith(`${serverBaseUrl()}/uploads/`)
 }
 
-/** Geocodes `address` and finds nearby transit stops — backs the Extensions tab's "Look up address" action. No auth needed (public proxy of public data); throws a plain `Error` if the server or Entur is unreachable. */
+/** Geocodes `address` and finds nearby transit stops — backs the Integrations tab's "Look up address" action. No auth needed (public proxy of public data); throws a plain `Error` if the server or Entur is unreachable. */
 export async function lookupAddress(address: string): Promise<{ coordinates: { lat: number; lon: number } | null; nearbyStops: NearbyStop[] }> {
   const response = await fetch(`${serverBaseUrl()}/extensions/lookup?address=${encodeURIComponent(address)}`)
   if (!response.ok) throw new Error('Could not look up this address')

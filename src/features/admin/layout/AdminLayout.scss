@@ -1,7 +1,21 @@
 @use '../../../styles/variables' as *;
 
+// Overrides global.scss's body/h1/h2 rules (Quicksand/Fredericka the
+// Great/Pangolin — the cafe-branded look meant for the customer-facing
+// kiosk screens) with a more professional, businesslike font for the whole
+// admin dashboard + login screen, both of which live under this one shared
+// wrapper. A bolder weight of the same clean sans for headings, not a
+// separate decorative display face — contrast instead of ornamentation.
 .admin-layout {
   min-height: 100vh;
   background: $color-bg;
   color: $color-text;
+  font-family: $font-dashboard-sans;
+
+  h1,
+  h2,
+  h3 {
+    font-family: $font-dashboard-sans;
+    font-weight: 600;
+  }
 }

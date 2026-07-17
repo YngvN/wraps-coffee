@@ -23,7 +23,15 @@
     display: flex;
     flex-direction: column;
     gap: $spacing-unit;
+    transition: box-shadow 0.2s ease;
   }
+}
+
+// A brief pulse for an order deep-linked in from the notifications bell
+// (`?orderId=`) — scrolled into view already, this just makes it easy to
+// spot at a glance in an otherwise plain list of cards.
+.orders-view__item--highlighted .card {
+  box-shadow: 0 0 0 2px $color-accent;
 }
 
 .orders-view__header {

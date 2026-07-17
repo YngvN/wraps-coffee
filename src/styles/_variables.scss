@@ -46,6 +46,24 @@ $font-heading: 'Fredericka the Great', system-ui, sans-serif;
 $font-subheading: 'Pangolin', cursive;
 $font-serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
 $font-mono: ui-monospace, Consolas, monospace;
+// The admin dashboard's own font, deliberately distinct from $font-sans/
+// $font-heading/$font-subheading above — those three are the whimsical,
+// cafe-branded look meant for the customer-facing kiosk screens, scoped
+// there via .admin-layout's override (see AdminLayout.scss) rather than
+// applying everywhere the way body/h1/h2 do by default in global.scss.
+$font-dashboard-sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
 
 // Spacing
 $spacing-unit: 8px;
+
+// Width of the desktop admin sidebar's icon rail (see AdminSidebarNav.scss)
+// — shared with AdminDashboard.scss (the `<aside>` it sits in) and the
+// tier-2 flyout's own `left` offset, so all three stay in sync from one
+// place rather than three separately hardcoded numbers. `-expanded` is how
+// wide it grows on hover to show every item's own label (matching the
+// reference theme's `.first-menu:hover` treatment) — the rail overlays
+// this extra width on top of the content area via `position: fixed`
+// rather than the `<aside>` itself reserving it, so hovering doesn't
+// shift the whole page layout.
+$sidebar-rail-width: 72px;
+$sidebar-rail-width-expanded: 220px;

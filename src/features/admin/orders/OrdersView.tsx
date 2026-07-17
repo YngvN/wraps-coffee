@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Badge, Card, TranslatedText } from '../../../components'
 import { useClockFormatPreference } from '../../../hooks/useClockFormatPreference'
 import { useDateFormatPreference } from '../../../hooks/useDateFormatPreference'
@@ -24,10 +26,43 @@ export function OrdersView() {
   const [clockFormat] = useClockFormatPreference()
   const [dateFormat] = useDateFormatPreference()
   const [orders, setOrders] = useOrders()
+  const [searchParams, setSearchParams] = useSearchParams()
+  /** The order `?orderId=` deep-linked in on (see the notification bell's "new order" links) — read straight from the URL rather than mirrored into its own `useState` (no React state to seed/clear, just this one derived read), so the highlight disappears exactly when the param is stripped below. */
+  const highlightedOrderId = searchParams.get('orderId')
+  const orderRefs = useRef<Record<string, HTMLLIElement | null>>({})
 
   const updateStatus = (id: string, status: OrderStatus) => {
     setOrders(orders.map((order) => (order.id === id ? { ...order, status } : order)))
   }
+
+  /**
+   * Deep-link support: `?orderId=<id>` scrolls that order's own card into
+   * view — orders are a flat list already (no sub-view to open into), so
+   * unlike Screens/Products this is scroll + a brief highlight (see
+   * `highlightedOrderId` above) rather than seeding any drill-down state.
+   * The param is stripped after a short delay (not immediately) so the
+   * highlight has time to actually be seen; only `setSearchParams` runs
+   * here, not a plain `useState` setter, since a bare `setState` call
+   * inside an effect is what this codebase's own lint rule flags (see
+   * `useIdleTimer.ts` for the same hit elsewhere). Depends on `orders` (not
+   * just mount) since the real DOM node to scroll to only exists once this
+   * list has actually rendered with live data.
+   */
+  useEffect(() => {
+    const orderId = searchParams.get('orderId')
+    if (!orderId) return
+    const element = orderRefs.current[orderId]
+    if (!element) return
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const timeout = setTimeout(() => {
+      setSearchParams((current) => {
+        current.delete('orderId')
+        return current
+      })
+    }, 2000)
+    return () => clearTimeout(timeout)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-runs as `orders` loads in, but becomes a no-op once `orderId` is stripped from the URL.
+  }, [orders])
 
   return (
     <div className="orders-view">
@@ -39,7 +74,13 @@ export function OrdersView() {
       ) : (
         <ul className="orders-view__list">
           {orders.map((order: OrderRecord) => (
-            <li key={order.id}>
+            <li
+              key={order.id}
+              ref={(element) => {
+                orderRefs.current[order.id] = element
+              }}
+              className={highlightedOrderId === order.id ? 'orders-view__item--highlighted' : undefined}
+            >
               <Card>
                 <div className="orders-view__header">
                   <div>

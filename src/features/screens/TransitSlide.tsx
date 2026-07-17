@@ -10,13 +10,15 @@ interface TransitSlideProps {
   stopId?: string
 }
 
-/** Fullscreen rendering of real-time departures from one of the cafe's configured nearby stops (see the admin's Extensions tab), for a screen display's "transit" slot. */
+/** Fullscreen rendering of real-time departures from one of the cafe's configured nearby stops (see the admin's Integrations tab), for a screen display's "transit" slot. */
 export function TransitSlide({ stopId }: TransitSlideProps) {
   const { t } = useLanguage()
   const [config] = useExtensionsConfig()
   const selectedStops = config.transit.selectedStops
   const effectiveStopId = stopId && selectedStops.some((stop) => stop.id === stopId) ? stopId : selectedStops[0]?.id
-  const { stopName, departures, loading } = useTransitDepartures(effectiveStopId, config.transit.departureCount)
+  const { showPlatform, showLineName, realtimeOnly, modeFilter } = config.transit
+  const { stopName, departures: fetchedDepartures, loading } = useTransitDepartures(effectiveStopId, config.transit.departureCount)
+  const departures = fetchedDepartures.filter((departure) => (!realtimeOnly || departure.realtime) && (modeFilter.length === 0 || modeFilter.includes(departure.mode)))
 
   /** `Date.now()` can't be called directly during render (an impure call) — ticking this every 30s keeps each departure's "in X min" reasonably fresh between refetches without reading the clock at render time. */
   const [now, setNow] = useState(() => Date.now())
@@ -43,11 +45,15 @@ export function TransitSlide({ stopId }: TransitSlideProps) {
           {departures.map((departure) => {
             const minutesUntil = Math.max(0, Math.round((new Date(departure.expectedDepartureTime).getTime() - now) / 60_000))
             return (
-              <li key={`${departure.line}-${departure.destination}-${departure.expectedDepartureTime}`} className="transit-slide__item">
+              <li key={`${departure.line}-${departure.destination}-${departure.expectedDepartureTime}`} className={`transit-slide__item${departure.cancelled ? ' transit-slide__item--cancelled' : ''}`}>
                 <TransitModeIcon mode={departure.mode} className="transit-slide__mode-icon" />
                 <span className="transit-slide__line">{departure.line}</span>
-                <span className="transit-slide__destination">{departure.destination}</span>
-                <span className="transit-slide__time">{t('admin.screens.transitMinutesLabel', { minutes: minutesUntil })}</span>
+                <span className="transit-slide__destination">
+                  {departure.destination}
+                  {showLineName && departure.lineName && <span className="transit-slide__line-name">{departure.lineName}</span>}
+                </span>
+                {showPlatform && departure.platform && <span className="transit-slide__platform">{t('admin.screens.transitPlatformValue', { platform: departure.platform })}</span>}
+                <span className="transit-slide__time">{departure.cancelled ? t('admin.screens.transitCancelledLabel') : t('admin.screens.transitMinutesLabel', { minutes: minutesUntil })}</span>
               </li>
             )
           })}

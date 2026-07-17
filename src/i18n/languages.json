@@ -445,12 +445,24 @@
           "orders": "Orders",
           "screens": "Screens",
           "displayManager": "Display Manager",
-          "extensions": "Extensions",
+          "extensions": "Integrations",
           "logout": "Log out",
           "images": "Images",
           "users": "Users",
           "settings": "Settings",
-          "messageBoard": "Message board"
+          "messageBoard": "Message board",
+          "recentlyOpened": "Recently opened"
+        },
+        "notifications": {
+          "title": "Notifications",
+          "empty": "No new orders or stock alerts.",
+          "newOrder": "New order from {{name}}",
+          "outOfStock": "{{name}} is out of stock",
+          "noNewMessages": "No new messages"
+        },
+        "sidebar": {
+          "pinLabel": "Pin sidebar open",
+          "unpinLabel": "Unpin sidebar"
         },
         "overview": {
           "title": "Overview",
@@ -638,11 +650,19 @@
           "resizeScaleLabel": "Image size (% of screen)",
           "slotTransitLabel": "Transit departures",
           "transitStopLabel": "Stop",
-          "transitNoStopsConfiguredLabel": "No stops configured — set them up in Extensions",
+          "transitNoStopsConfiguredLabel": "No stops configured — set them up in Integrations",
           "transitNoDeparturesLabel": "No upcoming departures right now.",
           "transitMinutesLabel": "in {{minutes}} min",
           "slotWeatherLabel": "Weather",
-          "weatherNotConfiguredLabel": "Weather isn't configured yet — set it up in Extensions.",
+          "weatherNotConfiguredLabel": "Weather isn't configured yet — set it up in Integrations.",
+          "weatherForecastHoursLabel": "Forecast hours ahead",
+          "weatherDetailsLabel": "Details to show",
+          "weatherDetailsHint": "Temperature and the weather icon are always shown — turn on any extra details Yr provides for this hour.",
+          "weatherShowWindLabel": "Wind speed",
+          "weatherShowHumidityLabel": "Humidity",
+          "weatherShowPrecipitationProbabilityLabel": "Chance of precipitation",
+          "weatherShowUvIndexLabel": "UV index",
+          "weatherShowPressureLabel": "Air pressure",
           "slotTimeLabel": "Time",
           "timeDisplayModeLabel": "What to show",
           "timeModeTimeLabel": "Clock",
@@ -731,7 +751,14 @@
           "catalogueSelectLabel": "Which catalogue",
           "catalogueNoCataloguesLabel": "No catalogues created yet.",
           "description": "Configure the fullscreen kiosk displays around the store — what each one shows, its layout, and its timing.",
-          "createPinRequiredDescription": "Set a PIN so this screen can be locked before it opens — enter a new 4-digit PIN."
+          "createPinRequiredDescription": "Set a PIN so this screen can be locked before it opens — enter a new 4-digit PIN.",
+          "weatherWindValue": "{{value}} m/s wind",
+          "weatherHumidityValue": "{{value}}% humidity",
+          "weatherPrecipitationProbabilityValue": "{{value}}% chance of rain",
+          "weatherUvIndexValue": "UV {{value}}",
+          "weatherPressureValue": "{{value}} hPa",
+          "transitPlatformValue": "Platform {{platform}}",
+          "transitCancelledLabel": "Cancelled"
         },
         "displayManager": {
           "title": "Display Manager",
@@ -753,7 +780,9 @@
           "back": "Back",
           "confirmDelete": "Are you sure you want to delete this?",
           "dragToReorder": "Drag to reorder",
-          "addLanguage": "Add language"
+          "addLanguage": "Add language",
+          "openMenu": "Open menu",
+          "closeMenu": "Close menu"
         },
         "imageLibrary": {
           "title": "Image library",
@@ -847,7 +876,7 @@
             "keyDashboardScreensaver": "The admin dashboard/login screensaver's own on/off and idle-timeout-minutes settings.",
             "keyScreens": "Every configured kiosk screen — layout, panes, content.",
             "keyDisplayMachines": "Every machine/browser tab that's registered as a display, its monitors, and which Screen (if any) each shows.",
-            "keyExtensions": "Ruter/Yr integration setup — chosen stops, forecast hours.",
+            "keyExtensions": "Ruter/Entur/Yr integration setup — chosen stops, forecast hours.",
             "keySidebarSettings": "Which admin sidebar items are shown.",
             "keyOrders": "Online orders placed on the public website, pulled down live.",
             "keyMessageBoards": "The named message boards themselves (name, publish-to-website flag).",
@@ -942,7 +971,7 @@
           }
         },
         "extensions": {
-          "title": "Extensions",
+          "title": "Integrations",
           "lookupButton": "Look up address",
           "lookupButtonLoading": "Looking up...",
           "lookupError": "Could not look up this address. Check the local server is running and try again.",
@@ -951,7 +980,7 @@
           "coordinatesLabel": "Coordinates: {{lat}}, {{lon}}",
           "weatherTitle": "Weather (Yr)",
           "weatherEnableLabel": "Enable weather forecast",
-          "forecastHoursLabel": "Forecast hours ahead",
+          "weatherEnabledDescription": "Lets any screen's pane show a live hourly weather forecast for the cafe's own address, powered by Yr / MET Norway. Forecast length and which extra details each pane shows (wind, humidity, etc.) are configured on that pane itself, in the screen editor.",
           "needsLookupHint": "Look up the address above first.",
           "transitTitle": "Transit departures (Ruter)",
           "transitEnableLabel": "Enable transit departures",
@@ -971,7 +1000,385 @@
           "transitModeFunicular": "Funicular",
           "transitModeLift": "Lift",
           "transitModeUnknown": "Other",
-          "description": "Enable and configure live transit departures and weather forecasts for the store's screens."
+          "description": "Enable and configure live transit departures and weather forecasts for the store's screens.",
+          "comingSoon": {
+            "sectionTitle": "Coming soon",
+            "sectionDescription": "A look at third-party integrations we might build in the future. Browse by category below — nothing here is active yet.",
+            "badge": "Coming soon",
+            "categories": {
+              "payments": {
+                "title": "Payments, POS & Checkout",
+                "items": {
+                  "zettle": {
+                    "name": "Zettle by PayPal",
+                    "description": "Seamless integration with physical card terminals and automatic end-of-day settlement."
+                  },
+                  "vippsMobilepay": {
+                    "name": "Vipps MobilePay",
+                    "description": "Let customers pay by phone right at the kiosk screen, with a dynamic QR code for fast checkout."
+                  },
+                  "stripe": {
+                    "name": "Stripe",
+                    "description": "Handle online orders, subscriptions, and stored customer cards."
+                  },
+                  "klarna": {
+                    "name": "Klarna",
+                    "description": "Offer customers \"buy now, pay later\" — handy for pricier items or the web shop."
+                  }
+                }
+              },
+              "logistics": {
+                "title": "Inventory, Logistics & Accounting",
+                "items": {
+                  "fikenTripletex": {
+                    "name": "Fiken / Tripletex",
+                    "description": "Automatically send daily sales data from the till and web shop straight into the accounting system."
+                  },
+                  "shopifyWoocommerce": {
+                    "name": "Shopify / WooCommerce API",
+                    "description": "Sync stock levels, product info, and prices between the physical store and the web shop."
+                  },
+                  "barcodeTools": {
+                    "name": "Barcode generator & scanner",
+                    "description": "Generate and read EAN barcodes for faster product registration."
+                  },
+                  "inventoryPlanner": {
+                    "name": "Inventory Planner",
+                    "description": "Predicts when popular ingredients (like coffee beans or wrap flatbread) will run out, based on sales history."
+                  }
+                }
+              },
+              "ambience": {
+                "title": "Ambience & Customer Experience",
+                "items": {
+                  "spotifyBusiness": {
+                    "name": "Spotify for Business",
+                    "description": "Legal in-store music streaming (Soundtrack Your Brand), with playlist switching from the dashboard."
+                  },
+                  "sonos": {
+                    "name": "Sonos",
+                    "description": "Control speaker zones and volume in different parts of the venue from the admin screen."
+                  },
+                  "philipsHue": {
+                    "name": "Philips Hue",
+                    "description": "Schedule and control the cafe's lighting, e.g. dimming automatically for evening mode."
+                  }
+                }
+              },
+              "marketing": {
+                "title": "Screens, Marketing & Loyalty",
+                "items": {
+                  "mailchimpKlaviyo": {
+                    "name": "Mailchimp / Klaviyo",
+                    "description": "Automatically sync email addresses from the loyalty club or order page for newsletters."
+                  },
+                  "googleBusinessProfile": {
+                    "name": "Google Business Profile API",
+                    "description": "Update opening hours or holiday closures from the dashboard, and see Google reviews live."
+                  },
+                  "instagramFeed": {
+                    "name": "Instagram Feed Widget",
+                    "description": "Show the cafe's latest Instagram photos on a kiosk screen."
+                  },
+                  "untappdMenu": {
+                    "name": "Untappd",
+                    "description": "Automatically update the beer menu on screen in real time when a keg changes."
+                  },
+                  "qrGenerator": {
+                    "name": "QR code generator",
+                    "description": "Generate unique, color-coded QR codes for table ordering or social media, shown on screen."
+                  }
+                }
+              },
+              "localData": {
+                "title": "Local Real-Time Data (Kiosk Screens)",
+                "items": {
+                  "airthingsAir": {
+                    "name": "Airthings",
+                    "description": "Show CO2 and temperature levels in the venue on the dashboard, for a good working environment."
+                  }
+                }
+              },
+              "staff": {
+                "title": "Operations, Shifts & Staff",
+                "items": {
+                  "plandayDeputy": {
+                    "name": "Planday / Deputy",
+                    "description": "Sync shift schedules and hours; staff can clock in via a punch-clock module on the admin screen."
+                  },
+                  "slackDiscord": {
+                    "name": "Slack / Discord webhooks",
+                    "description": "Send automatic alerts to staff when a new table booking comes in or the owner has an important message."
+                  },
+                  "trelloTodoist": {
+                    "name": "Trello / Todoist",
+                    "description": "A shared checklist on the admin dashboard for opening/closing routines staff can tick off."
+                  }
+                }
+              },
+              "booking": {
+                "title": "Customer Service, Ordering & Booking",
+                "items": {
+                  "foodoraWolt": {
+                    "name": "Foodora / Wolt API",
+                    "description": "Bring external delivery orders into one order panel, instead of juggling several tablets behind the counter."
+                  },
+                  "tablePlanner": {
+                    "name": "Table planner & event booking",
+                    "description": "Let customers reserve a table on the website, with a live table map in the admin panel."
+                  },
+                  "zendesk": {
+                    "name": "Zendesk / Live chat",
+                    "description": "Handle messages from the website's contact and support forms in one tidy inbox."
+                  }
+                }
+              },
+              "devops": {
+                "title": "Security, Analytics & Dev",
+                "items": {
+                  "bankidSignicat": {
+                    "name": "BankID (Signicat)",
+                    "description": "Securely verify staff identity or set up loyalty profiles."
+                  },
+                  "googleAnalyticsPlausible": {
+                    "name": "Google Analytics / Plausible",
+                    "description": "Show website visitor stats right in the owner's overview."
+                  },
+                  "sentry": {
+                    "name": "Sentry",
+                    "description": "Monitor the system for errors in real time; if a kiosk screen crashes or loses connection, the developer is notified immediately."
+                  },
+                  "twilioSms": {
+                    "name": "Twilio SMS",
+                    "description": "Send automatic text messages to customers when their order is ready for pickup."
+                  },
+                  "netatmoCamera": {
+                    "name": "Netatmo / smart camera",
+                    "description": "See a live video feed from the store's security cameras right on the owner's phone."
+                  }
+                }
+              },
+              "sustainability": {
+                "title": "Food Waste & Sustainability",
+                "items": {
+                  "tooGoodToGo": {
+                    "name": "Too Good To Go",
+                    "description": "Automatically list surplus food (wraps, baguettes, pastries) for sale just before closing, with one click from the admin panel."
+                  },
+                  "karmaResqclub": {
+                    "name": "Karma / ResQ Club",
+                    "description": "An alternative to Too Good To Go that sells surplus food at a reduced price throughout the day."
+                  },
+                  "wasteCalculator": {
+                    "name": "Waste calculator",
+                    "description": "An internal tool where staff weigh and log wasted food, giving the owner weekly reports on what's thrown out most."
+                  }
+                }
+              },
+              "guestExperience": {
+                "title": "Guest Experience & Table Booking",
+                "items": {
+                  "untappdBusiness": {
+                    "name": "Untappd for Business",
+                    "description": "Automatically update the beer and wine menu on screen when the selection behind the bar changes."
+                  },
+                  "opentableResy": {
+                    "name": "OpenTable / Resy",
+                    "description": "More advanced table planning and capacity management for larger evening events or dinners."
+                  },
+                  "tripadvisorReview": {
+                    "name": "TripAdvisor Review Express",
+                    "description": "Automatically emails or texts guests who booked a table or ordered online, inviting them to leave a review."
+                  }
+                }
+              },
+              "iot": {
+                "title": "Smart Sensors & IoT",
+                "items": {
+                  "ruuvitag": {
+                    "name": "RuuviTag",
+                    "description": "Small Bluetooth sensors in fridges/freezers trigger an instant alert on the dashboard and an SMS to the owner if the temperature rises."
+                  },
+                  "smartPlugs": {
+                    "name": "Smart plugs (Shelly / TP-Link)",
+                    "description": "Automatically turn off coffee machines, waffle irons and lights once the system registers the store has closed."
+                  },
+                  "airthingsBusiness": {
+                    "name": "Airthings for Business",
+                    "description": "Monitor air quality, CO2 and radon in the venue to keep a good indoor climate for guests and staff."
+                  },
+                  "wifiLogin": {
+                    "name": "WiFi login (Tanaza / Purple WiFi)",
+                    "description": "Customers get free guest WiFi in exchange for signing up to the newsletter or following the cafe on social media (GDPR-compliant)."
+                  }
+                }
+              },
+              "aiAnalytics": {
+                "title": "Advanced Analytics & AI",
+                "items": {
+                  "chatgptAssistant": {
+                    "name": "ChatGPT / OpenAI API",
+                    "description": "An AI writing assistant in the admin panel that helps write the weekly newsletter, Instagram captions, or polite replies to Google reviews."
+                  },
+                  "priceCrawler": {
+                    "name": "Price crawler",
+                    "description": "A small bot that checks nearby competitors' coffee and wrap prices and suggests price adjustments in your own database."
+                  },
+                  "salesForecast": {
+                    "name": "Weather-based sales forecasting",
+                    "description": "Combines sales history with weather history (Yr) to tell the owner things like: sunny and 24°C next Tuesday — stock up on iced coffee milk and salad ingredients."
+                  }
+                }
+              },
+              "delivery": {
+                "title": "Own Delivery & Logistics",
+                "items": {
+                  "lalamovePorterbuddy": {
+                    "name": "Lalamove / Porterbuddy API",
+                    "description": "Book a courier straight from the order overview for corporate catering."
+                  },
+                  "googleMapsRoute": {
+                    "name": "Google Maps route optimization",
+                    "description": "Optimizes the driver's route for self-delivered catering based on the day's delivery addresses."
+                  }
+                }
+              },
+              "training": {
+                "title": "Internal Communication & Training",
+                "items": {
+                  "hmsLibrary": {
+                    "name": "HSE library (Svenn / Mellora)",
+                    "description": "Quick access in the admin panel to first-aid, fire-safety instructions and incident reporting."
+                  },
+                  "trainingVideos": {
+                    "name": "Training videos (Vimeo / YouTube API)",
+                    "description": "A \"training\" tab where new staff can watch videos on pulling the perfect espresso or rolling a wrap."
+                  }
+                }
+              },
+              "loyalty": {
+                "title": "Loyalty, Gift Cards & Coupons",
+                "items": {
+                  "walletPass": {
+                    "name": "Apple & Google Wallet pass",
+                    "description": "Generate a digital loyalty card (e.g. \"every 10th coffee free\") customers can save straight to their phone's wallet."
+                  },
+                  "givexYiftee": {
+                    "name": "Givex / Yiftee",
+                    "description": "Handle physical and digital gift cards that can be scanned with the till's camera."
+                  },
+                  "birthdayTrigger": {
+                    "name": "Birthday trigger",
+                    "description": "Automatically texts a coupon for a free wrap of choice to customers on their birthday."
+                  }
+                }
+              },
+              "itOps": {
+                "title": "IT Operations, Monitoring & Backup",
+                "items": {
+                  "uptimeRobot": {
+                    "name": "Uptime Robot",
+                    "description": "Monitors whether the local server or web shop goes down, and immediately pushes a notification to the owner."
+                  },
+                  "cloudBackup": {
+                    "name": "AWS S3 / Google Drive backup",
+                    "description": "Automatic nightly cloud backup of the whole database — menus, order history, messages and images."
+                  },
+                  "speedtestCli": {
+                    "name": "Speedtest CLI",
+                    "description": "A small network tester that runs in the background and logs the cafe's internet speed over time."
+                  }
+                }
+              },
+              "finance": {
+                "title": "Finance & Insurance",
+                "items": {
+                  "storeboxReceipt": {
+                    "name": "Storebox / email receipts",
+                    "description": "Sends digital receipts straight to the customer's online bank or Storebox app, saving paper."
+                  },
+                  "currencyConverter": {
+                    "name": "Currency converter (Open Exchange Rates)",
+                    "description": "Automatically shows prices in EUR or USD in a small corner of the price screens, handy in tourist areas."
+                  }
+                }
+              },
+              "entertainment": {
+                "title": "Entertainment & Community",
+                "items": {
+                  "quizModule": {
+                    "name": "Quiz module (Kahoot!)",
+                    "description": "Run an interactive cafe quiz on the big screens during quiet afternoons, with customers answering via their phone."
+                  },
+                  "stravaClub": {
+                    "name": "Strava Club widget",
+                    "description": "Shows this week's leaderboard for the local Strava running/cycling club on screen."
+                  },
+                  "untappdBadge": {
+                    "name": "Untappd badge screen",
+                    "description": "Shows live on screen when a guest checks in and rates a beer in the cafe."
+                  },
+                  "linkedinJobBoard": {
+                    "name": "LinkedIn / job board",
+                    "description": "A local job board on screen where nearby businesses can pay a small fee to show open positions."
+                  }
+                }
+              }
+            }
+          },
+          "statusEnabled": "Enabled",
+          "statusDisabled": "Disabled",
+          "transitDetailsLabel": "Details to show",
+          "transitDetailsHint": "Line and destination are always shown — turn on any extra details Entur provides for this stop.",
+          "transitShowPlatformLabel": "Platform / quay",
+          "transitShowLineNameLabel": "Full line name",
+          "transitRealtimeOnlyLabel": "Only show real-time departures",
+          "transitModeFilterLabel": "Transport modes to show",
+          "transitModeFilterHint": "Leave all unchecked to show every mode served by the selected stops.",
+          "weatherIconsButton": "View weather icons",
+          "weatherIconsTitle": "Weather icons",
+          "weatherSymbolClearsky": "Clear sky",
+          "weatherSymbolFair": "Fair",
+          "weatherSymbolPartlycloudy": "Partly cloudy",
+          "weatherSymbolCloudy": "Cloudy",
+          "weatherSymbolFog": "Fog",
+          "weatherSymbolRainshowers": "Rain showers",
+          "weatherSymbolRainshowersandthunder": "Rain showers and thunder",
+          "weatherSymbolSleetshowers": "Sleet showers",
+          "weatherSymbolSnowshowers": "Snow showers",
+          "weatherSymbolRain": "Rain",
+          "weatherSymbolHeavyrain": "Heavy rain",
+          "weatherSymbolLightrain": "Light rain",
+          "weatherSymbolRainandthunder": "Rain and thunder",
+          "weatherSymbolSleet": "Sleet",
+          "weatherSymbolSnow": "Snow",
+          "weatherSymbolLightsnow": "Light snow",
+          "weatherSymbolHeavysnow": "Heavy snow",
+          "weatherSymbolSnowandthunder": "Snow and thunder",
+          "weatherSymbolSleetshowersandthunder": "Sleet showers and thunder",
+          "weatherSymbolSnowshowersandthunder": "Snow showers and thunder",
+          "weatherSearchDescription": "Live hourly weather forecast on the kiosk screens, powered by Yr / MET Norway.",
+          "transitSearchDescription": "Live real-time bus, tram and train departures on the kiosk screens, powered by Entur.",
+          "searchPlaceholder": "Search...",
+          "searchClearLabel": "Clear search",
+          "searchNoResultsLabel": "No integrations match \"{{query}}\".",
+          "searchResultsCountLabel": "{{count}} result",
+          "searchResultsCountLabelPlural": "{{count}} results",
+          "activatedSectionTitle": "Activated",
+          "availableSectionTitle": "Available",
+          "activatedEmptyHint": "Nothing activated yet — turn one on below.",
+          "availableEmptyHint": "Everything is activated.",
+          "weatherDeactivateConfirm": "Are you sure you want to turn off Weather (Yr)? It'll stop showing on any screen currently using it.",
+          "transitDeactivateConfirm": "Are you sure you want to turn off Transit departures (Ruter)? It'll stop showing on any screen currently using it.",
+          "weatherBrandName": "Yr",
+          "weatherLabel": "- Weather",
+          "transitBrandName": "Ruter",
+          "transitLabel": "- Transit departures",
+          "enturBrandName": "Entur",
+          "enturLabel": "- Transit departures",
+          "enturEnableLabel": "Enable transit departures (Entur)",
+          "enturDeactivateConfirm": "Are you sure you want to turn off Entur? It'll stop showing on any screen currently using it.",
+          "enturSearchDescription": "Live real-time bus, tram, train and ferry departures covering stops all over Norway."
         },
         "messageBoard": {
           "title": "Message board",
@@ -1535,12 +1942,24 @@
           "orders": "Bestillinger",
           "screens": "Skjermer",
           "displayManager": "Skjermbehandling",
-          "extensions": "Utvidelser",
+          "extensions": "Integrasjoner",
           "logout": "Logg ut",
           "images": "Bilder",
           "users": "Brukere",
           "settings": "Innstillinger",
-          "messageBoard": "Oppslagstavle"
+          "messageBoard": "Oppslagstavle",
+          "recentlyOpened": "Nylig åpnet"
+        },
+        "notifications": {
+          "title": "Varsler",
+          "empty": "Ingen nye bestillinger eller lagervarsler.",
+          "newOrder": "Ny bestilling fra {{name}}",
+          "outOfStock": "{{name}} er utsolgt",
+          "noNewMessages": "Ingen nye meldinger"
+        },
+        "sidebar": {
+          "pinLabel": "Fest sidepanelet åpent",
+          "unpinLabel": "Løsne sidepanelet"
         },
         "overview": {
           "title": "Oversikt",
@@ -1728,11 +2147,19 @@
           "resizeScaleLabel": "Bildestørrelse (% av skjermen)",
           "slotTransitLabel": "Avganger",
           "transitStopLabel": "Stopp",
-          "transitNoStopsConfiguredLabel": "Ingen stopp konfigurert — sett dem opp under Utvidelser",
+          "transitNoStopsConfiguredLabel": "Ingen stopp konfigurert — sett dem opp under Integrasjoner",
           "transitNoDeparturesLabel": "Ingen kommende avganger akkurat nå.",
           "transitMinutesLabel": "om {{minutes}} min",
           "slotWeatherLabel": "Vær",
-          "weatherNotConfiguredLabel": "Vær er ikke satt opp ennå — sett det opp under Utvidelser.",
+          "weatherNotConfiguredLabel": "Vær er ikke satt opp ennå — sett det opp under Integrasjoner.",
+          "weatherForecastHoursLabel": "Antall timer fremover",
+          "weatherDetailsLabel": "Detaljer som skal vises",
+          "weatherDetailsHint": "Temperatur og værikon vises alltid — slå på ekstra detaljer Yr tilbyr for timen.",
+          "weatherShowWindLabel": "Vindstyrke",
+          "weatherShowHumidityLabel": "Luftfuktighet",
+          "weatherShowPrecipitationProbabilityLabel": "Nedbørssannsynlighet",
+          "weatherShowUvIndexLabel": "UV-indeks",
+          "weatherShowPressureLabel": "Lufttrykk",
           "slotTimeLabel": "Klokke",
           "timeDisplayModeLabel": "Hva som vises",
           "timeModeTimeLabel": "Klokkeslett",
@@ -1821,7 +2248,14 @@
           "catalogueSelectLabel": "Hvilken katalog",
           "catalogueNoCataloguesLabel": "Ingen kataloger opprettet ennå.",
           "description": "Sett opp fullskjerms kiosk-skjermene rundt i butikken — hva hver av dem viser, oppsettet og tidsbruken.",
-          "createPinRequiredDescription": "Angi en PIN slik at denne skjermen kan låses før den åpnes — skriv inn en ny firesifret PIN."
+          "createPinRequiredDescription": "Angi en PIN slik at denne skjermen kan låses før den åpnes — skriv inn en ny firesifret PIN.",
+          "weatherWindValue": "{{value}} m/s vind",
+          "weatherHumidityValue": "{{value}}% luftfuktighet",
+          "weatherPrecipitationProbabilityValue": "{{value}}% sjanse for nedbør",
+          "weatherUvIndexValue": "UV {{value}}",
+          "weatherPressureValue": "{{value}} hPa",
+          "transitPlatformValue": "Plattform {{platform}}",
+          "transitCancelledLabel": "Innstilt"
         },
         "displayManager": {
           "title": "Skjermbehandling",
@@ -1843,7 +2277,9 @@
           "back": "Tilbake",
           "confirmDelete": "Er du sikker på at du vil slette dette?",
           "dragToReorder": "Dra for å endre rekkefølge",
-          "addLanguage": "Legg til språk"
+          "addLanguage": "Legg til språk",
+          "openMenu": "Åpne meny",
+          "closeMenu": "Lukk meny"
         },
         "imageLibrary": {
           "title": "Bildebibliotek",
@@ -1937,7 +2373,7 @@
             "keyDashboardScreensaver": "Admin-dashbordets/innloggingens egen skjermsparer — på/av og minutter uten aktivitet.",
             "keyScreens": "Hver konfigurerte kioskskjerm — oppsett, paneler, innhold.",
             "keyDisplayMachines": "Hver maskin/nettleserfane som er registrert som en skjerm, dens monitorer, og hvilken Skjerm (hvis noen) hver av dem viser.",
-            "keyExtensions": "Oppsett for Ruter/Yr-integrasjonen — valgte stopp, antall timer værmelding.",
+            "keyExtensions": "Oppsett for Ruter/Entur/Yr-integrasjonen — valgte stopp, antall timer værmelding.",
             "keySidebarSettings": "Hvilke elementer som vises i sidemenyen.",
             "keyOrders": "Nettbestillinger fra den offentlige nettsiden, hentet ned live.",
             "keyMessageBoards": "Selve de navngitte oppslagstavlene (navn, publiser-til-nettside-valg).",
@@ -2032,7 +2468,7 @@
           }
         },
         "extensions": {
-          "title": "Utvidelser",
+          "title": "Integrasjoner",
           "lookupButton": "Slå opp adresse",
           "lookupButtonLoading": "Slår opp...",
           "lookupError": "Kunne ikke slå opp denne adressen. Sjekk at den lokale serveren kjører, og prøv igjen.",
@@ -2041,7 +2477,7 @@
           "coordinatesLabel": "Koordinater: {{lat}}, {{lon}}",
           "weatherTitle": "Vær (Yr)",
           "weatherEnableLabel": "Aktiver værmelding",
-          "forecastHoursLabel": "Antall timer fremover",
+          "weatherEnabledDescription": "Lar en hvilken som helst skjermrute vise en levende værmelding time for time for kafeens egen adresse, drevet av Yr / Meteorologisk institutt. Prognoselengde og hvilke ekstra detaljer hver rute viser (vind, luftfuktighet, osv.) settes på selve ruten, i skjermredigeringen.",
           "needsLookupHint": "Slå opp adressen over først.",
           "transitTitle": "Avganger (Ruter)",
           "transitEnableLabel": "Aktiver avganger",
@@ -2061,7 +2497,385 @@
           "transitModeFunicular": "Kabelbane",
           "transitModeLift": "Heis",
           "transitModeUnknown": "Annet",
-          "description": "Aktiver og sett opp sanntids kollektivavganger og værmelding for butikkens skjermer."
+          "description": "Aktiver og sett opp sanntids kollektivavganger og værmelding for butikkens skjermer.",
+          "comingSoon": {
+            "sectionTitle": "Kommer snart",
+            "sectionDescription": "Et innblikk i tredjeparts-integrasjoner vi kan bygge i fremtiden. Bla gjennom kategoriene under — ingenting her er aktivert ennå.",
+            "badge": "Kommer snart",
+            "categories": {
+              "payments": {
+                "title": "Betaling, salg & kassesystem",
+                "items": {
+                  "zettle": {
+                    "name": "Zettle by PayPal",
+                    "description": "Sømløs integrasjon med fysiske betalingsterminaler og synkronisering av dagsoppgjør."
+                  },
+                  "vippsMobilepay": {
+                    "name": "Vipps MobilePay",
+                    "description": "Lar kundene betale med mobilen direkte på kioskskjermene, med dynamiske QR-koder for rask betaling."
+                  },
+                  "stripe": {
+                    "name": "Stripe",
+                    "description": "For håndtering av nettbestillinger, abonnementsløsninger eller lagrede kundekort."
+                  },
+                  "klarna": {
+                    "name": "Klarna",
+                    "description": "Gir kundene mulighet til å kjøpe nå og betale senere, nyttig for dyrere varer eller nettbutikken."
+                  }
+                }
+              },
+              "logistics": {
+                "title": "Logistikk, lager & regnskap",
+                "items": {
+                  "fikenTripletex": {
+                    "name": "Fiken / Tripletex",
+                    "description": "Automatisk overføring av daglige salgsdata fra kassa/nettsiden rett inn i regnskapssystemet."
+                  },
+                  "shopifyWoocommerce": {
+                    "name": "Shopify / WooCommerce API",
+                    "description": "Synkroniserer lagerbeholdning, vareinformasjon og priser mellom butikken og nettbutikken."
+                  },
+                  "barcodeTools": {
+                    "name": "Barkode-generator & -skanner",
+                    "description": "Lar deg generere og lese EAN-strekkoder for raskere registrering av varer."
+                  },
+                  "inventoryPlanner": {
+                    "name": "Inventory Planner",
+                    "description": "Forutsier når du går tom for populære råvarer basert på historisk salgsdata."
+                  }
+                }
+              },
+              "ambience": {
+                "title": "Atmosfære & kundemiljø",
+                "items": {
+                  "spotifyBusiness": {
+                    "name": "Spotify for Business",
+                    "description": "Lovlig strømming av musikk i lokalet, med mulighet for ansatte å bytte spilleliste fra dashboardet."
+                  },
+                  "sonos": {
+                    "name": "Sonos",
+                    "description": "Styr lydsoner og volum i ulike deler av lokalet direkte fra admin-skjermen."
+                  },
+                  "philipsHue": {
+                    "name": "Philips Hue",
+                    "description": "Planlegg og styr belysningen i kafeen, f.eks. automatisk dimming i kveldsmodus."
+                  }
+                }
+              },
+              "marketing": {
+                "title": "Skjermer, markedsføring & kundelojalitet",
+                "items": {
+                  "mailchimpKlaviyo": {
+                    "name": "Mailchimp / Klaviyo",
+                    "description": "Automatisk synkronisering av e-postadresser fra kundeklubben eller bestillingssiden for nyhetsbrev."
+                  },
+                  "googleBusinessProfile": {
+                    "name": "Google Business Profile API",
+                    "description": "Oppdater åpningstider eller høytidsstengninger direkte fra dashboardet, og se Google-anmeldelser live."
+                  },
+                  "instagramFeed": {
+                    "name": "Instagram Feed Widget",
+                    "description": "Vis de nyeste bildene fra kafeens Instagram-konto direkte på en av kioskskjermene."
+                  },
+                  "untappdMenu": {
+                    "name": "Untappd",
+                    "description": "Oppdaterer automatisk ølmenyen på TV-skjermene i sanntid når dere bytter fat."
+                  },
+                  "qrGenerator": {
+                    "name": "QR-kode generator",
+                    "description": "Genererer unike, fargekodede QR-koder til bordbestilling eller sosiale medier på skjermene."
+                  }
+                }
+              },
+              "localData": {
+                "title": "Lokale sanntidsdata (kiosk-skjermer)",
+                "items": {
+                  "airthingsAir": {
+                    "name": "Airthings",
+                    "description": "Viser CO2- og temperaturnivå i lokalet på dashboardet for å sikre et godt arbeidsmiljø."
+                  }
+                }
+              },
+              "staff": {
+                "title": "Drift, vakter & personal",
+                "items": {
+                  "plandayDeputy": {
+                    "name": "Planday / Deputy",
+                    "description": "Synkroniserer vaktlister og timelister. Ansatte kan sjekke inn på jobb via en stemplingsklokke-modul."
+                  },
+                  "slackDiscord": {
+                    "name": "Slack / Discord webhooks",
+                    "description": "Send automatiske varsler til de ansatte når det kommer en ny bordbestilling eller en viktig beskjed."
+                  },
+                  "trelloTodoist": {
+                    "name": "Trello / Todoist",
+                    "description": "En felles huskeliste på admin-dashboardet for åpne- og stengerutiner de ansatte kan huke av."
+                  }
+                }
+              },
+              "booking": {
+                "title": "Kundeservice, bestilling & booking",
+                "items": {
+                  "foodoraWolt": {
+                    "name": "Foodora / Wolt API",
+                    "description": "Samler eksterne leveringsordrer i ditt eget ordrepanel, slik at de ansatte slipper å sjonglere flere nettbrett."
+                  },
+                  "tablePlanner": {
+                    "name": "TablePlanner / selskapsbooking",
+                    "description": "Lar kunder reservere bord direkte på nettsiden, og viser bordkartet live i admin-panelet."
+                  },
+                  "zendesk": {
+                    "name": "Zendesk / Live chat",
+                    "description": "Håndterer meldinger fra kontakt- og supportskjemaer på nettsiden i en ryddig innboks."
+                  }
+                }
+              },
+              "devops": {
+                "title": "Sikkerhet, analyse & dev",
+                "items": {
+                  "bankidSignicat": {
+                    "name": "BankID (Signicat)",
+                    "description": "For sikker verifisering av ansatte eller ved opprettelse av lojalitetsprofiler."
+                  },
+                  "googleAnalyticsPlausible": {
+                    "name": "Google Analytics / Plausible",
+                    "description": "Viser besøksstatistikk fra nettsiden direkte i eierens oversiktsbilde."
+                  },
+                  "sentry": {
+                    "name": "Sentry",
+                    "description": "Overvåker systemet for feil i sanntid. Hvis en kioskskjerm mister koblingen eller krasjer, får utvikleren beskjed umiddelbart."
+                  },
+                  "twilioSms": {
+                    "name": "Twilio SMS",
+                    "description": "Sender automatiske tekstmeldinger til kunder når bestillingen deres er klar for henting."
+                  },
+                  "netatmoCamera": {
+                    "name": "Netatmo / smart-kamera",
+                    "description": "Viser en live videosending fra overvåkningskameraene i butikken direkte på eierens telefon."
+                  }
+                }
+              },
+              "sustainability": {
+                "title": "Matsvinn & bærekraft",
+                "items": {
+                  "tooGoodToGo": {
+                    "name": "Too Good To Go",
+                    "description": "Legger automatisk ut overskuddsmat for salg rett før stengetid med ett klikk fra admin-panelet."
+                  },
+                  "karmaResqclub": {
+                    "name": "Karma / ResQ Club",
+                    "description": "Et alternativ til Too Good To Go som lar deg selge overskuddsmat til redusert pris gjennom dagen."
+                  },
+                  "wasteCalculator": {
+                    "name": "Svinn-kalkulator",
+                    "description": "Et internt registreringsverktøy der ansatte veier og registrerer mat som kastes, med ukentlige rapporter."
+                  }
+                }
+              },
+              "guestExperience": {
+                "title": "Gjesteopplevelse & bordbestilling",
+                "items": {
+                  "untappdBusiness": {
+                    "name": "Untappd for Business",
+                    "description": "Automatisk oppdatering av øl- og vinmenyen på TV-skjermene når dere bytter utvalg i baren."
+                  },
+                  "opentableResy": {
+                    "name": "OpenTable / Resy",
+                    "description": "For mer avansert bordsetning og kapasitetsstyring ved større kveldsarrangementer eller middager."
+                  },
+                  "tripadvisorReview": {
+                    "name": "TripAdvisor Review Express",
+                    "description": "Sender automatisk en e-post eller SMS til gjester med invitasjon til å legge igjen en anmeldelse."
+                  }
+                }
+              },
+              "iot": {
+                "title": "Smarte sensorer & IoT",
+                "items": {
+                  "ruuvitag": {
+                    "name": "RuuviTag",
+                    "description": "Bluetooth-sensorer i kjøleskap og frysere. Stiger temperaturen, går det et rødt varsel og en SMS til eieren."
+                  },
+                  "smartPlugs": {
+                    "name": "Smart-plugs (Shelly / TP-Link)",
+                    "description": "Slå av kaffemaskiner, vaffeljern og lys automatisk når systemet registrerer at butikken har stengt."
+                  },
+                  "airthingsBusiness": {
+                    "name": "Airthings for Business",
+                    "description": "Overvåk luftkvalitet, CO2 og radon i lokalet for å sikre et godt inneklima for gjester og ansatte."
+                  },
+                  "wifiLogin": {
+                    "name": "WiFi-innlogging (Tanaza / Purple WiFi)",
+                    "description": "Kundene får gratis gjeste-WiFi mot å godta nyhetsbrev eller følge kafeen på sosiale medier (GDPR-kompatibelt)."
+                  }
+                }
+              },
+              "aiAnalytics": {
+                "title": "Avansert analyse & kunstig intelligens",
+                "items": {
+                  "chatgptAssistant": {
+                    "name": "ChatGPT / OpenAI API",
+                    "description": "Integrer en AI-skriveassistent i admin-panelet som hjelper med nyhetsbrev, Instagram-tekster eller svar på anmeldelser."
+                  },
+                  "priceCrawler": {
+                    "name": "Pris-crawler",
+                    "description": "En liten robot som sjekker prisene hos nærmeste konkurrenter og foreslår prisjusteringer i din egen database."
+                  },
+                  "salesForecast": {
+                    "name": "Væravhengig salgsprediksjon",
+                    "description": "Kobler historiske salgsdata mot værdata fra Yr for å gi eieren beskjed om hva som bør kjøpes inn."
+                  }
+                }
+              },
+              "delivery": {
+                "title": "Utkjøring & logistikk (egen regi)",
+                "items": {
+                  "lalamovePorterbuddy": {
+                    "name": "Lalamove / Porterbuddy API",
+                    "description": "Bestill budbiler automatisk rett fra ordreoversikten i dashboardet, for catering til bedrifter."
+                  },
+                  "googleMapsRoute": {
+                    "name": "Google Maps ruteoptimalisering",
+                    "description": "Optimaliserer ruten for sjåføren basert på dagens leveringsadresser, for egen catering-utkjøring."
+                  }
+                }
+              },
+              "training": {
+                "title": "Internkommunikasjon & opplæring",
+                "items": {
+                  "hmsLibrary": {
+                    "name": "HMS-bibliotek (Svenn / Mellora)",
+                    "description": "En modul i admin-panelet der ansatte har rask tilgang til førstehjelp, branninstruks og avviksregistrering."
+                  },
+                  "trainingVideos": {
+                    "name": "Opplæringsvideoer (Vimeo / YouTube API)",
+                    "description": "En egen \"skole\"-fane i dashboardet der nyansatte kan se opplæringsvideoer."
+                  }
+                }
+              },
+              "loyalty": {
+                "title": "Lojalitet, gavekort & kuponger",
+                "items": {
+                  "walletPass": {
+                    "name": "Apple & Google Wallet Pass",
+                    "description": "Generer digitale lojalitetskort som kundene kan lagre direkte i lommeboken på telefonen."
+                  },
+                  "givexYiftee": {
+                    "name": "Givex / Yiftee",
+                    "description": "Håndtering av fysiske og digitale gavekort som kan skannes med kameraet på nettbrettet i kassen."
+                  },
+                  "birthdayTrigger": {
+                    "name": "Bursdags-trigger",
+                    "description": "Sender automatisk en kupong på en gratis valgfri wrap på SMS til kunder som har bursdag."
+                  }
+                }
+              },
+              "itOps": {
+                "title": "IT-drift, overvåking & backup",
+                "items": {
+                  "uptimeRobot": {
+                    "name": "Uptime Robot",
+                    "description": "Overvåker om den lokale serveren eller nettbutikken går ned, og sender eieren en push-notifikasjon."
+                  },
+                  "cloudBackup": {
+                    "name": "AWS S3 / Google Drive backup",
+                    "description": "Automatisk nattlig backup av hele databasen til skyen."
+                  },
+                  "speedtestCli": {
+                    "name": "Speedtest CLI",
+                    "description": "En liten nettverkstester som logger internetthastigheten i kafeen over tid."
+                  }
+                }
+              },
+              "finance": {
+                "title": "Finans & forsikring",
+                "items": {
+                  "storeboxReceipt": {
+                    "name": "Storebox / kvittering på e-post",
+                    "description": "Sender digitale kvitteringer direkte til kundens nettbank eller Storebox-app, og sparer papir."
+                  },
+                  "currencyConverter": {
+                    "name": "Valuta-omregner (Open Exchange Rates)",
+                    "description": "Kan automatisk vise prisene i EUR eller USD i et lite hjørne av prisskjermene."
+                  }
+                }
+              },
+              "entertainment": {
+                "title": "Underholdning & community",
+                "items": {
+                  "quizModule": {
+                    "name": "Quiz-modul (Kahoot!)",
+                    "description": "Kjør interaktiv kafé-quiz på storskjermene på rolige ettermiddager, der kundene svarer med telefonen."
+                  },
+                  "stravaClub": {
+                    "name": "Strava Club widget",
+                    "description": "Viser ukens ledertavle for den lokale Strava-klubben på skjermen."
+                  },
+                  "untappdBadge": {
+                    "name": "Untappd badge-skjerm",
+                    "description": "Viser live på skjermen når en gjest sjekker inn en øl og gir den en vurdering."
+                  },
+                  "linkedinJobBoard": {
+                    "name": "LinkedIn / jobb-tavle",
+                    "description": "En lokal oppslagstavle på skjermen der lokale bedrifter kan betale for å vise ledige stillinger."
+                  }
+                }
+              }
+            }
+          },
+          "statusEnabled": "Aktivert",
+          "statusDisabled": "Deaktivert",
+          "transitDetailsLabel": "Detaljer som skal vises",
+          "transitDetailsHint": "Linje og destinasjon vises alltid — slå på ekstra detaljer Entur tilbyr for holdeplassen.",
+          "transitShowPlatformLabel": "Plattform / kai",
+          "transitShowLineNameLabel": "Fullt linjenavn",
+          "transitRealtimeOnlyLabel": "Vis kun sanntidsavganger",
+          "transitModeFilterLabel": "Transportmidler som skal vises",
+          "transitModeFilterHint": "La alle stå uavhuket for å vise alle transportmidler ved de valgte holdeplassene.",
+          "weatherIconsButton": "Vis værikoner",
+          "weatherIconsTitle": "Værikoner",
+          "weatherSymbolClearsky": "Klarvær",
+          "weatherSymbolFair": "Lettskyet",
+          "weatherSymbolPartlycloudy": "Delvis skyet",
+          "weatherSymbolCloudy": "Skyet",
+          "weatherSymbolFog": "Tåke",
+          "weatherSymbolRainshowers": "Regnbyger",
+          "weatherSymbolRainshowersandthunder": "Regnbyger og torden",
+          "weatherSymbolSleetshowers": "Sluddbyger",
+          "weatherSymbolSnowshowers": "Snøbyger",
+          "weatherSymbolRain": "Regn",
+          "weatherSymbolHeavyrain": "Kraftig regn",
+          "weatherSymbolLightrain": "Lett regn",
+          "weatherSymbolRainandthunder": "Regn og torden",
+          "weatherSymbolSleet": "Sludd",
+          "weatherSymbolSnow": "Snø",
+          "weatherSymbolLightsnow": "Lett snø",
+          "weatherSymbolHeavysnow": "Kraftig snø",
+          "weatherSymbolSnowandthunder": "Snø og torden",
+          "weatherSymbolSleetshowersandthunder": "Sluddbyger og torden",
+          "weatherSymbolSnowshowersandthunder": "Snøbyger og torden",
+          "weatherSearchDescription": "Levende værmelding time for time på kioskskjermene, drevet av Yr / Meteorologisk institutt.",
+          "transitSearchDescription": "Levende sanntidsavganger for buss, trikk og tog på kioskskjermene, drevet av Entur.",
+          "searchPlaceholder": "Søk...",
+          "searchClearLabel": "Tøm søket",
+          "searchNoResultsLabel": "Ingen integrasjoner samsvarer med «{{query}}».",
+          "searchResultsCountLabel": "{{count}} resultat",
+          "searchResultsCountLabelPlural": "{{count}} resultater",
+          "activatedSectionTitle": "Aktivert",
+          "availableSectionTitle": "Tilgjengelig",
+          "activatedEmptyHint": "Ingenting aktivert enda — slå på en under.",
+          "availableEmptyHint": "Alt er aktivert.",
+          "weatherDeactivateConfirm": "Er du sikker på at du vil slå av Vær (Yr)? Den vil ikke lenger vises på skjermer som bruker den.",
+          "transitDeactivateConfirm": "Er du sikker på at du vil slå av Avganger (Ruter)? Den vil ikke lenger vises på skjermer som bruker den.",
+          "weatherBrandName": "Yr",
+          "weatherLabel": "- Vær",
+          "transitBrandName": "Ruter",
+          "transitLabel": "- Avganger",
+          "enturBrandName": "Entur",
+          "enturLabel": "- Avganger",
+          "enturEnableLabel": "Aktiver avganger (Entur)",
+          "enturDeactivateConfirm": "Er du sikker på at du vil slå av Entur? Den vil ikke lenger vises på skjermer som bruker den.",
+          "enturSearchDescription": "Sanntidsavganger for buss, trikk, tog og ferge ved holdeplasser over hele Norge."
         },
         "messageBoard": {
           "title": "Oppslagstavle",

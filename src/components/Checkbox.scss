@@ -6,20 +6,94 @@
   gap: calc($spacing-unit / 1.5);
   cursor: pointer;
   font-size: 0.9375rem;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 
+  // Visually hidden but still focusable/keyboard-operable (unlike the
+  // pasted Uiverse.io original's `display: none`, which would drop it
+  // from the tab order) — `.checkbox__box` is the box actually seen and
+  // clicked, driven purely by this input's `:checked`/`:focus-visible`
+  // state via sibling selectors below.
   input {
-    width: 16px;
-    height: 16px;
-    accent-color: $color-accent;
-    cursor: pointer;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   &:has(input:disabled) {
     color: $color-text-muted;
     cursor: not-allowed;
 
-    input {
+    .checkbox__box {
       cursor: not-allowed;
+      opacity: 0.5;
     }
   }
+}
+
+.checkbox__box {
+  position: relative;
+  flex-shrink: 0;
+  height: 1.3em;
+  width: 1.3em;
+  border-radius: 0.25em;
+  transition: background-color 0.25s ease;
+
+  // Doubles as the unchecked box outline and the checked checkmark — see
+  // the `:checked` rule below, which reshapes this same pseudo-element
+  // from a full square border into an L-shaped tick rather than crossfading
+  // between two separate shapes.
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1.05em;
+    height: 1.05em;
+    border: 0.1em solid $color-border;
+    border-radius: 0.25em;
+    transition:
+      all 0.25s ease,
+      border-width 0.1s ease;
+  }
+}
+
+.checkbox input:checked ~ .checkbox__box {
+  background-color: $color-accent;
+}
+
+.checkbox input:checked ~ .checkbox__box::after {
+  left: 0.45em;
+  top: 0.25em;
+  width: 0.25em;
+  height: 0.5em;
+  border-color: transparent $color-accent-contrast $color-accent-contrast transparent;
+  border-width: 0 0.15em 0.15em 0;
+  border-radius: 0;
+  transform: rotate(45deg);
+}
+
+.checkbox input:focus-visible ~ .checkbox__box {
+  outline: 2px solid $color-accent;
+  outline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .checkbox:hover input:not(:checked):not(:disabled) ~ .checkbox__box::after {
+    border-color: $color-accent;
+  }
+}
+
+// Targets the label's own `:active` (true while pressing anywhere inside
+// it, including `.checkbox__box`) rather than the input's — the hidden
+// input isn't an ancestor of the box, so `input:active ~ .checkbox__box`
+// would never actually match a real click on the visible box.
+.checkbox:active .checkbox__box {
+  box-shadow: inset 0 2px 4px $color-shadow;
 }

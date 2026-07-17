@@ -1,8 +1,10 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { BackButton, Button, ChevronRightIcon, PlusIcon, SlideTransition, TranslatedText } from '../../../components'
 import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
+import { useRecentlyOpened } from '../../../hooks/useRecentlyOpened'
 import { useScreenLockPin } from '../../../hooks/useScreenLockPin'
 import { useScreens } from '../../../hooks/useScreens'
 import { useScreensaverSchedule } from '../../../hooks/useScreensaverSchedule'
@@ -17,9 +19,11 @@ import { deriveMdnsName } from '../../../utils/mdnsName'
 import { DisplayManagerView } from '../displayManager/DisplayManagerView'
 import { CreatePinModal } from './CreatePinModal'
 import { ScreenCard } from './ScreenCard'
-import { ScreenForm } from './ScreenForm'
+import { ScreenForm, type ScreenFormTarget } from './ScreenForm'
 import { ScreensaverScheduleModal } from './ScreensaverScheduleModal'
 import './ScreensView.scss'
+
+const SCREEN_FORM_TARGETS: ScreenFormTarget[] = ['global', 'layout', 'borders', 'background', 'stages', 'transitions', 'screensaver', 'other']
 
 /** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link (addressed per Settings → Advanced's `ScreenAddressSettings`), plus the "Create pin" button that sets the one shared PIN every screen's own "Lock screen" button locks behind, and the "Screen saver" button that sets the one shared daily window every screen's own "Use screensaver" checkbox opts into. "Open" treats launching a screen as deploying it, not previewing it — see `handleOpenScreen`. A "Display Manager" row above the screen list opens `DisplayManagerView` — every machine/monitor that's ever registered, with a Screen-assignment selector per monitor. */
 export function ScreensView() {
@@ -27,6 +31,7 @@ export function ScreensView() {
   const [screens, setScreens] = useScreens()
   const [pin] = useScreenLockPin()
   const [screensaverSchedule] = useScreensaverSchedule()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [editingScreen, setEditingScreen] = useState<ScreenConfig | null | undefined>(undefined)
   const [pinModalOpen, setPinModalOpen] = useState(false)
   const [screensaverModalOpen, setScreensaverModalOpen] = useState(false)
@@ -45,6 +50,11 @@ export function ScreensView() {
   const [pendingOpenScreen, setPendingOpenScreen] = useState<{ screen: ScreenConfig; url: string } | null>(null)
   const [storeSettings] = useStoreSettings()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
+  const { record: recordRecentlyOpened } = useRecentlyOpened()
+  /** Which sub-view the just-opened `ScreenForm` should jump straight to — set only when opened via the `?screenId=&tab=` deep link, `undefined` for a normal list-click open. */
+  const [initialFormTarget, setInitialFormTarget] = useState<ScreenFormTarget | undefined>(undefined)
+  /** Guards the deep-link effect below so it only ever actually opens the form once — `screens` starts out as the bundled (empty) seed and only gets its real contents once the WS snapshot arrives a moment later, so this effect has to keep re-checking as `screens` updates rather than running once on mount; without this ref it would re-open the form on every later `screens` change too (a live edit elsewhere, a different admin's write, etc.), even long after the admin has since closed it. */
+  const consumedDeepLinkRef = useRef(false)
 
   useEffect(() => {
     getScreenAddressSettings()
@@ -73,12 +83,52 @@ export function ScreensView() {
   const openForm = (target: ScreenConfig | null) => {
     setDirection(1)
     setEditingScreen(target)
+    if (target) recordRecentlyOpened('screen', target.screenID, target.name)
   }
   const closeForm = () => {
     setDirection(-1)
     setEditingScreen(undefined)
     setFormRoute(undefined)
+    setInitialFormTarget(undefined)
   }
+
+  /**
+   * Deep-link support: `?screenId=<id>&tab=<target>` opens straight into
+   * that screen's edit form (optionally to a named sub-view) instead of
+   * requiring a click through the list — what the sidebar's tier-2/3
+   * flyouts (and "recently opened" entries) actually navigate to. Depends
+   * on `screens` (not just mount) since the target screen may not exist yet
+   * in it on the very first render (see `consumedDeepLinkRef`); once
+   * found, the state updates are deferred via `queueMicrotask` rather than
+   * called directly in the effect body, which is what this codebase's own
+   * "no synchronous setState in an effect" lint rule requires (see
+   * `useIdleTimer.ts` for the same rule hit elsewhere) — `setSearchParams`
+   * itself is exempt from that rule, so stripping the params happens
+   * directly, right here. Placed after `openForm`'s own declaration (not
+   * just after `useState`) since referencing it any earlier in this
+   * component is what this codebase's lint setup considers a forward
+   * reference, flagged the same as an actual bug would be.
+   */
+  useEffect(() => {
+    if (consumedDeepLinkRef.current) return
+    const screenId = searchParams.get('screenId')
+    if (!screenId) return
+    const target = screens.find((candidate) => candidate.screenID === screenId)
+    if (!target) return
+    consumedDeepLinkRef.current = true
+    const tab = searchParams.get('tab')
+    const validTab = tab && SCREEN_FORM_TARGETS.includes(tab as ScreenFormTarget) ? (tab as ScreenFormTarget) : undefined
+    queueMicrotask(() => {
+      setInitialFormTarget(validTab)
+      openForm(target)
+    })
+    setSearchParams((current) => {
+      current.delete('screenId')
+      current.delete('tab')
+      return current
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `openForm`/`setInitialFormTarget` are intentionally excluded: both are stable in effect (they only ever call setters/a stable `record` callback), and adding them would just be noise.
+  }, [screens, searchParams, setSearchParams])
 
   /** Registers the open form as one level of the shared browser-back stack (see `useBackLevel`) — the single top Back button below (and, nested inside `ScreenForm` itself, its own sub-views) all close via the browser's own back action from here on, one level at a time, instead of each rendering its own separate Back button. */
   useBackLevel(isFormOpen, closeForm)
@@ -157,6 +207,33 @@ export function ScreensView() {
     setShowDisplayManager(false)
   }
 
+  /**
+   * Deep-link support for the sidebar's tier-2 Screens flyout's own
+   * "Display Manager"/"+ Add screen" rows — `?displayManager=1` opens
+   * `DisplayManagerView` the same as clicking that row would,
+   * `?new=1` opens a blank `ScreenForm` the same as clicking "+ Add
+   * screen" would. Neither depends on any remotely-synced list (unlike the
+   * `?screenId=` deep link above), so there's no `consumedDeepLinkRef`-style
+   * guard needed — this only ever runs meaningfully once anyway, since it
+   * strips its own param immediately.
+   */
+  useEffect(() => {
+    if (searchParams.get('displayManager')) {
+      queueMicrotask(openDisplayManager)
+      setSearchParams((current) => {
+        current.delete('displayManager')
+        return current
+      })
+    } else if (searchParams.get('new')) {
+      queueMicrotask(() => openForm(null))
+      setSearchParams((current) => {
+        current.delete('new')
+        return current
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only meant to run once, right on mount, consuming whichever (if any) of these two deep-link params this page happened to be opened with.
+  }, [])
+
   const view = isFormOpen ? 'form' : showDisplayManager ? 'displayManager' : 'list'
 
   return (
@@ -171,7 +248,7 @@ export function ScreensView() {
                 {formRoute && <span className="screens-view__form-route"> - {formRoute}</span>}
               </h1>
             </div>
-            <ScreenForm screen={editingScreen ?? null} onSave={handleSave} onCancel={closeForm} onRouteChange={setFormRoute} />
+            <ScreenForm screen={editingScreen ?? null} onSave={handleSave} onCancel={closeForm} onRouteChange={setFormRoute} initialTarget={initialFormTarget} />
           </div>
         ) : view === 'displayManager' ? (
           <DisplayManagerView onBack={closeDisplayManager} />

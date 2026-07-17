@@ -286,10 +286,11 @@ POST /backups/restore-from-folder  (Authorization: Bearer <token>, admin/subadmi
 → 200 { "coordinates": { "lat", "lon" } | null, "nearbyStops": [{ "id", "name", "modes": [...] }] }
 
 GET /extensions/departures?stopId=<id>&count=<n>
-→ 200 { "stopName", "departures": [{ "line", "mode", "destination", "expectedDepartureTime", "realtime" }] }
+→ 200 { "stopName", "departures": [{ "line", "lineName"?, "mode", "destination", "expectedDepartureTime", "aimedDepartureTime", "realtime", "platform"?, "cancelled" }] }
 
 GET /extensions/weather?lat=<lat>&lon=<lon>&hours=<n>
-→ 200 { "hourly": [{ "time", "temperatureC", "precipitationMm", "symbolCode" }] }`}</code>
+→ 200 { "hourly": [{ "time", "temperatureC", "precipitationMm", "symbolCode", "windSpeedMs"?, "windFromDirectionDeg"?, "humidityPercent"?, "precipitationProbabilityPercent"?, "uvIndex"?, "pressureHpa"? }] }
+   (fields marked ? come from MET's "complete" dataset and are only present when MET reports one for that hour — e.g. "uvIndex" outside daylight)`}</code>
         </pre>
       </Card>
 
