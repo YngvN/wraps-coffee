@@ -66,7 +66,7 @@ function buildSearchIndex(t: (key: string, vars?: Record<string, string | number
       name: t('admin.extensions.transitTitle'),
       description: t('admin.extensions.transitSearchDescription'),
       categoryLabel: t('admin.extensions.transitTitle'),
-      logos: [<FetchedLogo key="ruter" slug="ruter" label="Ruter" />],
+      logos: [<FetchedLogo key="ruter" slug="ruter" label="Ruter#" />],
       tags: TRANSIT_TAGS,
       enabled: config.transit.enabled,
     },
@@ -128,7 +128,7 @@ export function ExtensionSearchResults({ query, config }: ExtensionSearchResults
                 <Badge variant="neutral">{t('admin.extensions.comingSoon.badge')}</Badge>
               ) : (
                 <span
-                  className={`status-dot${entry.enabled ? ' status-dot--active' : ' status-dot--inactive'}`}
+                  className={`status-dot${entry.enabled ? ' status-dot--active' : ' status-dot--disabled'}`}
                   title={t(entry.enabled ? 'admin.extensions.statusEnabled' : 'admin.extensions.statusDisabled')}
                 />
               )}

@@ -190,8 +190,16 @@
     background: $color-success;
   }
 
+  &--stale {
+    background: $color-warning;
+  }
+
   &--inactive {
     background: $color-error;
+  }
+
+  &--disabled {
+    background: $color-text-muted;
   }
 }
 

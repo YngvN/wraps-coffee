@@ -4,8 +4,9 @@ import { useContactInfo } from '../../../hooks/useContactInfo'
 import { useExtensionsConfig } from '../../../hooks/useExtensionsConfig'
 import { useLanguage } from '../../../i18n'
 import { lookupAddress } from '../../../lib/localServer'
-import type { NearbyStop, WeatherLocation } from '../../../types/extensions'
+import type { ExtensionsConfig, NearbyStop, WeatherLocation } from '../../../types/extensions'
 import { TransitModeIcon } from '../../screens/TransitModeIcon'
+import { weatherLocationKey } from '../../../utils/weatherLocationKey'
 import { weatherSymbolToEmoji } from '../../../utils/weatherSymbols'
 import { ActivationToggle } from './ActivationToggle'
 import { AnimatedDetails } from './AnimatedDetails'
@@ -54,6 +55,28 @@ const WEATHER_SYMBOLS: { code: string; labelKey: string }[] = [
   { code: 'sleetshowersandthunder', labelKey: 'admin.extensions.weatherSymbolSleetshowersandthunder' },
   { code: 'snowshowersandthunder', labelKey: 'admin.extensions.weatherSymbolSnowshowersandthunder' },
 ]
+
+/** The Weather card's own status-dot state: `'disabled'` grey (turned off), `'error'` red (turned on but genuinely not working — no live data and no cache to fall back on), `'stale'` yellow (a currently-open pane is showing cached data — see `WeatherSlide`), `'live'` green. */
+type WeatherStatus = 'disabled' | 'error' | 'stale' | 'live'
+
+/**
+ * Aggregates every configured weather location's own last-reported fetch
+ * outcome (`config.weather.locationStatus`, written by whichever kiosk
+ * `WeatherSlide` last fetched it) into one status for the Weather card's
+ * dot. Worst case wins: one broken location is enough to call the whole
+ * integration `'error'`, even if others are fine. A location nobody's
+ * currently displaying (no report yet) simply doesn't contribute either way.
+ */
+function computeWeatherStatus(config: ExtensionsConfig): WeatherStatus {
+  if (!config.weather.enabled) return 'disabled'
+  const activeCoordinates: { lat: number; lon: number }[] = []
+  if (config.weather.useStoreLocation && config.addressLookup?.coordinates) activeCoordinates.push(config.addressLookup.coordinates)
+  for (const location of config.weather.locations) if (location.coordinates) activeCoordinates.push(location.coordinates)
+  const reportedStates = activeCoordinates.map((coordinates) => config.weather.locationStatus[weatherLocationKey(coordinates.lat, coordinates.lon)]?.state)
+  if (reportedStates.some((state) => state === 'error')) return 'error'
+  if (reportedStates.some((state) => state === 'stale')) return 'stale'
+  return 'live'
+}
 
 /**
  * Admin view for the two live-data screen-slot kinds: real-time transit
@@ -171,6 +194,18 @@ export function ExtensionsView() {
       .finally(() => setLookingUpLocationId(null))
   }
 
+  const weatherStatus = computeWeatherStatus(config)
+  const weatherStatusDotClass =
+    weatherStatus === 'live' ? 'status-dot--active' : weatherStatus === 'stale' ? 'status-dot--stale' : weatherStatus === 'error' ? 'status-dot--inactive' : 'status-dot--disabled'
+  const weatherStatusTitleKey =
+    weatherStatus === 'live'
+      ? 'admin.extensions.statusEnabled'
+      : weatherStatus === 'stale'
+        ? 'admin.extensions.statusStale'
+        : weatherStatus === 'error'
+          ? 'admin.extensions.statusError'
+          : 'admin.extensions.statusDisabled'
+
   const weatherSubmenu = (
     <AnimatedDetails
       className="extension-submenu"
@@ -193,7 +228,7 @@ export function ExtensionsView() {
             <span className="extension-submenu__brand">{t('admin.extensions.weatherBrandName')}</span>
             <span className="extension-submenu__label">{t('admin.extensions.weatherLabel')}</span>
           </span>
-          <span className={`status-dot${config.weather.enabled ? ' status-dot--active' : ' status-dot--inactive'}`} title={t(config.weather.enabled ? 'admin.extensions.statusEnabled' : 'admin.extensions.statusDisabled')} />
+          <span className={`status-dot ${weatherStatusDotClass}`} title={t(weatherStatusTitleKey)} />
           <span className="extension-submenu__chevron" aria-hidden="true">
             ▸
           </span>
@@ -275,12 +310,12 @@ export function ExtensionsView() {
             confirmMessage={t('admin.extensions.transitDeactivateConfirm')}
             onChange={(checked) => setConfig({ ...config, transit: { ...config.transit, enabled: checked } })}
           />
-          <FetchedLogo slug="ruter" label="Ruter" className="extension-submenu__icon" />
+          <FetchedLogo slug="ruter" label="Ruter#" className="extension-submenu__icon" />
           <span className="extension-submenu__title">
             <span className="extension-submenu__brand">{t('admin.extensions.transitBrandName')}</span>
             <span className="extension-submenu__label">{t('admin.extensions.transitLabel')}</span>
           </span>
-          <span className={`status-dot${config.transit.enabled ? ' status-dot--active' : ' status-dot--inactive'}`} title={t(config.transit.enabled ? 'admin.extensions.statusEnabled' : 'admin.extensions.statusDisabled')} />
+          <span className={`status-dot${config.transit.enabled ? ' status-dot--active' : ' status-dot--disabled'}`} title={t(config.transit.enabled ? 'admin.extensions.statusEnabled' : 'admin.extensions.statusDisabled')} />
           <span className="extension-submenu__chevron" aria-hidden="true">
             ▸
           </span>
@@ -377,7 +412,7 @@ export function ExtensionsView() {
             <span className="extension-submenu__brand">{t('admin.extensions.enturBrandName')}</span>
             <span className="extension-submenu__label">{t('admin.extensions.enturLabel')}</span>
           </span>
-          <span className={`status-dot${config.entur.enabled ? ' status-dot--active' : ' status-dot--inactive'}`} title={t(config.entur.enabled ? 'admin.extensions.statusEnabled' : 'admin.extensions.statusDisabled')} />
+          <span className={`status-dot${config.entur.enabled ? ' status-dot--active' : ' status-dot--disabled'}`} title={t(config.entur.enabled ? 'admin.extensions.statusEnabled' : 'admin.extensions.statusDisabled')} />
           <span className="extension-submenu__chevron" aria-hidden="true">
             ▸
           </span>

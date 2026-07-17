@@ -80,14 +80,32 @@ export interface ExtensionsConfig {
     useStoreLocation: boolean
     /** Extra named locations an admin has added — e.g. a second store, or any other place they want a screen to show the forecast for. A `'weather'` slide picks one of these (or the store's own address) by id; see `WeatherSlide`'s resolution order. */
     locations: WeatherLocation[]
+    /**
+     * Live fetch-health signal for each of the locations above, keyed by
+     * `weatherLocationKey(lat, lon)` — reported by whichever kiosk `WeatherSlide`
+     * last fetched that location's forecast, read by the Integrations
+     * page's own status dot on the Weather card so an admin can tell
+     * whether it's actually live without having to go check a screen in
+     * person. Purely a live status signal, not real configuration — same
+     * posture as `ScreenConfig`'s `editingFocus`/`screensaverTestActive`.
+     * A location with no entry here yet just hasn't been fetched by any
+     * currently-open pane.
+     */
+    locationStatus: Record<string, WeatherLocationStatus>
   }
+}
+
+/** One location's last-reported fetch outcome (see `ExtensionsConfig['weather']['locationStatus']`): `'live'` (fetched fresh just now), `'stale'` (live fetch failed, showing a cached forecast up to 7 days old instead), or `'error'` (live fetch failed and there's no usable cache either). */
+export interface WeatherLocationStatus {
+  state: 'live' | 'stale' | 'error'
+  updatedAt: number
 }
 
 /** Starting values for a cafe that hasn't configured either integration yet. */
 export const DEFAULT_EXTENSIONS_CONFIG: ExtensionsConfig = {
   entur: { enabled: false },
   transit: { enabled: false, selectedStops: [], departureCount: 5, showPlatform: false, showLineName: false, realtimeOnly: false, modeFilter: [] },
-  weather: { enabled: false, useStoreLocation: true, locations: [] },
+  weather: { enabled: false, useStoreLocation: true, locations: [], locationStatus: {} },
 }
 
 /** One upcoming departure from `GET /extensions/departures`, as rendered by `TransitSlide`. */

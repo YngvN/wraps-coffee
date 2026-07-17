@@ -1,10 +1,12 @@
+import { useEffect } from 'react'
 import { useClockFormatPreference } from '../../hooks/useClockFormatPreference'
 import { useExtensionsConfig } from '../../hooks/useExtensionsConfig'
 import { useWeatherForecast } from '../../hooks/useWeatherForecast'
 import { useLanguage } from '../../i18n'
-import type { ExtensionsConfig } from '../../types/extensions'
+import type { ExtensionsConfig, WeatherLocationStatus } from '../../types/extensions'
 import { DEFAULT_WEATHER_FORECAST_HOURS } from '../../types/screen'
 import { formatClockTime } from '../../utils/clockFormat'
+import { weatherLocationKey } from '../../utils/weatherLocationKey'
 import { weatherSymbolToEmoji } from '../../utils/weatherSymbols'
 import './WeatherSlide.scss'
 
@@ -44,9 +46,26 @@ interface WeatherSlideProps {
 export function WeatherSlide({ locationId, forecastHours, showWind, showHumidity, showPrecipitationProbability, showUvIndex, showPressure }: WeatherSlideProps) {
   const { t, language } = useLanguage()
   const [clockFormat] = useClockFormatPreference()
-  const [config] = useExtensionsConfig()
+  const [config, setConfig] = useExtensionsConfig()
   const coordinates = resolveWeatherCoordinates(config, locationId)
-  const { hourly } = useWeatherForecast(coordinates?.lat, coordinates?.lon, forecastHours ?? DEFAULT_WEATHER_FORECAST_HOURS)
+  const { hourly, loading, stale } = useWeatherForecast(coordinates?.lat, coordinates?.lon, forecastHours ?? DEFAULT_WEATHER_FORECAST_HOURS)
+
+  // Reports this location's fetch outcome back into the synced config, so the
+  // Integrations page's own status dot (a different device/browser) can show
+  // it — see `ExtensionsConfig['weather']['locationStatus']`. Only fires on a
+  // genuine transition (not merely because `config`/`setConfig` are fresh
+  // references every render, which they always are).
+  useEffect(() => {
+    if (!coordinates || loading) return
+    const state: WeatherLocationStatus['state'] = hourly.length === 0 ? 'error' : stale ? 'stale' : 'live'
+    const key = weatherLocationKey(coordinates.lat, coordinates.lon)
+    if (config.weather.locationStatus[key]?.state === state) return
+    setConfig((current) => ({
+      ...current,
+      weather: { ...current.weather, locationStatus: { ...current.weather.locationStatus, [key]: { state, updatedAt: Date.now() } } },
+    }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `config`/`setConfig` intentionally excluded: `useExtensionsConfig` re-wraps both fresh every render, so including them would re-run this on every render instead of only on a genuine fetch-outcome change.
+  }, [coordinates?.lat, coordinates?.lon, loading, stale, hourly.length])
 
   if (!coordinates) {
     return (
@@ -80,6 +99,7 @@ export function WeatherSlide({ locationId, forecastHours, showWind, showHumidity
           </li>
         ))}
       </ul>
+      {stale && <p className="weather-slide__stale-notice">{t('admin.screens.weatherStaleNotice')}</p>}
     </div>
   )
 }

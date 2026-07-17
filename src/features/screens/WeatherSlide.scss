@@ -1,6 +1,7 @@
 @use '../../styles/variables' as *;
 
 .weather-slide {
+  position: relative;
   display: flex;
   align-items: center;
   height: 100%;
@@ -54,4 +55,15 @@
   gap: calc($spacing-unit / 4);
   color: var(--screen-text-muted);
   font-size: calc(var(--slide-description-size, 1.25rem) * 0.85);
+}
+
+.weather-slide__stale-notice {
+  position: absolute;
+  bottom: $spacing-unit * 1.5;
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  color: var(--screen-text-muted);
+  font-size: calc(var(--slide-description-size, 1.25rem) * 0.7);
 }
