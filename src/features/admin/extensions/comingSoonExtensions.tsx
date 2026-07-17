@@ -29,10 +29,9 @@ import {
   VimeoLogo,
   WooCommerceLogo,
   YoutubeLogo,
-  YrLogo,
   ZendeskLogo,
 } from './BrandLogos'
-import { FetchedLogo } from './FetchedLogo'
+import { FetchedLogo, YrLogo } from '../../../components'
 import { BarcodeIcon, ForecastTrendIcon, GiftIcon, PriceRadarIcon, QrCodeIcon, ScaleIcon, TablePlanIcon } from './GenericExtensionIcons'
 
 /** One of the 18 grouping headers shown in the "Coming soon" extensions directory — matches `admin.extensions.comingSoon.categories.<id>.title` in `languages.json`. */

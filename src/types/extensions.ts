@@ -47,25 +47,22 @@ export interface ExtensionsConfig {
    * on purpose (each card's own on/off is its own category placement), but
    * doesn't gate the real slide — `TransitSlide` only ever checks
    * `transit.enabled`, so turning Entur off while Ruter stays on keeps the
-   * feature working. Every other setting (stops, departure count, filters)
-   * *is* shared with `transit`, since it's genuinely the same feed.
+   * feature working. `selectedStops` here is deliberately independent of
+   * `transit.selectedStops` too — Ruter and Entur each curate their own
+   * stop pool, even though picking a stop from either one ultimately hits
+   * the exact same departures feed. Which pool a given `'transit'` slide
+   * picks from is decided by its own `brand` field (see
+   * `ScreenSlotContent`'s `'transit'` variant) — every display setting
+   * (departure count, detail toggles, mode filter) is per-slide too.
    */
   entur: {
     enabled: boolean
+    selectedStops: NearbyStop[]
   }
   transit: {
     enabled: boolean
-    /** The subset of the last lookup's `nearbyStops` the admin has opted into showing on a display — a slide of kind `'transit'` picks one of these by id. */
+    /** The subset of the last lookup's `nearbyStops`, plus any stop added via Ruter's own "Search for a stop" box, that the admin has opted into showing on a display — a slide of kind `'transit'` picks one of these (or one of `entur.selectedStops`) by id. Unlike `nearbyStops` (only ever the store's own address's proximity results), this can include stops anywhere, not just near the store. Independent of `entur.selectedStops` — see the doc comment on `entur` above. */
     selectedStops: NearbyStop[]
-    departureCount: number
-    /** Show each departure's quay/platform (e.g. `"A"`), when Entur reports one for that stop. */
-    showPlatform: boolean
-    /** Show the line's full name (e.g. "Ekebergbanen") instead of just its public code (e.g. "18"). */
-    showLineName: boolean
-    /** Hide schedule-only departures Entur hasn't started tracking live yet, keeping only `realtime: true` ones. */
-    realtimeOnly: boolean
-    /** Transport modes (matching `NearbyStop['modes']`, e.g. `"bus"`, `"rail"`) to include — empty means every mode at the stop is shown, unfiltered. */
-    modeFilter: string[]
   }
   /**
    * The on/off switch, plus which location(s) a `'weather'` slide can
@@ -103,8 +100,8 @@ export interface WeatherLocationStatus {
 
 /** Starting values for a cafe that hasn't configured either integration yet. */
 export const DEFAULT_EXTENSIONS_CONFIG: ExtensionsConfig = {
-  entur: { enabled: false },
-  transit: { enabled: false, selectedStops: [], departureCount: 5, showPlatform: false, showLineName: false, realtimeOnly: false, modeFilter: [] },
+  entur: { enabled: false, selectedStops: [] },
+  transit: { enabled: false, selectedStops: [] },
   weather: { enabled: false, useStoreLocation: true, locations: [], locationStatus: {} },
 }
 

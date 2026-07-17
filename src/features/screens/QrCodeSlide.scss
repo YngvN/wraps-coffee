@@ -10,6 +10,7 @@
   // the code should still fill as much of the pane as it reasonably can.
   padding: $spacing-unit * 2;
   color: var(--screen-text);
+  overflow: hidden;
 }
 
 .qr-code-slide__code {

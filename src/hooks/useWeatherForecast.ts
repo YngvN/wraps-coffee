@@ -80,7 +80,12 @@ export function useWeatherForecast(lat: number | undefined, lon: number | undefi
         .catch(() => {
           if (cancelled) return
           setState((current) => {
-            if (current.hourly.length > 0) return { ...current, loading: false }
+            // Already showing something (from an earlier successful fetch this
+            // session, or a previous cache fallback) — keep it, but it's no
+            // longer live now that *this* refresh failed. This is the common
+            // case: a display that's been running fine has its connection
+            // drop mid-session, not one that's never fetched anything at all.
+            if (current.hourly.length > 0) return { ...current, loading: false, stale: true }
             const cached = readCache(lat, lon)
             return cached ? { hourly: cached.hourly, loading: false, stale: true, fetchedAt: cached.fetchedAt } : { ...current, loading: false }
           })

@@ -4,6 +4,7 @@
   height: 100%;
   padding: $spacing-unit * 6;
   overflow-y: auto;
+  overflow-x: hidden;
 
   .screen-display--hide-scrollbar & {
     scrollbar-width: none;

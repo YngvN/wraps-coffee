@@ -285,6 +285,10 @@ POST /backups/restore-from-folder  (Authorization: Bearer <token>, admin/subadmi
           <code>{`GET /extensions/lookup?address=<text>
 → 200 { "coordinates": { "lat", "lon" } | null, "nearbyStops": [{ "id", "name", "modes": [...] }] }
 
+GET /extensions/stops/search?query=<text>
+→ 200 { "stops": [{ "id", "name", "modes": [...] }] }
+   (searches stop places by name anywhere, not just near a given address)
+
 GET /extensions/departures?stopId=<id>&count=<n>
 → 200 { "stopName", "departures": [{ "line", "lineName"?, "mode", "destination", "expectedDepartureTime", "aimedDepartureTime", "realtime", "platform"?, "cancelled" }] }
 

@@ -13,8 +13,8 @@ import './ComingSoonSection.scss'
  * one slides its own content in/out instead of snapping — see that
  * component) so the whole list (~60 items) doesn't have to render open at
  * once. Logos come from `comingSoonExtensions.tsx` — either a real brand
- * mark (`BrandLogos.tsx`/`FetchedLogo.tsx`) or a generic glyph for
- * capabilities with no single owning brand.
+ * mark (`BrandLogos.tsx`/the shared `FetchedLogo` component) or a generic
+ * glyph for capabilities with no single owning brand.
  */
 export function ComingSoonSection() {
   const { t } = useLanguage()

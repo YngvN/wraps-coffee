@@ -1,12 +1,14 @@
 @use '../../styles/variables' as *;
 
 .transit-slide {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: $spacing-unit * 3;
   height: 100%;
   padding: $spacing-unit * 6;
   overflow-y: auto;
+  overflow-x: hidden;
 
   .screen-display--hide-scrollbar & {
     scrollbar-width: none;
@@ -35,23 +37,50 @@
   font-size: var(--slide-description-size, 1.25rem);
 }
 
+// One grid shared by every row (rather than each row solving its own,
+// independent flexbox sum) — the whole point being that "platform"/"time"
+// end up the exact same width on every row because the browser computes
+// all 5 column tracks *together*, once, across every row's cells at once.
+// A per-row flexbox (the previous approach) can't guarantee that: the
+// moment any single row's destination text is long enough to need the
+// space, only *that* row's own flex context shrinks, throwing every
+// column out of alignment with its neighbors — or, if the trailing
+// columns are pinned to a fixed `ch` width instead, that row's content
+// simply overflows the pane edge rather than shrinking at all, since nothing
+// after it in that isolated flex row is left to give up the space. A shared
+// grid has neither failure mode: `minmax(0, max-content)` on the platform/
+// time tracks means they claim only as much width as their longest cell
+// really needs, shared identically by every row, and still shrink in
+// lock-step (never past the container's own edge) if truly out of room.
 .transit-slide__list {
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-unit * 1.5;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) minmax(0, max-content) minmax(0, max-content);
+  align-items: center;
+  row-gap: $spacing-unit * 1.5;
+  column-gap: $spacing-unit * 2;
   margin: 0;
   padding: 0;
   list-style: none;
   font-size: var(--slide-item-title-size, 1.75rem);
 }
 
+// A pure logical/animation wrapper: `display: contents` drops the `<li>`
+// itself out of the box/rendering tree (it still exists in the DOM — needed
+// for React's own key + `AnimatePresence` exit tracking — just doesn't
+// generate a box of its own), so its two real children below
+// (`__leading`/`__trailing`) become direct items of `__list`'s grid instead
+// of being laid out inside a nested box per row. `--cancelled`'s own
+// styling targets those two children (not `.transit-slide__item` itself)
+// since a `display: contents` element can't visibly render `opacity` on
+// itself — there's no box for it to apply to.
 .transit-slide__item {
-  display: flex;
-  align-items: baseline;
-  gap: $spacing-unit * 2;
+  display: contents;
 
   &--cancelled {
-    opacity: 0.5;
+    .transit-slide__leading,
+    .transit-slide__trailing {
+      opacity: 0.5;
+    }
 
     .transit-slide__destination {
       text-decoration: line-through;
@@ -59,11 +88,51 @@
   }
 }
 
-.transit-slide__mode-icon {
-  flex-shrink: 0;
+// Each spans multiple of `__list`'s own column tracks (3 for the icon/line/
+// destination group, 2 for platform/time) while still being its own real,
+// animatable box (needed for the enter/exit slide in `TransitSlide.tsx`) —
+// `grid-template-columns: subgrid` is what lets a box like this both (a)
+// occupy space in the parent grid as a single spanning item, so it can
+// still be independently transformed/faded, and (b) hand its own spanned
+// columns straight back down to its own children, so those children align
+// to the *same* shared tracks as every other row's equivalent cells.
+.transit-slide__leading {
+  grid-column: span 3;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+}
+
+.transit-slide__trailing {
+  grid-column: span 2;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: center;
+}
+
+.transit-slide__mode-icon-wrap {
+  position: relative;
+  display: inline-flex;
   align-self: center;
+}
+
+.transit-slide__mode-icon {
   font-size: 1.2em;
   color: var(--screen-text-muted);
+}
+
+// A fixed, theme-independent green — signals "live" the same way regardless
+// of the screen's own background/text contrast setup, same posture as the
+// admin Integrations page's own status dots.
+.transit-slide__realtime-dot {
+  position: absolute;
+  top: -0.1em;
+  right: -0.1em;
+  width: 0.45em;
+  height: 0.45em;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 0.12em var(--screen-bg, #fff);
 }
 
 .transit-slide__line {
@@ -77,15 +146,22 @@
 }
 
 .transit-slide__destination {
-  flex: 1;
-  min-width: 0;
   overflow-wrap: break-word;
 }
 
+// Pinned to `__trailing`'s 2nd subgrid column explicitly, rather than relying
+// on plain DOM-order auto-placement — when `showPlatform` is off,
+// `.transit-slide__platform` isn't rendered at all, and without an explicit
+// position this would auto-place into the *first* (platform's own) column
+// instead of its actual (time) one.
 .transit-slide__time {
+  grid-column: 2;
+  text-align: right;
   color: var(--screen-text-muted);
   font-size: var(--slide-description-size, 1.25rem);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .transit-slide__line-name {
@@ -95,9 +171,79 @@
 }
 
 .transit-slide__platform {
-  flex-shrink: 0;
-  align-self: center;
+  grid-column: 1;
+  text-align: right;
   color: var(--screen-text-muted);
   font-size: var(--slide-description-size, 1.25rem);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.transit-slide__stale-notice {
+  margin: 0;
+  text-align: center;
+  color: var(--screen-text-muted);
+  font-size: calc(var(--slide-description-size, 1.25rem) * 0.7);
+}
+
+// --- Ruter#/Entur brand theme (see `useBrandTheme` in `SlideFields.tsx`) ---
+// Colors are approximated from this app's own bundled logo assets (Ruter's
+// red from `ruter.svg`'s own fill, Entur's navy/coral from `entur.png`) —
+// neither brand publishes a style guide we have access to, so this is a
+// best-effort look-alike, not a verified official palette. Overriding
+// `--screen-*` here (rather than every individual rule above) means every
+// existing rule that already reads `var(--screen-text)` etc. picks up the
+// new colors automatically — but `color` itself needs its own explicit
+// `var(--screen-text)` too (not just the custom property redefinition):
+// the ambient pane wrapper above already resolved its own `color: var(--screen-text)`
+// against the *old* value and passes that down as a plain inherited color,
+// which our redefinition further down the tree can't retroactively change.
+// `> h1` needs the same explicit `font-family` for the same reason — its
+// own more-specific rule above wins over whatever the container inherits.
+.transit-slide--branded-ruter,
+.transit-slide--branded-entur {
+  font-family: $font-dashboard-sans;
+  color: var(--screen-text);
+  background: var(--screen-bg);
+
+  > h1 {
+    font-family: $font-dashboard-sans;
+    font-weight: 700;
+  }
+}
+
+// Ruter's own real departure boards (and the screens on their buses) run
+// dark, not light — near-black background, white text, the brand's own red
+// as an accent on the line badges.
+.transit-slide--branded-ruter {
+  --screen-bg: #0d0d0d;
+  --screen-text: #ffffff;
+  --screen-text-muted: rgba(255, 255, 255, 0.7);
+
+  .transit-slide__line {
+    background: #e60000;
+    color: #ffffff;
+  }
+}
+
+// Entur's own site/app run light — white background, its navy wordmark
+// color doubling as the main text color, its coral as the accent.
+.transit-slide--branded-entur {
+  --screen-bg: #ffffff;
+  --screen-text: #1a1b4b;
+  --screen-text-muted: rgba(26, 27, 75, 0.65);
+
+  .transit-slide__line {
+    background: #ff6259;
+    color: #1a1b4b;
+  }
+}
+
+.transit-slide__brand-logo {
+  position: absolute;
+  top: $spacing-unit * 2;
+  left: $spacing-unit * 2;
+  width: auto;
+  height: 2.25rem;
 }

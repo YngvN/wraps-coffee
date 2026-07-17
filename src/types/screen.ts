@@ -63,8 +63,9 @@ interface OwnBackgroundImageFields {
  * external data rather than admin-authored content, configured from the
  * admin's Extensions tab (see `useExtensionsConfig`): `'transit'` shows
  * real-time departures from one of the cafe's configured nearby stops
- * (`stopId`, referencing `ExtensionsConfig['transit']['selectedStops']`),
- * and `'weather'` shows an hourly forecast for the cafe's own address —
+ * (`stopId`, referencing either `ExtensionsConfig['transit']['selectedStops']`
+ * or `ExtensionsConfig['entur']['selectedStops']` depending on the pane's own
+ * `brand`), and `'weather'` shows an hourly forecast for the cafe's own address —
  * neither renders anything (see `TransitSlide`/`WeatherSlide`) unless its
  * integration is enabled. Unlike transit, `'weather'`'s own display
  * settings (`forecastHours`, `showWind`, `showHumidity`,
@@ -103,7 +104,35 @@ export type ScreenSlotContent =
       /** Percentage (`MIN_QR_CODE_SIZE`-100) of the pane's own available space the code fills. Falls back to `DEFAULT_QR_CODE_SIZE` (as large as it can be) when unset. */
       size?: number
     } & OwnBackgroundImageFields)
-  | ({ kind: 'transit'; stopId?: string; textSizes?: TextSizes } & OwnBackgroundImageFields)
+  | ({
+      kind: 'transit'
+      /**
+       * Which brand's own stop pool this pane picks `stopId` from —
+       * `ExtensionsConfig['transit']['selectedStops']` for `'ruter'`,
+       * `ExtensionsConfig['entur']['selectedStops']` for `'entur'` (see the
+       * admin's own "Ruter# - Departures"/"Entur - Departures" options for
+       * this slide kind, `SlideFields.tsx`). Falls back to `'ruter'` for
+       * panes saved before this field existed. Also decides which of the
+       * two look-alike themes `useBrandTheme` applies.
+       */
+      brand?: 'ruter' | 'entur'
+      stopId?: string
+      /** How many upcoming departures the list shows. Falls back to `DEFAULT_TRANSIT_DEPARTURE_COUNT`. */
+      departureCount?: number
+      /** Show each departure's quay/platform (e.g. `"A"`), when Entur reports one for this stop. Falls back to `false`. */
+      showPlatform?: boolean
+      /** Show the line's full name (e.g. "Ekebergbanen") instead of just its public code (e.g. "18"). Falls back to `false`. */
+      showLineName?: boolean
+      /** Hide schedule-only departures Entur hasn't started tracking live yet, keeping only `realtime: true` ones. Falls back to `false`. */
+      realtimeOnly?: boolean
+      /** Transport modes (matching `NearbyStop['modes']`, e.g. `"bus"`, `"rail"`) to include — empty/unset means every mode at the stop is shown, unfiltered. */
+      modeFilter?: string[]
+      /** Overrides the pane's own background/font/text colors with a look-alike of whichever brand this pane is (see `brand`) instead of the screen's normal styling. Falls back to `true`. */
+      useBrandTheme?: boolean
+      /** Shows the pane's own brand's logo in its top-left corner. Only relevant while `useBrandTheme` is on. Falls back to `true`. */
+      showBrandLogo?: boolean
+      textSizes?: TextSizes
+    } & OwnBackgroundImageFields)
   | ({
       kind: 'weather'
       /**
@@ -127,6 +156,10 @@ export type ScreenSlotContent =
       showUvIndex?: boolean
       /** Show air pressure at sea level (hPa). Falls back to `false`. */
       showPressure?: boolean
+      /** Overrides the pane's own background/font/text colors with a Yr look-alike theme instead of the screen's normal styling. Falls back to `true`. */
+      useBrandTheme?: boolean
+      /** Shows the Yr logo in the pane's top-left corner. Only relevant while `useBrandTheme` is on. Falls back to `true`. */
+      showBrandLogo?: boolean
       textSizes?: TextSizes
     } & OwnBackgroundImageFields)
   | ({ kind: 'announcement'; title: string; description: string; textSizes?: TextSizes } & OwnBackgroundImageFields)
@@ -215,6 +248,9 @@ export const DEFAULT_EVENT_CALENDAR_COUNT = 4
 
 /** Used when a `'weather'` slide's own `forecastHours` is unset. */
 export const DEFAULT_WEATHER_FORECAST_HOURS = 6
+
+/** Used when a `'transit'` slide's own `departureCount` is unset. */
+export const DEFAULT_TRANSIT_DEPARTURE_COUNT = 5
 
 /** Used when a `'qrcode'` slide's own `size` is unset — fills as much of its pane as it can. */
 export const DEFAULT_QR_CODE_SIZE = 100

@@ -27,7 +27,6 @@ import { cloneSlot, createLeaf, deleteLeaf, emptySlot, listLeaves, splitLeaf } f
 import { hasOwnTextSizeFields, resolveContentBackgroundImage } from '../../../utils/screenSlots'
 import {
   isResizeToFitConflict,
-  isSlotActive,
   resolveSlotBackgroundColor,
   resolveSlotBackgroundImage,
   resolveSlotContent,
@@ -44,11 +43,10 @@ import { PaneEditor } from '../../screens/PaneEditor'
 import { ScaledScreenPreview } from '../../screens/ScaledScreenPreview'
 import { SplitLayout } from '../../screens/SplitLayout'
 import { StageTabs } from '../../screens/StageTabs'
-import { LayoutIcon } from './LayoutIcon'
 import './ScreenForm.scss'
 
-/** Every named sub-view `editingTarget` can hold (`null` is the main tabbed view, not one of these) — exported so `ScreensView`'s own `?tab=` deep-link query param has something to validate against. */
-export type ScreenFormTarget = 'global' | 'layout' | 'borders' | 'background' | 'stages' | 'transitions' | 'screensaver' | 'other'
+/** Every named sub-view `editingTarget` can hold (`null` is the main view — which, since the live layout editor now lives inline there instead of its own sub-view, is also where "Layout" deep-links resolve) — exported so `ScreensView`'s own `?tab=` deep-link query param has something to validate against. */
+export type ScreenFormTarget = 'global' | 'borders' | 'background' | 'stages' | 'transitions' | 'screensaver' | 'other'
 
 interface ScreenFormProps {
   /** The screen being edited, or `null` when creating a new one. */
@@ -113,11 +111,11 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
   /** Which stage a pane's own tab is currently showing fields for — shared across every pane tab (switching which pane you're viewing doesn't change it), since stages are a screen-wide sequence, not a per-pane one. */
   const [activeStage, setActiveStage] = useState(1)
   const [name, setName] = useState(() => screen?.name ?? nextDefaultScreenName(screens, t('admin.screens.defaultNamePrefix')))
-  /** This screen's own arrangement + every pane's own content, kept as one local draft — a brand-new screen starts as a single blank leaf. */
+  /** This screen's own arrangement + every pane's own content, kept as one local draft — a brand-new screen starts as a single pane showing a clock, a reasonable-looking default rather than a blank pane. */
   const [draft, setDraft] = useState<{ layout: StageTimeline<LayoutNode>; paneSlots: Record<PaneId, ScreenSlot> }>(() => {
     if (screen) return { layout: screen.layout, paneSlots: screen.paneSlots }
     const { node, id } = createLeaf()
-    return { layout: { 1: node }, paneSlots: { [id]: emptySlot() } }
+    return { layout: { 1: node }, paneSlots: { [id]: { ...emptySlot(), content: writeStageCheckpoint(undefined, 1, { kind: 'time' }) } } }
   })
   /** Which tab is showing: the screen-wide settings, or one specific pane's own. */
   const [activeTab, setActiveTab] = useState<'global' | PaneId>('global')
@@ -335,13 +333,6 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     onRouteChange?.(t('admin.screens.backgroundLabel'))
   }
 
-  /** Opens the interactive "Layout" grid. */
-  const openLayoutEditor = () => {
-    setDirection(1)
-    setEditingTarget('layout')
-    onRouteChange?.(t('admin.screens.layoutLabel'))
-  }
-
   /** Opens the pane-border color/visibility editor. */
   const openBordersEditor = () => {
     setDirection(1)
@@ -401,7 +392,6 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     const label = {
       global: t('admin.screens.editTextSize'),
       background: t('admin.screens.backgroundLabel'),
-      layout: t('admin.screens.layoutLabel'),
       borders: t('admin.screens.bordersLabel'),
       stages: t('admin.screens.stagesLabel'),
       transitions: t('admin.screens.transitionsLabel'),
@@ -591,45 +581,6 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
         <GlobalTextSizeScaler screen={latestScreen ?? previewScreen} onChange={handleGlobalTextSizesChange} onDone={closeGlobalTextSizeEditor} />
       </div>
     )
-  } else if (editingTarget === 'layout') {
-    viewKey = 'layout'
-    formContent = (
-      <div className="screen-form__subview">
-        <div className="screen-form__layout-picker" role="group" aria-label={t('admin.screens.previewRatioLabel')}>
-          {PREVIEW_ASPECT_RATIOS.map(({ ratio, label }) => (
-            <button
-              key={label}
-              type="button"
-              className={`screen-form__layout-option${previewAspectRatio.width === ratio.width && previewAspectRatio.height === ratio.height ? ' screen-form__layout-option--active' : ''}`}
-              onClick={() => setPreviewAspectRatio(ratio)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={clampedActiveStage} onActiveStageChange={handleActiveStageChange} />}
-        <ScaledScreenPreview aspectRatio={previewAspectRatio}>
-          <SplitLayout
-            screen={previewScreen}
-            resolveTextSizes={(leafId, stage, content) => {
-              const slot = draft.paneSlots[leafId]
-              const shared = (slot && resolveSlotTextSizes(slot, stage)) ?? latestScreen?.textSizes ?? DEFAULT_TEXT_SIZES
-              return resolveContentTextSizes(content, shared)
-            }}
-            stage={clampedActiveStage}
-            onResizeDivider={handleResizeDivider}
-            onEditSlide={handleSelectTab}
-            onSplitPane={handleSplitPane}
-            disableSplitOnTouch
-            onClearPane={handleClearPane}
-            onDeletePane={handleDeletePane}
-            selectedLeafId={activeLeafId ?? undefined}
-            defaultPaneLanguage={defaultPaneLanguage}
-          />
-        </ScaledScreenPreview>
-        {activeLeafId && renderActivePaneEditor(t('admin.screens.layoutLabel'))}
-      </div>
-    )
   } else if (editingTarget === 'background' && latestScreen) {
     viewKey = 'background'
     formContent = (
@@ -790,117 +741,111 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     viewKey = 'main'
     formContent = (
       <form className="screen-form" onSubmit={handleSubmit}>
-        <div className="screen-form__tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'global'}
-            aria-label={t('admin.screens.globalTabLabel')}
-            title={t('admin.screens.globalTabLabel')}
-            className={`screen-form__tab screen-form__tab--icon${activeTab === 'global' ? ' screen-form__tab--active' : ''}`}
-            onClick={() => handleSelectTab('global')}
-          >
-            <LayoutIcon layout={resolvedTree ?? null} highlightId="all" />
-          </button>
-          {leaves.map((leaf, index) => (
-            <button
-              key={leaf.id}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === leaf.id}
-              aria-label={t('admin.screens.paneLabel', { number: index + 1 })}
-              title={t('admin.screens.paneLabel', { number: index + 1 })}
-              className={`screen-form__tab screen-form__tab--icon${activeTab === leaf.id ? ' screen-form__tab--active' : ''}${draft.paneSlots[leaf.id] && isSlotActive(draft.paneSlots[leaf.id]) ? ' screen-form__tab--filled' : ''}`}
-              onClick={() => handleSelectTab(leaf.id)}
-            >
-              <LayoutIcon layout={resolvedTree ?? null} highlightId={leaf.id} />
-            </button>
-          ))}
-        </div>
-
         <div className="screen-form__tab-panel">
-          {activeTab === 'global' ? (
-            <>
-              <Input id="screen-name" label={t('admin.screens.nameLabel')} value={name} onChange={(event) => setName(event.target.value)} required />
+          <Input id="screen-name" label={t('admin.screens.nameLabel')} value={name} onChange={(event) => setName(event.target.value)} required />
 
-              <motion.div layout>
-                <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openLayoutEditor}>
-                  {t('admin.screens.layoutLabel')}
-                  <span aria-hidden="true">→</span>
-                </Button>
-              </motion.div>
+          {/* The live layout editor itself — a pane's own fields (below) are just one click away on whichever pane is clicked here, so the separate per-pane tab-button row (and the "Layout" sub-view that used to hold this) isn't needed anymore. */}
+          <div className="screen-form__layout-picker" role="group" aria-label={t('admin.screens.previewRatioLabel')}>
+            {PREVIEW_ASPECT_RATIOS.map(({ ratio, label }) => (
+              <button
+                key={label}
+                type="button"
+                className={`screen-form__layout-option${previewAspectRatio.width === ratio.width && previewAspectRatio.height === ratio.height ? ' screen-form__layout-option--active' : ''}`}
+                onClick={() => setPreviewAspectRatio(ratio)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={clampedActiveStage} onActiveStageChange={handleActiveStageChange} />}
+          <ScaledScreenPreview aspectRatio={previewAspectRatio}>
+            <SplitLayout
+              screen={previewScreen}
+              resolveTextSizes={(leafId, stage, content) => {
+                const slot = draft.paneSlots[leafId]
+                const shared = (slot && resolveSlotTextSizes(slot, stage)) ?? latestScreen?.textSizes ?? DEFAULT_TEXT_SIZES
+                return resolveContentTextSizes(content, shared)
+              }}
+              stage={clampedActiveStage}
+              onResizeDivider={handleResizeDivider}
+              onEditSlide={handleSelectTab}
+              onSplitPane={handleSplitPane}
+              disableSplitOnTouch
+              onClearPane={handleClearPane}
+              onDeletePane={handleDeletePane}
+              selectedLeafId={activeLeafId ?? undefined}
+              defaultPaneLanguage={defaultPaneLanguage}
+            />
+          </ScaledScreenPreview>
+          {activeLeafId && renderActivePaneEditor()}
 
-              {screen && (
-                <motion.div layout>
-                  <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openGlobalTextSizeEditor}>
-                    {t('admin.screens.editTextSize')}
-                    <span aria-hidden="true">→</span>
-                  </Button>
-                </motion.div>
-              )}
-
-              {screen && (
-                <motion.div layout>
-                  <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openBackgroundEditor}>
-                    {t('admin.screens.backgroundLabel')}
-                    <span aria-hidden="true">→</span>
-                  </Button>
-                </motion.div>
-              )}
-
-              {/* Fades and slides in/out as the pane count crosses 1 (`initial={false}` skips this on first mount, since it's not really "appearing"). Animating its own `height` (0 to/from its natural size, `layout` enables interpolating that "auto" value) — rather than just `opacity`/`y` — is what actually makes every field below it glide smoothly into its new position instead of snapping the instant this one's removed from the document flow; those fields only need `layout` themselves to pick up that progressive reflow. `overflow: hidden` keeps the button from spilling out while its own height is still animating. */}
-              <AnimatePresence initial={false}>
-                {leaves.length > 1 && latestScreen && (
-                  <motion.div
-                    key="borders"
-                    layout
-                    initial={{ opacity: 0, y: -12, height: 0 }}
-                    animate={{ opacity: 1, y: 0, height: 'auto' }}
-                    exit={{ opacity: 0, y: -12, height: 0 }}
-                    transition={{ duration: 0.2, ease: 'easeOut' }}
-                    style={{ overflow: 'hidden' }}
-                  >
-                    <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openBordersEditor}>
-                      {t('admin.screens.bordersLabel')}
-                      <span aria-hidden="true">→</span>
-                    </Button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <motion.div layout>
-                <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openStagesEditor}>
-                  {t('admin.screens.stagesLabel')}
-                  <span aria-hidden="true">→</span>
-                </Button>
-              </motion.div>
-
-              <motion.div layout>
-                <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openTransitionsEditor}>
-                  {t('admin.screens.transitionsLabel')}
-                  <span aria-hidden="true">→</span>
-                </Button>
-              </motion.div>
-
-              {screensaverSchedule && (
-                <motion.div layout>
-                  <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openScreensaverEditor}>
-                    {t('admin.screens.screensaverLabel')}
-                    <span aria-hidden="true">→</span>
-                  </Button>
-                </motion.div>
-              )}
-
-              <motion.div layout>
-                <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openOtherSettingsEditor}>
-                  {t('admin.screens.otherSettingsLabel')}
-                  <span aria-hidden="true">→</span>
-                </Button>
-              </motion.div>
-            </>
-          ) : (
-            renderActivePaneEditor()
+          {screen && (
+            <motion.div layout>
+              <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openGlobalTextSizeEditor}>
+                {t('admin.screens.editTextSize')}
+                <span aria-hidden="true">→</span>
+              </Button>
+            </motion.div>
           )}
+
+          {screen && (
+            <motion.div layout>
+              <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openBackgroundEditor}>
+                {t('admin.screens.backgroundLabel')}
+                <span aria-hidden="true">→</span>
+              </Button>
+            </motion.div>
+          )}
+
+          {/* Fades and slides in/out as the pane count crosses 1 (`initial={false}` skips this on first mount, since it's not really "appearing"). Animating its own `height` (0 to/from its natural size, `layout` enables interpolating that "auto" value) — rather than just `opacity`/`y` — is what actually makes every field below it glide smoothly into its new position instead of snapping the instant this one's removed from the document flow; those fields only need `layout` themselves to pick up that progressive reflow. `overflow: hidden` keeps the button from spilling out while its own height is still animating. */}
+          <AnimatePresence initial={false}>
+            {leaves.length > 1 && latestScreen && (
+              <motion.div
+                key="borders"
+                layout
+                initial={{ opacity: 0, y: -12, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: 'auto' }}
+                exit={{ opacity: 0, y: -12, height: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                style={{ overflow: 'hidden' }}
+              >
+                <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openBordersEditor}>
+                  {t('admin.screens.bordersLabel')}
+                  <span aria-hidden="true">→</span>
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <motion.div layout>
+            <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openStagesEditor}>
+              {t('admin.screens.stagesLabel')}
+              <span aria-hidden="true">→</span>
+            </Button>
+          </motion.div>
+
+          <motion.div layout>
+            <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openTransitionsEditor}>
+              {t('admin.screens.transitionsLabel')}
+              <span aria-hidden="true">→</span>
+            </Button>
+          </motion.div>
+
+          {screensaverSchedule && (
+            <motion.div layout>
+              <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openScreensaverEditor}>
+                {t('admin.screens.screensaverLabel')}
+                <span aria-hidden="true">→</span>
+              </Button>
+            </motion.div>
+          )}
+
+          <motion.div layout>
+            <Button type="button" variant="secondary" className="screen-form__menu-button" onClick={openOtherSettingsEditor}>
+              {t('admin.screens.otherSettingsLabel')}
+              <span aria-hidden="true">→</span>
+            </Button>
+          </motion.div>
         </div>
 
         <div className="screen-form__actions">

@@ -14,6 +14,7 @@ import {
   DEFAULT_QR_CODE_SIZE,
   DEFAULT_TIME_FONT_SIZE,
   DEFAULT_TIME_UNITS,
+  DEFAULT_TRANSIT_DEPARTURE_COUNT,
   DEFAULT_WEATHER_FORECAST_HOURS,
   MIN_QR_CODE_SIZE,
   type EventDisplayMode,
@@ -29,6 +30,7 @@ import { collectAnnouncementMessages } from '../../utils/announcements'
 import { clampImageResizeScale, IMAGE_RESIZE_MAX_VIEWPORT_FRACTION, MAX_IMAGE_RESIZE_SCALE, MIN_IMAGE_RESIZE_SCALE } from '../../utils/screenLayout'
 import { formatOrdinal } from '../../utils/formatOrdinal'
 import { getSmallUrl } from '../../utils/responsiveImage'
+import { TRANSIT_MODES } from '../../utils/transitModes'
 import { MessagePickerModal } from './MessagePickerModal'
 import './SlideFields.scss'
 
@@ -37,19 +39,29 @@ const MESSAGE_BOARD_ORDERS: MessageBoardOrder[] = ['newestFirst', 'oldestFirst']
 
 /**
  * Decodes a `<select>` option value back into a `ScreenSlotContent`. An
- * "image"/"qrcode"/"transit"/"messageboard"/"announcement" slide starts
- * with an empty URL/stop id/board id/title+description, filled in via its
- * own field below the selector. An `event:*` value (composite, like the
- * since-removed `category:X` values) picks the `'event'` kind's own
- * `displayMode` — switching to `'image'`/`'details'` keeps
- * `currentContent`'s own `eventOrdinal` if it already had one (switching
- * between the two keeps your pick), else starts from
- * `suggestedEventOrdinal` (see `findSiblingEventOrdinal`).
+ * "image"/"qrcode"/"messageboard"/"announcement" slide starts with an empty
+ * URL/board id/title+description, filled in via its own field below the
+ * selector. A `transit:ruter`/`transit:entur` value picks which brand's own
+ * stop pool this pane draws from (see `ScreenSlotContent`'s `'transit'`
+ * variant) — switching between the two on an already-`'transit'` pane keeps
+ * every other setting (departure count, detail toggles, etc.) and just
+ * resets `stopId` (it belonged to the *other* brand's own pool), same
+ * "keeps your pick where it still makes sense" posture as the `event:*`
+ * handling below. An `event:*` value (composite, like the since-removed
+ * `category:X` values) picks the `'event'` kind's own `displayMode` —
+ * switching to `'image'`/`'details'` keeps `currentContent`'s own
+ * `eventOrdinal` if it already had one (switching between the two keeps
+ * your pick), else starts from `suggestedEventOrdinal` (see
+ * `findSiblingEventOrdinal`).
  */
 function optionValueToContent(value: string, currentContent: ScreenSlotContent, suggestedEventOrdinal: number): ScreenSlotContent {
   if (value === 'image') return { kind: 'image', imageUrl: '' }
   if (value === 'qrcode') return { kind: 'qrcode', url: '' }
-  if (value === 'transit') return { kind: 'transit', stopId: '' }
+  if (value === 'transit:ruter' || value === 'transit:entur') {
+    const brand = value === 'transit:entur' ? 'entur' : 'ruter'
+    if (currentContent.kind === 'transit') return { ...currentContent, brand, stopId: '' }
+    return { kind: 'transit', brand, stopId: '' }
+  }
   if (value === 'messageboard') return { kind: 'messageboard' }
   if (value === 'announcement') return { kind: 'announcement', title: '', description: '' }
   if (value === 'time') return { kind: 'time' }
@@ -153,6 +165,44 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
     onChange({ ...content, stopId })
   }
 
+  const setTransitDepartureCount = (departureCount: number) => {
+    if (content.kind !== 'transit') return
+    onChange({ ...content, departureCount })
+  }
+
+  const setTransitShowPlatform = (showPlatform: boolean) => {
+    if (content.kind !== 'transit') return
+    onChange({ ...content, showPlatform })
+  }
+
+  const setTransitShowLineName = (showLineName: boolean) => {
+    if (content.kind !== 'transit') return
+    onChange({ ...content, showLineName })
+  }
+
+  const setTransitRealtimeOnly = (realtimeOnly: boolean) => {
+    if (content.kind !== 'transit') return
+    onChange({ ...content, realtimeOnly })
+  }
+
+  /** Keeps `modeFilter` in `TRANSIT_MODES`' own fixed order regardless of the order modes were toggled in — same "filter the fixed order down" technique as `setTimeUnit`. */
+  const toggleTransitMode = (mode: string) => {
+    if (content.kind !== 'transit') return
+    const current = content.modeFilter ?? []
+    const next = current.includes(mode) ? current.filter((existing) => existing !== mode) : [...current, mode]
+    onChange({ ...content, modeFilter: TRANSIT_MODES.map((entry) => entry.mode).filter((existing) => next.includes(existing)) })
+  }
+
+  const setTransitUseBrandTheme = (useBrandTheme: boolean) => {
+    if (content.kind !== 'transit') return
+    onChange({ ...content, useBrandTheme })
+  }
+
+  const setTransitShowBrandLogo = (showBrandLogo: boolean) => {
+    if (content.kind !== 'transit') return
+    onChange({ ...content, showBrandLogo })
+  }
+
   const setWeatherLocationId = (locationId: string) => {
     if (content.kind !== 'weather') return
     onChange({ ...content, locationId: locationId || undefined })
@@ -188,8 +238,21 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
     onChange({ ...content, showPressure })
   }
 
+  const setWeatherUseBrandTheme = (useBrandTheme: boolean) => {
+    if (content.kind !== 'weather') return
+    onChange({ ...content, useBrandTheme })
+  }
+
+  const setWeatherShowBrandLogo = (showBrandLogo: boolean) => {
+    if (content.kind !== 'weather') return
+    onChange({ ...content, showBrandLogo })
+  }
+
   /** The catalogue a "Catalogue" slide currently resolves to — its own `catalogueId` if set, else the first one, matching `CatalogueSlide`'s own fallback. */
   const activeCatalogue = content.kind === 'catalogue' ? (catalogues.find((catalogue) => catalogue.id === content.catalogueId) ?? catalogues[0]) : undefined
+
+  /** The stop pool a "Ruter# - Departures"/"Entur - Departures" slide picks from — each brand's own independently-curated list (see `ExtensionsConfig`'s `transit`/`entur`), never the other's. */
+  const availableTransitStops = content.kind === 'transit' && content.brand === 'entur' ? extensionsConfig.entur.selectedStops : extensionsConfig.transit.selectedStops
 
   /** Switches which catalogue a "Catalogue" slide shows — clears `categories`, since a category selection almost never carries over to a different catalogue (same precedent as switching a message board clearing its post selection). */
   const setMenuCatalogueId = (catalogueId: string) => {
@@ -309,7 +372,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
     <div className="slide-fields">
       <select
         aria-label={label}
-        value={content.kind === 'event' ? `event:${content.displayMode ?? 'calendar'}` : content.kind}
+        value={content.kind === 'event' ? `event:${content.displayMode ?? 'calendar'}` : content.kind === 'transit' ? `transit:${content.brand ?? 'ruter'}` : content.kind}
         onChange={(event) => onChange(optionValueToContent(event.target.value, content, suggestedEventOrdinal))}
       >
         <option value="none">{t('admin.screens.slotNoneLabel')}</option>
@@ -322,8 +385,14 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
         </optgroup>
         <option value="image">{t('admin.screens.slotImageLabel')}</option>
         <option value="qrcode">{t('admin.screens.slotQrCodeLabel')}</option>
-        <option value="transit">{t('admin.screens.slotTransitLabel')}</option>
-        <option value="weather">{t('admin.screens.slotWeatherLabel')}</option>
+        {/* Each integration-backed option only appears once it's turned on in Integrations — except when it's already this pane's own current value, so an existing pane doesn't lose sight of its own setting the moment that integration gets disabled elsewhere. */}
+        {(extensionsConfig.transit.enabled || (content.kind === 'transit' && (content.brand ?? 'ruter') === 'ruter')) && (
+          <option value="transit:ruter">{t('admin.screens.slotTransitRuterLabel')}</option>
+        )}
+        {(extensionsConfig.entur.enabled || (content.kind === 'transit' && content.brand === 'entur')) && (
+          <option value="transit:entur">{t('admin.screens.slotTransitEnturLabel')}</option>
+        )}
+        {(extensionsConfig.weather.enabled || content.kind === 'weather') && <option value="weather">{t('admin.screens.slotWeatherLabel')}</option>}
         <option value="time">{t('admin.screens.slotTimeLabel')}</option>
         <option value="messageboard">{t('admin.screens.slotMessageBoardLabel')}</option>
         <option value="announcement">{t('admin.screens.slotAnnouncementLabel')}</option>
@@ -431,12 +500,12 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
         ))}
 
       {content.kind === 'transit' &&
-        (extensionsConfig.transit.selectedStops.length > 0 ? (
+        (availableTransitStops.length > 0 ? (
           <select aria-label={t('admin.screens.transitStopLabel')} value={content.stopId ?? ''} onChange={(event) => setTransitStopId(event.target.value)}>
             <option value="" disabled>
               {t('admin.screens.transitStopLabel')}
             </option>
-            {extensionsConfig.transit.selectedStops.map((stop) => (
+            {availableTransitStops.map((stop) => (
               <option key={stop.id} value={stop.id}>
                 {stop.name}
               </option>
@@ -445,6 +514,61 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
         ) : (
           <p className="slide-fields__hint">{t('admin.screens.transitNoStopsConfiguredLabel')}</p>
         ))}
+
+      {content.kind === 'transit' && (
+        <>
+          <label className="slide-fields__number-field">
+            <span>{t('admin.screens.transitDepartureCountLabel')}</span>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={content.departureCount ?? DEFAULT_TRANSIT_DEPARTURE_COUNT}
+              onChange={(event) => setTransitDepartureCount(Number(event.target.value))}
+            />
+          </label>
+          <div className="slide-fields__categories">
+            <span className="slide-fields__categories-label">{t('admin.screens.transitDetailsLabel')}</span>
+            <p className="slide-fields__hint">{t('admin.screens.transitDetailsHint')}</p>
+            <Checkbox id={`${id}-transit-platform`} label={t('admin.screens.transitShowPlatformLabel')} checked={Boolean(content.showPlatform)} onChange={(event) => setTransitShowPlatform(event.target.checked)} />
+            <Checkbox
+              id={`${id}-transit-line-name`}
+              label={t('admin.screens.transitShowLineNameLabel')}
+              checked={Boolean(content.showLineName)}
+              onChange={(event) => setTransitShowLineName(event.target.checked)}
+            />
+            <Checkbox
+              id={`${id}-transit-realtime-only`}
+              label={t('admin.screens.transitRealtimeOnlyLabel')}
+              checked={Boolean(content.realtimeOnly)}
+              onChange={(event) => setTransitRealtimeOnly(event.target.checked)}
+            />
+          </div>
+          <div className="slide-fields__categories">
+            <span className="slide-fields__categories-label">{t('admin.screens.transitModeFilterLabel')}</span>
+            <p className="slide-fields__hint">{t('admin.screens.transitModeFilterHint')}</p>
+            {TRANSIT_MODES.filter((entry) => entry.mode !== 'unknown').map(({ mode, labelKey }) => (
+              <Checkbox key={mode} id={`${id}-transit-mode-${mode}`} label={t(labelKey)} checked={(content.modeFilter ?? []).includes(mode)} onChange={() => toggleTransitMode(mode)} />
+            ))}
+          </div>
+          <div className="slide-fields__categories">
+            <Checkbox
+              id={`${id}-transit-brand-theme`}
+              label={t('admin.screens.transitUseBrandThemeLabel', { brand: content.brand === 'entur' ? 'Entur' : 'Ruter#' })}
+              checked={content.useBrandTheme ?? true}
+              onChange={(event) => setTransitUseBrandTheme(event.target.checked)}
+            />
+            {(content.useBrandTheme ?? true) && (
+              <Checkbox
+                id={`${id}-transit-brand-logo`}
+                label={t('admin.screens.showBrandLogoLabel')}
+                checked={content.showBrandLogo ?? true}
+                onChange={(event) => setTransitShowBrandLogo(event.target.checked)}
+              />
+            )}
+          </div>
+        </>
+      )}
 
       {content.kind === 'weather' && (
         <>
@@ -486,6 +610,22 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
               checked={Boolean(content.showPressure)}
               onChange={(event) => setWeatherShowPressure(event.target.checked)}
             />
+          </div>
+          <div className="slide-fields__categories">
+            <Checkbox
+              id={`${id}-weather-brand-theme`}
+              label={t('admin.screens.weatherUseBrandThemeLabel')}
+              checked={content.useBrandTheme ?? true}
+              onChange={(event) => setWeatherUseBrandTheme(event.target.checked)}
+            />
+            {(content.useBrandTheme ?? true) && (
+              <Checkbox
+                id={`${id}-weather-brand-logo`}
+                label={t('admin.screens.showBrandLogoLabel')}
+                checked={content.showBrandLogo ?? true}
+                onChange={(event) => setWeatherShowBrandLogo(event.target.checked)}
+              />
+            )}
           </div>
         </>
       )}

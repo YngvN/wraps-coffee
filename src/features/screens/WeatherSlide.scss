@@ -7,6 +7,7 @@
   height: 100%;
   padding: $spacing-unit * 6;
   overflow-x: auto;
+  overflow-y: hidden;
 
   &--empty {
     align-items: center;
@@ -66,4 +67,32 @@
   text-align: center;
   color: var(--screen-text-muted);
   font-size: calc(var(--slide-description-size, 1.25rem) * 0.7);
+}
+
+// --- Yr brand theme (see `useBrandTheme` in `SlideFields.tsx`) — the one
+// brand color here that's verified official (`simple-icons`' own hex for
+// Yr, see `YrLogo`), unlike Ruter#/Entur's own approximated colors in
+// `TransitSlide.scss`. Overriding `--screen-*` here (rather than every
+// individual rule above) means every existing rule that already reads
+// `var(--screen-text)` etc. picks up the new colors automatically — but
+// `color` itself needs its own explicit `var(--screen-text)` too (not just
+// the custom property redefinition): the ambient pane wrapper above already
+// resolved its own `color: var(--screen-text)` against the *old* value and
+// passes that down as a plain inherited color, which our redefinition
+// further down the tree can't retroactively change.
+.weather-slide--branded-yr {
+  font-family: $font-dashboard-sans;
+  color: var(--screen-text);
+  background: var(--screen-bg);
+  --screen-bg: #00b9f1;
+  --screen-text: #ffffff;
+  --screen-text-muted: rgba(255, 255, 255, 0.75);
+}
+
+.weather-slide__brand-logo {
+  position: absolute;
+  top: $spacing-unit * 2;
+  left: $spacing-unit * 2;
+  width: 2.5rem;
+  height: 2.5rem;
 }

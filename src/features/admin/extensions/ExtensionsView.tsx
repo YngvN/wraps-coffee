@@ -1,36 +1,20 @@
-import { useState } from 'react'
-import { Alert, Button, Checkbox, Input, Modal, SlideTransition, TranslatedText } from '../../../components'
+import { useEffect, useState } from 'react'
+import { Alert, Button, Checkbox, CloseIcon, FetchedLogo, Input, Modal, PlusIcon, SlideTransition, TranslatedText, YrLogo } from '../../../components'
 import { useContactInfo } from '../../../hooks/useContactInfo'
 import { useExtensionsConfig } from '../../../hooks/useExtensionsConfig'
 import { useLanguage } from '../../../i18n'
-import { lookupAddress } from '../../../lib/localServer'
+import { lookupAddress, searchStops } from '../../../lib/localServer'
 import type { ExtensionsConfig, NearbyStop, WeatherLocation } from '../../../types/extensions'
 import { TransitModeIcon } from '../../screens/TransitModeIcon'
+import { TRANSIT_MODES } from '../../../utils/transitModes'
 import { weatherLocationKey } from '../../../utils/weatherLocationKey'
 import { weatherSymbolToEmoji } from '../../../utils/weatherSymbols'
 import { ActivationToggle } from './ActivationToggle'
 import { AnimatedDetails } from './AnimatedDetails'
-import { YrLogo } from './BrandLogos'
 import { ComingSoonSection } from './ComingSoonSection'
 import { ExtensionSearchBar } from './ExtensionSearchBar'
 import { ExtensionSearchResults } from './ExtensionSearchResults'
-import { FetchedLogo } from './FetchedLogo'
 import './ExtensionsView.scss'
-
-/** Every Entur `TransportMode` value `TransitModeIcon` recognizes, paired with its own i18n label — shown as a legend in the "View transit icons" modal so the admin can see what each glyph on a live departures slide means. */
-const TRANSIT_MODES: { mode: string; labelKey: string }[] = [
-  { mode: 'bus', labelKey: 'admin.extensions.transitModeBus' },
-  { mode: 'coach', labelKey: 'admin.extensions.transitModeCoach' },
-  { mode: 'tram', labelKey: 'admin.extensions.transitModeTram' },
-  { mode: 'rail', labelKey: 'admin.extensions.transitModeRail' },
-  { mode: 'metro', labelKey: 'admin.extensions.transitModeMetro' },
-  { mode: 'water', labelKey: 'admin.extensions.transitModeWater' },
-  { mode: 'air', labelKey: 'admin.extensions.transitModeAir' },
-  { mode: 'cableway', labelKey: 'admin.extensions.transitModeCableway' },
-  { mode: 'funicular', labelKey: 'admin.extensions.transitModeFunicular' },
-  { mode: 'lift', labelKey: 'admin.extensions.transitModeLift' },
-  { mode: 'unknown', labelKey: 'admin.extensions.transitModeUnknown' },
-]
 
 /** Every base symbol code `weatherSymbolToEmoji` recognizes (i.e. every key of its own `WEATHER_EMOJI` map), paired with its own i18n label — shown as a legend in the "View weather icons" modal so the admin can see what each emoji on a live forecast slide means. Yr appends `_day`/`_night`/`_polartwilight` to these at runtime; the legend shows the base (daytime) glyph since the emoji itself doesn't change by time of day. */
 const WEATHER_SYMBOLS: { code: string; labelKey: string }[] = [
@@ -97,19 +81,19 @@ function computeWeatherStatus(config: ExtensionsConfig): WeatherStatus {
  * Enabling either live integration makes its matching slot content kind
  * (`'weather'`/`'transit'`) selectable in every screen's slide editor, both
  * on the dashboard (`ScreenForm.tsx`) and the kiosk's own in-place editor
- * (`SlotEditor.tsx`), since both share `SlideFields.tsx`. Transit's own
- * display settings (stops, departure count, detail toggles, mode filter)
- * are still edited here, cafe-wide; weather's own display settings
- * (forecast length, which extra details to show) instead live on each
- * `'weather'` slide itself (see `SlideFields.tsx`/`ScreenSlotContent`), so
- * this page's weather card only has the on/off switch, a short description
- * of what enabling it unlocks, and *which locations* a weather pane can
- * choose from: the store's own address (`addressLookup`, toggled via "Use
- * store location", on by default) plus any number of extra named locations
- * added here, each independently geocoded through the same address-lookup
- * proxy. A `'weather'` slide then picks one of these by id (see
- * `SlideFields.tsx`'s location `<select>`), defaulting to the store's own
- * address when unset.
+ * (`SlotEditor.tsx`), since both share `SlideFields.tsx`. Only the pool of
+ * stops (search, "Nearby stops", "Selected stops") is still cafe-wide, edited
+ * here — every other transit display setting (departure count, detail
+ * toggles, mode filter) lives on each `'transit'` slide itself instead, same
+ * posture as weather's own per-slide settings (forecast length, which extra
+ * details to show, and which location), so this page's Ruter#/Entur cards
+ * only manage which stops exist to choose from, not how any one pane
+ * displays its chosen stop. A `'weather'` slide picks its location by id
+ * (see `SlideFields.tsx`'s location `<select>`), defaulting to the store's
+ * own address (`addressLookup`, toggled via "Use store location" on the
+ * Weather card, on by default) plus any number of extra named locations
+ * added there, each independently geocoded through the same address-lookup
+ * proxy.
  *
  * The search bar at the top matches every live/coming-soon extension by
  * name, description, category and tags (see `ExtensionSearchResults.tsx`)
@@ -126,6 +110,10 @@ export function ExtensionsView() {
   const [lookupError, setLookupError] = useState<string | null>(null)
   const [lookingUpLocationId, setLookingUpLocationId] = useState<string | null>(null)
   const [locationLookupError, setLocationLookupError] = useState<string | null>(null)
+  const [stopSearchQuery, setStopSearchQuery] = useState('')
+  const [stopSearchResults, setStopSearchResults] = useState<NearbyStop[]>([])
+  const [isSearchingStops, setIsSearchingStops] = useState(false)
+  const [stopSearchError, setStopSearchError] = useState<string | null>(null)
   const [transitIconsOpen, setTransitIconsOpen] = useState(false)
   const [weatherIconsOpen, setWeatherIconsOpen] = useState(false)
   const [weatherSubmenuOpen, setWeatherSubmenuOpen] = useState(true)
@@ -164,9 +152,53 @@ export function ExtensionsView() {
     setConfig({ ...config, transit: { ...config.transit, selectedStops } })
   }
 
-  const toggleMode = (mode: string) => {
-    const modeFilter = config.transit.modeFilter.includes(mode) ? config.transit.modeFilter.filter((selected) => selected !== mode) : [...config.transit.modeFilter, mode]
-    setConfig({ ...config, transit: { ...config.transit, modeFilter } })
+  /** Entur's own stop pool, deliberately independent of Ruter's `config.transit.selectedStops` — see the doc comment on `ExtensionsConfig['entur']`. */
+  const toggleEnturStop = (stop: NearbyStop) => {
+    const isSelected = config.entur.selectedStops.some((selected) => selected.id === stop.id)
+    const selectedStops = isSelected ? config.entur.selectedStops.filter((selected) => selected.id !== stop.id) : [...config.entur.selectedStops, stop]
+    setConfig({ ...config, entur: { ...config.entur, selectedStops } })
+  }
+
+  /** Finds stops by name anywhere (not just near the store's own address, unlike the "Nearby stops" list) — lets a stop from a different neighborhood, or a different town's own operator, be added to `selectedStops` too. */
+  const handleSearchStops = () => {
+    if (!stopSearchQuery.trim()) return
+    setIsSearchingStops(true)
+    setStopSearchError(null)
+    searchStops(stopSearchQuery)
+      .then((results) => setStopSearchResults(results))
+      .catch(() => setStopSearchError(t('admin.extensions.stopSearchError')))
+      .finally(() => setIsSearchingStops(false))
+  }
+
+  /**
+   * Live-searches as the admin types, waiting 500ms after the last keystroke
+   * so each character doesn't fire its own request — the "Search" button and
+   * Enter key (below) still call `handleSearchStops` directly, skipping the
+   * wait for whoever doesn't want to pause while typing. Clearing the query
+   * back to empty clears the results immediately instead (see
+   * `handleStopSearchQueryChange`), rather than through this effect, since
+   * that's a direct reaction to the edit itself, not something to debounce.
+   */
+  useEffect(() => {
+    if (!stopSearchQuery.trim()) return
+    const timeout = setTimeout(handleSearchStops, 500)
+    return () => clearTimeout(timeout)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only `stopSearchQuery` should restart the debounce timer; `handleSearchStops` is recreated every render (it closes over the query) but isn't itself what should reset the wait.
+  }, [stopSearchQuery])
+
+  const handleStopSearchQueryChange = (value: string) => {
+    setStopSearchQuery(value)
+    if (!value.trim()) setStopSearchResults([])
+  }
+
+  const addSearchedStop = (stop: NearbyStop) => {
+    if (config.transit.selectedStops.some((selected) => selected.id === stop.id)) return
+    setConfig({ ...config, transit: { ...config.transit, selectedStops: [...config.transit.selectedStops, stop] } })
+  }
+
+  const addSearchedEnturStop = (stop: NearbyStop) => {
+    if (config.entur.selectedStops.some((selected) => selected.id === stop.id)) return
+    setConfig({ ...config, entur: { ...config.entur, selectedStops: [...config.entur.selectedStops, stop] } })
   }
 
   /** Whether weather has *any* coordinate source to enable with — the store's own address (only while `useStoreLocation` is on) or at least one already-looked-up extra location. Gates the weather `ActivationToggle`, same posture as transit's own "needs nearby stops first" gate. */
@@ -328,63 +360,79 @@ export function ExtensionsView() {
           </Button>
           {config.transit.enabled && (
             <>
-              <Input
-                id="extensions-departure-count"
-                type="number"
-                min={1}
-                max={20}
-                label={t('admin.extensions.departureCountLabel')}
-                value={config.transit.departureCount}
-                onChange={(event) => setConfig({ ...config, transit: { ...config.transit, departureCount: Number(event.target.value) } })}
-              />
-              <p className="extensions-view__stops-label">{t('admin.extensions.nearbyStopsLabel')}</p>
-              {addressLookup && addressLookup.nearbyStops.length > 0 ? (
-                <ul className="extensions-view__stop-list">
-                  {addressLookup.nearbyStops.map((stop) => (
-                    <li key={stop.id}>
-                      <Checkbox
-                        id={`extensions-stop-${stop.id}`}
-                        label={stop.modes.length ? `${stop.name} (${stop.modes.join(', ')})` : stop.name}
-                        checked={config.transit.selectedStops.some((selected) => selected.id === stop.id)}
-                        onChange={() => toggleStop(stop)}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="extensions-view__hint">{t('admin.extensions.noStopsFoundHint')}</p>
+              {config.transit.selectedStops.length > 0 && (
+                <>
+                  <p className="extensions-view__stops-label">{t('admin.extensions.selectedStopsLabel')}</p>
+                  <ul className="extensions-view__stop-list">
+                    {config.transit.selectedStops.map((stop) => (
+                      <li key={stop.id} className="extensions-view__stop-search-result">
+                        <span>{stop.modes.length ? `${stop.name} (${stop.modes.join(', ')})` : stop.name}</span>
+                        <Button type="button" variant="secondary" className="extensions-view__icon-button" onClick={() => toggleStop(stop)} aria-label={t('admin.extensions.stopRemoveButton')}>
+                          <CloseIcon />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
 
-              <p className="extensions-view__stops-label">{t('admin.extensions.transitDetailsLabel')}</p>
-              <p className="extensions-view__hint">{t('admin.extensions.transitDetailsHint')}</p>
-              <Checkbox
-                id="extensions-transit-platform"
-                label={t('admin.extensions.transitShowPlatformLabel')}
-                checked={config.transit.showPlatform}
-                onChange={(event) => setConfig({ ...config, transit: { ...config.transit, showPlatform: event.target.checked } })}
-              />
-              <Checkbox
-                id="extensions-transit-line-name"
-                label={t('admin.extensions.transitShowLineNameLabel')}
-                checked={config.transit.showLineName}
-                onChange={(event) => setConfig({ ...config, transit: { ...config.transit, showLineName: event.target.checked } })}
-              />
-              <Checkbox
-                id="extensions-transit-realtime-only"
-                label={t('admin.extensions.transitRealtimeOnlyLabel')}
-                checked={config.transit.realtimeOnly}
-                onChange={(event) => setConfig({ ...config, transit: { ...config.transit, realtimeOnly: event.target.checked } })}
-              />
+              <p className="extensions-view__stops-label">{t('admin.extensions.nearbyStopsLabel')}</p>
+              {(() => {
+                const availableNearbyStops = (addressLookup?.nearbyStops ?? []).filter((stop) => !config.transit.selectedStops.some((selected) => selected.id === stop.id))
+                if (!addressLookup || addressLookup.nearbyStops.length === 0) return <p className="extensions-view__hint">{t('admin.extensions.noStopsFoundHint')}</p>
+                if (availableNearbyStops.length === 0) return <p className="extensions-view__hint">{t('admin.extensions.allNearbyStopsAddedHint')}</p>
+                return (
+                  <ul className="extensions-view__stop-list">
+                    {availableNearbyStops.map((stop) => (
+                      <li key={stop.id} className="extensions-view__stop-search-result">
+                        <span>{stop.modes.length ? `${stop.name} (${stop.modes.join(', ')})` : stop.name}</span>
+                        <Button type="button" variant="secondary" className="extensions-view__icon-button" onClick={() => toggleStop(stop)} aria-label={t('admin.extensions.stopAddButton')}>
+                          <PlusIcon />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              })()}
 
-              <p className="extensions-view__stops-label">{t('admin.extensions.transitModeFilterLabel')}</p>
-              <p className="extensions-view__hint">{t('admin.extensions.transitModeFilterHint')}</p>
-              <ul className="extensions-view__stop-list">
-                {TRANSIT_MODES.filter((entry) => entry.mode !== 'unknown').map(({ mode, labelKey }) => (
-                  <li key={mode}>
-                    <Checkbox id={`extensions-mode-${mode}`} label={t(labelKey)} checked={config.transit.modeFilter.includes(mode)} onChange={() => toggleMode(mode)} />
-                  </li>
-                ))}
-              </ul>
+              <p className="extensions-view__stops-label">{t('admin.extensions.stopSearchLabel')}</p>
+              <p className="extensions-view__hint">{t('admin.extensions.stopSearchHint')}</p>
+              <div className="extensions-view__stop-search">
+                <Input
+                  id="extensions-transit-stop-search-query"
+                  label={t('admin.extensions.stopSearchLabel')}
+                  value={stopSearchQuery}
+                  onChange={(event) => handleStopSearchQueryChange(event.target.value)}
+                  onKeyDown={(event) => event.key === 'Enter' && handleSearchStops()}
+                />
+                <Button type="button" variant="secondary" onClick={handleSearchStops} disabled={!stopSearchQuery.trim() || isSearchingStops}>
+                  {isSearchingStops ? t('admin.extensions.lookupButtonLoading') : t('admin.extensions.stopSearchButton')}
+                </Button>
+              </div>
+              {stopSearchError && <Alert variant="error">{stopSearchError}</Alert>}
+              {stopSearchResults.length > 0 && (
+                <ul className="extensions-view__stop-list">
+                  {stopSearchResults.map((stop) => {
+                    const alreadyAdded = config.transit.selectedStops.some((selected) => selected.id === stop.id)
+                    return (
+                      <li key={stop.id} className="extensions-view__stop-search-result">
+                        <span>{stop.modes.length ? `${stop.name} (${stop.modes.join(', ')})` : stop.name}</span>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="extensions-view__icon-button"
+                          disabled={alreadyAdded}
+                          onClick={() => addSearchedStop(stop)}
+                          aria-label={t(alreadyAdded ? 'admin.extensions.stopAddedLabel' : 'admin.extensions.stopAddButton')}
+                        >
+                          {alreadyAdded ? '✓' : <PlusIcon />}
+                        </Button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+
             </>
           )}
     </AnimatedDetails>
@@ -425,63 +473,79 @@ export function ExtensionsView() {
       </Button>
       {config.entur.enabled && (
         <>
-          <Input
-            id="extensions-entur-departure-count"
-            type="number"
-            min={1}
-            max={20}
-            label={t('admin.extensions.departureCountLabel')}
-            value={config.transit.departureCount}
-            onChange={(event) => setConfig({ ...config, transit: { ...config.transit, departureCount: Number(event.target.value) } })}
-          />
-          <p className="extensions-view__stops-label">{t('admin.extensions.nearbyStopsLabel')}</p>
-          {addressLookup && addressLookup.nearbyStops.length > 0 ? (
-            <ul className="extensions-view__stop-list">
-              {addressLookup.nearbyStops.map((stop) => (
-                <li key={stop.id}>
-                  <Checkbox
-                    id={`extensions-entur-stop-${stop.id}`}
-                    label={stop.modes.length ? `${stop.name} (${stop.modes.join(', ')})` : stop.name}
-                    checked={config.transit.selectedStops.some((selected) => selected.id === stop.id)}
-                    onChange={() => toggleStop(stop)}
-                  />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="extensions-view__hint">{t('admin.extensions.noStopsFoundHint')}</p>
+          {config.entur.selectedStops.length > 0 && (
+            <>
+              <p className="extensions-view__stops-label">{t('admin.extensions.selectedStopsLabel')}</p>
+              <ul className="extensions-view__stop-list">
+                {config.entur.selectedStops.map((stop) => (
+                  <li key={stop.id} className="extensions-view__stop-search-result">
+                    <span>{stop.modes.length ? `${stop.name} (${stop.modes.join(', ')})` : stop.name}</span>
+                    <Button type="button" variant="secondary" className="extensions-view__icon-button" onClick={() => toggleEnturStop(stop)} aria-label={t('admin.extensions.stopRemoveButton')}>
+                      <CloseIcon />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
 
-          <p className="extensions-view__stops-label">{t('admin.extensions.transitDetailsLabel')}</p>
-          <p className="extensions-view__hint">{t('admin.extensions.transitDetailsHint')}</p>
-          <Checkbox
-            id="extensions-entur-platform"
-            label={t('admin.extensions.transitShowPlatformLabel')}
-            checked={config.transit.showPlatform}
-            onChange={(event) => setConfig({ ...config, transit: { ...config.transit, showPlatform: event.target.checked } })}
-          />
-          <Checkbox
-            id="extensions-entur-line-name"
-            label={t('admin.extensions.transitShowLineNameLabel')}
-            checked={config.transit.showLineName}
-            onChange={(event) => setConfig({ ...config, transit: { ...config.transit, showLineName: event.target.checked } })}
-          />
-          <Checkbox
-            id="extensions-entur-realtime-only"
-            label={t('admin.extensions.transitRealtimeOnlyLabel')}
-            checked={config.transit.realtimeOnly}
-            onChange={(event) => setConfig({ ...config, transit: { ...config.transit, realtimeOnly: event.target.checked } })}
-          />
+          <p className="extensions-view__stops-label">{t('admin.extensions.nearbyStopsLabel')}</p>
+          {(() => {
+            const availableNearbyStops = (addressLookup?.nearbyStops ?? []).filter((stop) => !config.entur.selectedStops.some((selected) => selected.id === stop.id))
+            if (!addressLookup || addressLookup.nearbyStops.length === 0) return <p className="extensions-view__hint">{t('admin.extensions.noStopsFoundHint')}</p>
+            if (availableNearbyStops.length === 0) return <p className="extensions-view__hint">{t('admin.extensions.allNearbyStopsAddedHint')}</p>
+            return (
+              <ul className="extensions-view__stop-list">
+                {availableNearbyStops.map((stop) => (
+                  <li key={stop.id} className="extensions-view__stop-search-result">
+                    <span>{stop.modes.length ? `${stop.name} (${stop.modes.join(', ')})` : stop.name}</span>
+                    <Button type="button" variant="secondary" className="extensions-view__icon-button" onClick={() => toggleEnturStop(stop)} aria-label={t('admin.extensions.stopAddButton')}>
+                      <PlusIcon />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )
+          })()}
 
-          <p className="extensions-view__stops-label">{t('admin.extensions.transitModeFilterLabel')}</p>
-          <p className="extensions-view__hint">{t('admin.extensions.transitModeFilterHint')}</p>
-          <ul className="extensions-view__stop-list">
-            {TRANSIT_MODES.filter((entry) => entry.mode !== 'unknown').map(({ mode, labelKey }) => (
-              <li key={mode}>
-                <Checkbox id={`extensions-entur-mode-${mode}`} label={t(labelKey)} checked={config.transit.modeFilter.includes(mode)} onChange={() => toggleMode(mode)} />
-              </li>
-            ))}
-          </ul>
+          <p className="extensions-view__stops-label">{t('admin.extensions.stopSearchLabel')}</p>
+          <p className="extensions-view__hint">{t('admin.extensions.stopSearchHint')}</p>
+          <div className="extensions-view__stop-search">
+            <Input
+              id="extensions-entur-stop-search-query"
+              label={t('admin.extensions.stopSearchLabel')}
+              value={stopSearchQuery}
+              onChange={(event) => handleStopSearchQueryChange(event.target.value)}
+              onKeyDown={(event) => event.key === 'Enter' && handleSearchStops()}
+            />
+            <Button type="button" variant="secondary" onClick={handleSearchStops} disabled={!stopSearchQuery.trim() || isSearchingStops}>
+              {isSearchingStops ? t('admin.extensions.lookupButtonLoading') : t('admin.extensions.stopSearchButton')}
+            </Button>
+          </div>
+          {stopSearchError && <Alert variant="error">{stopSearchError}</Alert>}
+          {stopSearchResults.length > 0 && (
+            <ul className="extensions-view__stop-list">
+              {stopSearchResults.map((stop) => {
+                const alreadyAdded = config.entur.selectedStops.some((selected) => selected.id === stop.id)
+                return (
+                  <li key={stop.id} className="extensions-view__stop-search-result">
+                    <span>{stop.modes.length ? `${stop.name} (${stop.modes.join(', ')})` : stop.name}</span>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="extensions-view__icon-button"
+                      disabled={alreadyAdded}
+                      onClick={() => addSearchedEnturStop(stop)}
+                      aria-label={t(alreadyAdded ? 'admin.extensions.stopAddedLabel' : 'admin.extensions.stopAddButton')}
+                    >
+                      {alreadyAdded ? '✓' : <PlusIcon />}
+                    </Button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+
         </>
       )}
     </AnimatedDetails>

@@ -163,6 +163,14 @@ export async function lookupAddress(address: string): Promise<{ coordinates: { l
   return response.json() as Promise<{ coordinates: { lat: number; lon: number } | null; nearbyStops: NearbyStop[] }>
 }
 
+/** Searches stop places by name (anywhere, not just near the store's own address) — backs the Integrations tab's "Search for a stop" box. No auth needed (public proxy of public data); throws a plain `Error` if the server or Entur is unreachable. */
+export async function searchStops(query: string): Promise<NearbyStop[]> {
+  const response = await fetch(`${serverBaseUrl()}/extensions/stops/search?query=${encodeURIComponent(query)}`)
+  if (!response.ok) throw new Error('Could not search for stops')
+  const { stops } = (await response.json()) as { stops: NearbyStop[] }
+  return stops
+}
+
 /** Fetches the next `count` departures for `stopId`, used by `TransitSlide`'s polling hook. No auth needed — public proxy, same posture as image reads. */
 export async function fetchDepartures(stopId: string, count: number): Promise<{ stopName: string; departures: DepartureInfo[] }> {
   const response = await fetch(`${serverBaseUrl()}/extensions/departures?stopId=${encodeURIComponent(stopId)}&count=${count}`)

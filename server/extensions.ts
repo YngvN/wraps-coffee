@@ -74,6 +74,38 @@ export async function handleLookup(res: ServerResponse, address: string) {
   }
 }
 
+/**
+ * Searches stop places by name (not by proximity to any address) — powers
+ * the Integrations tab's "Search for a stop" box, which lets an admin add a
+ * specific stop anywhere (not just ones near the store's own address, unlike
+ * `handleLookup`'s `nearbyStops`) to `ExtensionsConfig['transit']['selectedStops']`.
+ * Not cached, same one-shot-admin-action posture as `handleLookup`.
+ */
+export async function handleStopSearch(res: ServerResponse, query: string) {
+  if (!query.trim()) {
+    sendJson(res, 200, { stops: [] })
+    return
+  }
+
+  try {
+    const url = `https://api.entur.io/geocoder/v1/autocomplete?text=${encodeURIComponent(query)}&layers=venue&size=10&lang=no`
+    const response = await fetch(url, { headers: { 'ET-Client-Name': ENTUR_CLIENT_NAME } })
+    if (!response.ok) throw new Error(`geocoder autocomplete failed: ${response.status}`)
+    const body = (await response.json()) as GeocoderResponse
+
+    const stops: NearbyStop[] = body.features.map((feature) => ({
+      id: feature.properties.id,
+      name: feature.properties.label ?? feature.properties.name ?? feature.properties.id,
+      modes: [...new Set(feature.properties.category ?? [])],
+    }))
+
+    sendJson(res, 200, { stops })
+  } catch (error) {
+    console.error('[extensions] stop search failed:', error)
+    sendJson(res, 502, { error: 'Could not reach Entur to search for stops' })
+  }
+}
+
 // --- Transit departures (Entur JourneyPlanner) ------------------------------
 
 interface EstimatedCall {

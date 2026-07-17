@@ -9,7 +9,7 @@ import type { WindowLaunchSettings } from '../src/types/windowLaunch'
 import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
 import * as backup from './backup'
-import { handleDepartures, handleLookup, handleWeather } from './extensions'
+import { handleDepartures, handleLookup, handleStopSearch, handleWeather } from './extensions'
 import { bearerToken, CORS_HEADERS, readJsonBody, sendJson } from './http'
 import * as mdns from './mdns'
 import * as neonBridge from './neonBridge'
@@ -202,6 +202,11 @@ const httpServer = createServer((req, res) => {
   // them is never a logged-in session either.
   if (req.method === 'GET' && url.pathname === '/extensions/lookup') {
     void handleLookup(res, url.searchParams.get('address') ?? '')
+    return
+  }
+
+  if (req.method === 'GET' && url.pathname === '/extensions/stops/search') {
+    void handleStopSearch(res, url.searchParams.get('query') ?? '')
     return
   }
 

@@ -18,7 +18,6 @@ const FLYOUT_RAIL_ITEMS = new Set(['products', 'screens', 'settings'])
 /** A screen's own named sub-views (see `ScreenForm`'s `editingTarget`) — the tier-3 flyout under a Screens row. */
 const SCREEN_FORM_TARGETS: { target: string; labelId: string }[] = [
   { target: 'global', labelId: 'admin.screens.editTextSize' },
-  { target: 'layout', labelId: 'admin.screens.layoutLabel' },
   { target: 'borders', labelId: 'admin.screens.bordersLabel' },
   { target: 'background', labelId: 'admin.screens.backgroundLabel' },
   { target: 'stages', labelId: 'admin.screens.stagesLabel' },

@@ -23,7 +23,7 @@ import { ScreenForm, type ScreenFormTarget } from './ScreenForm'
 import { ScreensaverScheduleModal } from './ScreensaverScheduleModal'
 import './ScreensView.scss'
 
-const SCREEN_FORM_TARGETS: ScreenFormTarget[] = ['global', 'layout', 'borders', 'background', 'stages', 'transitions', 'screensaver', 'other']
+const SCREEN_FORM_TARGETS: ScreenFormTarget[] = ['global', 'borders', 'background', 'stages', 'transitions', 'screensaver', 'other']
 
 /** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link (addressed per Settings → Advanced's `ScreenAddressSettings`), plus the "Create pin" button that sets the one shared PIN every screen's own "Lock screen" button locks behind, and the "Screen saver" button that sets the one shared daily window every screen's own "Use screensaver" checkbox opts into. "Open" treats launching a screen as deploying it, not previewing it — see `handleOpenScreen`. A "Display Manager" row above the screen list opens `DisplayManagerView` — every machine/monitor that's ever registered, with a Screen-assignment selector per monitor. */
 export function ScreensView() {

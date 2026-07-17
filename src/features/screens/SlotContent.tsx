@@ -28,7 +28,20 @@ export function SlotContent({ slot }: SlotContentProps) {
   }
   if (slot.kind === 'image') return <ImageSlide imageUrl={slot.imageUrl} fit={slot.fit} resizeToFit={slot.resizeToFit} />
   if (slot.kind === 'qrcode') return <QrCodeSlide url={slot.url} size={slot.size} />
-  if (slot.kind === 'transit') return <TransitSlide stopId={slot.stopId} />
+  if (slot.kind === 'transit')
+    return (
+      <TransitSlide
+        brand={slot.brand}
+        stopId={slot.stopId}
+        departureCount={slot.departureCount}
+        showPlatform={slot.showPlatform}
+        showLineName={slot.showLineName}
+        realtimeOnly={slot.realtimeOnly}
+        modeFilter={slot.modeFilter}
+        useBrandTheme={slot.useBrandTheme}
+        showBrandLogo={slot.showBrandLogo}
+      />
+    )
   if (slot.kind === 'weather')
     return (
       <WeatherSlide
@@ -39,6 +52,8 @@ export function SlotContent({ slot }: SlotContentProps) {
         showPrecipitationProbability={slot.showPrecipitationProbability}
         showUvIndex={slot.showUvIndex}
         showPressure={slot.showPressure}
+        useBrandTheme={slot.useBrandTheme}
+        showBrandLogo={slot.showBrandLogo}
       />
     )
   if (slot.kind === 'announcement') return <AnnouncementSlide title={slot.title} description={slot.description} />

@@ -1,10 +1,8 @@
 import type { ReactNode } from 'react'
-import { Badge } from '../../../components'
+import { Badge, FetchedLogo, YrLogo } from '../../../components'
 import { useLanguage } from '../../../i18n'
 import type { ExtensionsConfig } from '../../../types/extensions'
-import { YrLogo } from './BrandLogos'
 import { COMING_SOON_EXTENSIONS } from './comingSoonExtensions'
-import { FetchedLogo } from './FetchedLogo'
 import './ExtensionSearchResults.scss'
 
 /** Search-only keywords for the three live integrations, mirroring `ComingSoonExtension['tags']` — untranslated and never rendered, just matched against. */

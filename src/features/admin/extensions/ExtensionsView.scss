@@ -76,6 +76,33 @@
   list-style: none;
 }
 
+.extensions-view__stop-search {
+  display: flex;
+  align-items: flex-end;
+  gap: $spacing-unit;
+
+  .input-field {
+    flex: 1 1 auto;
+  }
+}
+
+.extensions-view__stop-search-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit;
+}
+
+.extensions-view__icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+}
+
 .extensions-view__location-list {
   display: flex;
   flex-direction: column;
