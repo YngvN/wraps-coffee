@@ -4,7 +4,7 @@ import { useContactInfo } from '../../../hooks/useContactInfo'
 import { useExtensionsConfig } from '../../../hooks/useExtensionsConfig'
 import { useLanguage } from '../../../i18n'
 import { lookupAddress } from '../../../lib/localServer'
-import type { NearbyStop } from '../../../types/extensions'
+import type { NearbyStop, WeatherLocation } from '../../../types/extensions'
 import { TransitModeIcon } from '../../screens/TransitModeIcon'
 import { weatherSymbolToEmoji } from '../../../utils/weatherSymbols'
 import { ActivationToggle } from './ActivationToggle'
@@ -79,8 +79,14 @@ const WEATHER_SYMBOLS: { code: string; labelKey: string }[] = [
  * are still edited here, cafe-wide; weather's own display settings
  * (forecast length, which extra details to show) instead live on each
  * `'weather'` slide itself (see `SlideFields.tsx`/`ScreenSlotContent`), so
- * this page's weather card only has the on/off switch and a short
- * description of what enabling it unlocks.
+ * this page's weather card only has the on/off switch, a short description
+ * of what enabling it unlocks, and *which locations* a weather pane can
+ * choose from: the store's own address (`addressLookup`, toggled via "Use
+ * store location", on by default) plus any number of extra named locations
+ * added here, each independently geocoded through the same address-lookup
+ * proxy. A `'weather'` slide then picks one of these by id (see
+ * `SlideFields.tsx`'s location `<select>`), defaulting to the store's own
+ * address when unset.
  *
  * The search bar at the top matches every live/coming-soon extension by
  * name, description, category and tags (see `ExtensionSearchResults.tsx`)
@@ -95,6 +101,8 @@ export function ExtensionsView() {
   const [config, setConfig] = useExtensionsConfig()
   const [isLookingUp, setIsLookingUp] = useState(false)
   const [lookupError, setLookupError] = useState<string | null>(null)
+  const [lookingUpLocationId, setLookingUpLocationId] = useState<string | null>(null)
+  const [locationLookupError, setLocationLookupError] = useState<string | null>(null)
   const [transitIconsOpen, setTransitIconsOpen] = useState(false)
   const [weatherIconsOpen, setWeatherIconsOpen] = useState(false)
   const [weatherSubmenuOpen, setWeatherSubmenuOpen] = useState(true)
@@ -138,6 +146,31 @@ export function ExtensionsView() {
     setConfig({ ...config, transit: { ...config.transit, modeFilter } })
   }
 
+  /** Whether weather has *any* coordinate source to enable with — the store's own address (only while `useStoreLocation` is on) or at least one already-looked-up extra location. Gates the weather `ActivationToggle`, same posture as transit's own "needs nearby stops first" gate. */
+  const hasWeatherCoordinates = (config.weather.useStoreLocation && Boolean(addressLookup?.coordinates)) || config.weather.locations.some((location) => location.coordinates)
+
+  const addWeatherLocation = () => {
+    const location: WeatherLocation = { id: crypto.randomUUID(), name: '', address: '', coordinates: null }
+    setConfig({ ...config, weather: { ...config.weather, locations: [...config.weather.locations, location] } })
+  }
+
+  const updateWeatherLocation = (id: string, patch: Partial<WeatherLocation>) => {
+    setConfig({ ...config, weather: { ...config.weather, locations: config.weather.locations.map((location) => (location.id === id ? { ...location, ...patch } : location)) } })
+  }
+
+  const removeWeatherLocation = (id: string) => {
+    setConfig({ ...config, weather: { ...config.weather, locations: config.weather.locations.filter((location) => location.id !== id) } })
+  }
+
+  const handleLookupWeatherLocation = (id: string, address: string) => {
+    setLookingUpLocationId(id)
+    setLocationLookupError(null)
+    lookupAddress(address)
+      .then((result) => updateWeatherLocation(id, { coordinates: result.coordinates }))
+      .catch(() => setLocationLookupError(t('admin.extensions.lookupError')))
+      .finally(() => setLookingUpLocationId(null))
+  }
+
   const weatherSubmenu = (
     <AnimatedDetails
       className="extension-submenu"
@@ -151,7 +184,7 @@ export function ExtensionsView() {
             id="extensions-weather-enabled"
             label={t('admin.extensions.weatherEnableLabel')}
             checked={config.weather.enabled}
-            disabled={!addressLookup?.coordinates}
+            disabled={!hasWeatherCoordinates}
             confirmMessage={t('admin.extensions.weatherDeactivateConfirm')}
             onChange={(checked) => setConfig({ ...config, weather: { ...config.weather, enabled: checked } })}
           />
@@ -167,10 +200,60 @@ export function ExtensionsView() {
         </>
       }
     >
-      {!addressLookup?.coordinates && <p className="extensions-view__hint">{t('admin.extensions.needsLookupHint')}</p>}
+      {config.weather.useStoreLocation && !addressLookup?.coordinates && <p className="extensions-view__hint">{t('admin.extensions.needsLookupHint')}</p>}
       <p className="extensions-view__hint">{t('admin.extensions.weatherEnabledDescription')}</p>
       <Button type="button" variant="secondary" onClick={() => setWeatherIconsOpen(true)}>
         {t('admin.extensions.weatherIconsButton')}
+      </Button>
+
+      <Checkbox
+        id="extensions-weather-use-store-location"
+        label={t('admin.extensions.weatherUseStoreLocationLabel')}
+        checked={config.weather.useStoreLocation}
+        onChange={(event) => setConfig({ ...config, weather: { ...config.weather, useStoreLocation: event.target.checked } })}
+      />
+
+      {config.weather.locations.length > 0 && (
+        <ul className="extensions-view__location-list">
+          {config.weather.locations.map((location) => (
+            <li key={location.id} className="extensions-view__location-row">
+              <Input
+                id={`extensions-weather-location-name-${location.id}`}
+                label={t('admin.extensions.weatherLocationNameLabel')}
+                value={location.name}
+                onChange={(event) => updateWeatherLocation(location.id, { name: event.target.value })}
+              />
+              <Input
+                id={`extensions-weather-location-address-${location.id}`}
+                label={t('admin.extensions.weatherLocationAddressLabel')}
+                value={location.address}
+                onChange={(event) => updateWeatherLocation(location.id, { address: event.target.value, coordinates: null })}
+              />
+              <div className="extensions-view__location-row-actions">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => handleLookupWeatherLocation(location.id, location.address)}
+                  disabled={!location.address.trim() || lookingUpLocationId === location.id}
+                >
+                  {lookingUpLocationId === location.id ? t('admin.extensions.lookupButtonLoading') : t('admin.extensions.weatherLocationLookupButton')}
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => removeWeatherLocation(location.id)}>
+                  {t('admin.extensions.weatherLocationRemoveButton')}
+                </Button>
+              </div>
+              {location.coordinates && (
+                <span className="extensions-view__coordinates">
+                  {t('admin.extensions.coordinatesLabel', { lat: location.coordinates.lat.toFixed(4), lon: location.coordinates.lon.toFixed(4) })}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {locationLookupError && <Alert variant="error">{locationLookupError}</Alert>}
+      <Button type="button" variant="secondary" className="extensions-view__add-location" onClick={addWeatherLocation}>
+        {t('admin.extensions.weatherAddLocationButton')}
       </Button>
     </AnimatedDetails>
   )

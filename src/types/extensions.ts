@@ -20,6 +20,21 @@ export interface AddressLookupResult {
   nearbyStops: NearbyStop[]
 }
 
+/**
+ * One extra named location an admin has added for the weather integration,
+ * in addition to (or instead of) the store's own address — looked up the
+ * same way, via the same `/extensions/lookup` proxy (only `coordinates` is
+ * used here; a location's own nearby stops, if any, are irrelevant to
+ * weather). `coordinates` is `null` until looked up, or if the lookup
+ * failed/hasn't been retried since `address` last changed.
+ */
+export interface WeatherLocation {
+  id: string
+  name: string
+  address: string
+  coordinates: { lat: number; lon: number } | null
+}
+
 /** Cafe-wide configuration for the live "Integrations" (Ruter transit departures, Entur, Yr weather), edited from the admin's Integrations tab and consumed by any screen slide of the matching content kind. */
 export interface ExtensionsConfig {
   addressLookup?: AddressLookupResult
@@ -53,13 +68,18 @@ export interface ExtensionsConfig {
     modeFilter: string[]
   }
   /**
-   * Only the on/off switch lives here — a `'weather'` slide's own forecast
-   * length and which extra details (wind, humidity, etc.) it shows are
-   * configured per-slide instead (see `ScreenSlotContent`'s `'weather'`
-   * variant), so different panes can each show different detail.
+   * The on/off switch, plus which location(s) a `'weather'` slide can
+   * choose from — a slide's own forecast length and which extra details
+   * (wind, humidity, etc.) it shows are configured per-slide instead (see
+   * `ScreenSlotContent`'s `'weather'` variant), so different panes can each
+   * show different detail for whichever location they pick.
    */
   weather: {
     enabled: boolean
+    /** Whether the store's own address (`addressLookup.coordinates`, from Contact info) is offered as a selectable location for weather panes — on by default. Turning it off doesn't touch `addressLookup` itself (still shared with transit's own stop lookup); it just stops weather panes from offering/defaulting to it. */
+    useStoreLocation: boolean
+    /** Extra named locations an admin has added — e.g. a second store, or any other place they want a screen to show the forecast for. A `'weather'` slide picks one of these (or the store's own address) by id; see `WeatherSlide`'s resolution order. */
+    locations: WeatherLocation[]
   }
 }
 
@@ -67,7 +87,7 @@ export interface ExtensionsConfig {
 export const DEFAULT_EXTENSIONS_CONFIG: ExtensionsConfig = {
   entur: { enabled: false },
   transit: { enabled: false, selectedStops: [], departureCount: 5, showPlatform: false, showLineName: false, realtimeOnly: false, modeFilter: [] },
-  weather: { enabled: false },
+  weather: { enabled: false, useStoreLocation: true, locations: [] },
 }
 
 /** One upcoming departure from `GET /extensions/departures`, as rendered by `TransitSlide`. */

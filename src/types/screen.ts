@@ -106,6 +106,15 @@ export type ScreenSlotContent =
   | ({ kind: 'transit'; stopId?: string; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({
       kind: 'weather'
+      /**
+       * Which of `ExtensionsConfig['weather']['locations']` this pane shows
+       * the forecast for, by id. Unset — or referencing a location that's
+       * since been removed — falls back to the store's own address
+       * (`addressLookup.coordinates`) while `useStoreLocation` is on, else
+       * the first remaining configured location; see `WeatherSlide`'s
+       * resolution order.
+       */
+      locationId?: string
       /** How many hours ahead the forecast list shows. Falls back to `DEFAULT_WEATHER_FORECAST_HOURS`. */
       forecastHours?: number
       /** Show wind speed (m/s) alongside temperature. Falls back to `false`. */

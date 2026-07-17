@@ -76,6 +76,38 @@
   list-style: none;
 }
 
+.extensions-view__location-list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.extensions-view__location-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: $spacing-unit;
+  padding: $spacing-unit;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+
+  .input-field {
+    flex: 1 1 160px;
+  }
+}
+
+.extensions-view__location-row-actions {
+  display: flex;
+  gap: calc($spacing-unit / 2);
+}
+
+.extensions-view__add-location {
+  align-self: flex-start;
+}
+
 .extensions-view__category {
   display: flex;
   flex-direction: column;

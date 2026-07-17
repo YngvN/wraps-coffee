@@ -153,6 +153,11 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
     onChange({ ...content, stopId })
   }
 
+  const setWeatherLocationId = (locationId: string) => {
+    if (content.kind !== 'weather') return
+    onChange({ ...content, locationId: locationId || undefined })
+  }
+
   const setWeatherForecastHours = (forecastHours: number) => {
     if (content.kind !== 'weather') return
     onChange({ ...content, forecastHours })
@@ -443,6 +448,17 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
 
       {content.kind === 'weather' && (
         <>
+          <select aria-label={t('admin.screens.weatherLocationLabel')} value={content.locationId ?? ''} onChange={(event) => setWeatherLocationId(event.target.value)}>
+            {extensionsConfig.weather.useStoreLocation && <option value="">{t('admin.screens.weatherStoreLocationOption')}</option>}
+            {extensionsConfig.weather.locations.map((location) => (
+              <option key={location.id} value={location.id}>
+                {location.name || t('admin.screens.weatherLocationUnnamedOption')}
+              </option>
+            ))}
+          </select>
+          {!extensionsConfig.weather.useStoreLocation && extensionsConfig.weather.locations.length === 0 && (
+            <p className="slide-fields__hint">{t('admin.screens.weatherNoLocationsConfiguredLabel')}</p>
+          )}
           <label className="slide-fields__number-field">
             <span>{t('admin.screens.weatherForecastHoursLabel')}</span>
             <input type="number" min={1} max={48} value={content.forecastHours ?? DEFAULT_WEATHER_FORECAST_HOURS} onChange={(event) => setWeatherForecastHours(Number(event.target.value))} />

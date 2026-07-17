@@ -2,12 +2,30 @@ import { useClockFormatPreference } from '../../hooks/useClockFormatPreference'
 import { useExtensionsConfig } from '../../hooks/useExtensionsConfig'
 import { useWeatherForecast } from '../../hooks/useWeatherForecast'
 import { useLanguage } from '../../i18n'
+import type { ExtensionsConfig } from '../../types/extensions'
 import { DEFAULT_WEATHER_FORECAST_HOURS } from '../../types/screen'
 import { formatClockTime } from '../../utils/clockFormat'
 import { weatherSymbolToEmoji } from '../../utils/weatherSymbols'
 import './WeatherSlide.scss'
 
+/**
+ * Which coordinates a `'weather'` slide actually shows, in priority order:
+ * its own `locationId` (if it still matches one of `config.weather.locations`),
+ * else the store's own address while `useStoreLocation` is on, else the
+ * first remaining configured location — so a slide left pointing at a
+ * since-deleted location (or never set at all) still shows *something*
+ * rather than going blank, same posture as `TransitSlide`'s `effectiveStopId`.
+ */
+function resolveWeatherCoordinates(config: ExtensionsConfig, locationId: string | undefined) {
+  const customLocation = locationId ? config.weather.locations.find((location) => location.id === locationId) : undefined
+  if (customLocation) return customLocation.coordinates ?? undefined
+  if (config.weather.useStoreLocation) return config.addressLookup?.coordinates
+  return config.weather.locations[0]?.coordinates
+}
+
 interface WeatherSlideProps {
+  /** Which of `ExtensionsConfig['weather']['locations']` to show, by id — see `resolveWeatherCoordinates`. */
+  locationId?: string
   /** How many hours ahead the forecast list shows. Falls back to `DEFAULT_WEATHER_FORECAST_HOURS`. */
   forecastHours?: number
   /** Show wind speed (m/s) alongside temperature. Falls back to `false`. */
@@ -22,12 +40,12 @@ interface WeatherSlideProps {
   showPressure?: boolean
 }
 
-/** Fullscreen rendering of an hourly forecast for the cafe's own address (see the admin's Integrations tab), for a screen display's "weather" slot. */
-export function WeatherSlide({ forecastHours, showWind, showHumidity, showPrecipitationProbability, showUvIndex, showPressure }: WeatherSlideProps) {
+/** Fullscreen rendering of an hourly forecast for one of the cafe's configured locations (see the admin's Integrations tab), for a screen display's "weather" slot. */
+export function WeatherSlide({ locationId, forecastHours, showWind, showHumidity, showPrecipitationProbability, showUvIndex, showPressure }: WeatherSlideProps) {
   const { t, language } = useLanguage()
   const [clockFormat] = useClockFormatPreference()
   const [config] = useExtensionsConfig()
-  const coordinates = config.addressLookup?.coordinates
+  const coordinates = resolveWeatherCoordinates(config, locationId)
   const { hourly } = useWeatherForecast(coordinates?.lat, coordinates?.lon, forecastHours ?? DEFAULT_WEATHER_FORECAST_HOURS)
 
   if (!coordinates) {

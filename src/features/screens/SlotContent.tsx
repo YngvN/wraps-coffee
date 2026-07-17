@@ -32,6 +32,7 @@ export function SlotContent({ slot }: SlotContentProps) {
   if (slot.kind === 'weather')
     return (
       <WeatherSlide
+        locationId={slot.locationId}
         forecastHours={slot.forecastHours}
         showWind={slot.showWind}
         showHumidity={slot.showHumidity}
