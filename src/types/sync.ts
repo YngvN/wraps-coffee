@@ -11,7 +11,6 @@ export const SYNCED_KEYS = [
   'admin.clockFormat',
   'admin.dateFormat',
   'admin.paneLanguage',
-  'admin.screenLockPin',
   'admin.screensaverSchedule',
   'admin.dashboardScreensaver',
   'admin.screens',

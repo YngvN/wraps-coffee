@@ -5,7 +5,6 @@ import { BackButton, Button, ChevronRightIcon, PlusIcon, SlideTransition, Transl
 import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { useRecentlyOpened } from '../../../hooks/useRecentlyOpened'
-import { useScreenLockPin } from '../../../hooks/useScreenLockPin'
 import { useScreens } from '../../../hooks/useScreens'
 import { useScreensaverSchedule } from '../../../hooks/useScreensaverSchedule'
 import { useLanguage } from '../../../i18n'
@@ -17,7 +16,6 @@ import { useStoreSettings } from '../../../hooks/useStoreSettings'
 import { countLeaves } from '../../../utils/layoutTree'
 import { deriveMdnsName } from '../../../utils/mdnsName'
 import { DisplayManagerView } from '../displayManager/DisplayManagerView'
-import { CreatePinModal } from './CreatePinModal'
 import { ScreenCard } from './ScreenCard'
 import { ScreenForm, type ScreenFormTarget } from './ScreenForm'
 import { ScreensaverScheduleModal } from './ScreensaverScheduleModal'
@@ -25,15 +23,13 @@ import './ScreensView.scss'
 
 const SCREEN_FORM_TARGETS: ScreenFormTarget[] = ['global', 'borders', 'background', 'stages', 'transitions', 'screensaver', 'other']
 
-/** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link (addressed per Settings → Advanced's `ScreenAddressSettings`), plus the "Create pin" button that sets the one shared PIN every screen's own "Lock screen" button locks behind, and the "Screen saver" button that sets the one shared daily window every screen's own "Use screensaver" checkbox opts into. "Open" treats launching a screen as deploying it, not previewing it — see `handleOpenScreen`. A "Display Manager" row above the screen list opens `DisplayManagerView` — every machine/monitor that's ever registered, with a Screen-assignment selector per monitor. */
+/** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link (addressed per Settings → Advanced's `ScreenAddressSettings`), plus the "Screen saver" button that sets the one shared daily window every screen's own "Use screensaver" checkbox opts into. "Open" treats launching a screen as deploying it, not previewing it — see `handleOpenScreen`; it always opens the plain, read-only `/screens/:screenId` URL. "Editor" instead opens the screen's own `/screens/editor/:screenId` URL — see `handleOpenEditor` — the only one that ever offers `ScreenDisplay`'s in-place editing toolbar. A "Display Manager" row above the screen list opens `DisplayManagerView` — every machine/monitor that's ever registered, with a Screen-assignment selector per monitor. */
 export function ScreensView() {
   const { t } = useLanguage()
   const [screens, setScreens] = useScreens()
-  const [pin] = useScreenLockPin()
   const [screensaverSchedule] = useScreensaverSchedule()
   const [searchParams, setSearchParams] = useSearchParams()
   const [editingScreen, setEditingScreen] = useState<ScreenConfig | null | undefined>(undefined)
-  const [pinModalOpen, setPinModalOpen] = useState(false)
   const [screensaverModalOpen, setScreensaverModalOpen] = useState(false)
   const [copiedID, setCopiedID] = useState<string | null>(null)
   /** Whether the "Display Manager" sub-view (every registered machine/monitor, with its own Screen-assignment selector) is open in place of the screen list. */
@@ -46,8 +42,6 @@ export function ScreensView() {
   const [lanIp, setLanIp] = useState<string | null>(null)
   /** How a screen's own link should be addressed (see Settings → Advanced) — `automatic` (the default) defers to the LAN-IP detection above; `custom`/`mdns` override it outright. Fetched once; falls back to `automatic` while loading or if the lookup fails. */
   const [addressSettings, setAddressSettings] = useState<ScreenAddressSettings>(DEFAULT_SCREEN_ADDRESS_SETTINGS)
-  /** A screen queued to open once a PIN has just been set — see `handleOpenScreen`/`CreatePinModal`'s `onSaved`. `null` outside of that gated flow (including while the pin modal is open for its own plain "Create/change pin" button). */
-  const [pendingOpenScreen, setPendingOpenScreen] = useState<{ screen: ScreenConfig; url: string } | null>(null)
   const [storeSettings] = useStoreSettings()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
   const { record: recordRecentlyOpened } = useRecentlyOpened()
@@ -168,34 +162,27 @@ export function ScreensView() {
   }
 
   /**
-   * Actually launches a screen's display in a new tab — this is meant as a
-   * "deploy it" action, not a plain preview, so it locks the screen right
-   * here (a plain event-handler write, before the new tab even opens,
-   * rather than a `setState` call inside `ScreenDisplay`'s own mount
-   * effect) and appends a one-time `launch` marker that page's effect
-   * looks for to best-effort request fullscreen (autoplaying is separately
-   * covered by that page's `manuallyPaused` initial state noticing the
-   * same marker). Called once a PIN is confirmed to exist (see
-   * `handleOpenScreen` below).
+   * "Open" a screen from the dashboard: this is meant as a "deploy it"
+   * action, not a plain preview, so it launches the display in a new tab
+   * with a one-time `launch` marker that page's own effect looks for to
+   * best-effort request fullscreen and autoplay (see `manuallyPaused`'s
+   * own initial state on `ScreenDisplay`, which notices the same marker).
    */
-  const launchScreen = (screen: ScreenConfig, url: string) => {
-    if (!screen.locked) setScreens((current) => current.map((existing) => (existing.screenID === screen.screenID ? { ...existing, locked: true } : existing)))
+  const handleOpenScreen = (url: string) => {
     window.open(`${url}${url.includes('?') ? '&' : '?'}launch=1`, '_blank')
   }
 
-  /** "Open" a screen from the dashboard: this is meant as a "deploy it" action, not a plain preview, so it always locks + autoplays the display it opens — which means a PIN must exist first (a locked screen with no PIN would trap the owner out of their own display). Without one, stashes the target and opens `CreatePinModal` instead of navigating; with one already set, launches immediately. */
-  const handleOpenScreen = (screen: ScreenConfig, url: string) => {
-    if (!pin) {
-      setPendingOpenScreen({ screen, url })
-      setPinModalOpen(true)
-      return
-    }
-    launchScreen(screen, url)
-  }
-
-  const closePinModal = () => {
-    setPinModalOpen(false)
-    setPendingOpenScreen(null)
+  /**
+   * "Editor" — opens the SAME screen at its own dedicated
+   * `/screens/editor/:screenId` URL (see `editorUrl` below) instead of the
+   * plain `/screens/:screenId` "Open" uses: this is the only URL that ever
+   * offers the in-place editing toolbar (see `ScreenDisplay`'s own
+   * `canEdit`), so a real kiosk deployment opened via "Open" can never be
+   * accidentally edited even from a logged-in device. No `launch` marker,
+   * so it doesn't request fullscreen/autoplay either.
+   */
+  const handleOpenEditor = (editorUrl: string) => {
+    window.open(editorUrl, '_blank')
   }
 
   const openDisplayManager = () => {
@@ -257,9 +244,6 @@ export function ScreensView() {
             <div className="screens-view__header">
               <TranslatedText as="h1" id="admin.screens.title" />
               <div className="screens-view__header-actions">
-                <Button variant="secondary" onClick={() => setPinModalOpen(true)}>
-                  {pin ? t('admin.screens.changePinButton') : t('admin.screens.createPinButton')}
-                </Button>
                 <Button variant="secondary" onClick={() => setScreensaverModalOpen(true)}>
                   {screensaverSchedule ? t('admin.screens.changeScreensaverButton') : t('admin.screens.screensaverButton')}
                 </Button>
@@ -286,6 +270,7 @@ export function ScreensView() {
                 <AnimatePresence initial={false}>
                   {screens.map((screen) => {
                     const url = `${window.location.protocol}//${screenHost}${window.location.port ? `:${window.location.port}` : ''}/screens/${screen.screenID}`
+                    const editorUrl = `${window.location.protocol}//${screenHost}${window.location.port ? `:${window.location.port}` : ''}/screens/editor/${screen.screenID}`
                     const tree = screen.layout[1] ?? Object.values(screen.layout)[0]
                     const slotCount = tree ? countLeaves(tree) : 0
                     const slotCountLabel = slotCount === 1 ? t('admin.screens.slotCountBadgeOne') : t('admin.screens.slotCountBadge', { count: slotCount })
@@ -301,11 +286,13 @@ export function ScreensView() {
                         <ScreenCard
                           screen={screen}
                           url={url}
+                          editorUrl={editorUrl}
                           defaultPaneLanguage={defaultPaneLanguage}
                           slotCountLabel={slotCountLabel}
                           copied={copiedID === screen.screenID}
                           onCopy={() => handleCopy(screen, url)}
-                          onOpen={() => handleOpenScreen(screen, url)}
+                          onOpen={() => handleOpenScreen(url)}
+                          onOpenEditor={() => handleOpenEditor(editorUrl)}
                           onEdit={() => openForm(screen)}
                           onDuplicate={() => handleDuplicate(screen)}
                           onDelete={() => handleDelete(screen)}
@@ -320,14 +307,6 @@ export function ScreensView() {
         )}
       </SlideTransition>
 
-      <CreatePinModal
-        open={pinModalOpen}
-        onClose={closePinModal}
-        description={pendingOpenScreen ? t('admin.screens.createPinRequiredDescription') : undefined}
-        onSaved={() => {
-          if (pendingOpenScreen) launchScreen(pendingOpenScreen.screen, pendingOpenScreen.url)
-        }}
-      />
       <ScreensaverScheduleModal open={screensaverModalOpen} onClose={() => setScreensaverModalOpen(false)} />
     </div>
   )

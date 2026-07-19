@@ -29,7 +29,6 @@ const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
   'admin.storeSettings': 'store',
   'admin.screens': 'screens',
   'admin.textSizePresets': 'screens',
-  'admin.screenLockPin': 'screens',
   'admin.screensaverSchedule': 'screens',
   'admin.displayMachines': 'displaymanager',
   'admin.extensions': 'extensions',

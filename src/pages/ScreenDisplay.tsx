@@ -1,22 +1,19 @@
 import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { BackButton, Modal } from '../components'
+import { Navigate, useMatch, useParams } from 'react-router-dom'
+import { BackButton, Checkbox, Modal } from '../components'
 import { BackgroundEditor } from '../features/screens/BackgroundEditor'
 import { FullscreenToggle } from '../features/screens/FullscreenToggle'
 import { GlobalTextSizeScaler, type SizeSnapshot } from '../features/screens/GlobalTextSizeScaler'
 import { KeepEditPrompt, type SlotEditChanges } from '../features/screens/KeepEditPrompt'
-import { LockIcon } from '../features/screens/LockIcon'
 import { NoConnectionIcon } from '../features/screens/NoConnectionIcon'
 import { ScreenToolbar } from '../features/screens/ScreenToolbar'
 import { SlotEditor } from '../features/screens/SlotEditor'
 import { SplitLayout } from '../features/screens/SplitLayout'
 import { StagePlaybackControls } from '../features/screens/StagePlaybackControls'
-import { UnlockScreenModal } from '../features/screens/UnlockScreenModal'
 import { useAdminSession } from '../hooks/useAdminSession'
 import { useConnectionStatus } from '../hooks/useConnectionStatus'
 import { useDefaultPaneLanguage } from '../hooks/useDefaultPaneLanguage'
-import { useScreenLockPin } from '../hooks/useScreenLockPin'
 import { useScreens } from '../hooks/useScreens'
 import { useScreensaverSchedule } from '../hooks/useScreensaverSchedule'
 import { useLanguage } from '../i18n'
@@ -26,6 +23,7 @@ import {
   DEFAULT_SCREEN_BACKGROUND_COLOR,
   DEFAULT_TEXT_SIZES,
   type BackgroundImage,
+  type DraftableScreenFields,
   type LayoutNode,
   type PaneId,
   type ScreenConfig,
@@ -108,8 +106,10 @@ function randomScreensaverTestLabelPosition(): { top: number; left: number } {
  * pane's own — see `.screen-display__bg`), shown through any pane that
  * doesn't have its own background color/image (a pane's own individual
  * background is only editable from that pane's own editor, not here).
- * Unlike the scaler's own fields, both are always live, with no
- * draft/"restore previous" step. Hovering any individual pane instead
+ * Unlike the scaler's own fields, both write on every change, with no
+ * local draft/"restore previous" step of their own (they're still subject
+ * to the toolbar's own Live editing toggle, like everything else — see
+ * `applyScreenPatch`). Hovering any individual pane instead
  * reveals a small "Edit pane" button covering that whole pane: once
  * `screen.useStages` is on and there's more than one stage, a stage-tab bar
  * (mirroring the admin dashboard's own one level deeper) lets the owner
@@ -135,19 +135,19 @@ function randomScreensaverTestLabelPosition(): { top: number; left: number } {
  * tab bar currently has selected, instead of continuing its natural
  * rotation, so the preview always shows exactly the stage being edited.
  *
- * The toolbar's "Lock screen" button (shown only once a PIN's been set from
- * the admin dashboard) collapses the whole toolbar down to a single lock
- * icon button — hiding the screen name, the stage indicator, the playback
- * transport, the fullscreen toggle, the "Edit appearance" button, and (via
- * `SplitLayout`) every pane's own hover-revealed edit button, its draggable
- * resize dividers, and dropping an image file onto a pane. Tapping that icon
- * opens `UnlockScreenModal` to ask for that same PIN before restoring all of
- * it. While locked, text/image selection, dragging and the right-click menu
- * are also disabled (`.screen-display--locked`), leaving scrolling as the
- * only thing still possible — and a `fullscreenchange` listener makes a
- * best-effort attempt to hop straight back into fullscreen if it's exited,
- * though it can't actually stop Escape from exiting in the first place; no
- * website can override that.
+ * Editing is gated on a logged-in admin session in this browser AND being on
+ * the dedicated `/screens/editor/:screenId` route rather than the plain
+ * `/screens/:screenId` one real kiosk deployments use (see `canEdit`) — no
+ * separate PIN/lock step. An editable viewer also gets a
+ * "Live editing" checkbox in the toolbar: on (the default) writes straight
+ * to the published screen exactly as before; off stages every edit into
+ * `screen.draft` instead — invisible to every other viewer (including a
+ * different editable viewer who still has Live editing on) until the
+ * "Publish" button (shown whenever a draft is pending) merges it onto the
+ * published fields and clears it. `viewScreen` (draft-overlaid when
+ * previewing, else the plain published screen) is what every read in this
+ * component resolves against, so a live-off editor sees their own draft
+ * while everyone else keeps seeing the last published version.
  *
  * A screen with its own "Use screensaver" checkbox on (only offered once a
  * shared daily window's been set from the admin dashboard's "Screen saver"
@@ -161,6 +161,7 @@ function randomScreensaverTestLabelPosition(): { top: number; left: number } {
 export function ScreenDisplay() {
   const { t } = useLanguage()
   const { screenId } = useParams<{ screenId: string }>()
+  const isEditorRoute = Boolean(useMatch('/screens/editor/:screenId'))
   const { session, clearSession } = useAdminSession()
   const [screens, setScreens] = useScreens()
   const connected = useConnectionStatus()
@@ -170,7 +171,7 @@ export function ScreenDisplay() {
   const [now, setNow] = useState(() => new Date())
   const [editingTarget, setEditingTarget] = useState<EditingTarget>(null)
   const [screenDraftSnapshot, setScreenDraftSnapshot] = useState<SizeSnapshot | null>(null)
-  /** Whether the whole-screen editor is showing its own "Background" sub-view instead of the main percentage scaler — reset whenever the editor (re)opens. Background color/image are always live (see `handleScreenBackgroundColorChange`/`handleScreenBackgroundImageChange`), so unlike the scaler's own fields this has no draft/restore state of its own. */
+  /** Whether the whole-screen editor is showing its own "Background" sub-view instead of the main percentage scaler — reset whenever the editor (re)opens. Background color/image write straight through `applyScreenPatch` on every change (see `handleScreenBackgroundColorChange`/`handleScreenBackgroundImageChange`), so unlike the scaler's own fields this has no local draft/restore state of its own. */
   const [screenSubview, setScreenSubview] = useState<'background' | null>(null)
   const [draftSlot, setDraftSlot] = useState<ScreenSlot>(emptySlot())
   const [originalSlot, setOriginalSlot] = useState<ScreenSlot>(emptySlot())
@@ -206,8 +207,8 @@ export function ScreenDisplay() {
   const [resizeSessionStage, setResizeSessionStage] = useState(1)
   /** The next/previous-stage step or lock action waiting on the resize fallback prompt's own resolution — see `requestPendingResizeAction`. */
   const [pendingResizeAction, setPendingResizeAction] = useState<(() => void) | null>(null)
-  const [pin] = useScreenLockPin()
-  const [unlockModalOpen, setUnlockModalOpen] = useState(false)
+  /** The toolbar's own "Live editing" checkbox — on (the default, matching every prior version of this page) writes straight to the published screen; off stages writes into `screen.draft` instead (see `applyScreenPatch`). */
+  const [liveEditing, setLiveEditing] = useState(true)
   const [screensaverTestLabelPosition, setScreensaverTestLabelPosition] = useState(randomScreensaverTestLabelPosition)
   const [tick, setTick] = useState(0)
   /**
@@ -233,33 +234,30 @@ export function ScreenDisplay() {
   /** The toolbar's own fast-forward toggle — while on, stages advance every 2 seconds instead of the screen's own configured `slideDurationSeconds`. */
   const [fastForward, setFastForward] = useState(false)
 
-  const paused = editingTarget !== null || unlockModalOpen || manuallyPaused
-
-  /** Advances the shared stage sequence, paused while any editor (or a divider drag, or the unlock modal, or the toolbar's own play/pause toggle) is open/active so the preview isn't pulled out from under it — mirrors the same rotation timer `SplitLayout` used to own directly, lifted up here so `ScreenToolbar`'s stage indicator and playback controls can read/drive the same clock. */
-  useEffect(() => {
-    if (paused || !screen?.useStages || (screen?.stageCount ?? 1) <= 1) return
-    const timer = setInterval(() => setTick((current) => current + 1), fastForward ? 2000 : screen.slideDurationSeconds * 1000)
-    return () => clearInterval(timer)
-  }, [paused, screen?.useStages, screen?.stageCount, screen?.slideDurationSeconds, fastForward])
+  const paused = editingTarget !== null || manuallyPaused
 
   /**
-   * Best-effort attempt to keep a locked screen in fullscreen — if it gets
-   * exited (e.g. via Escape) while still locked, immediately re-requests
-   * it. This can't actually stop Escape from exiting fullscreen in the
-   * first place — no website can override that, by design, as a browser
-   * safety net for the user — so this only re-enters a moment later, and
-   * even that isn't guaranteed: browsers require a fresh user gesture for
-   * `requestFullscreen()`, which this `fullscreenchange` handler doesn't
-   * have, so some browsers may silently refuse it.
+   * The draft-aware stage-rotation settings — read here (rather than via
+   * `viewScreen`, computed further down after the `!screen` early return)
+   * since this effect runs above that point; a live-off *editable* viewer
+   * previewing a draft stage-count/duration change should have the
+   * rotation reflect it, same as everything else `viewScreen` unifies —
+   * gated on `session`/`isEditorRoute`/`liveEditing` directly (not just
+   * `Boolean(draft)`), so a non-editable viewer (or an editable one with
+   * Live editing on) never has their own rotation affected by someone
+   * else's pending draft.
    */
+  const previewingDraft = Boolean(session) && isEditorRoute && !liveEditing
+  const rotationUseStages = (previewingDraft ? screen?.draft?.useStages : undefined) ?? screen?.useStages
+  const rotationStageCount = (previewingDraft ? screen?.draft?.stageCount : undefined) ?? screen?.stageCount
+  const rotationSlideDuration = (previewingDraft ? screen?.draft?.slideDurationSeconds : undefined) ?? screen?.slideDurationSeconds
+
+  /** Advances the shared stage sequence, paused while any editor (or a divider drag, or the toolbar's own play/pause toggle) is open/active so the preview isn't pulled out from under it — mirrors the same rotation timer `SplitLayout` used to own directly, lifted up here so `ScreenToolbar`'s stage indicator and playback controls can read/drive the same clock. */
   useEffect(() => {
-    if (!screen?.locked) return
-    const handleFullscreenChange = () => {
-      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {})
-    }
-    document.addEventListener('fullscreenchange', handleFullscreenChange)
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
-  }, [screen?.locked])
+    if (paused || !rotationUseStages || (rotationStageCount ?? 1) <= 1) return
+    const timer = setInterval(() => setTick((current) => current + 1), fastForward ? 2000 : (rotationSlideDuration ?? 10) * 1000)
+    return () => clearInterval(timer)
+  }, [paused, rotationUseStages, rotationStageCount, rotationSlideDuration, fastForward])
 
   /** Keeps `now` fresh enough for the screensaver's own scheduled window to actually kick in (and end) without needing a refresh, without re-rendering every second for a check that's only ever precise to the minute. */
   useEffect(() => {
@@ -278,11 +276,8 @@ export function ScreenDisplay() {
    * If this display was just launched from the dashboard's "Open" action
    * (see `ScreensView.handleOpenScreen`), best-effort requests fullscreen —
    * treating "open" as "deploy it," not a plain preview. The "starts
-   * locked" and "starts autoplaying" halves of that don't belong here:
-   * locking is already written by `handleOpenScreen` itself before this tab
-   * even opens (so `screen.locked` is simply already `true` by the time
-   * this component first reads it), and autoplaying is `manuallyPaused`'s
-   * own lazy initial state above — neither needs a `setState` call inside
+   * autoplaying" half of that doesn't belong here: it's `manuallyPaused`'s
+   * own lazy initial state above, which needs no `setState` call inside
    * this effect. `requestFullscreen` needs an active user gesture, which a
    * mount effect in a freshly-opened tab typically isn't — attempted
    * anyway (harmless if silently rejected; the toolbar's own
@@ -304,21 +299,67 @@ export function ScreenDisplay() {
     )
   }
 
+  /**
+   * `/screens/editor/:screenId` is the one URL meant to be used for editing
+   * (see `canEdit` below), so — unlike the plain `/screens/:screenId` route,
+   * which stays silently read-only for anyone without a session — landing
+   * here without one sends straight to login instead of just rendering a
+   * dead end. This is also what makes the "Editor" link usable from a
+   * different device/hostname than wherever the admin dashboard session was
+   * created (the admin session lives in this browser origin's own
+   * `localStorage`, so a brand new origin has none yet): logging in right
+   * here creates a session on THIS origin, and `redirect` sends them
+   * straight back to this same screen afterward (see `AdminLogin`).
+   */
+  if (isEditorRoute && !session) {
+    return <Navigate to={`/admin/login?redirect=${encodeURIComponent(window.location.pathname)}`} replace />
+  }
+
   const stage = currentStage(tick, screen)
 
-  const activeTextSizes = editingTarget === 'screen' && screenDraftSnapshot ? screenDraftSnapshot.textSizes : (screen.textSizes ?? DEFAULT_TEXT_SIZES)
+  /** Whether this browser tab can edit this screen at all — a logged-in admin session, AND only on the dedicated `/screens/editor/:screenId` route (see `isEditorRoute`, `main.tsx`). The plain `/screens/:screenId` route (what "Open"/real kiosk deployments use) is always fully read-only, even for a logged-in session, so a real kiosk display can never be accidentally edited; only the "Editor" link's own URL ever offers editing. Without a session on the editor route, every editing affordance (the toolbar's edit controls, resizing/splitting/clearing/deleting a pane, dropping an image onto one) is hidden entirely, not just disabled — this page is otherwise fully public, so someone who merely happens to load either URL shouldn't be able to touch its layout or content without both conditions. */
+  const canEdit = Boolean(session) && isEditorRoute
+
+  /** Whether this editable viewer is currently previewing `screen.draft` instead of the published fields — only while Live editing is off and a draft actually exists (a viewer without a session, or with Live editing on, always sees the plain published screen). */
+  const draftActive = canEdit && !liveEditing && Boolean(screen.draft)
+
+  /** The screen as this tab should currently read every field from: draft-overlaid while previewing (see `draftActive`), else identical to the plain published `screen`. Every other read/handler in this component builds on this (not `screen` directly) so a live-off editor's own further edits accumulate onto their own draft instead of resetting from the stale published baseline each time. */
+  const viewScreen: ScreenConfig = draftActive ? { ...screen, ...screen.draft } : screen
+
+  /**
+   * Routes a draftable-field write to the published screen (Live editing on
+   * — every prior version of this page's only mode) or into `screen.draft`
+   * instead (off) — the single choke point every content/layout/appearance
+   * write in this component goes through, so that choice only has to be
+   * made in one place. `patch` should be computed from `viewScreen` (not
+   * `screen`), so it correctly builds on whatever's currently showing.
+   */
+  const applyScreenPatch = (patch: Partial<DraftableScreenFields>) => {
+    setScreens(
+      screens.map((existing) =>
+        existing.screenID === screen.screenID ? (liveEditing ? { ...existing, ...patch } : { ...existing, draft: { ...existing.draft, ...patch } }) : existing,
+      ),
+    )
+  }
+
+  /** Merges the pending draft onto the published fields and clears it — everyone else's own view (which never reads `draft` at all) starts reflecting it immediately. Only ever called while `screen.draft` is actually set (see the toolbar's own Publish button). */
+  const handlePublish = () => {
+    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, ...existing.draft, draft: undefined } : existing)))
+  }
+
+  const activeTextSizes = editingTarget === 'screen' && screenDraftSnapshot ? screenDraftSnapshot.textSizes : (viewScreen.textSizes ?? DEFAULT_TEXT_SIZES)
 
   /** The screen as it should currently render: the pane being edited (if any) swapped for its live draft, so content/color changes preview immediately, same as text-size changes already do. */
   const effectiveScreen: ScreenConfig =
     typeof editingTarget === 'object' && editingTarget !== null
-      ? { ...screen, paneSlots: { ...screen.paneSlots, [editingTarget.leafId]: draftSlot } }
-      : screen
+      ? { ...viewScreen, paneSlots: { ...viewScreen.paneSlots, [editingTarget.leafId]: draftSlot } }
+      : viewScreen
 
   /** While a pane's editor is open, forces the *whole* display (every pane, not just the one being edited — every pane shares the same stage sequence) to the stage its own tab bar currently has selected, instead of letting it keep naturally rotating. */
   const forcedStage = typeof editingTarget === 'object' && editingTarget !== null ? activeStage : undefined
 
   /** Whether the pane currently being edited has more than one stage — the deciding factor for whether a text-size edit goes to that stage's own content (`draftTextSizes`) or the pane's shared/fallback size (`draftSlotTextSizes`), both while editing (see `resolveTextSizes` below) and in `SlotEditor` itself. */
-  const hasMultipleStages = typeof editingTarget === 'object' && editingTarget !== null && Boolean(screen.useStages) && (screen.stageCount ?? 1) > 1
+  const hasMultipleStages = typeof editingTarget === 'object' && editingTarget !== null && Boolean(viewScreen.useStages) && (viewScreen.stageCount ?? 1) > 1
 
   /**
    * Resolves the sizes a given pane should render with right now, at
@@ -340,7 +381,7 @@ export function ScreenDisplay() {
       return resolveContentTextSizes(draftContent, resolveSlotTextSizes(draftSlotSnapshot, stage) ?? screenDraftSnapshot.textSizes)
     }
 
-    return resolveContentTextSizes(content, getPersistedSlotTextSizes(screen, leafId, stage))
+    return resolveContentTextSizes(content, getPersistedSlotTextSizes(viewScreen, leafId, stage))
   }
 
   const openScreenEditor = () => {
@@ -351,10 +392,10 @@ export function ScreenDisplay() {
   }
 
   const openSlotEditor = (leafId: PaneId) => {
-    const slot = screen.paneSlots[leafId] ?? emptySlot()
+    const slot = viewScreen.paneSlots[leafId] ?? emptySlot()
     const openStage = stage
     const content = resolveSlotContent(slot, openStage)
-    const sharedTextSizes = getPersistedSlotTextSizes(screen, leafId, openStage)
+    const sharedTextSizes = getPersistedSlotTextSizes(viewScreen, leafId, openStage)
     const effective = resolveContentTextSizes(content, sharedTextSizes)
     setDraftSlot(slot)
     setOriginalSlot(slot)
@@ -383,7 +424,7 @@ export function ScreenDisplay() {
   const handleDragStateChange = (isDragging: boolean) => {
     if (!isDragging) return
     setManuallyPaused(true)
-    setResizeSessionOriginalTree((current) => current ?? resolveStageValue(screen.layout, stage))
+    setResizeSessionOriginalTree((current) => current ?? resolveStageValue(viewScreen.layout, stage))
     setResizeSessionStage((current) => (resizeSessionOriginalTree === undefined ? stage : current))
   }
 
@@ -406,7 +447,7 @@ export function ScreenDisplay() {
     if (flushedSlotWithSharedSize !== draftSlot) setDraftSlot(flushedSlotWithSharedSize)
 
     const content = resolveSlotContent(flushedSlotWithSharedSize, nextStage)
-    const sharedTextSizes = resolveSlotTextSizes(flushedSlotWithSharedSize, nextStage) ?? screen.textSizes ?? DEFAULT_TEXT_SIZES
+    const sharedTextSizes = resolveSlotTextSizes(flushedSlotWithSharedSize, nextStage) ?? viewScreen.textSizes ?? DEFAULT_TEXT_SIZES
     setDraftTextSizes(resolveContentTextSizes(content, sharedTextSizes))
     setDraftSlotTextSizes(sharedTextSizes)
     setActiveStage(nextStage)
@@ -418,10 +459,8 @@ export function ScreenDisplay() {
   /** The previous/next-stage button pair's own discrete jump — same destination as `handleScrubToStage`, but routed through `requestPendingResizeAction` first, since clicking away from a stage is exactly the moment an unresolved pane resize on it should be asked about. */
   const handleStepStage = (targetStage: number) => requestPendingResizeAction(() => setTick(targetStage - 1))
 
-  /** A divider's new position (or a structural split/delete edit, once that UI lands), dragged/made right on this display — applies (and persists) immediately, mirroring the admin dashboard's own inline "Layout" grid writing to the very same `layout` field. The screen's shared rotation timer (seconds per step) is edited from that same admin dashboard's own "Steps" panel, not from this display. */
-  const handleResizeDivider = (patch: Partial<ScreenConfig>) => {
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, ...patch } : existing)))
-  }
+  /** A divider's new position (or a structural split/delete edit, once that UI lands), dragged/made right on this display — applies (and, with Live editing on, persists) immediately, mirroring the admin dashboard's own inline "Layout" grid writing to the very same `layout` field. The screen's shared rotation timer (seconds per step) is edited from that same admin dashboard's own "Steps" panel, not from this display. `SplitLayout`'s own `onResizeDivider` prop is typed against the wider `Partial<ScreenConfig>` (shared with `ScreenForm.tsx`'s own live preview, which always writes straight through) — the cast here is safe since it only ever actually sends `layout`/`paneSlots`. */
+  const handleResizeDivider = (patch: Partial<ScreenConfig>) => applyScreenPatch(patch as Partial<DraftableScreenFields>)
 
   /**
    * A file dropped directly onto a pane (see `SplitLayout`'s own
@@ -444,14 +483,14 @@ export function ScreenDisplay() {
     }
 
     const targetStage = forcedStage ?? stage
-    const slot = screen.paneSlots[leafId] ?? emptySlot()
+    const slot = viewScreen.paneSlots[leafId] ?? emptySlot()
     const previousContent = resolveSlotContent(slot, targetStage)
 
     try {
       const imageUrl = await uploadImage(file, session.token)
       const nextContent: ScreenSlotContent = { kind: 'image', imageUrl, fit: 'cover' }
       const nextSlot: ScreenSlot = { ...slot, content: writeStageCheckpoint(slot.content, targetStage, nextContent) }
-      setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, paneSlots: { ...existing.paneSlots, [leafId]: nextSlot } } : existing)))
+      applyScreenPatch({ paneSlots: { ...viewScreen.paneSlots, [leafId]: nextSlot } })
       if (previousContent.kind === 'image' && previousContent.imageUrl && isOwnUploadUrl(previousContent.imageUrl)) void deleteUpload(previousContent.imageUrl, session.token)
     } catch (error) {
       if (error instanceof SessionExpiredError) {
@@ -473,28 +512,28 @@ export function ScreenDisplay() {
    */
   const handleSplitPane = (leafId: PaneId, axis: SplitDirection, edge: 'start' | 'end') => {
     const targetStage = forcedStage ?? stage
-    const tree = resolveStageValue(screen.layout, targetStage)
+    const tree = resolveStageValue(viewScreen.layout, targetStage)
     if (!tree) return
     const { tree: nextTree, newPaneId } = splitLeaf(tree, leafId, axis, edge)
-    const nextLayout = writeStageCheckpoint(screen.layout, targetStage, nextTree)
-    const nextPaneSlots = { ...screen.paneSlots, [newPaneId]: cloneSlot(screen.paneSlots[leafId] ?? emptySlot()) }
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, layout: nextLayout, paneSlots: nextPaneSlots } : existing)))
+    const nextLayout = writeStageCheckpoint(viewScreen.layout, targetStage, nextTree)
+    const nextPaneSlots = { ...viewScreen.paneSlots, [newPaneId]: cloneSlot(viewScreen.paneSlots[leafId] ?? emptySlot()) }
+    applyScreenPatch({ layout: nextLayout, paneSlots: nextPaneSlots })
   }
 
-  /** Resets `leafId`'s own content/background/text-size straight back to a fresh blank `ScreenSlot` — independent of `layout` entirely, applied and persisted immediately. */
+  /** Resets `leafId`'s own content/background/text-size straight back to a fresh blank `ScreenSlot` — independent of `layout` entirely, applied (and, with Live editing on, persisted) immediately. */
   const handleClearPane = (leafId: PaneId) => {
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, paneSlots: { ...existing.paneSlots, [leafId]: emptySlot() } } : existing)))
+    applyScreenPatch({ paneSlots: { ...viewScreen.paneSlots, [leafId]: emptySlot() } })
   }
 
   /** Deletes `leafId` — its sibling takes over the freed space. No-op when it's the only pane left (the delete button isn't rendered at all in that case). Closes the pane editor if it happened to be open on the pane just deleted, since there'd be nothing left to edit. */
   const handleDeletePane = (leafId: PaneId) => {
     const targetStage = forcedStage ?? stage
-    const tree = resolveStageValue(screen.layout, targetStage)
+    const tree = resolveStageValue(viewScreen.layout, targetStage)
     if (!tree) return
     const nextTree = deleteLeaf(tree, leafId)
     if (!nextTree) return
-    const nextLayout = writeStageCheckpoint(screen.layout, targetStage, nextTree)
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, layout: nextLayout } : existing)))
+    const nextLayout = writeStageCheckpoint(viewScreen.layout, targetStage, nextTree)
+    applyScreenPatch({ layout: nextLayout })
     if (typeof editingTarget === 'object' && editingTarget?.leafId === leafId) setEditingTarget(null)
   }
 
@@ -505,15 +544,14 @@ export function ScreenDisplay() {
    * behind" safety net the pane editor's own session already has via
    * `requestCloseEditor`, but for a divider drag made directly on the live
    * view, which has no modal step of its own to normally catch it in. Used
-   * by both `handleStepStage` and `handleLockScreen`. Only actually asks on
-   * a screen with more than one stage — with just one, "keep for next
-   * step(s) too" is meaningless (there's nothing to propagate to), and a
-   * divider drag has already fully persisted the moment it was released
-   * either way.
+   * by `handleStepStage`. Only actually asks on a screen with more than one
+   * stage — with just one, "keep for next step(s) too" is meaningless
+   * (there's nothing to propagate to), and a divider drag has already fully
+   * persisted the moment it was released either way.
    */
   const requestPendingResizeAction = (action: () => void) => {
-    const screenHasMultipleStages = Boolean(screen.useStages) && (screen.stageCount ?? 1) > 1
-    const currentResolvedTree = resolveStageValue(screen.layout, resizeSessionStage)
+    const screenHasMultipleStages = Boolean(viewScreen.useStages) && (viewScreen.stageCount ?? 1) > 1
+    const currentResolvedTree = resolveStageValue(viewScreen.layout, resizeSessionStage)
     if (screenHasMultipleStages && resizeSessionOriginalTree !== undefined && JSON.stringify(resizeSessionOriginalTree) !== JSON.stringify(currentResolvedTree)) {
       setPendingResizeAction(() => action)
       return
@@ -522,7 +560,7 @@ export function ScreenDisplay() {
     action()
   }
 
-  /** The resize fallback prompt's own "keep here only" — nothing further to persist, since a divider drag already writes straight to the active stage's own tree checkpoint the moment it's released; just clears the pending session and runs whatever navigation/lock action was waiting on it. */
+  /** The resize fallback prompt's own "keep here only" — nothing further to persist, since a divider drag already writes straight to the active stage's own tree checkpoint the moment it's released; just clears the pending session and runs whatever navigation action was waiting on it. */
   const resolveResizeKeepHere = () => {
     setResizeSessionOriginalTree(undefined)
     const proceed = pendingResizeAction
@@ -533,13 +571,13 @@ export function ScreenDisplay() {
   /** The resize fallback prompt's own "keep for next step(s) too" — propagates the resize session's own stage's resolved tree forward onto every later stage's own checkpoint, same idea as `handleKeepForNextSteps`, but for the whole arrangement instead of one pane's own content/background/text size. */
   const resolveResizeKeepForNextSteps = () => {
     if (resizeSessionOriginalTree === undefined) return
-    const currentResolvedTree = resolveStageValue(screen.layout, resizeSessionStage)
+    const currentResolvedTree = resolveStageValue(viewScreen.layout, resizeSessionStage)
     if (currentResolvedTree) {
-      let nextLayout = screen.layout
-      for (let futureStage = resizeSessionStage + 1; futureStage <= (screen.stageCount ?? 1); futureStage++) {
+      let nextLayout = viewScreen.layout
+      for (let futureStage = resizeSessionStage + 1; futureStage <= (viewScreen.stageCount ?? 1); futureStage++) {
         nextLayout = writeStageCheckpoint(nextLayout, futureStage, currentResolvedTree)
       }
-      setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, layout: nextLayout } : existing)))
+      applyScreenPatch({ layout: nextLayout })
     }
     setResizeSessionOriginalTree(undefined)
     const proceed = pendingResizeAction
@@ -547,11 +585,11 @@ export function ScreenDisplay() {
     proceed?.()
   }
 
-  /** The resize fallback prompt's own "remove edits" — reverts the screen's own resize-session stage back to `resizeSessionOriginalTree`, undoing every divider drag made this session, then runs whatever navigation/lock action was waiting on it. */
+  /** The resize fallback prompt's own "remove edits" — reverts the screen's own resize-session stage back to `resizeSessionOriginalTree`, undoing every divider drag made this session, then runs whatever navigation action was waiting on it. */
   const resolveResizeRemoveEdits = () => {
     if (resizeSessionOriginalTree !== undefined) {
-      const nextLayout = writeStageCheckpoint(screen.layout, resizeSessionStage, resizeSessionOriginalTree)
-      setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, layout: nextLayout } : existing)))
+      const nextLayout = writeStageCheckpoint(viewScreen.layout, resizeSessionStage, resizeSessionOriginalTree)
+      applyScreenPatch({ layout: nextLayout })
     }
     setResizeSessionOriginalTree(undefined)
     const proceed = pendingResizeAction
@@ -559,21 +597,7 @@ export function ScreenDisplay() {
     proceed?.()
   }
 
-  /** Hides this screen's own editing controls behind the shared PIN — only offered once one's actually been set from the admin dashboard, since there'd otherwise be no way back in. Routed through `requestPendingResizeAction` first, same reasoning as `handleStepStage`: locking is another way of stepping away from whatever stage a pane was just resized on. Also resumes stage playback (clearing `manuallyPaused`) — locking is the owner declaring "this is ready for the kiosk to run unattended," so it shouldn't still be sitting frozen on whichever stage happened to be showing. */
-  const handleLockScreen = () => {
-    requestPendingResizeAction(() => {
-      setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, locked: true } : existing)))
-      setManuallyPaused(false)
-    })
-  }
-
-  /** Restores this screen's own editing controls, once `UnlockScreenModal` confirms the right PIN was entered. */
-  const handleUnlock = () => {
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, locked: false } : existing)))
-    setUnlockModalOpen(false)
-  }
-
-  /** Toggles this screen's own opt-in to the shared screensaver schedule — live, same as `handleResizeDivider`, so it's reflected instantly on any other open tab of this same screen. */
+  /** Toggles this screen's own opt-in to the shared screensaver schedule — live, always (not gated by Live editing — see `ScreenConfig.draft`'s own doc comment on which fields are ephemeral/always-live), so it's reflected instantly on any other open tab of this same screen. */
   const handleUseScreensaverChange = (useScreensaver: boolean) => {
     setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, useScreensaver } : existing)))
   }
@@ -583,15 +607,11 @@ export function ScreenDisplay() {
     setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, screensaverTestActive } : existing)))
   }
 
-  /** Writes the screen's own background color straight to the persisted screen, live — no draft/restore step, unlike the whole-screen scaler's own fields. */
-  const handleScreenBackgroundColorChange = (backgroundColor: string) => {
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, backgroundColor } : existing)))
-  }
+  /** Writes the screen's own background color on every change — no local draft/restore step, unlike the whole-screen scaler's own fields (though it's still subject to the toolbar's own Live editing toggle, same as everything else `applyScreenPatch` routes). */
+  const handleScreenBackgroundColorChange = (backgroundColor: string) => applyScreenPatch({ backgroundColor })
 
-  /** Writes the screen's own whole-screen background image straight to the persisted screen, live — same reasoning as `handleScreenBackgroundColorChange`. */
-  const handleScreenBackgroundImageChange = (backgroundImage: BackgroundImage | undefined) => {
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, backgroundImage } : existing)))
-  }
+  /** Writes the screen's own whole-screen background image — same reasoning as `handleScreenBackgroundColorChange`. */
+  const handleScreenBackgroundImageChange = (backgroundImage: BackgroundImage | undefined) => applyScreenPatch({ backgroundImage })
 
   /** Resets the pane (content/color), its text-size drafts, and which stage tab is active back to the values captured when the editor was opened — the actual persisting still only happens once the editor closes. The whole-screen scaler restores itself internally. */
   const handleRestore = () => {
@@ -622,20 +642,12 @@ export function ScreenDisplay() {
 
   /** Persists whatever the draft currently holds — just the active stage's own checkpoint — then closes the editor. Also what `KeepEditPrompt`'s own "keep here only" resolves to. */
   const closeEditor = () => {
-    setScreens(
-      screens.map((existing) => {
-        if (existing.screenID !== screen.screenID) return existing
-        if (editingTarget === 'screen') {
-          if (!screenDraftSnapshot) return existing
-          return { ...existing, textSizes: screenDraftSnapshot.textSizes, paneSlots: screenDraftSnapshot.paneSlots }
-        }
-        if (editingTarget) {
-          const { leafId } = editingTarget
-          return { ...existing, paneSlots: { ...existing.paneSlots, [leafId]: finalizeDraftSlot() } }
-        }
-        return existing
-      }),
-    )
+    if (editingTarget === 'screen') {
+      if (screenDraftSnapshot) applyScreenPatch({ textSizes: screenDraftSnapshot.textSizes, paneSlots: screenDraftSnapshot.paneSlots })
+    } else if (editingTarget) {
+      const { leafId } = editingTarget
+      applyScreenPatch({ paneSlots: { ...viewScreen.paneSlots, [leafId]: finalizeDraftSlot() } })
+    }
     setEditingTarget(null)
     setShowKeepEditPrompt(false)
   }
@@ -684,7 +696,7 @@ export function ScreenDisplay() {
     const languageAtStage = resolveSlotLanguage(finalSlot, activeStage)
 
     let propagatedSlot = finalSlot
-    for (let futureStage = activeStage + 1; futureStage <= (screen.stageCount ?? 1); futureStage++) {
+    for (let futureStage = activeStage + 1; futureStage <= (viewScreen.stageCount ?? 1); futureStage++) {
       propagatedSlot = {
         ...propagatedSlot,
         content: writeStageCheckpoint(propagatedSlot.content, futureStage, contentAtStage),
@@ -693,7 +705,7 @@ export function ScreenDisplay() {
       }
     }
 
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, paneSlots: { ...existing.paneSlots, [leafId]: propagatedSlot } } : existing)))
+    applyScreenPatch({ paneSlots: { ...viewScreen.paneSlots, [leafId]: propagatedSlot } })
     setEditingTarget(null)
     setShowKeepEditPrompt(false)
   }
@@ -704,7 +716,7 @@ export function ScreenDisplay() {
     setShowKeepEditPrompt(false)
   }
 
-  const editingLeaves = listLeaves(resolveStageValue(screen.layout, activeStage) ?? Object.values(screen.layout)[0]).map((leaf) => ({ id: leaf.id, slot: screen.paneSlots[leaf.id] }))
+  const editingLeaves = listLeaves(resolveStageValue(viewScreen.layout, activeStage) ?? Object.values(viewScreen.layout)[0]).map((leaf) => ({ id: leaf.id, slot: viewScreen.paneSlots[leaf.id] }))
   const resizeToFitBlocked =
     typeof editingTarget === 'object' && editingTarget !== null && isResizeToFitConflict(editingLeaves, editingTarget.leafId, activeStage)
 
@@ -719,36 +731,18 @@ export function ScreenDisplay() {
 
   const screensaverActive = Boolean(screen.useScreensaver && (screen.screensaverTestActive || isWithinScreensaverWindow(screensaverSchedule, now)))
 
-  /** Whether this browser tab can edit this screen at all — a logged-in admin session, and not currently locked. Without a session, every editing affordance (the toolbar's edit controls, the Lock button, resizing/splitting/clearing/deleting a pane, dropping an image onto one) is hidden entirely, not just disabled — this page is otherwise fully public (see the route in `main.tsx`), so someone who merely happens to load a kiosk's own URL shouldn't be able to touch its layout or content. The "Unlock" button on an already-locked screen is deliberately *not* gated on this — unlocking is already behind its own PIN, the same "physical deterrent" model `useScreenLockPin` documents, independent of remote login. */
-  const canEdit = Boolean(session) && !screen.locked
-
-  /**
-   * Set only by an unattended display window the Display Manager itself
-   * opened (a monitor Electron manages, or `/display-connect` once a Screen
-   * is assigned) — never by `ScreensView`'s own `?launch=1` preview, where
-   * on-site staff still need the physical-unlock affordance. Deliberately
-   * overrides the `canEdit`-independent "Unlock" padlock documented above:
-   * an unattended display has nobody there to unlock it anyway, so showing
-   * that icon would just be visual noise. Read the same way `launch` is
-   * (a plain `URLSearchParams` check, not `useSearchParams` — unused
-   * elsewhere in this app) but, unlike `launch`, never stripped from the
-   * URL — nothing is looking at this window's address bar, and stripping it
-   * would break a reload/reconnect.
-   */
-  const isUnattended = new URLSearchParams(window.location.search).has('unattended')
   /** Set by `/display-connect` (a plain browser tab acting as a display, no Electron/OS-level fullscreen available) so a manual fullscreen button is still reachable — rendered inside the existing `ScreenToolbar`, which already fades out after inactivity on its own. */
   const showFullscreenButton = new URLSearchParams(window.location.search).has('showFullscreenButton')
 
   return (
     <div
-      className={`screen-display${screen.hideScrollbar ? ' screen-display--hide-scrollbar' : ''}${screen.locked ? ' screen-display--locked' : ''}`}
-      style={screenAppearanceToCssVars(activeTextSizes, screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR, screen.borderColor, screen.backgroundImage)}
-      onContextMenu={(event) => screen.locked && event.preventDefault()}
+      className={`screen-display${viewScreen.hideScrollbar ? ' screen-display--hide-scrollbar' : ''}`}
+      style={screenAppearanceToCssVars(activeTextSizes, viewScreen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR, viewScreen.borderColor, viewScreen.backgroundImage)}
     >
-      {screen.backgroundImage && (
+      {viewScreen.backgroundImage && (
         <div className="screen-display__bg">
-          <div className="screen-display__bg-image" style={{ backgroundImage: `url(${getBlurredBackgroundUrl(screen.backgroundImage.imageUrl)})` }} />
-          {screen.backgroundImage.overlay !== 'none' && <div className={`screen-display__bg-overlay screen-display__bg-overlay--${screen.backgroundImage.overlay}`} />}
+          <div className="screen-display__bg-image" style={{ backgroundImage: `url(${getBlurredBackgroundUrl(viewScreen.backgroundImage.imageUrl)})` }} />
+          {viewScreen.backgroundImage.overlay !== 'none' && <div className={`screen-display__bg-overlay screen-display__bg-overlay--${viewScreen.backgroundImage.overlay}`} />}
         </div>
       )}
       {!connected && (
@@ -760,13 +754,13 @@ export function ScreenDisplay() {
         {canEdit && (
           <>
             <span className="screen-toolbar__label">{screen.name}</span>
-            {screen.useStages && (screen.stageCount ?? 1) > 1 && (
+            {viewScreen.useStages && (viewScreen.stageCount ?? 1) > 1 && (
               <>
                 <span className="screen-toolbar__label screen-toolbar__label--stage">
-                  {t('screenDisplay.stageIndicator', { current: forcedStage ?? stage, total: screen.stageCount ?? 1 })}
+                  {t('screenDisplay.stageIndicator', { current: forcedStage ?? stage, total: viewScreen.stageCount ?? 1 })}
                 </span>
                 <StagePlaybackControls
-                  stageCount={screen.stageCount ?? 1}
+                  stageCount={viewScreen.stageCount ?? 1}
                   stage={forcedStage ?? stage}
                   onScrub={handleScrubToStage}
                   onStep={handleStepStage}
@@ -774,7 +768,7 @@ export function ScreenDisplay() {
                   onTogglePlaying={() => setManuallyPaused((current) => !current)}
                   fastForward={fastForward}
                   onToggleFastForward={() => setFastForward((current) => !current)}
-                  disabled={editingTarget !== null || unlockModalOpen}
+                  disabled={editingTarget !== null}
                 />
               </>
             )}
@@ -782,28 +776,20 @@ export function ScreenDisplay() {
             <button type="button" className="screen-toolbar__button" onClick={openScreenEditor}>
               {t('screenDisplay.editSizes')}
             </button>
+            <Checkbox
+              id="screen-display-live-editing"
+              label={t('screenDisplay.liveEditing')}
+              checked={liveEditing}
+              onChange={(event) => setLiveEditing(event.target.checked)}
+            />
+            {screen.draft && (
+              <button type="button" className="screen-toolbar__button" onClick={handlePublish}>
+                {t('screenDisplay.publish')}
+              </button>
+            )}
           </>
         )}
         {!canEdit && showFullscreenButton && <FullscreenToggle />}
-        {!isUnattended &&
-          (screen.locked ? (
-            <button
-              type="button"
-              className="screen-toolbar__button screen-toolbar__button--icon"
-              onClick={() => setUnlockModalOpen(true)}
-              aria-label={t('screenDisplay.lock.unlockButton')}
-              title={t('screenDisplay.lock.unlockButton')}
-            >
-              <LockIcon />
-            </button>
-          ) : (
-            canEdit &&
-            pin && (
-              <button type="button" className="screen-toolbar__button" onClick={handleLockScreen}>
-                {t('screenDisplay.lock.lockButton')}
-              </button>
-            )
-          ))}
       </ScreenToolbar>
       <SplitLayout
         key={screen.screenID}
@@ -834,8 +820,6 @@ export function ScreenDisplay() {
         </div>
       )}
 
-      <UnlockScreenModal open={unlockModalOpen} onClose={() => setUnlockModalOpen(false)} onUnlock={handleUnlock} />
-
       <Modal open={pendingResizeAction !== null} onClose={resolveResizeKeepHere} title={t('screenDisplay.keepEditPrompt.title')}>
         <KeepEditPrompt changes={RESIZE_CHANGES} onKeepHere={resolveResizeKeepHere} onKeepForNextSteps={resolveResizeKeepForNextSteps} onRemoveEdits={resolveResizeRemoveEdits} />
       </Modal>
@@ -865,15 +849,15 @@ export function ScreenDisplay() {
             <>
               <BackButton onClick={() => setScreenSubview(null)}>{t('admin.common.back')}</BackButton>
               <BackgroundEditor
-                backgroundColor={screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR}
+                backgroundColor={viewScreen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR}
                 onBackgroundColorChange={handleScreenBackgroundColorChange}
-                backgroundImage={screen.backgroundImage}
+                backgroundImage={viewScreen.backgroundImage}
                 onBackgroundImageChange={handleScreenBackgroundImageChange}
               />
             </>
           ) : (
             <GlobalTextSizeScaler
-              screen={screen}
+              screen={viewScreen}
               onChange={setScreenDraftSnapshot}
               screensaver={
                 screensaverSchedule
@@ -901,8 +885,8 @@ export function ScreenDisplay() {
             id={typeof editingTarget === 'object' && editingTarget !== null ? editingTarget.leafId : 'slot'}
             slot={draftSlot}
             onSlotChange={setDraftSlot}
-            useStages={Boolean(screen.useStages)}
-            stageCount={screen.stageCount ?? 1}
+            useStages={Boolean(viewScreen.useStages)}
+            stageCount={viewScreen.stageCount ?? 1}
             activeStage={activeStage}
             onActiveStageChange={handleActiveStageChange}
             textSizes={draftTextSizes}

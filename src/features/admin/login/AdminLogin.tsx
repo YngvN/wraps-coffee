@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Alert, Button, Card, Input, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
@@ -9,16 +9,24 @@ import { login, LoginError } from '../../../lib/localServer'
 import { StoreBrandHeader } from '../layout/StoreBrandHeader'
 import './AdminLogin.scss'
 
+/** Only a bare `/screens/editor/:screenId` path is honored as a post-login `redirect` target (see `ScreenDisplay`'s own redirect here) — anything else falls back to the dashboard, so this can't be turned into an open redirect via a crafted query param. */
+const REDIRECT_TARGET_PATTERN = /^\/screens\/editor\/[^/]+$/
+
 /**
  * Owner/staff login screen. Submits credentials to the local LAN server's
  * `/login` endpoint; on success stores the returned session (token, role,
- * allowed sections) and redirects to the dashboard. A wrong password or an
- * unreachable server both surface as an inline error — nothing navigates
- * away until the server actually confirms the login.
+ * allowed sections) and redirects either to the dashboard, or — if a
+ * `?redirect=` query param points back to a screen's own editor URL (see
+ * `ScreenDisplay`, which sends here when its `/screens/editor/:screenId`
+ * route is opened with no session on this browser origin yet) — straight
+ * back to that screen, now with a session on this origin. A wrong password
+ * or an unreachable server both surface as an inline error — nothing
+ * navigates away until the server actually confirms the login.
  */
 export function AdminLogin() {
   const { t } = useLanguage()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { setActiveSession } = useAdminSession()
   const [storeSettings] = useStoreSettings()
   const [username, setUsername] = useState('')
@@ -33,7 +41,8 @@ export function AdminLogin() {
     try {
       const session = await login(username, password)
       setActiveSession(session)
-      navigate('/admin/dashboard/overview')
+      const redirectTarget = searchParams.get('redirect')
+      navigate(redirectTarget && REDIRECT_TARGET_PATTERN.test(redirectTarget) ? redirectTarget : '/admin/dashboard/overview')
     } catch (err) {
       setError(err instanceof LoginError ? err.message : t('admin.login.error'))
     } finally {

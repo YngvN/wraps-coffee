@@ -383,6 +383,30 @@ export const DEFAULT_TEXT_SIZES: TextSizes = {
   itemPrice: 1.5,
 }
 
+/**
+ * The subset of `ScreenConfig` fields that determine what a screen actually
+ * renders, and can therefore be staged privately in `ScreenConfig.draft`
+ * before publishing. Excludes identity/metadata (`screenID`, `name`,
+ * `previewAspectRatio`) and ephemeral live-signal fields (`useScreensaver`,
+ * `screensaverTestActive`, `editingFocus`), which are always live.
+ */
+export type DraftableScreenFields = Pick<
+  ScreenConfig,
+  | 'layout'
+  | 'paneSlots'
+  | 'backgroundColor'
+  | 'backgroundImage'
+  | 'showSlotBorders'
+  | 'borderColor'
+  | 'useStages'
+  | 'stageCount'
+  | 'slideDurationSeconds'
+  | 'transitionStyle'
+  | 'paneGrowthFallback'
+  | 'textSizes'
+  | 'hideScrollbar'
+>
+
 /** A configured fullscreen display, editable via the admin Screens view and rendered at `/screens/:screenId`. */
 export interface ScreenConfig {
   screenID: string
@@ -435,8 +459,6 @@ export interface ScreenConfig {
   backgroundImage?: BackgroundImage
   /** Which physical display shape this screen is meant for — purely a sanity-check/preview aid (the "Layout" tab's own live preview, and each screen's card in the admin Screens list), never affects the real kiosk display itself (`ScreenDisplay` always fills whatever the actual browser/device window's own shape is). Falls back to `DEFAULT_PREVIEW_ASPECT_RATIO` (16:9) when absent. */
   previewAspectRatio?: PreviewAspectRatio
-  /** Whether this screen's own editing controls (its toolbar's "Edit appearance" button, each pane's hover-revealed edit button, and its draggable resize dividers) are hidden — a deterrent against casual tampering at the physical display, not real security, since unlocking just takes the shared PIN set from the admin Screens dashboard (`useScreenLockPin`), stored in the same plain browser storage as everything else here. Falls back to `false` (unlocked) when absent. */
-  locked?: boolean
   /** Whether this screen goes black during the shared screensaver schedule's own window (set once, for every screen, from the admin dashboard's "Screen saver" button — see `useScreensaverSchedule`). A whole-screen effect, not per-slot. Has no effect at all — and its own checkbox stays hidden — until a schedule's actually been set. Falls back to `false` (never) when absent. */
   useScreensaver?: boolean
   /** Live-toggled preview of the screensaver ("Test screensaver"), independent of the actual schedule — shows the same black overlay immediately regardless of the time of day (or whether `useScreensaver` is even on), on this screen and any other open tab of it. Manually turned back off the same way; falls back to `false` when absent. */
@@ -456,6 +478,15 @@ export interface ScreenConfig {
    * Cleared to `undefined` when the editor closes.
    */
   editingFocus?: { tab: 'global' | PaneId; pulse: number }
+  /**
+   * Unpublished edits staged by an editable viewer with "Live editing" off
+   * (see `ScreenDisplay`'s own toolbar) — a partial overlay of
+   * `DraftableScreenFields`, invisible to every other viewer (including a
+   * *different* editable viewer who still has Live editing on) until
+   * "Publish" merges it onto this screen's own top-level fields and clears
+   * it back to `undefined`. Absent means no pending draft.
+   */
+  draft?: Partial<DraftableScreenFields>
 }
 
 /** A named, reusable set of text sizes, saved from one screen's editor and applicable to any screen. */

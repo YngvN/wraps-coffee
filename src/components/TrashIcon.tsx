@@ -1,4 +1,4 @@
-/** A simple trash-can glyph (lid + bin body) — `currentColor`-stroked, matching `CopyIcon`/`LockIcon`'s own conventions, so it follows whatever color its own button is drawn in. */
+/** A simple trash-can glyph (lid + bin body) — `currentColor`-stroked, matching `CopyIcon`'s own conventions, so it follows whatever color its own button is drawn in. */
 export function TrashIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

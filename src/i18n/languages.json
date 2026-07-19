@@ -604,10 +604,6 @@
         "screens": {
           "title": "Screens",
           "addScreen": "Add screen",
-          "createPinButton": "Create pin",
-          "changePinButton": "Change pin",
-          "createPinTitle": "Set unlock PIN",
-          "createPinDescription": "Enter a new 4-digit PIN. Any screen locked from its own toolbar will need this PIN to unlock.",
           "screensaverButton": "Screen saver",
           "changeScreensaverButton": "Edit screen saver",
           "screensaverTitle": "Screen saver",
@@ -736,6 +732,7 @@
           "editTextSize": "Edit text size",
           "displayUrlLabel": "Display link",
           "openInNewTab": "Open",
+          "openEditorLink": "Editor",
           "urlCopied": "Copied to clipboard",
           "noScreens": "No screens yet.",
           "duplicateName": "{{name}} copy",
@@ -768,7 +765,6 @@
           "catalogueSelectLabel": "Which catalogue",
           "catalogueNoCataloguesLabel": "No catalogues created yet.",
           "description": "Configure the fullscreen kiosk displays around the store — what each one shows, its layout, and its timing.",
-          "createPinRequiredDescription": "Set a PIN so this screen can be locked before it opens — enter a new 4-digit PIN.",
           "weatherWindValue": "{{value}} m/s wind",
           "weatherHumidityValue": "{{value}}% humidity",
           "weatherPrecipitationProbabilityValue": "{{value}}% chance of rain",
@@ -890,7 +886,6 @@
             "keyClockFormat": "12-hour or 24-hour clock format, used everywhere a wall-clock time is shown (weather, timestamps, the screensaver schedule's own time pickers).",
             "keyDateFormat": "Day-month-year or month-day-year date order, used everywhere a plain numeric date is shown (timestamps, uploaded-image dates, message board post dates, a time pane's own shorthand date).",
             "keyPaneLanguage": "The store's own default language for kiosk pane content — each pane can override it individually.",
-            "keyScreenLockPin": "The shared PIN for locking/unlocking a screen.",
             "keyScreensaverSchedule": "The shared daily screensaver start/end window.",
             "keyDashboardScreensaver": "The admin dashboard/login screensaver's own on/off and idle-timeout-minutes settings.",
             "keyScreens": "Every configured kiosk screen — layout, panes, content.",
@@ -1447,6 +1442,8 @@
         "enterFullscreen": "Enter fullscreen",
         "exitFullscreen": "Exit fullscreen",
         "editSizes": "Edit appearance",
+        "liveEditing": "Live editing",
+        "publish": "Publish",
         "editSlot": "Edit pane",
         "slotEditorTitle": "Edit pane",
         "keepEditPrompt": {
@@ -1464,13 +1461,6 @@
           "removeEditsButton": "Remove edits"
         },
         "screensaverTestLabel": "Screen saver test",
-        "lock": {
-          "lockButton": "Lock screen",
-          "unlockButton": "Unlock",
-          "unlockTitle": "Unlock screen",
-          "enterPin": "Enter the 4-digit PIN to unlock this screen.",
-          "wrongPin": "Incorrect PIN — try again."
-        },
         "textSizeEditor": {
           "title": "Appearance",
           "backgroundColorLabel": "Background color",
@@ -2129,9 +2119,6 @@
         "screens": {
           "title": "Skjermer",
           "addScreen": "Legg til skjerm",
-          "createPinButton": "Opprett PIN",
-          "changePinButton": "Endre PIN",
-          "createPinTitle": "Angi PIN for opplåsing",
           "screensaverButton": "Skjermsparer",
           "changeScreensaverButton": "Endre skjermsparer",
           "screensaverTitle": "Skjermsparer",
@@ -2142,7 +2129,6 @@
           "useScreensaverLabel": "Bruk skjermsparer",
           "testScreensaverButton": "Test skjermsparer",
           "stopTestScreensaverButton": "Stopp test",
-          "createPinDescription": "Skriv inn en ny 4-sifret PIN-kode. Enhver skjerm som låses fra sin egen verktøylinje vil trenge denne PIN-koden for å låses opp.",
           "editScreen": "Rediger skjerm",
           "nameLabel": "Navn",
           "defaultNamePrefix": "Skjerm",
@@ -2261,6 +2247,7 @@
           "editTextSize": "Rediger tekststørrelse",
           "displayUrlLabel": "Visningslenke",
           "openInNewTab": "Åpne",
+          "openEditorLink": "Redigering",
           "urlCopied": "Kopiert til utklippstavlen",
           "noScreens": "Ingen skjermer ennå.",
           "duplicateName": "{{name}} kopi",
@@ -2293,7 +2280,6 @@
           "catalogueSelectLabel": "Hvilken katalog",
           "catalogueNoCataloguesLabel": "Ingen kataloger opprettet ennå.",
           "description": "Sett opp fullskjerms kiosk-skjermene rundt i butikken — hva hver av dem viser, oppsettet og tidsbruken.",
-          "createPinRequiredDescription": "Angi en PIN slik at denne skjermen kan låses før den åpnes — skriv inn en ny firesifret PIN.",
           "weatherWindValue": "{{value}} m/s vind",
           "weatherHumidityValue": "{{value}}% luftfuktighet",
           "weatherPrecipitationProbabilityValue": "{{value}}% sjanse for nedbør",
@@ -2415,7 +2401,6 @@
             "keyClockFormat": "Klokkeformat (12- eller 24-timers), brukt overalt et klokkeslett vises (vær, tidsstempler, skjermsparerens egne tidsvelgere).",
             "keyDateFormat": "Datorekkefølge (dag-måned-år eller måned-dag-år), brukt overalt en ren tallmessig dato vises (tidsstempler, opplastede bildedatoer, oppslagstavleinnleggenes datoer, klokke-panelets egen forkortede dato).",
             "keyPaneLanguage": "Butikkens eget standardspråk for kioskskjermenes panelinnhold — hvert panel kan overstyre det individuelt.",
-            "keyScreenLockPin": "Den delte PIN-koden for å låse/låse opp en skjerm.",
             "keyScreensaverSchedule": "Det delte daglige start-/sluttvinduet for skjermspareren.",
             "keyDashboardScreensaver": "Admin-dashbordets/innloggingens egen skjermsparer — på/av og minutter uten aktivitet.",
             "keyScreens": "Hver konfigurerte kioskskjerm — oppsett, paneler, innhold.",
@@ -2972,6 +2957,8 @@
         "enterFullscreen": "Gå til fullskjerm",
         "exitFullscreen": "Avslutt fullskjerm",
         "editSizes": "Rediger utseende",
+        "liveEditing": "Live-redigering",
+        "publish": "Publiser",
         "editSlot": "Rediger panel",
         "slotEditorTitle": "Rediger panel",
         "keepEditPrompt": {
@@ -2989,13 +2976,6 @@
           "removeEditsButton": "Fjern endringer"
         },
         "screensaverTestLabel": "Skjermsparer-test",
-        "lock": {
-          "lockButton": "Lås skjermen",
-          "unlockButton": "Lås opp",
-          "unlockTitle": "Lås opp skjermen",
-          "enterPin": "Skriv inn den 4-sifrede PIN-koden for å låse opp denne skjermen.",
-          "wrongPin": "Feil PIN-kode — prøv igjen."
-        },
         "textSizeEditor": {
           "title": "Utseende",
           "backgroundColorLabel": "Bakgrunnsfarge",

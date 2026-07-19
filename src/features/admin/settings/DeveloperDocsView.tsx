@@ -23,7 +23,6 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.clockFormat', descKey: 'admin.settings.developerDocs.keyClockFormat' },
   { key: 'admin.dateFormat', descKey: 'admin.settings.developerDocs.keyDateFormat' },
   { key: 'admin.paneLanguage', descKey: 'admin.settings.developerDocs.keyPaneLanguage' },
-  { key: 'admin.screenLockPin', descKey: 'admin.settings.developerDocs.keyScreenLockPin' },
   { key: 'admin.screensaverSchedule', descKey: 'admin.settings.developerDocs.keyScreensaverSchedule' },
   { key: 'admin.dashboardScreensaver', descKey: 'admin.settings.developerDocs.keyDashboardScreensaver' },
   { key: 'admin.screens', descKey: 'admin.settings.developerDocs.keyScreens' },

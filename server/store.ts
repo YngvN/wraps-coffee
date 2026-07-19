@@ -49,7 +49,6 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.clockFormat': null,
   'admin.dateFormat': null,
   'admin.paneLanguage': null,
-  'admin.screenLockPin': null,
   'admin.screensaverSchedule': null,
   'admin.dashboardScreensaver': null,
   'admin.screens': 'screens.json',
@@ -63,7 +62,6 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
 
 /** Hardcoded defaults for the synced keys with no bundled seed file. */
 const HARDCODED_DEFAULTS: Partial<Record<SyncedKey, unknown>> = {
-  'admin.screenLockPin': null,
   'admin.screensaverSchedule': null,
   'admin.dashboardScreensaver': DEFAULT_DASHBOARD_SCREENSAVER_SETTINGS,
   'admin.displayMachines': [],

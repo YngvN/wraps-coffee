@@ -56,6 +56,7 @@ const router = createBrowserRouter([
     ],
   },
   { path: '/screens/:screenId', element: <ScreenDisplay /> },
+  { path: '/screens/editor/:screenId', element: <ScreenDisplay /> },
   { path: '/display-standby', element: <DisplayStandby /> },
   { path: '/display-connect', element: <DisplayConnect /> },
   { path: '*', element: <NotFoundRedirect /> },

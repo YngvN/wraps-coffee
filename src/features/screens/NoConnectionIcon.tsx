@@ -1,4 +1,4 @@
-/** A crossed-out wifi glyph — `currentColor`-stroked, matching `LockIcon`'s own conventions — marks the kiosk display's "showing stored content" watermark (see `useConnectionStatus`) while its connection to the local server is down. */
+/** A crossed-out wifi glyph — `currentColor`-stroked, matching `TrashIcon`'s own conventions — marks the kiosk display's "showing stored content" watermark (see `useConnectionStatus`) while its connection to the local server is down. */
 export function NoConnectionIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

@@ -14,11 +14,13 @@ import './ScreenCard.scss'
 interface ScreenCardProps {
   screen: ScreenConfig
   url: string
+  editorUrl: string
   defaultPaneLanguage: LanguageCode
   slotCountLabel: string
   copied: boolean
   onCopy: () => void
   onOpen: () => void
+  onOpenEditor: () => void
   onEdit: () => void
   onDuplicate: () => void
   onDelete: () => void
@@ -34,10 +36,15 @@ interface ScreenCardProps {
  * previous/next stepper overlaid on the preview (local to this one card —
  * switching another card's step never affects this one) so a multi-step
  * screen's other steps can be glanced at without opening the editor. Below
- * the preview, a footer repeats the name/badges/URL and the
- * Edit/Duplicate/Delete actions this list has always had.
+ * the preview, a footer repeats the name/badges/URL, an "Editor" link (opens
+ * the screen's own dedicated `/screens/editor/:screenId` display, the only
+ * URL that ever offers the in-place editing toolbar — distinct from "Open,"
+ * which opens the plain, always read-only `/screens/:screenId` URL and
+ * additionally requests fullscreen/autoplay for a real kiosk deployment)
+ * alongside it, and the Edit/Duplicate/Delete actions this list has always
+ * had ("Edit" there opens this dashboard's own form, not the live display).
  */
-export function ScreenCard({ screen, url, defaultPaneLanguage, slotCountLabel, copied, onCopy, onOpen, onEdit, onDuplicate, onDelete }: ScreenCardProps) {
+export function ScreenCard({ screen, url, editorUrl, defaultPaneLanguage, slotCountLabel, copied, onCopy, onOpen, onOpenEditor, onEdit, onDuplicate, onDelete }: ScreenCardProps) {
   const { t } = useLanguage()
   const [previewStage, setPreviewStage] = useState(1)
   const stageCount = screen.stageCount ?? 1
@@ -91,6 +98,17 @@ export function ScreenCard({ screen, url, defaultPaneLanguage, slotCountLabel, c
             }}
           >
             {t('admin.screens.openInNewTab')}
+          </a>
+          <a
+            href={editorUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(event) => {
+              event.preventDefault()
+              onOpenEditor()
+            }}
+          >
+            {t('admin.screens.openEditorLink')}
           </a>
         </div>
         <div className="screen-card__actions">
