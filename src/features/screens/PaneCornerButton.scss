@@ -1,10 +1,11 @@
-// Shared by `PaneClearButton` (top-left) and `PaneDeleteButton` (top-right) —
-// small pill buttons revealed by hovering the *whole* pane (not just their
-// own corner), matching the original request ("hovering over panes in
-// general, have a Clear button top-left, a delete button top-right").
+// Shared by `PaneClearButton` (top-left), `PaneDeleteButton` (top-right) and
+// `PaneLockButton`'s own unlocked state (bottom-left, see `PaneLockButton.scss`
+// for its locked/centered state instead) — small pill buttons revealed by
+// hovering the *whole* pane (not just their own corner), matching the
+// original request ("hovering over panes in general, have a Clear button
+// top-left, a delete button top-right").
 .pane-corner-button {
   position: absolute;
-  top: 0.6em;
   z-index: 7;
   display: inline-flex;
   align-items: center;
@@ -22,11 +23,18 @@
   transition: opacity 0.15s ease, background-color 0.15s ease;
 
   &--clear {
+    top: 0.6em;
     left: 0.6em;
   }
 
   &--delete {
+    top: 0.6em;
     right: 0.6em;
+  }
+
+  &--lock {
+    bottom: 0.6em;
+    left: 0.6em;
   }
 
   // Only a real pointer reveals these on hovering the pane — on touch

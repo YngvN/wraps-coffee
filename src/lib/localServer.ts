@@ -178,11 +178,11 @@ export async function fetchDepartures(stopId: string, count: number): Promise<{ 
   return response.json() as Promise<{ stopName: string; departures: DepartureInfo[] }>
 }
 
-/** Fetches the next `hours` hours of forecast for `(lat, lon)`, used by `WeatherSlide`'s polling hook. */
-export async function fetchWeather(lat: number, lon: number, hours: number): Promise<{ hourly: WeatherHour[] }> {
+/** Fetches the next `hours` hours of forecast for `(lat, lon)`, plus today's overall low/high (computed server-side from its own fuller cached timeseries, not just this `hours`-long slice) — used by `WeatherSlide`'s polling hook. */
+export async function fetchWeather(lat: number, lon: number, hours: number): Promise<{ hourly: WeatherHour[]; todayLowC?: number; todayHighC?: number }> {
   const response = await fetch(`${serverBaseUrl()}/extensions/weather?lat=${lat}&lon=${lon}&hours=${hours}`)
   if (!response.ok) throw new Error('Could not fetch a forecast')
-  return response.json() as Promise<{ hourly: WeatherHour[] }>
+  return response.json() as Promise<{ hourly: WeatherHour[]; todayLowC?: number; todayHighC?: number }>
 }
 
 /** The current developer API key (see "For developers" in Settings), or `null` if none has been generated yet. */

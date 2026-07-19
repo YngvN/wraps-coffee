@@ -295,6 +295,8 @@ export interface ScreenSlot {
   textSizes: StageTimeline<TextSizes | undefined>
   /** This slot's own language override timeline — an entry's value may itself be `undefined` (explicitly "use the cafe's own Standard pane language" at that stage, see `useDefaultPaneLanguage`), distinct from no entry at all (inherit from an earlier stage's own override, then the standard). Optional (rather than always-present like the fields above) since it's a newer field — a slot with none set at all falls back to the standard everywhere, exactly as if this were `{}`. */
   language?: StageTimeline<LanguageCode | undefined>
+  /** Whether this pane is locked at a given stage — while locked, its own content/background/text-size edits, splitting, deleting, and its own divider(s) are all disabled (see `resolveSlotLocked`, `subtreeHasLockedLeaf`), until toggled off again with the same lock button. Optional (like `language`) since it's a newer field — a slot with none set at all is unlocked everywhere. Purely an accidental-edit guard for an admin already in the editor, not a security boundary — there's no PIN or confirmation to unlock, just the same button again. */
+  locked?: StageTimeline<boolean>
 }
 
 /** How a screen's panes are arranged along their split axis: side by side, or stacked. */

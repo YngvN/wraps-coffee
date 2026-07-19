@@ -6,6 +6,7 @@ import { useLanguage } from '../../../i18n'
 import { lookupAddress, searchStops } from '../../../lib/localServer'
 import type { ExtensionsConfig, NearbyStop, WeatherLocation } from '../../../types/extensions'
 import { TransitModeIcon } from '../../screens/TransitModeIcon'
+import { generateId } from '../../../utils/id'
 import { TRANSIT_MODES } from '../../../utils/transitModes'
 import { weatherLocationKey } from '../../../utils/weatherLocationKey'
 import { weatherSymbolToEmoji } from '../../../utils/weatherSymbols'
@@ -205,7 +206,7 @@ export function ExtensionsView() {
   const hasWeatherCoordinates = (config.weather.useStoreLocation && Boolean(addressLookup?.coordinates)) || config.weather.locations.some((location) => location.coordinates)
 
   const addWeatherLocation = () => {
-    const location: WeatherLocation = { id: crypto.randomUUID(), name: '', address: '', coordinates: null }
+    const location: WeatherLocation = { id: generateId(), name: '', address: '', coordinates: null }
     setConfig({ ...config, weather: { ...config.weather, locations: [...config.weather.locations, location] } })
   }
 

@@ -2,11 +2,11 @@ import { useReducedMotion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useLanguage, type LanguageCode } from '../../i18n'
 import { DEFAULT_SCREEN_BACKGROUND_COLOR, type LayoutNode, type PaneId, type ScreenConfig, type ScreenSlotContent, type SplitDirection, type TextSizes } from '../../types/screen'
-import { computeLayoutGeometry, type Rect } from '../../utils/layoutGeometry'
+import { applyRatioPatchPreservingDescendants, computeLayoutGeometry, FULL_BOX, type Divider, type LayoutGeometry, type Rect } from '../../utils/layoutGeometry'
 import { listLeaves } from '../../utils/layoutTree'
 import { diffLeafSets, resolvePaneGrowthOrigin, type PaneGrowthOrigin } from '../../utils/paneGrowth'
 import { backgroundImageTextStyle, borderColorStyle, getScreenColorVars } from '../../utils/screenColors'
-import { imageResizeRatioPatch, imageResizeScaleFromDrag, paneResizableAxes, pathKey, setRatioAtPath, type NodePath, type PaneResizableAxes, type RatioPatch } from '../../utils/screenLayout'
+import { imageResizeRatioPatch, imageResizeScaleFromDrag, paneResizableAxes, pathKey, type NodePath, type PaneResizableAxes, type RatioPatch } from '../../utils/screenLayout'
 import { isResizeToFitImage } from '../../utils/screenSlots'
 import { isSlotActive, resolveSlotContent, resolveStageValue, writeStageCheckpoint } from '../../utils/screenStages'
 import { ExitingPaneGhost } from './ExitingPaneGhost'
@@ -41,6 +41,10 @@ interface SplitLayoutProps {
   onClearPane?: (leafId: PaneId) => void
   /** Hovering a pane reveals a top-right delete button, handing its own freed space to its sibling — never shown on a lone root pane. */
   onDeletePane?: (leafId: PaneId) => void
+  /** Called when a plain click (not a resize drag) lands on any divider — the screen-wide border settings (visibility/color) aren't specific to any one divider, so this isn't scoped to which one was clicked. Omit (like `onSplitPane`) to disable — a divider then only ever resizes, same as before this existed. */
+  onBorderClick?: () => void
+  /** Toggles a pane's own lock — see `LayoutTree.tsx`'s own prop of the same name for what locking actually disables. Omit to disable pane locking altogether. */
+  onTogglePaneLock?: (leafId: PaneId) => void
 }
 
 /**
@@ -83,6 +87,8 @@ export function SplitLayout({
   disableSplitOnTouch,
   onClearPane,
   onDeletePane,
+  onBorderClick,
+  onTogglePaneLock,
 }: SplitLayoutProps) {
   const { t } = useLanguage()
   const reducedMotion = useReducedMotion()
@@ -233,8 +239,13 @@ export function SplitLayout({
   }
 
   const isDragging = Object.keys(liveRatios).length > 0
-  let layoutTree = tree
-  for (const [key, value] of Object.entries({ ...imageResizeOverrides, ...liveRatios })) layoutTree = setRatioAtPath(layoutTree, key === '' ? [] : (key.split('.') as NodePath), value)
+
+  /** The arrangement's own *committed* geometry (not `layoutTree`'s live-dragged overlay) — the source of truth both for snap targets (see `LayoutTree.tsx`'s `snapTargets` prop, and `PaneCornerHandle`'s qualifying-corner detection) and for `applyRatioPatchPreservingDescendants` below, so a drag in progress doesn't chase its own moving position. */
+  const geometry: LayoutGeometry = computeLayoutGeometry(tree)
+  const allDividers: Divider[] = geometry.dividers
+
+  const liveOverridePatch: RatioPatch = { ...imageResizeOverrides, ...liveRatios }
+  const layoutTree = Object.keys(liveOverridePatch).length > 0 ? applyRatioPatchPreservingDescendants(tree, liveOverridePatch, geometry) : tree
 
   if (!leaves.some((leaf) => screen.paneSlots[leaf.id] && isSlotActive(screen.paneSlots[leaf.id]))) {
     return (
@@ -258,8 +269,15 @@ export function SplitLayout({
     return scales.reduce((sum, value) => sum + value, 0) / scales.length
   }
 
-  const handleLiveChange = (path: NodePath, ratio: number) => {
-    const patch: RatioPatch = { [pathKey(path)]: ratio }
+  /**
+   * The general form of a divider drag's live-change — one or more
+   * `(path, ratio)` pairs at once, so a `PaneCornerHandle` (which moves a
+   * split's own ratio *and* a qualifying child's together, see
+   * `LayoutTree.tsx`) can apply both in one call instead of two separate
+   * (and separately re-rendered) ones. A plain single-divider drag (see
+   * `handleLiveChange` below) is just the one-key case.
+   */
+  const handleLiveChangePatch = (patch: RatioPatch) => {
     if (Object.keys(liveRatios).length === 0) onDragStateChange?.(true)
 
     const scale = imageResizeScaleFromPatch(patch)
@@ -270,16 +288,17 @@ export function SplitLayout({
     }
     setLiveRatios((current) => ({ ...current, ...patch }))
   }
+  const handleLiveChange = (path: NodePath, ratio: number) => handleLiveChangePatch({ [pathKey(path)]: ratio })
 
-  const handleCommit = (path: NodePath, ratio: number) => {
-    const patch: RatioPatch = { [pathKey(path)]: ratio }
+  /** The general form of a divider drag's commit — see `handleLiveChangePatch`'s own doc comment. */
+  const handleCommitPatch = (patch: RatioPatch) => {
     const scale = imageResizeScaleFromPatch(patch)
-    const key = pathKey(path)
-    const stillDragging = Object.keys(liveRatios).some((field) => field !== key)
+    const keys = Object.keys(patch)
+    const stillDragging = Object.keys(liveRatios).some((field) => !keys.includes(field))
     if (!stillDragging) onDragStateChange?.(false)
     setLiveRatios((current) => {
       const next = { ...current }
-      delete next[key]
+      keys.forEach((key) => delete next[key])
       return next
     })
     if (activeImageResize && scale !== undefined) {
@@ -290,16 +309,18 @@ export function SplitLayout({
       onResizeDivider?.({ paneSlots: { ...screen.paneSlots, [activeImageResize.leafId]: nextSlot } })
       return
     }
-    // Checkpoints the dragged-to tree at the effective stage — "moving the border" only affects whichever stage is currently being viewed/edited.
-    const nextTree = setRatioAtPath(tree, path, ratio)
+    // Checkpoints the dragged-to tree at the effective stage — "moving the border(s)" only affects whichever stage is currently being viewed/edited. Every other divider re-derives its own ratio to hold its absolute on-screen position (see `applyRatioPatchPreservingDescendants`) rather than drifting along with whichever side of the drag its own container happens to sit in.
+    const nextTree = applyRatioPatchPreservingDescendants(tree, patch, geometry)
     onResizeDivider?.({ layout: writeStageCheckpoint(screen.layout, effectiveStage, nextTree) })
   }
+  const handleCommit = (path: NodePath, ratio: number) => handleCommitPatch({ [pathKey(path)]: ratio })
 
   return (
     <div ref={containerRef} className={`split-layout${borderModifier}`} style={screenColorStyle}>
       <LayoutTree
         node={layoutTree}
         path={[]}
+        box={FULL_BOX}
         root={tree}
         paneSlots={screen.paneSlots}
         stage={effectiveStage}
@@ -314,6 +335,11 @@ export function SplitLayout({
         selectedLeafId={selectedLeafId}
         onLiveChange={onResizeDivider ? handleLiveChange : undefined}
         onCommit={onResizeDivider ? handleCommit : undefined}
+        onLiveChangeMulti={onResizeDivider ? handleLiveChangePatch : undefined}
+        onCommitMulti={onResizeDivider ? handleCommitPatch : undefined}
+        allDividers={allDividers}
+        onBorderClick={onBorderClick}
+        onTogglePaneLock={onTogglePaneLock}
         gridTransition={gridTransition}
         onSplitPane={onSplitPane}
         disableSplitOnTouch={disableSplitOnTouch}

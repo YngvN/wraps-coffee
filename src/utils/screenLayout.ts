@@ -29,17 +29,14 @@ export function clampRatio(value: number): number {
 
 /** Dead center — the value a divider takes at an even 50/50 split. */
 export const CENTER_RATIO = 50
-/** How close (in percentage points) a value needs to get to `CENTER_RATIO` before it magnetically locks to it exactly — deliberately tight, so the snap only catches a drag that's already landing right around dead center rather than pulling in anything nearby. */
-const CENTER_SNAP_THRESHOLD = 1.5
+/** How close (in percentage points) a value needs to get to another snap target (dead-center, or another divider's current position — see `dividerPositionToRatio`) before it magnetically locks to it exactly — deliberately tight, so the snap only catches a drag that's already landing right around the target rather than pulling in anything nearby. */
+const SNAP_THRESHOLD = 1.5
 
-/** Locks `value` to dead-center once it's within `CENTER_SNAP_THRESHOLD` of it — used for a continuous pointer drag (see `dividerPositionToRatio`), where the position is always freshly computed from the real cursor coordinates each frame, so there's no risk of "trapping" further movement: physically dragging the pointer farther away re-escapes the snap zone on its own. */
-function snapToCenter(value: number): number {
-  return Math.abs(value - CENTER_RATIO) <= CENTER_SNAP_THRESHOLD ? CENTER_RATIO : value
-}
-
-/** Converts a raw on-screen position (e.g. from a pointer drag) into the value to write to a split node's own `ratio` — clamped, and magnetically snapped to dead-center once close (see `snapToCenter`). Unlike the old fixed-shape model, a tree node's `ratio` is always literally "first child's own share," so no inversion is ever needed — child order in the tree is what used to need an `inverted` flag. */
-export function dividerPositionToRatio(position: number): number {
-  return snapToCenter(clampRatio(position))
+/** Converts a raw on-screen position (e.g. from a pointer drag) into the value to write to a split node's own `ratio` — clamped, and magnetically snapped to dead-center or, if given, any other divider's current position once close (see `SNAP_THRESHOLD`). Used for a continuous pointer drag, where the position is always freshly computed from the real cursor coordinates each frame, so there's no risk of "trapping" further movement: physically dragging the pointer farther away re-escapes every snap zone on its own. Unlike the old fixed-shape model, a tree node's `ratio` is always literally "first child's own share," so no inversion is ever needed — child order in the tree is what used to need an `inverted` flag. */
+export function dividerPositionToRatio(position: number, otherPositions: number[] = []): number {
+  const clamped = clampRatio(position)
+  const target = [CENTER_RATIO, ...otherPositions].find((candidate) => Math.abs(clamped - candidate) <= SNAP_THRESHOLD)
+  return target ?? clamped
 }
 
 /** The node at `path` within `root` — `path` must be valid (every intermediate node must be a `split`). */

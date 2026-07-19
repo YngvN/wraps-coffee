@@ -13,6 +13,8 @@ const CACHE_KEY_PREFIX = 'weather-cache:'
 
 interface CachedForecast {
   hourly: WeatherHour[]
+  todayLowC?: number
+  todayHighC?: number
   fetchedAt: number
 }
 
@@ -33,9 +35,9 @@ function readCache(lat: number, lon: number): CachedForecast | null {
   }
 }
 
-function writeCache(lat: number, lon: number, hourly: WeatherHour[]) {
+function writeCache(lat: number, lon: number, hourly: WeatherHour[], todayLowC: number | undefined, todayHighC: number | undefined) {
   try {
-    window.localStorage.setItem(cacheKey(lat, lon), JSON.stringify({ hourly, fetchedAt: Date.now() } satisfies CachedForecast))
+    window.localStorage.setItem(cacheKey(lat, lon), JSON.stringify({ hourly, todayLowC, todayHighC, fetchedAt: Date.now() } satisfies CachedForecast))
   } catch {
     // Storage full/disabled — losing the offline fallback is a lot less bad than crashing the slide over it.
   }
@@ -43,6 +45,9 @@ function writeCache(lat: number, lon: number, hourly: WeatherHour[]) {
 
 interface WeatherForecastState {
   hourly: WeatherHour[]
+  /** Today's overall low/high (see `server/extensions.ts`'s own `handleWeather` doc comment for how it's computed) — `undefined` before the first successful fetch or cache read, same as `fetchedAt`. */
+  todayLowC?: number
+  todayHighC?: number
   loading: boolean
   /** `true` when `hourly` is a cached forecast shown because the live fetch just failed, rather than freshly-fetched data — lets `WeatherSlide` show a "not live" notice instead of silently passing off stale numbers as current. */
   stale: boolean
@@ -74,8 +79,8 @@ export function useWeatherForecast(lat: number | undefined, lon: number | undefi
       fetchWeather(lat, lon, hours)
         .then((result) => {
           if (cancelled) return
-          writeCache(lat, lon, result.hourly)
-          setState({ hourly: result.hourly, loading: false, stale: false, fetchedAt: Date.now() })
+          writeCache(lat, lon, result.hourly, result.todayLowC, result.todayHighC)
+          setState({ hourly: result.hourly, todayLowC: result.todayLowC, todayHighC: result.todayHighC, loading: false, stale: false, fetchedAt: Date.now() })
         })
         .catch(() => {
           if (cancelled) return
@@ -87,7 +92,9 @@ export function useWeatherForecast(lat: number | undefined, lon: number | undefi
             // drop mid-session, not one that's never fetched anything at all.
             if (current.hourly.length > 0) return { ...current, loading: false, stale: true }
             const cached = readCache(lat, lon)
-            return cached ? { hourly: cached.hourly, loading: false, stale: true, fetchedAt: cached.fetchedAt } : { ...current, loading: false }
+            return cached
+              ? { hourly: cached.hourly, todayLowC: cached.todayLowC, todayHighC: cached.todayHighC, loading: false, stale: true, fetchedAt: cached.fetchedAt }
+              : { ...current, loading: false }
           })
         })
     }

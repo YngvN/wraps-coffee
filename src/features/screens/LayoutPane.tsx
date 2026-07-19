@@ -13,6 +13,7 @@ import { PaneClearButton } from './PaneClearButton'
 import { PaneDeleteButton } from './PaneDeleteButton'
 import { PaneEditButton } from './PaneEditButton'
 import { PaneLanguageScope } from './PaneLanguageScope'
+import { PaneLockButton } from './PaneLockButton'
 import { PaneSplitZones } from './PaneSplitZones'
 import { SlotContent } from './SlotContent'
 import { resolveTransitionVariants } from './transitions'
@@ -40,6 +41,10 @@ interface LayoutPaneProps {
   onDeletePane?: (leafId: PaneId) => void
   /** Whether this pane can be deleted at all — false when it's the tree's only leaf, since deleting the last pane would leave nothing. */
   canDelete: boolean
+  /** Whether this pane is locked at the current stage (see `resolveSlotLocked`) — purely for `PaneLockButton`'s own icon/positioning, since every *other* prop here is already omitted by the caller (`LayoutTree.tsx`) whenever this is true, rather than this component re-checking it itself. */
+  locked: boolean
+  /** Toggles this pane's own lock — unlike every other callback here, always present (when editing at all) regardless of `locked`, since it's the one thing that must stay reachable on a locked pane to ever unlock it again. */
+  onToggleLock?: () => void
   /** Draws a persistent highlight ring around this pane — see `SplitLayout`'s own doc comment. */
   selected?: boolean
   /** Which of this pane's own edges it should visually grow in from on mount (a real divider, the screen's own edge, or a plain fade — see `resolvePaneGrowthOrigin` in `src/utils/paneGrowth.ts`) — `undefined` renders at full size immediately, which is also always the effective behavior once `reducedMotion` is on (only consulted at React's own true first mount, per `SplitLayout.tsx`'s own doc comment on why this can't be computed in an effect). */
@@ -73,6 +78,8 @@ export function LayoutPane({
   onClearPane,
   onDeletePane,
   canDelete,
+  locked,
+  onToggleLock,
   selected,
   growEntranceFrom,
 }: LayoutPaneProps) {
@@ -188,16 +195,20 @@ export function LayoutPane({
         content < `PaneEditButton` (z-index 5, full-pane click target) <
         `PaneSplitZones` (z-index 6, only its own narrow middle-line-hugging
         strips are real click targets — dead center stays click-through to
-        the edit button beneath) < the corner `PaneClearButton`/`PaneDeleteButton`
-        (z-index 7, win over both the edit button and the split zones in
-        their own corners) < `SplitLayoutDivider` (z-index 8, always
-        grabbable) < the `editingFocus` pulse-flash below (z-index 9,
-        `pointer-events: none`, so it never blocks any of the above).
+        the edit button beneath) < the corner `PaneClearButton`/`PaneDeleteButton`/
+        `PaneLockButton` (z-index 7, win over both the edit button and the
+        split zones in their own corners — `PaneLockButton` renders centered
+        instead, at the same z-index, once the pane is actually locked, since
+        every other button here is omitted by the caller at that point
+        anyway) < `SplitLayoutDivider` (z-index 8, always grabbable) < the
+        `editingFocus` pulse-flash below (z-index 9, `pointer-events: none`,
+        so it never blocks any of the above).
       */}
       {onEditSlide && <PaneEditButton onClick={() => onEditSlide(leafId)} />}
       {onSplitPane && <PaneSplitZones onSplit={(axis, edge) => onSplitPane(leafId, axis, edge)} disableOnTouch={disableSplitOnTouch} />}
       {onClearPane && <PaneClearButton onClick={() => onClearPane(leafId)} />}
       {onDeletePane && canDelete && <PaneDeleteButton onClick={() => onDeletePane(leafId)} />}
+      {onToggleLock && <PaneLockButton locked={locked} onClick={onToggleLock} />}
       {editingFocus && (editingFocus.tab === 'global' || editingFocus.tab === leafId) && editingFocus.pulse !== pulseAtMount && (
         <motion.div key={editingFocus.pulse} className="split-layout__pane-pulse" initial={{ opacity: 0.55 }} animate={{ opacity: 0 }} transition={{ duration: 0.6, ease: 'easeOut' }} />
       )}

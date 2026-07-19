@@ -1,0 +1,52 @@
+// The locked state's own centered button — once a pane is locked, every
+// other hover affordance on it disappears (see `LayoutTree.tsx`'s own
+// per-leaf gating), so this is the one thing left to interact with: bigger
+// and dead-center rather than a small corner pill, so it's an easy target
+// on a touchscreen too. Hover-revealed the same as every other pane button
+// (see `PaneCornerButton.scss`) — visible only while hovering the pane.
+.pane-lock-button--centered {
+  position: absolute;
+  // `calc()` against the fixed 3em size below, not `transform:
+  // translate(-50%, -50%)` — framer-motion's own `layout` animation (see
+  // `PaneLockButton.tsx`) drives this element's `transform` itself to
+  // animate the slide between this and the corner state, so a static
+  // `transform` here would fight it instead of just centering it.
+  top: calc(50% - 1.5em);
+  left: calc(50% - 1.5em);
+  z-index: 7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3em;
+  height: 3em;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+
+  svg {
+    width: 1.4em;
+    height: 1.4em;
+  }
+
+  @media (hover: hover) {
+    .split-layout__pane:hover & {
+      opacity: 1;
+    }
+
+    &:hover {
+      background: rgba(0, 0, 0, 0.75);
+    }
+  }
+
+  @media (hover: none) {
+    opacity: 0.5;
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+  }
+}

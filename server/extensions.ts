@@ -216,7 +216,13 @@ interface WeatherHourResult {
 
 const weatherCache = new Map<string, CacheEntry<WeatherHourResult[]>>()
 
-/** Fetches an hourly forecast for `(lat, lon)`, cached ~10 minutes (coordinates rounded to ~100m so nearby requests share a cache entry); `hours` only slices the cached timeseries, it isn't part of the upstream request. Uses MET's "complete" dataset rather than "compact" — the same core fields, plus wind/humidity/pressure/UV/precipitation-probability for the optional display toggles in the admin's Weather (Yr) settings. */
+/** Whether `isoTime` falls on the same (server-local) calendar date as `reference` — used to isolate "today's" entries out of the full cached timeseries for `todayLowC`/`todayHighC`, independent of however many hours the caller asked to have listed. */
+function isSameLocalDate(isoTime: string, reference: Date): boolean {
+  const date = new Date(isoTime)
+  return date.getFullYear() === reference.getFullYear() && date.getMonth() === reference.getMonth() && date.getDate() === reference.getDate()
+}
+
+/** Fetches an hourly forecast for `(lat, lon)`, cached ~10 minutes (coordinates rounded to ~100m so nearby requests share a cache entry); `hours` only slices the cached timeseries, it isn't part of the upstream request. Uses MET's "complete" dataset rather than "compact" — the same core fields, plus wind/humidity/pressure/UV/precipitation-probability for the optional display toggles in the admin's Weather (Yr) settings. `todayLowC`/`todayHighC` are computed fresh on every request (not baked into the ~10-minute cache) from the *full* cached timeseries — not just the `hours`-long slice `hourly` itself is truncated to — so they stay today's real low/high regardless of how few hours the admin chose to list; falls back to the same slice `hourly` uses if, right around midnight, no cached entry happens to fall on today's date yet. */
 export async function handleWeather(res: ServerResponse, lat: number, lon: number, hours: number) {
   const cacheKey = `${lat.toFixed(3)},${lon.toFixed(3)}`
   try {
@@ -245,7 +251,14 @@ export async function handleWeather(res: ServerResponse, lat: number, lon: numbe
           }
         })
     })
-    sendJson(res, 200, { hourly: hourly.slice(0, hours) })
+
+    const now = new Date()
+    const todayEntries = hourly.filter((entry) => isSameLocalDate(entry.time, now))
+    const lowHighSource = todayEntries.length > 0 ? todayEntries : hourly.slice(0, hours)
+    const todayLowC = lowHighSource.length > 0 ? Math.min(...lowHighSource.map((entry) => entry.temperatureC)) : undefined
+    const todayHighC = lowHighSource.length > 0 ? Math.max(...lowHighSource.map((entry) => entry.temperatureC)) : undefined
+
+    sendJson(res, 200, { hourly: hourly.slice(0, hours), todayLowC, todayHighC })
   } catch (error) {
     console.error('[extensions] weather lookup failed:', error)
     sendJson(res, 502, { error: 'Could not reach Yr for a forecast' })

@@ -23,6 +23,7 @@ import {
   type TextSizes,
 } from '../../../types/screen'
 import { findSiblingEventOrdinal } from '../../../utils/eventOrdinals'
+import { generateId } from '../../../utils/id'
 import { cloneSlot, createLeaf, deleteLeaf, emptySlot, listLeaves, splitLeaf } from '../../../utils/layoutTree'
 import { hasOwnTextSizeFields, resolveContentBackgroundImage } from '../../../utils/screenSlots'
 import {
@@ -31,6 +32,7 @@ import {
   resolveSlotBackgroundImage,
   resolveSlotContent,
   resolveSlotLanguage,
+  resolveSlotLocked,
   resolveSlotTextSizes,
   resolveStageValue,
   writeStageCheckpoint,
@@ -540,6 +542,15 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     if (screen) liveUpdateScreen({ paneSlots: nextPaneSlots })
   }
 
+  /** Toggles `leafId`'s own lock at the currently active stage — same posture as `handleClearPane`, and same accidental-edit-guard-only semantics as `ScreenDisplay.tsx`'s own `handleTogglePaneLock` (no PIN/confirmation, just this same button again). */
+  const handleTogglePaneLock = (leafId: PaneId) => {
+    const slot = draft.paneSlots[leafId] ?? emptySlot()
+    const nextLocked = !resolveSlotLocked(slot, clampedActiveStage)
+    const nextPaneSlots = { ...draft.paneSlots, [leafId]: { ...slot, locked: writeStageCheckpoint(slot.locked, clampedActiveStage, nextLocked) } }
+    setDraft((current) => ({ ...current, paneSlots: nextPaneSlots }))
+    if (screen) liveUpdateScreen({ paneSlots: nextPaneSlots })
+  }
+
   /** Toggles the live screensaver preview straight on the persisted screen — unlike `useScreensaver` itself (a plain field saved along with everything else on Submit), this needs to show up immediately on any open kiosk tab to actually be useful as a test. */
   const handleToggleTestScreensaver = () => {
     if (!latestScreen) return
@@ -722,7 +733,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
         // this form doesn't explicitly track) from the freshest persisted
         // data, so a Save right after a live sub-panel edit can't revert it.
         ...(latestScreen ?? screen),
-        screenID: screen?.screenID ?? `screen-${crypto.randomUUID()}`,
+        screenID: screen?.screenID ?? `screen-${generateId()}`,
         name,
         layout: draft.layout,
         paneSlots: draft.paneSlots,
@@ -773,6 +784,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
               disableSplitOnTouch
               onClearPane={handleClearPane}
               onDeletePane={handleDeletePane}
+              onTogglePaneLock={handleTogglePaneLock}
               selectedLeafId={activeLeafId ?? undefined}
               defaultPaneLanguage={defaultPaneLanguage}
             />

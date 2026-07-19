@@ -56,6 +56,7 @@ export function ExitingPaneGhost({ leafId, rect, growth, slot, stage, transition
         transitionDuration={0.6}
         reducedMotion={false}
         canDelete={false}
+        locked={false}
       />
     </motion.div>
   )

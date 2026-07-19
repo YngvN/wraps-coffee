@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Navigate, useMatch, useParams } from 'react-router-dom'
 import { BackButton, Checkbox, Modal } from '../components'
 import { BackgroundEditor } from '../features/screens/BackgroundEditor'
+import { BorderSettingsEditor } from '../features/screens/BorderSettingsEditor'
 import { FullscreenToggle } from '../features/screens/FullscreenToggle'
 import { GlobalTextSizeScaler, type SizeSnapshot } from '../features/screens/GlobalTextSizeScaler'
 import { KeepEditPrompt, type SlotEditChanges } from '../features/screens/KeepEditPrompt'
@@ -46,6 +47,7 @@ import {
   resolveSlotBackgroundImage,
   resolveSlotContent,
   resolveSlotLanguage,
+  resolveSlotLocked,
   resolveSlotTextSizes,
   resolveStageValue,
   writeStageCheckpoint,
@@ -171,8 +173,8 @@ export function ScreenDisplay() {
   const [now, setNow] = useState(() => new Date())
   const [editingTarget, setEditingTarget] = useState<EditingTarget>(null)
   const [screenDraftSnapshot, setScreenDraftSnapshot] = useState<SizeSnapshot | null>(null)
-  /** Whether the whole-screen editor is showing its own "Background" sub-view instead of the main percentage scaler — reset whenever the editor (re)opens. Background color/image write straight through `applyScreenPatch` on every change (see `handleScreenBackgroundColorChange`/`handleScreenBackgroundImageChange`), so unlike the scaler's own fields this has no local draft/restore state of its own. */
-  const [screenSubview, setScreenSubview] = useState<'background' | null>(null)
+  /** Whether the whole-screen editor is showing its own "Background" or "Borders" sub-view instead of the main percentage scaler — reset whenever the editor (re)opens. Both write straight through `applyScreenPatch` on every change (see `handleScreenBackgroundColorChange`/`handleScreenBackgroundImageChange`/`handleShowSlotBordersChange`/`handleBorderColorChange`), so unlike the scaler's own fields neither has any local draft/restore state of its own. */
+  const [screenSubview, setScreenSubview] = useState<'background' | 'border' | null>(null)
   const [draftSlot, setDraftSlot] = useState<ScreenSlot>(emptySlot())
   const [originalSlot, setOriginalSlot] = useState<ScreenSlot>(emptySlot())
   const [draftTextSizes, setDraftTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
@@ -391,6 +393,14 @@ export function ScreenDisplay() {
     setManuallyPaused(true)
   }
 
+  /** A plain click (not a resize drag) on any pane divider — see `SplitLayoutDivider`'s own `onBorderClick` — opens straight to the border-settings sub-view rather than the scaler's own default landing view. */
+  const openBorderEditor = () => {
+    setScreenDraftSnapshot(null)
+    setScreenSubview('border')
+    setEditingTarget('screen')
+    setManuallyPaused(true)
+  }
+
   const openSlotEditor = (leafId: PaneId) => {
     const slot = viewScreen.paneSlots[leafId] ?? emptySlot()
     const openStage = stage
@@ -525,6 +535,14 @@ export function ScreenDisplay() {
     applyScreenPatch({ paneSlots: { ...viewScreen.paneSlots, [leafId]: emptySlot() } })
   }
 
+  /** Toggles `leafId`'s own lock at whichever stage is currently being viewed/edited — purely an accidental-edit guard (no PIN/confirmation), checkpointed per-stage exactly like every other slot field, so a pane can be locked on one stage and unlocked on another. */
+  const handleTogglePaneLock = (leafId: PaneId) => {
+    const targetStage = forcedStage ?? stage
+    const slot = viewScreen.paneSlots[leafId] ?? emptySlot()
+    const nextLocked = !resolveSlotLocked(slot, targetStage)
+    applyScreenPatch({ paneSlots: { ...viewScreen.paneSlots, [leafId]: { ...slot, locked: writeStageCheckpoint(slot.locked, targetStage, nextLocked) } } })
+  }
+
   /** Deletes `leafId` — its sibling takes over the freed space. No-op when it's the only pane left (the delete button isn't rendered at all in that case). Closes the pane editor if it happened to be open on the pane just deleted, since there'd be nothing left to edit. */
   const handleDeletePane = (leafId: PaneId) => {
     const targetStage = forcedStage ?? stage
@@ -612,6 +630,12 @@ export function ScreenDisplay() {
 
   /** Writes the screen's own whole-screen background image — same reasoning as `handleScreenBackgroundColorChange`. */
   const handleScreenBackgroundImageChange = (backgroundImage: BackgroundImage | undefined) => applyScreenPatch({ backgroundImage })
+
+  /** Writes whether shared pane borders show at all — same reasoning as `handleScreenBackgroundColorChange`. */
+  const handleShowSlotBordersChange = (showSlotBorders: boolean) => applyScreenPatch({ showSlotBorders })
+
+  /** Writes the shared pane borders' own color — same reasoning as `handleScreenBackgroundColorChange`. */
+  const handleBorderColorChange = (borderColor: string | undefined) => applyScreenPatch({ borderColor })
 
   /** Resets the pane (content/color), its text-size drafts, and which stage tab is active back to the values captured when the editor was opened — the actual persisting still only happens once the editor closes. The whole-screen scaler restores itself internally. */
   const handleRestore = () => {
@@ -804,6 +828,8 @@ export function ScreenDisplay() {
         onSplitPane={canEdit ? handleSplitPane : undefined}
         onClearPane={canEdit ? handleClearPane : undefined}
         onDeletePane={canEdit ? handleDeletePane : undefined}
+        onBorderClick={canEdit ? openBorderEditor : undefined}
+        onTogglePaneLock={canEdit ? handleTogglePaneLock : undefined}
         defaultPaneLanguage={defaultPaneLanguage}
       />
 
@@ -838,7 +864,9 @@ export function ScreenDisplay() {
           editingTarget === 'screen'
             ? screenSubview === 'background'
               ? t('admin.screens.backgroundLabel')
-              : undefined
+              : screenSubview === 'border'
+                ? t('admin.screens.bordersLabel')
+                : undefined
             : typeof editingTarget === 'object' && editingTarget !== null && !showKeepEditPrompt
               ? slotEditorRoute
               : undefined
@@ -853,6 +881,16 @@ export function ScreenDisplay() {
                 onBackgroundColorChange={handleScreenBackgroundColorChange}
                 backgroundImage={viewScreen.backgroundImage}
                 onBackgroundImageChange={handleScreenBackgroundImageChange}
+              />
+            </>
+          ) : screenSubview === 'border' ? (
+            <>
+              <BackButton onClick={() => setScreenSubview(null)}>{t('admin.common.back')}</BackButton>
+              <BorderSettingsEditor
+                showSlotBorders={viewScreen.showSlotBorders ?? true}
+                onShowSlotBordersChange={handleShowSlotBordersChange}
+                borderColor={viewScreen.borderColor}
+                onBorderColorChange={handleBorderColorChange}
               />
             </>
           ) : (

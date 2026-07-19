@@ -13,6 +13,7 @@ import { getLanIp, getScreenAddressSettings } from '../../../lib/localServer'
 import type { ScreenConfig } from '../../../types/screen'
 import { DEFAULT_SCREEN_ADDRESS_SETTINGS, type ScreenAddressSettings } from '../../../types/screenAddress'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
+import { generateId } from '../../../utils/id'
 import { countLeaves } from '../../../utils/layoutTree'
 import { deriveMdnsName } from '../../../utils/mdnsName'
 import { DisplayManagerView } from '../displayManager/DisplayManagerView'
@@ -150,7 +151,7 @@ export function ScreensView() {
    * editing either one afterwards can't accidentally affect the other.
    */
   const handleDuplicate = (screen: ScreenConfig) => {
-    const copy: ScreenConfig = { ...(JSON.parse(JSON.stringify(screen)) as ScreenConfig), screenID: `screen-${crypto.randomUUID()}`, name: t('admin.screens.duplicateName', { name: screen.name }) }
+    const copy: ScreenConfig = { ...(JSON.parse(JSON.stringify(screen)) as ScreenConfig), screenID: `screen-${generateId()}`, name: t('admin.screens.duplicateName', { name: screen.name }) }
     setScreens((current) => [...current, copy])
   }
 

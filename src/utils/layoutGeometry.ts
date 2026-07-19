@@ -1,5 +1,5 @@
 import type { LayoutNode, PaneId } from '../types/screen'
-import { resolveRatio } from './screenLayout'
+import { clampRatio, pathKey, resolveRatio, type NodePath, type RatioPatch } from './screenLayout'
 
 /** A rect in 0-100 percentage space — resolution-independent, since a pane arrangement always fills its container edge-to-edge regardless of the container's own real pixel size. */
 export interface Rect {
@@ -17,13 +17,18 @@ export interface BorderSegment {
   end: number
 }
 
+/** A `BorderSegment` that's actually one `split` node's own divider (as opposed to e.g. `rectEdgeSegment`'s plain pane-edge segments, which have no such node to point to) — `path` is that node's own root-to-node path, letting a consumer (e.g. `LayoutTree.tsx`'s snap-target lookup) identify and exclude "this same divider" from a set of others, since positions alone aren't a stable identity during a live drag. */
+export interface Divider extends BorderSegment {
+  path: NodePath
+}
+
 /** The full 0-100 box a tree's own root node fills. */
 export const FULL_BOX: Rect = { x: 0, y: 0, width: 100, height: 100 }
 
 export interface LayoutGeometry {
   leaves: { id: PaneId; rect: Rect }[]
   /** One segment per `split` node walked — its own local divider line, in the same 0-100 space as `leaves`. */
-  dividers: BorderSegment[]
+  dividers: Divider[]
 }
 
 /**
@@ -33,31 +38,88 @@ export interface LayoutGeometry {
  * leaf's own rect *and* every split's own divider as a line segment, which
  * nothing else in this codebase currently computes. This is the shared
  * geometric source of truth behind both `LayoutIcon`'s preview rects and
- * `src/utils/paneGrowth.ts`'s border-selection algorithm.
+ * `src/utils/paneGrowth.ts`'s border-selection algorithm. `path` is this
+ * node's own root-to-node path (`[]` for the root itself) — threaded through
+ * purely so each divider segment can report which node it belongs to (see
+ * `BorderSegment`).
  */
-export function computeLayoutGeometry(node: LayoutNode, box: Rect = FULL_BOX): LayoutGeometry {
+export function computeLayoutGeometry(node: LayoutNode, box: Rect = FULL_BOX, path: NodePath = []): LayoutGeometry {
   if (node.type === 'leaf') return { leaves: [{ id: node.id, rect: box }], dividers: [] }
 
   const share = resolveRatio(node) / 100
   if (node.direction === 'row') {
     const firstWidth = box.width * share
     const dividerX = box.x + firstWidth
-    const first = computeLayoutGeometry(node.first, { ...box, width: firstWidth })
-    const second = computeLayoutGeometry(node.second, { ...box, x: dividerX, width: box.width - firstWidth })
+    const first = computeLayoutGeometry(node.first, { ...box, width: firstWidth }, [...path, 'first'])
+    const second = computeLayoutGeometry(node.second, { ...box, x: dividerX, width: box.width - firstWidth }, [...path, 'second'])
     return {
       leaves: [...first.leaves, ...second.leaves],
-      dividers: [{ axis: 'x', position: dividerX, start: box.y, end: box.y + box.height }, ...first.dividers, ...second.dividers],
+      dividers: [{ axis: 'x', position: dividerX, start: box.y, end: box.y + box.height, path }, ...first.dividers, ...second.dividers],
     }
   }
 
   const firstHeight = box.height * share
   const dividerY = box.y + firstHeight
-  const first = computeLayoutGeometry(node.first, { ...box, height: firstHeight })
-  const second = computeLayoutGeometry(node.second, { ...box, y: dividerY, height: box.height - firstHeight })
+  const first = computeLayoutGeometry(node.first, { ...box, height: firstHeight }, [...path, 'first'])
+  const second = computeLayoutGeometry(node.second, { ...box, y: dividerY, height: box.height - firstHeight }, [...path, 'second'])
   return {
     leaves: [...first.leaves, ...second.leaves],
-    dividers: [{ axis: 'y', position: dividerY, start: box.x, end: box.x + box.width }, ...first.dividers, ...second.dividers],
+    dividers: [{ axis: 'y', position: dividerY, start: box.x, end: box.x + box.width, path }, ...first.dividers, ...second.dividers],
   }
+}
+
+/**
+ * Applies `patch` (one or more explicit new ratios, keyed by `pathKey` —
+ * see `RatioPatch`) to `tree`, while every *other* split node re-derives its
+ * own ratio so its divider's absolute on-screen position (as it was in
+ * `oldGeometry`) stays exactly where it was — rather than the plain
+ * `setRatioAtPath` behavior of leaving every other node's own `ratio`
+ * number untouched, which (since `ratio` is always a percentage of its own
+ * *immediate* parent's current box, not of the whole screen) lets a nested
+ * divider drift along with its container whenever an ancestor's box is
+ * resized, even though its stored ratio never itself changed. Used for
+ * every divider drag (see `SplitLayout.tsx`) so dragging one border never
+ * visibly drags along an unrelated one nested somewhere inside the side
+ * that just got bigger or smaller.
+ */
+export function applyRatioPatchPreservingDescendants(tree: LayoutNode, patch: RatioPatch, oldGeometry: LayoutGeometry): LayoutNode {
+  const oldPositions = new Map(oldGeometry.dividers.map((divider) => [pathKey(divider.path), divider.position]))
+
+  function walk(node: LayoutNode, box: Rect, path: NodePath): LayoutNode {
+    if (node.type === 'leaf') return node
+
+    const key = pathKey(path)
+    const oldAbsolute = oldPositions.get(key)
+    const axisStart = node.direction === 'row' ? box.x : box.y
+    const axisSize = node.direction === 'row' ? box.width : box.height
+    const ratio =
+      key in patch
+        ? clampRatio(patch[key])
+        : oldAbsolute !== undefined && axisSize > 0
+          ? clampRatio(((oldAbsolute - axisStart) / axisSize) * 100)
+          : resolveRatio(node)
+
+    const share = ratio / 100
+    const [firstBox, secondBox]: [Rect, Rect] =
+      node.direction === 'row'
+        ? (() => {
+            const firstWidth = box.width * share
+            return [{ ...box, width: firstWidth }, { ...box, x: box.x + firstWidth, width: box.width - firstWidth }]
+          })()
+        : (() => {
+            const firstHeight = box.height * share
+            return [{ ...box, height: firstHeight }, { ...box, y: box.y + firstHeight, height: box.height - firstHeight }]
+          })()
+
+    return {
+      ...node,
+      ratio,
+      first: walk(node.first, firstBox, [...path, 'first']),
+      second: walk(node.second, secondBox, [...path, 'second']),
+    }
+  }
+
+  return walk(tree, FULL_BOX, [])
 }
 
 /** The four edges of a pane's own rect. */

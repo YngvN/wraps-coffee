@@ -4,6 +4,7 @@ import { FullscreenToggle } from '../features/screens/FullscreenToggle'
 import { ScreenToolbar } from '../features/screens/ScreenToolbar'
 import { useDisplayMachines } from '../hooks/useDisplayMachines'
 import { registerDisplayHeartbeat } from '../lib/localServer'
+import { generateId } from '../utils/id'
 import { DisplayStandby } from './DisplayStandby'
 
 const DEVICE_ID_STORAGE_KEY = 'wrapsCoffeeDisplayDeviceId'
@@ -14,7 +15,7 @@ const MONITOR_ID = 'browser-tab'
 function readOrCreateDeviceId(): string {
   const existing = window.localStorage.getItem(DEVICE_ID_STORAGE_KEY)
   if (existing) return existing
-  const created = crypto.randomUUID()
+  const created = generateId()
   window.localStorage.setItem(DEVICE_ID_STORAGE_KEY, created)
   return created
 }

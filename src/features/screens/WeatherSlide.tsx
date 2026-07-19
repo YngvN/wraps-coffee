@@ -139,7 +139,7 @@ export function WeatherSlide({
   const [clockFormat] = useClockFormatPreference()
   const [config, setConfig] = useExtensionsConfig()
   const coordinates = resolveWeatherCoordinates(config, locationId)
-  const { hourly, loading, stale } = useWeatherForecast(coordinates?.lat, coordinates?.lon, forecastHours ?? DEFAULT_WEATHER_FORECAST_HOURS)
+  const { hourly, todayLowC, todayHighC, loading, stale } = useWeatherForecast(coordinates?.lat, coordinates?.lon, forecastHours ?? DEFAULT_WEATHER_FORECAST_HOURS)
   // Changing location or how many hours are shown isn't the natural
   // hour-by-hour churn `useSequencedHours` staggers — it's a wholesale
   // replacement, so it's included in the reset key to bypass staging.
@@ -184,40 +184,48 @@ export function WeatherSlide({
     <div className={`weather-slide${branded ? ' weather-slide--branded-yr' : ''}`}>
       {/* White, not `YrLogo`'s own default blue fill — the branded theme's background is now Yr's own blue (see `WeatherSlide.scss`), so the logo needs to be the light-on-dark variant to stay visible against it. */}
       {branded && (showBrandLogo ?? true) && <YrLogo fill="#ffffff" className="weather-slide__brand-logo" />}
-      <ul className="weather-slide__list">
-        <AnimatePresence initial={false} mode="popLayout">
-          {displayedHours.map((hour, index) => (
-            <motion.li
-              key={hour.time}
-              layout="position"
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-              variants={weatherItemVariants}
-              transition={weatherItemTransition}
-              className="weather-slide__item"
-            >
-              {/* The leading card is always the current hour (the list is time-sorted, oldest-first) — reads better as "Now" than repeating the clock's own current hour back at it. Naturally lands on whichever card the sequencer has just reflowed into position 0, right as `useSequencedHours` retires the previous one. */}
-              <span className="weather-slide__time">{index === 0 ? t('admin.screens.weatherNowLabel') : formatClockTime(new Date(hour.time), language, clockFormat)}</span>
-              <span className="weather-slide__icon" aria-hidden="true">
-                {weatherSymbolToEmoji(hour.symbolCode)}
-              </span>
-              <span className="weather-slide__temp">{Math.round(hour.temperatureC)}°</span>
-              {(showWind || showHumidity || showPrecipitationProbability || showUvIndex || showPressure) && (
-                <span className="weather-slide__details">
-                  {showWind && hour.windSpeedMs !== undefined && <span>{t('admin.screens.weatherWindValue', { value: Math.round(hour.windSpeedMs) })}</span>}
-                  {showHumidity && hour.humidityPercent !== undefined && <span>{t('admin.screens.weatherHumidityValue', { value: Math.round(hour.humidityPercent) })}</span>}
-                  {showPrecipitationProbability && hour.precipitationProbabilityPercent !== undefined && (
-                    <span>{t('admin.screens.weatherPrecipitationProbabilityValue', { value: Math.round(hour.precipitationProbabilityPercent) })}</span>
-                  )}
-                  {showUvIndex && hour.uvIndex !== undefined && <span>{t('admin.screens.weatherUvIndexValue', { value: Math.round(hour.uvIndex) })}</span>}
-                  {showPressure && hour.pressureHpa !== undefined && <span>{t('admin.screens.weatherPressureValue', { value: Math.round(hour.pressureHpa) })}</span>}
+      <div className="weather-slide__content">
+        <ul className="weather-slide__list">
+          <AnimatePresence initial={false} mode="popLayout">
+            {displayedHours.map((hour, index) => (
+              <motion.li
+                key={hour.time}
+                layout="position"
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                variants={weatherItemVariants}
+                transition={weatherItemTransition}
+                className="weather-slide__item"
+              >
+                {/* The leading card is always the current hour (the list is time-sorted, oldest-first) — reads better as "Now" than repeating the clock's own current hour back at it. Naturally lands on whichever card the sequencer has just reflowed into position 0, right as `useSequencedHours` retires the previous one. */}
+                <span className="weather-slide__time">{index === 0 ? t('admin.screens.weatherNowLabel') : formatClockTime(new Date(hour.time), language, clockFormat)}</span>
+                <span className="weather-slide__icon" aria-hidden="true">
+                  {weatherSymbolToEmoji(hour.symbolCode)}
                 </span>
-              )}
-            </motion.li>
-          ))}
-        </AnimatePresence>
-      </ul>
+                <span className="weather-slide__temp">{Math.round(hour.temperatureC)}°</span>
+                {(showWind || showHumidity || showPrecipitationProbability || showUvIndex || showPressure) && (
+                  <span className="weather-slide__details">
+                    {showWind && hour.windSpeedMs !== undefined && <span>{t('admin.screens.weatherWindValue', { value: Math.round(hour.windSpeedMs) })}</span>}
+                    {showHumidity && hour.humidityPercent !== undefined && <span>{t('admin.screens.weatherHumidityValue', { value: Math.round(hour.humidityPercent) })}</span>}
+                    {showPrecipitationProbability && hour.precipitationProbabilityPercent !== undefined && (
+                      <span>{t('admin.screens.weatherPrecipitationProbabilityValue', { value: Math.round(hour.precipitationProbabilityPercent) })}</span>
+                    )}
+                    {showUvIndex && hour.uvIndex !== undefined && <span>{t('admin.screens.weatherUvIndexValue', { value: Math.round(hour.uvIndex) })}</span>}
+                    {showPressure && hour.pressureHpa !== undefined && <span>{t('admin.screens.weatherPressureValue', { value: Math.round(hour.pressureHpa) })}</span>}
+                  </span>
+                )}
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </ul>
+        {/* Today's overall low/high (see `useWeatherForecast`), not any one hour's own reading — numbers only, no "L"/"H" labels, a vertical line between them. */}
+        {todayLowC !== undefined && todayHighC !== undefined && (
+          <p className="weather-slide__low-high">
+            {Math.round(todayLowC)}° | {Math.round(todayHighC)}°
+          </p>
+        )}
+      </div>
       {stale && <p className="weather-slide__stale-notice">{t('admin.screens.weatherStaleNotice')}</p>}
     </div>
   )

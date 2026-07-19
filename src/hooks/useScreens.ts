@@ -146,7 +146,7 @@ function normalizeSlot(value: unknown, legacyTextSizes: TextSizes | undefined): 
     const textSizes = value.textSizes
       ? (Object.fromEntries(Object.entries(value.textSizes).map(([key, size]) => [key, size ? normalizeTextSizes(size) : size])) as ScreenSlot['textSizes'])
       : {}
-    return { content, backgroundColor: value.backgroundColor ?? {}, backgroundImage: value.backgroundImage ?? {}, textSizes, language: value.language ?? {} }
+    return { content, backgroundColor: value.backgroundColor ?? {}, backgroundImage: value.backgroundImage ?? {}, textSizes, language: value.language ?? {}, locked: value.locked ?? {} }
   }
   if (isLegacySlot(value)) {
     const contents = value.contents.length > 0 ? value.contents : [{ kind: 'none' as const }]
@@ -158,12 +158,13 @@ function normalizeSlot(value: unknown, legacyTextSizes: TextSizes | undefined): 
       backgroundImage: { 1: value.backgroundImage },
       textSizes: { 1: legacyTextSizes ? normalizeTextSizes(legacyTextSizes) : legacyTextSizes },
       language: {},
+      locked: {},
     }
   }
   if (value && typeof value === 'object' && 'kind' in value) {
-    return { content: { 1: migrateContent(value as ScreenSlotContent) }, backgroundColor: { 1: undefined }, backgroundImage: { 1: undefined }, textSizes: { 1: legacyTextSizes }, language: {} }
+    return { content: { 1: migrateContent(value as ScreenSlotContent) }, backgroundColor: { 1: undefined }, backgroundImage: { 1: undefined }, textSizes: { 1: legacyTextSizes }, language: {}, locked: {} }
   }
-  return { content: { 1: { kind: 'none' } }, backgroundColor: { 1: undefined }, backgroundImage: { 1: undefined }, textSizes: { 1: legacyTextSizes }, language: {} }
+  return { content: { 1: { kind: 'none' } }, backgroundColor: { 1: undefined }, backgroundImage: { 1: undefined }, textSizes: { 1: legacyTextSizes }, language: {}, locked: {} }
 }
 
 /** A migrated legacy pane's own deterministic, position-derived id — stable across repeated migrations of the same underlying legacy data (unlike a fresh random id), so a previously-migrated `editingFocus.tab` keeps matching on every re-read, and so this doesn't cause needless remounts. Once a screen is ever saved back with a real `layout`/`paneSlots`, this id scheme is never exercised again for it. */

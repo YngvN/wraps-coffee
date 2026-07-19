@@ -1,5 +1,6 @@
 import type { LanguageCode } from '../i18n'
-import { DEFAULT_TEXT_SIZES, type BackgroundImage, type PaneId, type ScreenConfig, type ScreenSlot, type ScreenSlotContent, type StageTimeline, type TextSizes } from '../types/screen'
+import { DEFAULT_TEXT_SIZES, type BackgroundImage, type LayoutNode, type PaneId, type ScreenConfig, type ScreenSlot, type ScreenSlotContent, type StageTimeline, type TextSizes } from '../types/screen'
+import { listLeaves } from './layoutTree'
 import { isResizeToFitImage } from './screenSlots'
 
 /**
@@ -51,6 +52,19 @@ export function getPersistedSlotTextSizes(screen: ScreenConfig, leafId: PaneId, 
 /** This slot's own language override at `stage` — `undefined` means "use the cafe's own Standard pane language" (see `useDefaultPaneLanguage`), whether because nothing was ever set or because it was explicitly reset back to it. */
 export function resolveSlotLanguage(slot: ScreenSlot, stage: number): LanguageCode | undefined {
   return resolveStageValue(slot.language, stage)
+}
+
+/** Whether this pane is locked at `stage` — `false` (unlocked) whenever nothing was ever set, exactly like every other stage-checkpointed field's own carry-forward behavior (see `resolveStageValue`). */
+export function resolveSlotLocked(slot: ScreenSlot, stage: number): boolean {
+  return resolveStageValue(slot.locked, stage) ?? false
+}
+
+/** Whether any leaf inside `node`'s own subtree is locked at `stage` — used to decide whether a `split` node's own divider (and any `PaneCornerHandle` sharing its path, see `LayoutTree.tsx`) should be draggable at all: if either side would resize a locked pane, neither should be. */
+export function subtreeHasLockedLeaf(node: LayoutNode, paneSlots: Record<PaneId, ScreenSlot>, stage: number): boolean {
+  return listLeaves(node).some((leaf) => {
+    const slot = paneSlots[leaf.id]
+    return slot ? resolveSlotLocked(slot, stage) : false
+  })
 }
 
 /** Returns a copy of `timeline` with `value` checkpointed at `stage`, overwriting any existing entry there. */

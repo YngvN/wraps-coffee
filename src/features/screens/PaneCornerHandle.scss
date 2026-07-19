@@ -1,0 +1,22 @@
+.pane-corner-handle {
+  position: absolute;
+  // Above the regular dividers (z-index 8, see `SplitLayoutDivider.scss`) so
+  // grabbing right at a corner hits this handle instead of one of the plain
+  // lines it sits on top of.
+  z-index: 9;
+  border-radius: 50%;
+  cursor: move;
+  touch-action: none;
+
+  @media (hover: hover) {
+    &:hover {
+      background: var(--screen-accent);
+      opacity: 0.35;
+    }
+  }
+
+  &--dragging {
+    background: var(--screen-accent);
+    opacity: 0.5;
+  }
+}

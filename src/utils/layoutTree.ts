@@ -1,9 +1,10 @@
 import type { LayoutNode, PaneId, ScreenSlot, SplitDirection, StageTimeline } from '../types/screen'
+import { generateId } from './id'
 import { CENTER_RATIO } from './screenLayout'
 
 /** A brand-new, never-reused pane id. */
 function generatePaneId(): PaneId {
-  return `pane-${crypto.randomUUID()}`
+  return `pane-${generateId()}`
 }
 
 /** A fresh leaf node + the id it was given, for seeding a brand-new screen/pane. */
