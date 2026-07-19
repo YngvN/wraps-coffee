@@ -14,11 +14,16 @@
   pointer-events: none;
 }
 
-// The 4 pieces below tile a hollow "plus": a 24%-wide/tall square is left
-// uncovered right in the middle (38% to 62% along both axes), flanked by
-// north/south (narrow in x, either side of the vertical middle line) and
-// west/east (narrow in y, either side of the horizontal middle line) — see
-// `PaneSplitZones.tsx`'s own doc comment for why the hole matters.
+// The 4 pieces below tile a hollow "plus": a large square is left uncovered
+// right in the middle (25% to 75% along both axes — everything outside the
+// narrow 8%-wide bands below, which also no longer reach all the way to the
+// pane's own edge, only the outer quarter of it), flanked by north/south
+// (narrow in x, either side of the vertical middle line) and west/east
+// (narrow in y, either side of the horizontal middle line) — see
+// `PaneSplitZones.tsx`'s own doc comment for why the hole matters. Both the
+// width *and* the reach are deliberately tight — a wide/long band made the
+// split preview trigger over most of the pane's own surface, far from the
+// actual center line it represents.
 .pane-split-zone {
   position: absolute;
   z-index: 6;
@@ -31,33 +36,33 @@
 
   &--north,
   &--south {
-    left: 38%;
-    right: 38%;
+    left: 46%;
+    right: 46%;
   }
 
   &--north {
     top: 0;
-    bottom: 62%;
+    bottom: 75%;
   }
 
   &--south {
-    top: 62%;
+    top: 75%;
     bottom: 0;
   }
 
   &--west,
   &--east {
-    top: 38%;
-    bottom: 38%;
+    top: 46%;
+    bottom: 46%;
   }
 
   &--west {
     left: 0;
-    right: 62%;
+    right: 75%;
   }
 
   &--east {
-    left: 62%;
+    left: 75%;
     right: 0;
   }
 }

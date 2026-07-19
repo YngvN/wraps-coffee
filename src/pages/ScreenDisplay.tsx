@@ -469,6 +469,26 @@ export function ScreenDisplay() {
   /** The previous/next-stage button pair's own discrete jump — same destination as `handleScrubToStage`, but routed through `requestPendingResizeAction` first, since clicking away from a stage is exactly the moment an unresolved pane resize on it should be asked about. */
   const handleStepStage = (targetStage: number) => requestPendingResizeAction(() => setTick(targetStage - 1))
 
+  /**
+   * The toolbar's own "Add step" button — appends one more stage, turning
+   * `useStages` on if this is the screen's first (mirrors the plain number
+   * field in the admin dashboard's own "Stages" tab, just reachable directly
+   * from here). The new stage starts as a carry-forward copy of the last one
+   * — every field's own per-stage resolution already falls back to its
+   * nearest earlier checkpoint (see `resolveStageValue`), so nothing needs
+   * seeding here — then jumps the display straight to it, same as stepping
+   * forward, so it's obvious the step actually got added. Routed through
+   * `requestPendingResizeAction` like `handleStepStage`, since this also
+   * navigates away from whichever stage is currently showing.
+   */
+  const handleAddStage = () => {
+    requestPendingResizeAction(() => {
+      const nextStageCount = (viewScreen.stageCount ?? 1) + 1
+      applyScreenPatch({ useStages: true, stageCount: nextStageCount })
+      setTick(nextStageCount - 1)
+    })
+  }
+
   /** A divider's new position (or a structural split/delete edit, once that UI lands), dragged/made right on this display — applies (and, with Live editing on, persists) immediately, mirroring the admin dashboard's own inline "Layout" grid writing to the very same `layout` field. The screen's shared rotation timer (seconds per step) is edited from that same admin dashboard's own "Steps" panel, not from this display. `SplitLayout`'s own `onResizeDivider` prop is typed against the wider `Partial<ScreenConfig>` (shared with `ScreenForm.tsx`'s own live preview, which always writes straight through) — the cast here is safe since it only ever actually sends `layout`/`paneSlots`. */
   const handleResizeDivider = (patch: Partial<ScreenConfig>) => applyScreenPatch(patch as Partial<DraftableScreenFields>)
 
@@ -796,6 +816,9 @@ export function ScreenDisplay() {
                 />
               </>
             )}
+            <button type="button" className="screen-toolbar__button" onClick={handleAddStage} disabled={editingTarget !== null}>
+              {t('screenDisplay.addStageButton')}
+            </button>
             <FullscreenToggle />
             <button type="button" className="screen-toolbar__button" onClick={openScreenEditor}>
               {t('screenDisplay.editSizes')}
