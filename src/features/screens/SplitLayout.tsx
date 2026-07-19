@@ -35,6 +35,8 @@ interface SplitLayoutProps {
   selectedLeafId?: PaneId
   /** Hovering close to a pane's own middle (either axis) reveals a "Split" line/label there — see `PaneSplitZones`; clicking splits it into two, both halves starting with the original's own duplicated content. Omit (like `onEditSlide`) to disable, e.g. while the screen is locked, or with no logged-in admin session at all. */
   onSplitPane?: (leafId: PaneId, axis: SplitDirection, edge: 'start' | 'end') => void
+  /** Hovering dead center instead splits this pane straight into a clean 2x2 of 4 — see `PaneSplitZones`' own doc comment. Omit (like `onSplitPane`) to disable. */
+  onSplitFour?: (leafId: PaneId) => void
   /** Set by `ScreenForm.tsx`'s own preview only — see `PaneSplitZones`' prop of the same underlying purpose (`disableOnTouch`) for why it's not the default everywhere `onSplitPane` is used. */
   disableSplitOnTouch?: boolean
   /** Hovering a pane reveals a top-left button resetting its content/background/text-size back to blank. */
@@ -84,6 +86,7 @@ export function SplitLayout({
   defaultPaneLanguage,
   selectedLeafId,
   onSplitPane,
+  onSplitFour,
   disableSplitOnTouch,
   onClearPane,
   onDeletePane,
@@ -342,6 +345,7 @@ export function SplitLayout({
         onTogglePaneLock={onTogglePaneLock}
         gridTransition={gridTransition}
         onSplitPane={onSplitPane}
+        onSplitFour={onSplitFour}
         disableSplitOnTouch={disableSplitOnTouch}
         onClearPane={onClearPane}
         onDeletePane={onDeletePane}

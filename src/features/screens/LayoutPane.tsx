@@ -31,8 +31,10 @@ interface LayoutPaneProps {
   editingFocus: ScreenConfig['editingFocus']
   transitionDuration: number
   reducedMotion: boolean | null
-  /** Hovering close to the pane's own middle (either axis) reveals a dead-center "Split" line/label there; clicking splits it 50/50 along that axis — see `PaneSplitZones`. Omit (like `onEditSlide`) to disable, e.g. while the screen is locked. */
+  /** Hovering close to the pane's own middle (either axis) reveals a "Split" line/label there; clicking splits it 50/50 along that axis — see `PaneSplitZones`. Omit (like `onEditSlide`) to disable, e.g. while the screen is locked. */
   onSplitPane?: (leafId: PaneId, axis: SplitDirection, edge: 'start' | 'end') => void
+  /** Hovering dead center instead splits this pane straight into a clean 2x2 of 4 — see `PaneSplitZones`' own doc comment. Omit (like `onSplitPane`) to disable. */
+  onSplitFour?: (leafId: PaneId) => void
   /** Threaded straight through to `PaneSplitZones` — see its own prop of the same name. */
   disableSplitOnTouch?: boolean
   /** Hovering the pane reveals a top-left "Clear" button resetting its content back to blank. */
@@ -74,6 +76,7 @@ export function LayoutPane({
   transitionDuration,
   reducedMotion,
   onSplitPane,
+  onSplitFour,
   disableSplitOnTouch,
   onClearPane,
   onDeletePane,
@@ -205,7 +208,13 @@ export function LayoutPane({
         so it never blocks any of the above).
       */}
       {onEditSlide && <PaneEditButton onClick={() => onEditSlide(leafId)} />}
-      {onSplitPane && <PaneSplitZones onSplit={(axis, edge) => onSplitPane(leafId, axis, edge)} disableOnTouch={disableSplitOnTouch} />}
+      {onSplitPane && (
+        <PaneSplitZones
+          onSplit={(axis, edge) => onSplitPane(leafId, axis, edge)}
+          onSplitFour={onSplitFour ? () => onSplitFour(leafId) : undefined}
+          disableOnTouch={disableSplitOnTouch}
+        />
+      )}
       {onClearPane && <PaneClearButton onClick={() => onClearPane(leafId)} />}
       {onDeletePane && canDelete && <PaneDeleteButton onClick={() => onDeletePane(leafId)} />}
       {onToggleLock && <PaneLockButton locked={locked} onClick={onToggleLock} />}

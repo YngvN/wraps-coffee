@@ -6,6 +6,8 @@ import './PaneSplitZones.scss'
 interface PaneSplitZonesProps {
   /** `edge` is which side of the middle line the new pane lands on ('start': left/top; 'end': right/bottom) — decided from the actual click position relative to the pane's own center, not which piece was clicked (see this component's own doc comment). The split itself is always an even 50/50 (see `splitLeaf`). */
   onSplit: (axis: SplitDirection, edge: 'start' | 'end') => void
+  /** Splits this pane into a clean 2x2 of 4 equal panes in one step — the dead-center zone's own action (see this component's own doc comment). Omit (like `onSplit`) to disable, e.g. while the screen is locked. */
+  onSplitFour?: () => void
   /** Makes the zone pieces themselves untappable (not just their hover preview) on a touch-only device — see `PaneSplitZones.scss`. Only set by `ScreenForm.tsx`'s own preview, which has explicit "Split pane horizontally"/"Split pane vertically" buttons underneath as a substitute; omit (as `ScreenDisplay.tsx`'s live editing overlay does) where tapping the preview is the only way to split at all. */
   disableOnTouch?: boolean
 }
@@ -26,17 +28,22 @@ const PIECE_AXIS: Record<Piece, SplitDirection> = {
  * (top/bottom) split. Hovering close to either middle line reveals it: a
  * hollow "plus" of 4 narrow band pieces (see `PaneSplitZones.scss`) —
  * north/south flank the vertical line (narrow in x, tall in y), west/east
- * flank the horizontal one (narrow in y, tall in x). Dead center, where
- * both lines would cross, is deliberately left uncovered by any piece, so
- * hovering/clicking there falls straight through to `PaneEditButton`
- * beneath it — "just highlight the pane as clickable" for free, no extra
- * code needed here. Which side of the line the new pane lands on is
- * decided from the actual click position (left/right of the vertical line
- * for a row split, above/below the horizontal one for a column split), not
- * which piece was clicked — north and south, for instance, both flank the
- * *same* vertical line and don't inherently know which side of it either.
+ * flank the horizontal one (narrow in y, tall in x). Which side of the line
+ * the new pane lands on is decided from the actual click position (left/right
+ * of the vertical line for a row split, above/below the horizontal one for a
+ * column split), not which piece was clicked — north and south, for
+ * instance, both flank the *same* vertical line and don't inherently know
+ * which side of it either.
+ *
+ * Dead center, where both lines would cross, is its own fifth zone instead
+ * of falling through to `PaneEditButton` beneath — hovering it previews
+ * *both* lines at once (a full "+"), and clicking it calls `onSplitFour`,
+ * splitting this one pane straight into a clean 2x2 of 4 (rather than
+ * requiring two separate splits to get there). The pane is still reachable
+ * for editing everywhere outside all five zones, just no longer at this
+ * exact spot.
  */
-export function PaneSplitZones({ onSplit, disableOnTouch }: PaneSplitZonesProps) {
+export function PaneSplitZones({ onSplit, onSplitFour, disableOnTouch }: PaneSplitZonesProps) {
   const { t } = useLanguage()
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -56,6 +63,11 @@ export function PaneSplitZones({ onSplit, disableOnTouch }: PaneSplitZonesProps)
     onSplit(axis, edge)
   }
 
+  const handleCenterClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    onSplitFour?.()
+  }
+
   return (
     <div ref={containerRef} className={`pane-split-zones${disableOnTouch ? ' pane-split-zones--touch-disabled' : ''}`}>
       {(['north', 'south', 'west', 'east'] as Piece[]).map((piece) => (
@@ -67,6 +79,9 @@ export function PaneSplitZones({ onSplit, disableOnTouch }: PaneSplitZonesProps)
           onClick={handleClick(piece)}
         />
       ))}
+      {onSplitFour && (
+        <button type="button" className="pane-split-zone pane-split-zone--center" aria-label={t('admin.screens.splitPaneFourButton')} onClick={handleCenterClick} />
+      )}
       <span className="pane-split-zones__row-line" />
       <span className="pane-split-zones__column-line" />
       <span className="pane-split-zones__label">{t('admin.screens.splitPaneLabel')}</span>

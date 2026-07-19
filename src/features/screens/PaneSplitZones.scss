@@ -3,10 +3,10 @@
 // Sits above `PaneEditButton` (z-index 5) but below the corner Clear/Delete
 // buttons (z-index 7, see `PaneCornerButton.scss`) and the divider drag
 // handles (z-index 8) — see `SplitLayout.tsx`'s own doc comment for the
-// full layering. `pointer-events: none` here (re-enabled only on the 4
-// piece buttons below) is what leaves the hollow center square — where no
-// piece reaches — click-through to `PaneEditButton` beneath instead of
-// this container's own otherwise-full inset:0 box swallowing it.
+// full layering. `pointer-events: none` here (re-enabled only on the piece
+// buttons below) lets the small remaining gaps between them fall through to
+// `PaneEditButton` beneath instead of this container's own otherwise-full
+// inset:0 box swallowing every click.
 .pane-split-zones {
   position: absolute;
   inset: 0;
@@ -14,16 +14,14 @@
   pointer-events: none;
 }
 
-// The 4 pieces below tile a hollow "plus": a large square is left uncovered
-// right in the middle (25% to 75% along both axes — everything outside the
-// narrow 8%-wide bands below, which also no longer reach all the way to the
-// pane's own edge, only the outer quarter of it), flanked by north/south
-// (narrow in x, either side of the vertical middle line) and west/east
-// (narrow in y, either side of the horizontal middle line) — see
-// `PaneSplitZones.tsx`'s own doc comment for why the hole matters. Both the
-// width *and* the reach are deliberately tight — a wide/long band made the
-// split preview trigger over most of the pane's own surface, far from the
-// actual center line it represents.
+// The north/south/west/east pieces flank the pane's own middle lines (narrow
+// bands, a fixed `--zone-thickness` wide, reaching `--zone-reach` in from
+// each edge — see `PaneSplitZones.tsx`'s own doc comment) — both are
+// deliberately tight, so the split preview only triggers close to the
+// actual line it represents rather than over most of the pane's surface.
+// `--center` instead fills the square those four leave empty in the middle
+// — dead center, where both lines would cross, is its own "split into 4"
+// zone rather than falling through to the edit button.
 .pane-split-zone {
   position: absolute;
   z-index: 6;
@@ -34,36 +32,63 @@
   margin: 0;
   cursor: pointer;
 
+  // How far a band reaches in from its own edge, and therefore where
+  // `--center` starts/ends on that same axis too — reach + center + reach
+  // always adds up to exactly 100% of the pane, on *either* axis, so the
+  // two kinds of zone tile the whole pane with no gap between them
+  // whatever shape it is (a real gap there would just fall through to the
+  // edit button with no split preview at all, reachable but easy to
+  // mistake for "hovering there doesn't do anything"). Ordinarily 25%
+  // (matching how narrow the bands themselves look), but grows past that
+  // on a large pane specifically so `--center`'s own size stays capped at
+  // a reasonable `12rem` there instead of stretching arbitrarily — e.g. far
+  // taller than it is wide on a tall, narrow pane.
+  --zone-reach: max(25%, calc((100% - 12rem) / 2));
+
+  // The band's own thickness (across the line it flanks) — a fixed size
+  // rather than a percentage, so the hit area stays the same real width on
+  // any pane regardless of how big or small that pane happens to be.
+  --zone-thickness: 1.5rem;
+
   &--north,
   &--south {
-    left: 46%;
-    right: 46%;
+    left: 50%;
+    width: var(--zone-thickness);
+    transform: translateX(-50%);
   }
 
   &--north {
     top: 0;
-    bottom: 75%;
+    height: var(--zone-reach);
   }
 
   &--south {
-    top: 75%;
     bottom: 0;
+    height: var(--zone-reach);
   }
 
   &--west,
   &--east {
-    top: 46%;
-    bottom: 46%;
+    top: 50%;
+    height: var(--zone-thickness);
+    transform: translateY(-50%);
   }
 
   &--west {
     left: 0;
-    right: 75%;
+    width: var(--zone-reach);
   }
 
   &--east {
-    left: 75%;
     right: 0;
+    width: var(--zone-reach);
+  }
+
+  &--center {
+    top: var(--zone-reach);
+    bottom: var(--zone-reach);
+    left: var(--zone-reach);
+    right: var(--zone-reach);
   }
 }
 
@@ -127,12 +152,14 @@
 // pieces themselves stay tappable either way here, since by default there's
 // no substitute gesture to fall back to (see `ScreenDisplay.tsx`'s own live
 // editing overlay, which renders `PaneSplitZones` with no `disableOnTouch`).
+// Hovering `--center` previews *both* lines at once (a full "+", matching
+// what `onSplitFour` actually does), same "Split" label as the other four.
 @media (hover: hover) {
-  .pane-split-zones:has(.pane-split-zone--north:hover, .pane-split-zone--south:hover) .pane-split-zones__row-line {
+  .pane-split-zones:has(.pane-split-zone--north:hover, .pane-split-zone--south:hover, .pane-split-zone--center:hover) .pane-split-zones__row-line {
     opacity: 1;
   }
 
-  .pane-split-zones:has(.pane-split-zone--west:hover, .pane-split-zone--east:hover) .pane-split-zones__column-line {
+  .pane-split-zones:has(.pane-split-zone--west:hover, .pane-split-zone--east:hover, .pane-split-zone--center:hover) .pane-split-zones__column-line {
     opacity: 1;
   }
 

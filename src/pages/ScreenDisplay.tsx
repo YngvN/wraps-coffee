@@ -550,6 +550,34 @@ export function ScreenDisplay() {
     applyScreenPatch({ layout: nextLayout, paneSlots: nextPaneSlots })
   }
 
+  /**
+   * Splits `leafId` straight into a clean 2x2 of 4 equal panes in one step —
+   * the dead-center zone's own action (see `PaneSplitZones`), rather than
+   * needing two separate splits to get there. Composes `splitLeaf` three
+   * times (a row split, then a column split on each of its two resulting
+   * sides) into exactly the aligned shape `LayoutTree.tsx`'s own corner
+   * handle already treats as a clean 4-pane grid. All 3 new panes start as
+   * duplicates of the original's own content, same as a plain 2-way split
+   * already does for its own one new pane.
+   */
+  const handleSplitPaneFour = (leafId: PaneId) => {
+    const targetStage = forcedStage ?? stage
+    const tree = resolveStageValue(viewScreen.layout, targetStage)
+    if (!tree) return
+    const { tree: afterRow, newPaneId: rightId } = splitLeaf(tree, leafId, 'row', 'end')
+    const { tree: afterLeftColumn, newPaneId: bottomLeftId } = splitLeaf(afterRow, leafId, 'column', 'end')
+    const { tree: afterRightColumn, newPaneId: bottomRightId } = splitLeaf(afterLeftColumn, rightId, 'column', 'end')
+    const nextLayout = writeStageCheckpoint(viewScreen.layout, targetStage, afterRightColumn)
+    const originalSlot = viewScreen.paneSlots[leafId] ?? emptySlot()
+    const nextPaneSlots = {
+      ...viewScreen.paneSlots,
+      [rightId]: cloneSlot(originalSlot),
+      [bottomLeftId]: cloneSlot(originalSlot),
+      [bottomRightId]: cloneSlot(originalSlot),
+    }
+    applyScreenPatch({ layout: nextLayout, paneSlots: nextPaneSlots })
+  }
+
   /** Resets `leafId`'s own content/background/text-size straight back to a fresh blank `ScreenSlot` — independent of `layout` entirely, applied (and, with Live editing on, persisted) immediately. */
   const handleClearPane = (leafId: PaneId) => {
     applyScreenPatch({ paneSlots: { ...viewScreen.paneSlots, [leafId]: emptySlot() } })
@@ -849,6 +877,7 @@ export function ScreenDisplay() {
         onDragStateChange={handleDragStateChange}
         onDropImage={canEdit ? handleDropImage : undefined}
         onSplitPane={canEdit ? handleSplitPane : undefined}
+        onSplitFour={canEdit ? handleSplitPaneFour : undefined}
         onClearPane={canEdit ? handleClearPane : undefined}
         onDeletePane={canEdit ? handleDeletePane : undefined}
         onBorderClick={canEdit ? openBorderEditor : undefined}

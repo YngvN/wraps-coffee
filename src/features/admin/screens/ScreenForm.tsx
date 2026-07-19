@@ -524,6 +524,24 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     if (screen) liveUpdateScreen({ layout: nextLayout, paneSlots: nextPaneSlots })
   }
 
+  /** Splits `leafId` straight into a clean 2x2 of 4 equal panes in one step — see `ScreenDisplay.tsx`'s own `handleSplitPaneFour` for the identical tree-shape reasoning. Same live-pushed posture as `handleSplitPane`; doesn't switch tabs afterward (unlike a plain split's own single new pane, there's no one obviously "right" pane of the 3 new ones to land on). */
+  const handleSplitPaneFour = (leafId: PaneId) => {
+    if (!resolvedTree) return
+    const { tree: afterRow, newPaneId: rightId } = splitLeaf(resolvedTree, leafId, 'row', 'end')
+    const { tree: afterLeftColumn, newPaneId: bottomLeftId } = splitLeaf(afterRow, leafId, 'column', 'end')
+    const { tree: afterRightColumn, newPaneId: bottomRightId } = splitLeaf(afterLeftColumn, rightId, 'column', 'end')
+    const nextLayout = writeStageCheckpoint(draft.layout, clampedActiveStage, afterRightColumn)
+    const originalSlot = draft.paneSlots[leafId]
+    const nextPaneSlots = {
+      ...draft.paneSlots,
+      [rightId]: cloneSlot(originalSlot),
+      [bottomLeftId]: cloneSlot(originalSlot),
+      [bottomRightId]: cloneSlot(originalSlot),
+    }
+    setDraft({ layout: nextLayout, paneSlots: nextPaneSlots })
+    if (screen) liveUpdateScreen({ layout: nextLayout, paneSlots: nextPaneSlots })
+  }
+
   /** Deletes `leafId` — its sibling takes over the freed space. No-op when it's the only pane left (the delete button isn't rendered at all in that case). Switches back to the "Global" tab if the deleted pane was the one currently open. */
   const handleDeletePane = (leafId: PaneId) => {
     if (!resolvedTree) return
@@ -781,6 +799,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
               onResizeDivider={handleResizeDivider}
               onEditSlide={handleSelectTab}
               onSplitPane={handleSplitPane}
+              onSplitFour={handleSplitPaneFour}
               disableSplitOnTouch
               onClearPane={handleClearPane}
               onDeletePane={handleDeletePane}
