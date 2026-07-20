@@ -13,6 +13,16 @@
   overflow: hidden;
 }
 
+// Per-source brand theme for `linkMode: 'news'` (see `useSourceTheme` in
+// `SlideFields.tsx`) — same mechanism as `NewsSlide.scss`'s own
+// `.news-slide--branded`: the actual color is set inline from JS
+// (`QrCodeSlide.tsx`, via `--screen-bg`/`--screen-text`/`--screen-text-muted`)
+// since it swaps across 7 data-driven sources; this class just applies
+// whatever those custom properties currently hold.
+.qr-code-slide--branded {
+  background: var(--screen-bg);
+}
+
 .qr-code-slide__code {
   display: block;
   // `width`/`height` (a percentage of this, its flex-centered container —

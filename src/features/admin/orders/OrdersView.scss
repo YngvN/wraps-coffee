@@ -46,6 +46,14 @@
   font-weight: 600;
 }
 
+.orders-view__source-badge {
+  display: inline-block;
+  height: 1.1rem;
+  width: auto;
+  margin-right: calc($spacing-unit / 2);
+  vertical-align: middle;
+}
+
 .orders-view__phone {
   display: block;
   color: $color-text-muted;

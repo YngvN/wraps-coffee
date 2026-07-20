@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import type { LanguageCode } from '../../i18n'
 import type { LayoutNode, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SplitDirection, TextSizes } from '../../types/screen'
 import type { Divider, Rect } from '../../utils/layoutGeometry'
@@ -54,6 +55,8 @@ interface LayoutTreeProps {
   onTogglePaneLock?: (leafId: PaneId) => void
   /** Which leaves just appeared this render (keyed by their own id) and which edge each should visually grow in from — see `LayoutPane`'s own prop of the same name, and `SplitLayout.tsx`'s own doc comment for how this is derived. Leaves not present here render at full size immediately. */
   enteringGrowth: Record<PaneId, PaneGrowthOrigin>
+  /** Every currently-resolved `'news'`-kind pane on this screen — computed once by `SplitLayout` and threaded straight through (like `allDividers`) rather than re-derived at every nested level. See `LayoutPane`'s own prop of the same name. */
+  newsSlots: NewsSlotSettings[]
 }
 
 /**
@@ -109,6 +112,7 @@ export function LayoutTree({
   canDelete,
   onTogglePaneLock,
   enteringGrowth,
+  newsSlots,
 }: LayoutTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -142,6 +146,7 @@ export function LayoutTree({
         locked={locked}
         onToggleLock={onTogglePaneLock ? () => onTogglePaneLock(node.id) : undefined}
         growEntranceFrom={enteringGrowth[node.id]}
+        newsSlots={newsSlots}
       />
     )
   }
@@ -231,6 +236,7 @@ export function LayoutTree({
         canDelete={canDelete}
         onTogglePaneLock={onTogglePaneLock}
         enteringGrowth={enteringGrowth}
+        newsSlots={newsSlots}
       />
       <LayoutTree
         node={node.second}
@@ -263,6 +269,7 @@ export function LayoutTree({
         canDelete={canDelete}
         onTogglePaneLock={onTogglePaneLock}
         enteringGrowth={enteringGrowth}
+        newsSlots={newsSlots}
       />
       {onLiveChange && onCommit && !dividerLocked && (
         <SplitLayoutDivider

@@ -2,36 +2,36 @@
 - Full menu with filter allergens function
 - Slower color transition on screen, text most iportant
 - Better transit icons, premade
-- Custom message pane (like "Buy tickets now), with title and description
 - Fetuered pane, where discounted items
-- "Repeat for step x - y" button
-- Text editor in a sub-menu
 - Remove wraps-coffee naming
-- REmove Copy link, make link itself clickable with a Copied to clipboard message
 - "Main pane" with a box shadow, 2 max
 - Each step can change pane amount. Need to slice borders in two
 - Order pane for employees with touch for when order is done
-- Add Users in the Sidebar. Admin can add/delete users, even sub-admin. Admin can also set password reset. Sub-admin can not delete Admin
-- Remove product categories, when they can be used in full menu. Change name from full menu to just Menu
-- Move Background to the top
 - Global background image not working
-- "This step's own background image"
 - "Edit global text size"
-- Only one back button, not two
 - "1. En "Webhook"-modul (Hvis du vil pushe data ut)
-- QR code pane, black or white depending on bg color. Custom URL
 - Things reload when using fade transition instead of just staying visible and changing color
-- Lock screen as standard.  Hover on panes to edit with a highlight. 
 - Vipps integrations
-- When using back button on mouse, needs to function like the back button
 - Rotate screen
-- Ability to have event image in one pane, and event details, title etc in another. Can have multiple events on a screen. Have it like 1st event, 2nd event. If using 1st event image, assume 1st event details when selecting event details on the next event pane
 - Take picture of menu, send to AI for transcribing, get back answer to paste in the correct format
 - Notification that a screen is out of fullscreen in the overview. Also in the top left corner. Disappears when fullscreen again. To make sure customers are not messing with the screen, like using an ipad for menu.
 - "Easy reader" mode for the same ipad menu
 - Language button on ipad menu
 - PDF/docx export of the menu
-- Screen to Display
+- Local AI for SCSS, edit prices
+- Custom CSS for panes
+
+
+1. 
+- License tracker
+- Backup, physical and cloud
+- Search
+- Routines
+- Telix Amundo
+- RSS
+- Vipps
+
+
 
 Akkurat nå trekker du data ned fra nettsiden. Men hva hvis den eksisterende nettsiden vil ha beskjed på sin egen måte når eieren endrer status på en ordre i ditt dashbord?
 

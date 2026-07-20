@@ -1,0 +1,28 @@
+.news-source-mark {
+  display: inline-flex;
+  align-items: center;
+}
+
+.news-source-mark--image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.news-source-mark--text {
+  gap: 0.35em;
+  padding: 0.3em 0.65em;
+  border-radius: 0.35em;
+  border: 2px solid transparent;
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.news-source-mark__dot {
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

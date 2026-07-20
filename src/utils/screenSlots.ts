@@ -17,3 +17,8 @@ export function isResizeToFitImage(content: ScreenSlotContent): content is Extra
 export function resolveContentBackgroundImage(content: ScreenSlotContent, fallback: BackgroundImage | undefined): BackgroundImage | undefined {
   return content.backgroundImage ?? fallback
 }
+
+/** A `'news'`-kind content — what a `'qrcode'` slide's own "automatic" mode (`newsSourceMode: 'automatic'`) looks for among a screen's other panes, to follow whichever headline that pane is currently showing (see `useCurrentNewsHeadline`). */
+export function isNewsSlotContent(content: ScreenSlotContent): content is Extract<ScreenSlotContent, { kind: 'news' }> {
+  return content.kind === 'news'
+}

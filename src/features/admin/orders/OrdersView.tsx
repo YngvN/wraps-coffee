@@ -1,10 +1,15 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Badge, Card, TranslatedText } from '../../../components'
+import { Badge, Card, FetchedLogo, TranslatedText } from '../../../components'
+import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useClockFormatPreference } from '../../../hooks/useClockFormatPreference'
 import { useDateFormatPreference } from '../../../hooks/useDateFormatPreference'
+import { useFoodoraOrders } from '../../../hooks/useFoodoraOrders'
 import { useOrders } from '../../../hooks/useOrders'
+import { useWoltOrders } from '../../../hooks/useWoltOrders'
 import { useLanguage } from '../../../i18n'
+import { reportError } from '../../../lib/errorNotifications'
+import { pushFoodoraOrderStatus, pushWoltOrderStatus } from '../../../lib/localServer'
 import type { OrderRecord, OrderStatus } from '../../../types/order'
 import { formatDateTime } from '../../../utils/clockFormat'
 import './OrdersView.scss'
@@ -20,19 +25,43 @@ const STATUS_BADGE_VARIANT: Record<OrderStatus, 'info' | 'warning' | 'success' |
   cancelled: 'error',
 }
 
-/** Admin view of online orders placed on the public website — pulled down live via the Neon bridge (see `server/neonBridge.ts`). Only `status` is editable here; every other field belongs to the customer's original submission. A status change pushes back up to the website the same way it arrived, so its own order-status page reflects it. */
+/** Admin view of orders — placed on the public website (pulled down live via the Neon bridge, see `server/neonBridge.ts`), or synced from a delivery platform (Wolt/Foodora, tagged with a small source badge), all merged into one list. Only `status` is editable here; every other field belongs to the order's original submission. A status change pushes back to wherever the order came from — the website via Neon, or the matching platform's own API. */
 export function OrdersView() {
   const { t, language } = useLanguage()
+  const { session } = useAdminSession()
   const [clockFormat] = useClockFormatPreference()
   const [dateFormat] = useDateFormatPreference()
   const [orders, setOrders] = useOrders()
+  const [woltOrders, setWoltOrders] = useWoltOrders()
+  const [foodoraOrders, setFoodoraOrders] = useFoodoraOrders()
   const [searchParams, setSearchParams] = useSearchParams()
   /** The order `?orderId=` deep-linked in on (see the notification bell's "new order" links) — read straight from the URL rather than mirrored into its own `useState` (no React state to seed/clear, just this one derived read), so the highlight disappears exactly when the param is stripped below. */
   const highlightedOrderId = searchParams.get('orderId')
   const orderRefs = useRef<Record<string, HTMLLIElement | null>>({})
 
-  const updateStatus = (id: string, status: OrderStatus) => {
-    setOrders(orders.map((order) => (order.id === id ? { ...order, status } : order)))
+  /** Website orders (`admin.orders`, Neon-owned), Wolt orders (`admin.woltOrders`, `woltPoller`-owned), and Foodora orders (`admin.foodoraOrders`, `foodoraPoller`-owned) live in separate synced keys — see those hooks' own doc comments — merged here purely for display, newest first. */
+  const allOrders = useMemo(() => [...orders, ...woltOrders, ...foodoraOrders].sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [orders, woltOrders, foodoraOrders])
+
+  const updateStatus = (order: OrderRecord, status: OrderStatus) => {
+    if (order.source === 'wolt') {
+      setWoltOrders(woltOrders.map((candidate) => (candidate.id === order.id ? { ...candidate, status } : candidate)))
+      if (session) {
+        pushWoltOrderStatus(session.token, order.externalId ?? order.id, status).catch((error) => {
+          reportError(t('admin.orders.woltStatusPushError'), error instanceof Error ? error.message : undefined)
+        })
+      }
+      return
+    }
+    if (order.source === 'foodora') {
+      setFoodoraOrders(foodoraOrders.map((candidate) => (candidate.id === order.id ? { ...candidate, status } : candidate)))
+      if (session) {
+        pushFoodoraOrderStatus(session.token, order.externalId ?? order.id, status).catch((error) => {
+          reportError(t('admin.orders.foodoraStatusPushError'), error instanceof Error ? error.message : undefined)
+        })
+      }
+      return
+    }
+    setOrders(orders.map((candidate) => (candidate.id === order.id ? { ...candidate, status } : candidate)))
   }
 
   /**
@@ -61,19 +90,19 @@ export function OrdersView() {
       })
     }, 2000)
     return () => clearTimeout(timeout)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-runs as `orders` loads in, but becomes a no-op once `orderId` is stripped from the URL.
-  }, [orders])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-runs as `allOrders` loads in, but becomes a no-op once `orderId` is stripped from the URL.
+  }, [allOrders])
 
   return (
     <div className="orders-view">
       <TranslatedText as="h1" id="admin.orders.title" />
       <TranslatedText as="p" id="admin.orders.description" className="admin-page-description" />
 
-      {orders.length === 0 ? (
+      {allOrders.length === 0 ? (
         <p className="orders-view__empty">{t('admin.orders.noOrders')}</p>
       ) : (
         <ul className="orders-view__list">
-          {orders.map((order: OrderRecord) => (
+          {allOrders.map((order: OrderRecord) => (
             <li
               key={order.id}
               ref={(element) => {
@@ -84,6 +113,8 @@ export function OrdersView() {
               <Card>
                 <div className="orders-view__header">
                   <div>
+                    {order.source === 'wolt' && <FetchedLogo slug="wolt" label={t('admin.orders.sourceWolt')} className="orders-view__source-badge" />}
+                    {order.source === 'foodora' && <FetchedLogo slug="foodora" label={t('admin.orders.sourceFoodora')} className="orders-view__source-badge" />}
                     <span className="orders-view__customer">{order.customerName}</span>
                     <span className="orders-view__phone">{order.customerPhone}</span>
                   </div>
@@ -117,7 +148,7 @@ export function OrdersView() {
 
                 <label className="orders-view__status-field">
                   <span>{t('admin.orders.statusLabel')}</span>
-                  <select value={order.status} onChange={(event) => updateStatus(order.id, event.target.value as OrderStatus)}>
+                  <select value={order.status} onChange={(event) => updateStatus(order, event.target.value as OrderStatus)}>
                     {STATUS_OPTIONS.map((status) => (
                       <option key={status} value={status}>
                         {t(`admin.orders.status.${status}`)}

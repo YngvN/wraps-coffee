@@ -100,9 +100,22 @@ export type ScreenSlotContent =
   | ({ kind: 'image'; imageUrl: string; fit?: ImageFit; resizeToFit?: boolean; resizeScale?: number } & OwnBackgroundImageFields)
   | ({
       kind: 'qrcode'
+      /** Used only while `linkMode` is `'custom'` (or unset). */
       url: string
       /** Percentage (`MIN_QR_CODE_SIZE`-100) of the pane's own available space the code fills. Falls back to `DEFAULT_QR_CODE_SIZE` (as large as it can be) when unset. */
       size?: number
+      /** `'custom'` encodes `url` as typed; `'news'` instead encodes whichever article `newsSourceMode` resolves to, refreshing as new headlines arrive. Falls back to `'custom'` — existing panes keep working unchanged. */
+      linkMode?: 'custom' | 'news'
+      /** Only relevant while `linkMode` is `'news'`. `'automatic'` (the default) follows whichever headline a `'news'`-kind pane on this same screen is currently showing — see `newsSlotOrdinal` for picking *which* one, when there's more than one. `'specific'` instead always links to `linkedNewsSourceId`'s own latest headline, independent of any News pane. */
+      newsSourceMode?: 'automatic' | 'specific'
+      /** Which of `ExtensionsConfig['news']['enabledSourceIds']` this code links to. Only relevant while `newsSourceMode` is `'specific'` — a QR code encodes one URL, so this is a single pick, not a multi-select like a `'news'` slide's own `sourceIds`. */
+      linkedNewsSourceId?: string
+      /** Which `'news'`-kind pane on this same screen/stage to follow, by 1-based position among them — only relevant (and only meaningful with more than one) while `newsSourceMode` is `'automatic'`. Same "simple admin-set ordinal" pattern as `'event'`'s own `eventOrdinal`. Falls back to `1`. */
+      newsSlotOrdinal?: number
+      /** Embeds the linked source's own logo in the code's center (see `FetchedLogo`'s fallback monogram when no real logo file exists yet), with the surrounding modules excavated and error-correction raised so it stays scannable. Only relevant while `linkMode` is `'news'`. Falls back to `true`. */
+      showSourceLogo?: boolean
+      /** Overrides the pane's own background with the linked source's own brand color instead of the screen's normal styling. Only relevant while `linkMode` is `'news'`. Falls back to `true`. */
+      useSourceTheme?: boolean
     } & OwnBackgroundImageFields)
   | ({
       kind: 'transit'
@@ -162,6 +175,20 @@ export type ScreenSlotContent =
       showBrandLogo?: boolean
       textSizes?: TextSizes
     } & OwnBackgroundImageFields)
+  | ({
+      kind: 'news'
+      /** Which of `ExtensionsConfig['news']['enabledSourceIds']` this pane pulls headlines from. Empty/unset means every cafe-wide-enabled source. */
+      sourceIds?: string[]
+      /** How many headlines this pane cycles through. Falls back to `DEFAULT_NEWS_HEADLINE_COUNT`. */
+      headlineCount?: number
+      /** Seconds between headlines — this pane's own internal rotation timer, independent of the screen's shared stage rotation (same posture as a `'messageboard'` slide's own `'rotating'` mode). Falls back to `DEFAULT_NEWS_ROTATE_SECONDS`. */
+      rotateSeconds?: number
+      /** Overrides the pane's own background with whichever source the currently-shown headline is from, swapping as it rotates between sources. Falls back to `true`. */
+      useBrandTheme?: boolean
+      /** Shows the current headline's own source logo in the pane's top-left corner. Only relevant while `useBrandTheme` is on. Falls back to `true`. */
+      showBrandLogo?: boolean
+      textSizes?: TextSizes
+    } & OwnBackgroundImageFields)
   | ({ kind: 'announcement'; title: string; description: string; textSizes?: TextSizes } & OwnBackgroundImageFields)
   | ({
       kind: 'messageboard'
@@ -214,6 +241,12 @@ export const DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS = 8
 
 /** Used when a `'messageboard'` slide's own `count` is unset. */
 export const DEFAULT_MESSAGE_BOARD_COUNT = 10
+
+/** Used when a `'news'` slide's own `headlineCount` is unset. */
+export const DEFAULT_NEWS_HEADLINE_COUNT = 8
+
+/** Used when a `'news'` slide's own `rotateSeconds` is unset. */
+export const DEFAULT_NEWS_ROTATE_SECONDS = 8
 
 /** What a `'time'` slide shows: a live clock, the full date, just the weekday name, or the ISO week number. */
 export type TimeDisplayMode = 'time' | 'date' | 'weekday' | 'weekNumber'

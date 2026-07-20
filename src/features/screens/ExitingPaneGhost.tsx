@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import type { LanguageCode } from '../../i18n'
 import type { PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
 import type { Rect } from '../../utils/layoutGeometry'
@@ -18,6 +19,8 @@ interface ExitingPaneGhostProps {
   defaultPaneLanguage: LanguageCode
   /** Called once the collapse animation finishes, so the caller (`SplitLayout`) can prune this ghost from its own tracking state. */
   onCollapseComplete: (leafId: PaneId) => void
+  /** Threaded straight through to the wrapped `LayoutPane`. See `LayoutTree`'s own prop of the same name. */
+  newsSlots: NewsSlotSettings[]
 }
 
 /**
@@ -32,7 +35,7 @@ interface ExitingPaneGhostProps {
  * present, since removing a leaf from the tree never touches `paneSlots`
  * (orphaned entries are deliberately left in place).
  */
-export function ExitingPaneGhost({ leafId, rect, growth, slot, stage, transitionStyle, resolveTextSizes, defaultPaneLanguage, onCollapseComplete }: ExitingPaneGhostProps) {
+export function ExitingPaneGhost({ leafId, rect, growth, slot, stage, transitionStyle, resolveTextSizes, defaultPaneLanguage, onCollapseComplete, newsSlots }: ExitingPaneGhostProps) {
   const collapsedPath = growth.kind !== 'fade' ? collapsedClipPath(growth.edge) : FULL_REVEAL_CLIP_PATH
 
   return (
@@ -57,6 +60,7 @@ export function ExitingPaneGhost({ leafId, rect, growth, slot, stage, transition
         reducedMotion={false}
         canDelete={false}
         locked={false}
+        newsSlots={newsSlots}
       />
     </motion.div>
   )

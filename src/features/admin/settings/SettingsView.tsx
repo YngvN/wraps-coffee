@@ -14,13 +14,14 @@ import { StoreSettingsView } from '../store/StoreSettingsView'
 import { AdvancedSettingsView } from './AdvancedSettingsView'
 import { BackupSettingsView } from './BackupSettingsView'
 import { DeveloperDocsView } from './DeveloperDocsView'
+import { TestingSettingsView } from './TestingSettingsView'
 import './SettingsView.scss'
 
 const CLOCK_FORMATS: ClockFormat[] = ['24h', '12h']
 const DATE_FORMATS: DateFormat[] = ['dmy', 'mdy']
 
-type SubView = 'main' | 'developers' | 'advanced' | 'backup' | 'store'
-const DEEP_LINKABLE_SUB_VIEWS: SubView[] = ['developers', 'advanced', 'backup', 'store']
+type SubView = 'main' | 'developers' | 'advanced' | 'backup' | 'store' | 'testing'
+const DEEP_LINKABLE_SUB_VIEWS: SubView[] = ['developers', 'advanced', 'backup', 'store', 'testing']
 
 /** Admin-wide settings: the interface language, the cafe's own Standard pane language (the default kiosk panes render their content in, independent of the interface language above — see `useDefaultPaneLanguage`, overridable per pane from its own "Language" sub-menu), the shared clock format (24-hour or 12-hour AM/PM) and date format (day-month-year or month-day-year — used everywhere a wall-clock time/plain date is shown: the weather forecast, admin timestamps, uploaded-image/message-board-post dates, the screensaver schedule's own time pickers, and a "time" pane's own shorthand date), which sidebar items this cafe's dashboard shows (different cafes use different features — a cafe with no online ordering or no digital signage can hide those tabs entirely), a "For developers" sub-view documenting the local server's own API, and (admin/subadmin only) an "Advanced" sub-view for how a screen's own link should be addressed (see `AdvancedSettingsView`). More device/account-level preferences land here over time. */
 export function SettingsView() {
@@ -108,6 +109,15 @@ export function SettingsView() {
           </div>
           <TranslatedText as="p" id="admin.settings.backup.description" className="admin-page-description" />
           <BackupSettingsView />
+        </div>
+      ) : subView === 'testing' ? (
+        <div className="settings-view">
+          <div className="settings-view__docs-header">
+            <BackButton onClick={closeSubView}>{t('admin.common.back')}</BackButton>
+            <TranslatedText as="h1" id="admin.settings.testing.title" />
+          </div>
+          <TranslatedText as="p" id="admin.settings.testing.description" className="admin-page-description" />
+          <TestingSettingsView />
         </div>
       ) : (
         <div className="settings-view">
@@ -234,6 +244,14 @@ export function SettingsView() {
               <p className="settings-view__developers-hint">{t('admin.settings.backup.hint')}</p>
               <Button type="button" variant="secondary" onClick={() => openSubView('backup')}>
                 {t('admin.settings.backup.button')}
+              </Button>
+            </Card>
+          )}
+          {session?.role !== 'limited' && (
+            <Card title={t('admin.settings.testing.title')}>
+              <p className="settings-view__developers-hint">{t('admin.settings.testing.hint')}</p>
+              <Button type="button" variant="secondary" onClick={() => openSubView('testing')}>
+                {t('admin.settings.testing.button')}
               </Button>
             </Card>
           )}

@@ -132,7 +132,9 @@ export const COMING_SOON_EXTENSIONS: ComingSoonExtension[] = [
   { id: 'trelloTodoist', categoryId: 'staff', logos: [<TrelloLogo key="trello" />, <TodoistLogo key="todoist" />], tags: ['huskeliste', 'checklist', 'todo', 'oppgaver', 'tasks', 'rutiner', 'routines'] },
 
   // Kundeservice, Bestilling & Booking
-  { id: 'foodoraWolt', categoryId: 'booking', logos: [<FetchedLogo key="foodora" slug="foodora" label="Foodora" />, <FetchedLogo key="wolt" slug="wolt" label="Wolt" />], tags: ['levering', 'delivery', 'bestilling', 'order', 'ordre', 'takeaway'] },
+  // Wolt and Foodora are no longer "coming soon" — both are real,
+  // toggleable integrations now (see `ExtensionsView.tsx`'s own
+  // `woltSubmenu`/`foodoraSubmenu`).
   { id: 'tablePlanner', categoryId: 'booking', logos: [<TablePlanIcon key="tableplanner" />], tags: ['bordbestilling', 'table booking', 'reservasjon', 'reservation', 'selskap', 'event booking', 'bordkart'] },
   { id: 'zendesk', categoryId: 'booking', logos: [<ZendeskLogo key="zendesk" />], tags: ['kundeservice', 'customer service', 'chat', 'support', 'innboks', 'inbox'] },
 

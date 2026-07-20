@@ -1,11 +1,20 @@
 import { useEffect, useState } from 'react'
 import { Alert, Button, Checkbox, CloseIcon, FetchedLogo, Input, Modal, PlusIcon, SlideTransition, TranslatedText, YrLogo } from '../../../components'
+import { useAdminSession } from '../../../hooks/useAdminSession'
+import { useClockFormatPreference } from '../../../hooks/useClockFormatPreference'
 import { useContactInfo } from '../../../hooks/useContactInfo'
+import { useDateFormatPreference } from '../../../hooks/useDateFormatPreference'
 import { useExtensionsConfig } from '../../../hooks/useExtensionsConfig'
+import { useFoodoraConfig } from '../../../hooks/useFoodoraConfig'
+import { useFoodoraOrders } from '../../../hooks/useFoodoraOrders'
+import { useWoltConfig } from '../../../hooks/useWoltConfig'
+import { useWoltOrders } from '../../../hooks/useWoltOrders'
 import { useLanguage } from '../../../i18n'
-import { lookupAddress, searchStops } from '../../../lib/localServer'
+import { getFoodoraCredentials, getWoltCredentials, lookupAddress, searchStops, setFoodoraCredentials, setWoltCredentials, triggerFoodoraSync, triggerWoltSync } from '../../../lib/localServer'
 import type { ExtensionsConfig, NearbyStop, WeatherLocation } from '../../../types/extensions'
+import { NEWS_SOURCES } from '../../../types/news'
 import { TransitModeIcon } from '../../screens/TransitModeIcon'
+import { formatDateTime } from '../../../utils/clockFormat'
 import { generateId } from '../../../utils/id'
 import { TRANSIT_MODES } from '../../../utils/transitModes'
 import { weatherLocationKey } from '../../../utils/weatherLocationKey'
@@ -104,9 +113,36 @@ function computeWeatherStatus(config: ExtensionsConfig): WeatherStatus {
  * sub-views.
  */
 export function ExtensionsView() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
+  const { session } = useAdminSession()
+  const [clockFormat] = useClockFormatPreference()
+  const [dateFormat] = useDateFormatPreference()
   const [contactInfo] = useContactInfo()
   const [config, setConfig] = useExtensionsConfig()
+  const [woltConfig, setWoltConfig] = useWoltConfig()
+  const [woltOrders] = useWoltOrders()
+  const [woltSubmenuOpen, setWoltSubmenuOpen] = useState(false)
+  const [woltVenueIdDraft, setWoltVenueIdDraft] = useState('')
+  const [woltApiKeyDraft, setWoltApiKeyDraft] = useState('')
+  /** Loaded alongside the credentials above but never edited from this card — the environment checkbox lives in Settings → Testing (see `TestingSettingsView`) — just carried through so saving venue id/API key here doesn't reset it back to production. */
+  const [woltUseDevelopmentEnvironment, setWoltUseDevelopmentEnvironment] = useState(false)
+  const [hasSavedWoltCredentials, setHasSavedWoltCredentials] = useState(false)
+  const [isSavingWoltCredentials, setIsSavingWoltCredentials] = useState(false)
+  const [woltCredentialsError, setWoltCredentialsError] = useState<string | null>(null)
+  const [isSyncingWolt, setIsSyncingWolt] = useState(false)
+  const [woltSyncError, setWoltSyncError] = useState<string | null>(null)
+  const [foodoraConfig, setFoodoraConfig] = useFoodoraConfig()
+  const [foodoraOrders] = useFoodoraOrders()
+  const [foodoraSubmenuOpen, setFoodoraSubmenuOpen] = useState(false)
+  const [foodoraVenueIdDraft, setFoodoraVenueIdDraft] = useState('')
+  const [foodoraApiKeyDraft, setFoodoraApiKeyDraft] = useState('')
+  /** Loaded alongside the credentials above but never edited from this card — the environment checkbox lives in Settings → Testing (see `TestingSettingsView`) — just carried through so saving venue id/API key here doesn't reset it back to production. */
+  const [foodoraUseDevelopmentEnvironment, setFoodoraUseDevelopmentEnvironment] = useState(false)
+  const [hasSavedFoodoraCredentials, setHasSavedFoodoraCredentials] = useState(false)
+  const [isSavingFoodoraCredentials, setIsSavingFoodoraCredentials] = useState(false)
+  const [foodoraCredentialsError, setFoodoraCredentialsError] = useState<string | null>(null)
+  const [isSyncingFoodora, setIsSyncingFoodora] = useState(false)
+  const [foodoraSyncError, setFoodoraSyncError] = useState<string | null>(null)
   const [isLookingUp, setIsLookingUp] = useState(false)
   const [lookupError, setLookupError] = useState<string | null>(null)
   const [lookingUpLocationId, setLookingUpLocationId] = useState<string | null>(null)
@@ -117,12 +153,90 @@ export function ExtensionsView() {
   const [stopSearchError, setStopSearchError] = useState<string | null>(null)
   const [transitIconsOpen, setTransitIconsOpen] = useState(false)
   const [weatherIconsOpen, setWeatherIconsOpen] = useState(false)
-  const [weatherSubmenuOpen, setWeatherSubmenuOpen] = useState(true)
-  const [transitSubmenuOpen, setTransitSubmenuOpen] = useState(true)
-  const [enturSubmenuOpen, setEnturSubmenuOpen] = useState(true)
+  const [weatherSubmenuOpen, setWeatherSubmenuOpen] = useState(false)
+  const [transitSubmenuOpen, setTransitSubmenuOpen] = useState(false)
+  const [enturSubmenuOpen, setEnturSubmenuOpen] = useState(false)
+  const [newsSubmenuOpen, setNewsSubmenuOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   /** `1` once the search bar has text (results slide in from the right), `-1` once it's cleared back to empty (sliding back to the normal view) — same convention `SettingsView` uses for its own sub-views. */
   const [searchDirection, setSearchDirection] = useState<1 | -1>(1)
+
+  // Loads the saved Wolt credentials once a session exists, same posture as
+  // `DeveloperDocsView`'s own Neon URL load — admin/subadmin only, so this
+  // silently leaves the drafts empty for a `limited` account (its own
+  // "missing credentials" yellow status will show either way, since it
+  // can't see whether someone else has already saved real ones).
+  useEffect(() => {
+    if (!session) return
+    getWoltCredentials(session.token)
+      .then(({ venueId, apiKey, useDevelopmentEnvironment }) => {
+        setWoltVenueIdDraft(venueId ?? '')
+        setWoltApiKeyDraft(apiKey ?? '')
+        setWoltUseDevelopmentEnvironment(useDevelopmentEnvironment)
+        setHasSavedWoltCredentials(Boolean(venueId && apiKey))
+      })
+      .catch(() => {
+        // A `limited` account gets a 403 here — expected, not worth surfacing as an error.
+      })
+  }, [session])
+
+  const handleSaveWoltCredentials = () => {
+    if (!session) return
+    setIsSavingWoltCredentials(true)
+    setWoltCredentialsError(null)
+    setWoltCredentials(session.token, { venueId: woltVenueIdDraft.trim() || null, apiKey: woltApiKeyDraft.trim() || null, useDevelopmentEnvironment: woltUseDevelopmentEnvironment })
+      .then(({ venueId, apiKey }) => {
+        setHasSavedWoltCredentials(Boolean(venueId && apiKey))
+      })
+      .catch(() => setWoltCredentialsError(t('admin.extensions.woltCredentialsSaveError')))
+      .finally(() => setIsSavingWoltCredentials(false))
+  }
+
+  const handleSyncWoltNow = () => {
+    if (!session) return
+    setIsSyncingWolt(true)
+    setWoltSyncError(null)
+    triggerWoltSync(session.token)
+      .catch(() => setWoltSyncError(t('admin.extensions.woltSyncError')))
+      .finally(() => setIsSyncingWolt(false))
+  }
+
+  // Loads the saved Foodora credentials once a session exists — same
+  // posture as the Wolt effect above.
+  useEffect(() => {
+    if (!session) return
+    getFoodoraCredentials(session.token)
+      .then(({ venueId, apiKey, useDevelopmentEnvironment }) => {
+        setFoodoraVenueIdDraft(venueId ?? '')
+        setFoodoraApiKeyDraft(apiKey ?? '')
+        setFoodoraUseDevelopmentEnvironment(useDevelopmentEnvironment)
+        setHasSavedFoodoraCredentials(Boolean(venueId && apiKey))
+      })
+      .catch(() => {
+        // A `limited` account gets a 403 here — expected, not worth surfacing as an error.
+      })
+  }, [session])
+
+  const handleSaveFoodoraCredentials = () => {
+    if (!session) return
+    setIsSavingFoodoraCredentials(true)
+    setFoodoraCredentialsError(null)
+    setFoodoraCredentials(session.token, { venueId: foodoraVenueIdDraft.trim() || null, apiKey: foodoraApiKeyDraft.trim() || null, useDevelopmentEnvironment: foodoraUseDevelopmentEnvironment })
+      .then(({ venueId, apiKey }) => {
+        setHasSavedFoodoraCredentials(Boolean(venueId && apiKey))
+      })
+      .catch(() => setFoodoraCredentialsError(t('admin.extensions.foodoraCredentialsSaveError')))
+      .finally(() => setIsSavingFoodoraCredentials(false))
+  }
+
+  const handleSyncFoodoraNow = () => {
+    if (!session) return
+    setIsSyncingFoodora(true)
+    setFoodoraSyncError(null)
+    triggerFoodoraSync(session.token)
+      .catch(() => setFoodoraSyncError(t('admin.extensions.foodoraSyncError')))
+      .finally(() => setIsSyncingFoodora(false))
+  }
 
   const handleSearchQueryChange = (value: string) => {
     const wasSearching = searchQuery.trim().length > 0
@@ -552,6 +666,302 @@ export function ExtensionsView() {
     </AnimatedDetails>
   )
 
+  const toggleNewsSource = (sourceId: string) => {
+    const isEnabled = config.news.enabledSourceIds.includes(sourceId)
+    const enabledSourceIds = isEnabled ? config.news.enabledSourceIds.filter((id) => id !== sourceId) : [...config.news.enabledSourceIds, sourceId]
+    setConfig({ ...config, news: { ...config.news, enabledSourceIds } })
+  }
+
+  const newsSubmenu = (
+    <AnimatedDetails
+      className="extension-submenu"
+      summaryClassName="extension-submenu__summary"
+      bodyClassName="extension-submenu__body"
+      open={newsSubmenuOpen}
+      onToggle={() => setNewsSubmenuOpen((current) => !current)}
+      summary={
+        <>
+          <ActivationToggle
+            id="extensions-news-enabled"
+            label={t('admin.extensions.newsEnableLabel')}
+            checked={config.news.enabled}
+            disabled={config.news.enabledSourceIds.length === 0}
+            confirmMessage={t('admin.extensions.newsDeactivateConfirm')}
+            onChange={(checked) => setConfig({ ...config, news: { ...config.news, enabled: checked } })}
+          />
+          <FetchedLogo slug="rss" label="RSS" className="extension-submenu__icon" />
+          <span className="extension-submenu__title">
+            <span className="extension-submenu__brand">{t('admin.extensions.newsBrandName')}</span>
+            <span className="extension-submenu__label">{t('admin.extensions.newsLabel')}</span>
+          </span>
+          <span
+            className={`status-dot${config.news.enabled ? ' status-dot--active' : ' status-dot--disabled'}`}
+            title={t(config.news.enabled ? 'admin.extensions.statusEnabled' : 'admin.extensions.statusDisabled')}
+          />
+          <span className="extension-submenu__chevron" aria-hidden="true">
+            ▸
+          </span>
+        </>
+      }
+    >
+      <p className="extensions-view__hint">{t('admin.extensions.newsEnabledDescription')}</p>
+      {config.news.enabledSourceIds.length === 0 && <p className="extensions-view__hint">{t('admin.extensions.newsNeedsSourceHint')}</p>}
+      <p className="extensions-view__stops-label">{t('admin.extensions.newsSourcesLabel')}</p>
+      <ul className="extensions-view__stop-list">
+        {NEWS_SOURCES.map((source) => (
+          <li key={source.id}>
+            <Checkbox
+              id={`extensions-news-source-${source.id}`}
+              label={source.name}
+              checked={config.news.enabledSourceIds.includes(source.id)}
+              onChange={() => toggleNewsSource(source.id)}
+            />
+          </li>
+        ))}
+      </ul>
+    </AnimatedDetails>
+  )
+
+  // Forces the dot/label to read "disabled" while the toggle itself is off,
+  // regardless of whatever `status.state` was last reported before it was
+  // switched off — same posture as `computeWeatherStatus` above, so a stale
+  // "live" reading from before a disable doesn't linger and mislead.
+  //
+  // Unlike Weather/Transit, the toggle itself is never gated off (an admin
+  // can turn Wolt on before saving credentials) — enabled-but-uncredentialed
+  // is its own yellow state instead, since that's the expected state right
+  // after flipping it on but before pasting in real values.
+  const woltMissingCredentials = woltConfig.enabled && !hasSavedWoltCredentials
+  const woltEffectiveState = !woltConfig.enabled ? 'disabled' : woltMissingCredentials ? 'stale' : woltConfig.status.state
+  const woltStatusDotClass =
+    woltEffectiveState === 'live'
+      ? 'status-dot--active'
+      : woltEffectiveState === 'stale'
+        ? 'status-dot--stale'
+        : woltEffectiveState === 'error'
+          ? 'status-dot--inactive'
+          : 'status-dot--disabled'
+  const woltStatusTitleKey = woltMissingCredentials
+    ? 'admin.extensions.woltNeedsCredentialsHint'
+    : woltEffectiveState === 'live'
+      ? 'admin.extensions.statusEnabled'
+      : woltEffectiveState === 'stale'
+        ? 'admin.extensions.statusStale'
+        : woltEffectiveState === 'error'
+          ? 'admin.extensions.statusError'
+          : 'admin.extensions.statusDisabled'
+  const woltStatusLabelKey = woltMissingCredentials
+    ? 'admin.extensions.woltStatusMissingCredentials'
+    : woltEffectiveState === 'live'
+      ? 'admin.extensions.woltStatusLive'
+      : woltEffectiveState === 'stale'
+        ? 'admin.extensions.woltStatusStale'
+        : woltEffectiveState === 'error'
+          ? 'admin.extensions.woltStatusError'
+          : 'admin.extensions.woltStatusDisabled'
+
+  const woltSubmenu = (
+    <AnimatedDetails
+      className="extension-submenu"
+      summaryClassName="extension-submenu__summary"
+      bodyClassName="extension-submenu__body"
+      open={woltSubmenuOpen}
+      onToggle={() => setWoltSubmenuOpen((current) => !current)}
+      summary={
+        <>
+          <ActivationToggle
+            id="extensions-wolt-enabled"
+            label={t('admin.extensions.woltEnableLabel')}
+            checked={woltConfig.enabled}
+            confirmMessage={t('admin.extensions.woltDeactivateConfirm')}
+            onChange={(checked) => setWoltConfig({ ...woltConfig, enabled: checked })}
+          />
+          <FetchedLogo slug="wolt" label="Wolt" className="extension-submenu__icon" />
+          <span className="extension-submenu__title">
+            <span className="extension-submenu__brand">{t('admin.extensions.woltBrandName')}</span>
+            <span className="extension-submenu__label">{t('admin.extensions.woltLabel')}</span>
+          </span>
+          <span
+            className={`status-dot ${woltStatusDotClass}`}
+            title={!woltMissingCredentials && woltEffectiveState === 'error' && woltConfig.status.detail ? woltConfig.status.detail : t(woltStatusTitleKey)}
+          />
+          <span className="extension-submenu__chevron" aria-hidden="true">
+            ▸
+          </span>
+        </>
+      }
+    >
+      <p className="extensions-view__hint">{t('admin.extensions.woltEnabledDescription')}</p>
+      {!hasSavedWoltCredentials && <p className="extensions-view__hint">{t('admin.extensions.woltNeedsCredentialsHint')}</p>}
+
+      <Input
+        id="extensions-wolt-venue-id"
+        label={t('admin.extensions.woltVenueIdLabel')}
+        value={woltVenueIdDraft}
+        onChange={(event) => setWoltVenueIdDraft(event.target.value)}
+      />
+      <Input
+        id="extensions-wolt-api-key"
+        type="password"
+        label={t('admin.extensions.woltApiKeyLabel')}
+        value={woltApiKeyDraft}
+        onChange={(event) => setWoltApiKeyDraft(event.target.value)}
+      />
+      <p className="extensions-view__hint">{t('admin.extensions.woltCredentialsHint')}</p>
+      {woltCredentialsError && <Alert variant="error">{woltCredentialsError}</Alert>}
+      <Button type="button" variant="secondary" onClick={handleSaveWoltCredentials} disabled={isSavingWoltCredentials || (!woltVenueIdDraft.trim() && !woltApiKeyDraft.trim())}>
+        {isSavingWoltCredentials ? t('admin.extensions.woltCredentialsSavingButton') : t('admin.extensions.woltCredentialsSaveButton')}
+      </Button>
+
+      <div className="extensions-view__delivery-status">
+        <p className="extensions-view__stops-label">{t('admin.extensions.woltStatusSectionTitle')}</p>
+        <span>
+          {t('admin.extensions.woltStatusLabel')}: {t(woltStatusLabelKey)}
+        </span>
+        {woltConfig.status.updatedAt > 0 && (
+          <span>
+            {t('admin.extensions.woltLastSyncedLabel')}: {formatDateTime(new Date(woltConfig.status.updatedAt), language, clockFormat, dateFormat)}
+          </span>
+        )}
+        {woltConfig.status.state === 'error' && woltConfig.status.detail && (
+          <span className="extensions-view__delivery-status-detail">
+            {t('admin.extensions.woltLastErrorLabel')}: {woltConfig.status.detail}
+          </span>
+        )}
+        <span>
+          {t('admin.extensions.woltOrdersSyncedLabel')}: {woltOrders.length}
+        </span>
+        {woltConfig.status.lastOrderAt && (
+          <span>
+            {t('admin.extensions.woltLastOrderLabel')}: {formatDateTime(new Date(woltConfig.status.lastOrderAt), language, clockFormat, dateFormat)}
+          </span>
+        )}
+        <span className="extensions-view__hint">{t('admin.extensions.woltPollIntervalHint')}</span>
+      </div>
+
+      {woltSyncError && <Alert variant="error">{woltSyncError}</Alert>}
+      <Button type="button" variant="secondary" onClick={handleSyncWoltNow} disabled={isSyncingWolt || !hasSavedWoltCredentials}>
+        {isSyncingWolt ? t('admin.extensions.woltSyncingLabel') : t('admin.extensions.woltSyncNowButton')}
+      </Button>
+    </AnimatedDetails>
+  )
+
+  // Same derivation as Wolt's own status above.
+  const foodoraMissingCredentials = foodoraConfig.enabled && !hasSavedFoodoraCredentials
+  const foodoraEffectiveState = !foodoraConfig.enabled ? 'disabled' : foodoraMissingCredentials ? 'stale' : foodoraConfig.status.state
+  const foodoraStatusDotClass =
+    foodoraEffectiveState === 'live'
+      ? 'status-dot--active'
+      : foodoraEffectiveState === 'stale'
+        ? 'status-dot--stale'
+        : foodoraEffectiveState === 'error'
+          ? 'status-dot--inactive'
+          : 'status-dot--disabled'
+  const foodoraStatusTitleKey = foodoraMissingCredentials
+    ? 'admin.extensions.foodoraNeedsCredentialsHint'
+    : foodoraEffectiveState === 'live'
+      ? 'admin.extensions.statusEnabled'
+      : foodoraEffectiveState === 'stale'
+        ? 'admin.extensions.statusStale'
+        : foodoraEffectiveState === 'error'
+          ? 'admin.extensions.statusError'
+          : 'admin.extensions.statusDisabled'
+  const foodoraStatusLabelKey = foodoraMissingCredentials
+    ? 'admin.extensions.foodoraStatusMissingCredentials'
+    : foodoraEffectiveState === 'live'
+      ? 'admin.extensions.foodoraStatusLive'
+      : foodoraEffectiveState === 'stale'
+        ? 'admin.extensions.foodoraStatusStale'
+        : foodoraEffectiveState === 'error'
+          ? 'admin.extensions.foodoraStatusError'
+          : 'admin.extensions.foodoraStatusDisabled'
+
+  const foodoraSubmenu = (
+    <AnimatedDetails
+      className="extension-submenu"
+      summaryClassName="extension-submenu__summary"
+      bodyClassName="extension-submenu__body"
+      open={foodoraSubmenuOpen}
+      onToggle={() => setFoodoraSubmenuOpen((current) => !current)}
+      summary={
+        <>
+          <ActivationToggle
+            id="extensions-foodora-enabled"
+            label={t('admin.extensions.foodoraEnableLabel')}
+            checked={foodoraConfig.enabled}
+            confirmMessage={t('admin.extensions.foodoraDeactivateConfirm')}
+            onChange={(checked) => setFoodoraConfig({ ...foodoraConfig, enabled: checked })}
+          />
+          <FetchedLogo slug="foodora" label="Foodora" className="extension-submenu__icon" />
+          <span className="extension-submenu__title">
+            <span className="extension-submenu__brand">{t('admin.extensions.foodoraBrandName')}</span>
+            <span className="extension-submenu__label">{t('admin.extensions.foodoraLabel')}</span>
+          </span>
+          <span
+            className={`status-dot ${foodoraStatusDotClass}`}
+            title={!foodoraMissingCredentials && foodoraEffectiveState === 'error' && foodoraConfig.status.detail ? foodoraConfig.status.detail : t(foodoraStatusTitleKey)}
+          />
+          <span className="extension-submenu__chevron" aria-hidden="true">
+            ▸
+          </span>
+        </>
+      }
+    >
+      <p className="extensions-view__hint">{t('admin.extensions.foodoraEnabledDescription')}</p>
+      {!hasSavedFoodoraCredentials && <p className="extensions-view__hint">{t('admin.extensions.foodoraNeedsCredentialsHint')}</p>}
+
+      <Input
+        id="extensions-foodora-venue-id"
+        label={t('admin.extensions.foodoraVenueIdLabel')}
+        value={foodoraVenueIdDraft}
+        onChange={(event) => setFoodoraVenueIdDraft(event.target.value)}
+      />
+      <Input
+        id="extensions-foodora-api-key"
+        type="password"
+        label={t('admin.extensions.foodoraApiKeyLabel')}
+        value={foodoraApiKeyDraft}
+        onChange={(event) => setFoodoraApiKeyDraft(event.target.value)}
+      />
+      <p className="extensions-view__hint">{t('admin.extensions.foodoraCredentialsHint')}</p>
+      {foodoraCredentialsError && <Alert variant="error">{foodoraCredentialsError}</Alert>}
+      <Button type="button" variant="secondary" onClick={handleSaveFoodoraCredentials} disabled={isSavingFoodoraCredentials || (!foodoraVenueIdDraft.trim() && !foodoraApiKeyDraft.trim())}>
+        {isSavingFoodoraCredentials ? t('admin.extensions.foodoraCredentialsSavingButton') : t('admin.extensions.foodoraCredentialsSaveButton')}
+      </Button>
+
+      <div className="extensions-view__delivery-status">
+        <p className="extensions-view__stops-label">{t('admin.extensions.foodoraStatusSectionTitle')}</p>
+        <span>
+          {t('admin.extensions.foodoraStatusLabel')}: {t(foodoraStatusLabelKey)}
+        </span>
+        {foodoraConfig.status.updatedAt > 0 && (
+          <span>
+            {t('admin.extensions.foodoraLastSyncedLabel')}: {formatDateTime(new Date(foodoraConfig.status.updatedAt), language, clockFormat, dateFormat)}
+          </span>
+        )}
+        {foodoraConfig.status.state === 'error' && foodoraConfig.status.detail && (
+          <span className="extensions-view__delivery-status-detail">
+            {t('admin.extensions.foodoraLastErrorLabel')}: {foodoraConfig.status.detail}
+          </span>
+        )}
+        <span>
+          {t('admin.extensions.foodoraOrdersSyncedLabel')}: {foodoraOrders.length}
+        </span>
+        {foodoraConfig.status.lastOrderAt && (
+          <span>
+            {t('admin.extensions.foodoraLastOrderLabel')}: {formatDateTime(new Date(foodoraConfig.status.lastOrderAt), language, clockFormat, dateFormat)}
+          </span>
+        )}
+        <span className="extensions-view__hint">{t('admin.extensions.foodoraPollIntervalHint')}</span>
+      </div>
+
+      {foodoraSyncError && <Alert variant="error">{foodoraSyncError}</Alert>}
+      <Button type="button" variant="secondary" onClick={handleSyncFoodoraNow} disabled={isSyncingFoodora || !hasSavedFoodoraCredentials}>
+        {isSyncingFoodora ? t('admin.extensions.foodoraSyncingLabel') : t('admin.extensions.foodoraSyncNowButton')}
+      </Button>
+    </AnimatedDetails>
+  )
+
   return (
     <div className="extensions-view">
       <div className="extensions-view__header">
@@ -583,7 +993,12 @@ export function ExtensionsView() {
               {config.weather.enabled && weatherSubmenu}
               {config.transit.enabled && transitSubmenu}
               {config.entur.enabled && enturSubmenu}
-              {!config.weather.enabled && !config.transit.enabled && !config.entur.enabled && <p className="extensions-view__hint">{t('admin.extensions.activatedEmptyHint')}</p>}
+              {config.news.enabled && newsSubmenu}
+              {woltConfig.enabled && woltSubmenu}
+              {foodoraConfig.enabled && foodoraSubmenu}
+              {!config.weather.enabled && !config.transit.enabled && !config.entur.enabled && !config.news.enabled && !woltConfig.enabled && !foodoraConfig.enabled && (
+                <p className="extensions-view__hint">{t('admin.extensions.activatedEmptyHint')}</p>
+              )}
             </section>
 
             <section className="extensions-view__category">
@@ -591,7 +1006,12 @@ export function ExtensionsView() {
               {!config.weather.enabled && weatherSubmenu}
               {!config.transit.enabled && transitSubmenu}
               {!config.entur.enabled && enturSubmenu}
-              {config.weather.enabled && config.transit.enabled && config.entur.enabled && <p className="extensions-view__hint">{t('admin.extensions.availableEmptyHint')}</p>}
+              {!config.news.enabled && newsSubmenu}
+              {!woltConfig.enabled && woltSubmenu}
+              {!foodoraConfig.enabled && foodoraSubmenu}
+              {config.weather.enabled && config.transit.enabled && config.entur.enabled && config.news.enabled && woltConfig.enabled && foodoraConfig.enabled && (
+                <p className="extensions-view__hint">{t('admin.extensions.availableEmptyHint')}</p>
+              )}
             </section>
 
             <ComingSoonSection />

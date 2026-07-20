@@ -20,6 +20,10 @@ export const SYNCED_KEYS = [
   'admin.orders',
   'admin.messageBoards',
   'admin.messageBoardPosts',
+  'admin.woltConfig',
+  'admin.woltOrders',
+  'admin.foodoraConfig',
+  'admin.foodoraOrders',
 ] as const
 
 export type SyncedKey = (typeof SYNCED_KEYS)[number]

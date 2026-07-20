@@ -1,0 +1,111 @@
+@use '../../styles/variables' as *;
+
+.news-slide {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: $spacing-unit * 6;
+  text-align: center;
+  overflow: hidden;
+  // A professional baseline even while `useBrandTheme` is off (no source's
+  // own `brandFontFamily` inline override active yet) — otherwise this
+  // pane falls back to the kiosk's own default heading fonts
+  // ($font-heading/$font-subheading, a cursive/handwriting look meant for
+  // menus and announcements), which reads wrong for a news headline.
+  font-family: $font-dashboard-sans;
+
+  &--empty {
+    color: var(--screen-text-muted);
+  }
+}
+
+.news-slide__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $spacing-unit * 1.5;
+  max-width: 90%;
+  max-height: 100%;
+}
+
+.news-slide__image {
+  max-width: 100%;
+  // Capped rather than a fixed height — a wide pane's own share of the
+  // headline (title/description/meta below) still gets the room it needs
+  // instead of the image alone claiming most of the pane.
+  max-height: 45%;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.news-slide__headline {
+  margin: 0;
+  // `global.scss` sets a `h2 { font-family: $font-subheading }` rule (a
+  // cursive font for the kiosk's own menu/announcement headings) that
+  // directly targets this element — an inherited value never wins against
+  // an explicit rule matching the element itself, however low that rule's
+  // own specificity is, so this needs its own explicit override back to
+  // "actually inherit from `.news-slide` (or its branded per-source font)."
+  font-family: inherit;
+  font-size: var(--slide-heading-size, 2.5rem);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.news-slide__description {
+  margin: 0;
+  font-size: var(--slide-description-size, 1.25rem);
+  line-height: 1.5;
+  color: var(--screen-text-muted);
+  // Long feed summaries would otherwise push the meta line (or the image)
+  // off a shorter pane — clamped rather than scrolling, since a kiosk
+  // display has no way to actually scroll it into view.
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.news-slide__meta {
+  margin: 0;
+  font-size: calc(var(--slide-description-size, 1.25rem) * 0.75);
+  color: var(--screen-text-muted);
+}
+
+// --- Per-source brand theme (see `useBrandTheme` in `SlideFields.tsx`) —
+// unlike `WeatherSlide`/`TransitSlide`'s own fixed one-or-two-brand SCSS
+// blocks, the actual color/font here are set inline from JS (`NewsSlide.tsx`,
+// via `--screen-bg`/`--screen-text`/`--screen-text-muted`/`font-family`)
+// since they swap across 7 data-driven sources rather than a fixed brand —
+// this class just applies whatever those custom properties/inline style
+// currently hold, same as the fixed variants apply their own hardcoded
+// values. `font-family` here is only the fallback for the rare case the
+// inline style is somehow absent while this class is still applied.
+.news-slide--branded {
+  font-family: $font-dashboard-sans;
+  color: var(--screen-text);
+  background: var(--screen-bg);
+}
+
+.news-slide__brand-logo {
+  position: absolute;
+  top: $spacing-unit * 2;
+  left: $spacing-unit * 2;
+  max-width: 40%;
+
+  // The real-logo-image variant (currently NRK only) gets a fixed height
+  // with auto width; the constructed text-badge variant (every other
+  // source) sizes itself from its own padding/font-size instead (see
+  // `NewsSourceMark.scss`) — forcing the same fixed box on both would
+  // either shrink the image oddly or squash the badge's own pill shape.
+  &.news-source-mark--image {
+    height: 2.5rem;
+    width: auto;
+  }
+
+  &.news-source-mark--text {
+    font-size: 1.15rem;
+  }
+}

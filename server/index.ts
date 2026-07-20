@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { WebSocketServer, type WebSocket } from 'ws'
 import type { DisplayMachine, DisplayMonitor } from '../src/types/displayMachine'
-import type { OrderRecord } from '../src/types/order'
+import type { OrderRecord, OrderStatus } from '../src/types/order'
 import type { Product } from '../src/types/product'
 import type { ScreenAddressSettings } from '../src/types/screenAddress'
 import type { WindowLaunchSettings } from '../src/types/windowLaunch'
@@ -10,11 +10,16 @@ import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
 import * as backup from './backup'
 import { handleDepartures, handleLookup, handleStopSearch, handleWeather } from './extensions'
+import { handleHeadlines } from './news'
 import { bearerToken, CORS_HEADERS, readJsonBody, sendJson } from './http'
 import * as mdns from './mdns'
 import * as neonBridge from './neonBridge'
 import * as store from './store'
 import { handleDeleteUpload, handleServeUpload, handleUpload, listUploads } from './uploads'
+import * as foodoraAdapter from './foodoraAdapter'
+import * as foodoraPoller from './foodoraPoller'
+import * as woltAdapter from './woltAdapter'
+import * as woltPoller from './woltPoller'
 
 const PORT = Number(process.env.WS_PORT ?? 4000)
 
@@ -35,6 +40,10 @@ const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
   'admin.orders': 'orders',
   'admin.messageBoards': 'messageboard',
   'admin.messageBoardPosts': 'messageboard',
+  'admin.woltConfig': 'orders',
+  'admin.woltOrders': 'orders',
+  'admin.foodoraConfig': 'orders',
+  'admin.foodoraOrders': 'orders',
 }
 
 function isSyncedKey(value: unknown): value is SyncedKey {
@@ -232,6 +241,24 @@ const httpServer = createServer((req, res) => {
     return
   }
 
+  // News (RSS headlines) proxy — same public, unauthenticated posture as
+  // the Extensions proxies above: read-only, cached, publicly published
+  // content, and the kiosk display that renders it is never a logged-in
+  // session either.
+  if (req.method === 'GET' && url.pathname === '/news/headlines') {
+    const sourceIds = (url.searchParams.get('sources') ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean)
+    const count = Number(url.searchParams.get('count') ?? '10')
+    if (sourceIds.length === 0) {
+      sendJson(res, 200, { headlines: [] })
+      return
+    }
+    void handleHeadlines(res, sourceIds, Number.isFinite(count) && count > 0 ? count : 10)
+    return
+  }
+
   // Developer API key (see "Website integration" in the sync-server plan) —
   // read by any authenticated session, regenerated only by admin/subadmin,
   // matching the Users-management posture elsewhere.
@@ -297,6 +324,215 @@ const httpServer = createServer((req, res) => {
         neonBridge.restart()
         console.log(`[neon] ${session.username} ${newUrl ? 'updated' : 'cleared'} the Neon database URL`)
         sendJson(res, 200, { url: newUrl })
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // Wolt delivery-order integration (see the Integrations page's own Wolt
+  // card, `server/woltPoller.ts`, `server/woltAdapter.ts`). Credentials
+  // contain a real API key, so admin/subadmin only, same posture as the
+  // Neon URL above. `/wolt/status/:orderId` pushes a local order-status
+  // edit back to Wolt — gated the same way a normal `admin.woltOrders`
+  // write would be via the WS `write` handler's own section check, so a
+  // `limited` account with the `orders` section still works here.
+  if (req.method === 'GET' && url.pathname === '/wolt/credentials') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view Wolt credentials' })
+      return
+    }
+    sendJson(res, 200, store.getWoltCredentials())
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/wolt/credentials') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can edit Wolt credentials' })
+      return
+    }
+    readJsonBody(req)
+      .then((body) => {
+        const { venueId, apiKey, useDevelopmentEnvironment } = body as { venueId?: string | null; apiKey?: string | null; useDevelopmentEnvironment?: boolean }
+        const credentials = {
+          venueId: typeof venueId === 'string' && venueId.trim() ? venueId.trim() : null,
+          apiKey: typeof apiKey === 'string' && apiKey.trim() ? apiKey.trim() : null,
+          useDevelopmentEnvironment: Boolean(useDevelopmentEnvironment),
+        }
+        store.setWoltCredentials(credentials)
+        woltPoller.restart()
+        console.log(`[wolt] ${session.username} updated Wolt credentials`)
+        sendJson(res, 200, credentials)
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/wolt/sync') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can trigger a Wolt sync' })
+      return
+    }
+    woltPoller
+      .pollOnce()
+      .then(() => sendJson(res, 200, { ok: true }))
+      .catch(() => sendJson(res, 502, { error: 'Wolt sync failed' }))
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname.startsWith('/wolt/status/')) {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      const section = SECTION_BY_KEY['admin.woltOrders']
+      if (section && !session.allowedSections?.includes(section)) {
+        sendJson(res, 403, { error: 'Only accounts with the Orders section can update a Wolt order' })
+        return
+      }
+    }
+    const orderId = url.pathname.slice('/wolt/status/'.length)
+    readJsonBody(req)
+      .then(async (body) => {
+        const { status } = body as { status?: OrderStatus }
+        if (!status) {
+          sendJson(res, 400, { error: 'Missing status' })
+          return
+        }
+        const orders = (store.get('admin.woltOrders')?.value as OrderRecord[] | undefined) ?? []
+        const order = orders.find((candidate) => candidate.id === orderId)
+        if (!order) {
+          sendJson(res, 404, { error: 'Wolt order not found' })
+          return
+        }
+        try {
+          await woltAdapter.pushStatus(store.getWoltCredentials(), order.externalId ?? order.id, status)
+          const updated = orders.map((candidate) => (candidate.id === orderId ? { ...candidate, status } : candidate))
+          applyUpdate('admin.woltOrders', updated)
+          console.log(`[wolt] ${session.username} pushed status "${status}" for order ${orderId}`)
+          sendJson(res, 200, { ok: true })
+        } catch (error) {
+          console.error('[wolt] status push failed:', error)
+          sendJson(res, 502, { error: 'Could not push this status update to Wolt' })
+        }
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // Foodora delivery-order integration — identical shape to the Wolt routes
+  // above (see `server/foodoraPoller.ts`, `server/foodoraAdapter.ts`).
+  if (req.method === 'GET' && url.pathname === '/foodora/credentials') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view Foodora credentials' })
+      return
+    }
+    sendJson(res, 200, store.getFoodoraCredentials())
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/foodora/credentials') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can edit Foodora credentials' })
+      return
+    }
+    readJsonBody(req)
+      .then((body) => {
+        const { venueId, apiKey, useDevelopmentEnvironment } = body as { venueId?: string | null; apiKey?: string | null; useDevelopmentEnvironment?: boolean }
+        const credentials = {
+          venueId: typeof venueId === 'string' && venueId.trim() ? venueId.trim() : null,
+          apiKey: typeof apiKey === 'string' && apiKey.trim() ? apiKey.trim() : null,
+          useDevelopmentEnvironment: Boolean(useDevelopmentEnvironment),
+        }
+        store.setFoodoraCredentials(credentials)
+        foodoraPoller.restart()
+        console.log(`[foodora] ${session.username} updated Foodora credentials`)
+        sendJson(res, 200, credentials)
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/foodora/sync') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can trigger a Foodora sync' })
+      return
+    }
+    foodoraPoller
+      .pollOnce()
+      .then(() => sendJson(res, 200, { ok: true }))
+      .catch(() => sendJson(res, 502, { error: 'Foodora sync failed' }))
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname.startsWith('/foodora/status/')) {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      const section = SECTION_BY_KEY['admin.foodoraOrders']
+      if (section && !session.allowedSections?.includes(section)) {
+        sendJson(res, 403, { error: 'Only accounts with the Orders section can update a Foodora order' })
+        return
+      }
+    }
+    const orderId = url.pathname.slice('/foodora/status/'.length)
+    readJsonBody(req)
+      .then(async (body) => {
+        const { status } = body as { status?: OrderStatus }
+        if (!status) {
+          sendJson(res, 400, { error: 'Missing status' })
+          return
+        }
+        const orders = (store.get('admin.foodoraOrders')?.value as OrderRecord[] | undefined) ?? []
+        const order = orders.find((candidate) => candidate.id === orderId)
+        if (!order) {
+          sendJson(res, 404, { error: 'Foodora order not found' })
+          return
+        }
+        try {
+          await foodoraAdapter.pushStatus(store.getFoodoraCredentials(), order.externalId ?? order.id, status)
+          const updated = orders.map((candidate) => (candidate.id === orderId ? { ...candidate, status } : candidate))
+          applyUpdate('admin.foodoraOrders', updated)
+          console.log(`[foodora] ${session.username} pushed status "${status}" for order ${orderId}`)
+          sendJson(res, 200, { ok: true })
+        } catch (error) {
+          console.error('[foodora] status push failed:', error)
+          sendJson(res, 502, { error: 'Could not push this status update to Foodora' })
+        }
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
     return
@@ -699,6 +935,11 @@ wss.on('connection', (socket) => {
         const screenAddressSettings = store.getScreenAddressSettings()
         if (screenAddressSettings.mode === 'mdns') mdns.apply(screenAddressSettings, (value as StoreSettings).name)
       }
+      // Flipping the Wolt/Foodora card's own ActivationToggle should try a
+      // sync immediately, rather than waiting up to `POLL_INTERVAL_MS` for
+      // the card's status dot to reflect the change.
+      if (key === 'admin.woltConfig') woltPoller.restart()
+      if (key === 'admin.foodoraConfig') foodoraPoller.restart()
       console.log(`[ws] ${session.username} wrote ${key}`)
       return
     }
@@ -743,6 +984,8 @@ process.on('unhandledRejection', (error) => {
 backup.restoreFromSiblingBackupIfFresh()
 store.load()
 neonBridge.start(applyUpdate, broadcastError)
+woltPoller.start(applyUpdate)
+foodoraPoller.start(applyUpdate)
 mdns.apply(store.getScreenAddressSettings(), currentStoreName())
 // Always on, regardless of the opt-in hostname mode above — see
 // advertiseServerPresence's own doc comment for why this needs to be a

@@ -1,3 +1,5 @@
+import { NEWS_SOURCES } from './news'
+
 /** One nearby public-transport stop place found via Entur's geocoder, a candidate for `ExtensionsConfig['transit']['selectedStops']`. */
 export interface NearbyStop {
   /** Entur's own stop place id (e.g. `"NSR:StopPlace:12345"`), passed straight through to the departures lookup. */
@@ -90,6 +92,18 @@ export interface ExtensionsConfig {
      */
     locationStatus: Record<string, WeatherLocationStatus>
   }
+  /**
+   * The on/off switch, plus which of the fixed `NEWS_SOURCES` (see
+   * `src/types/news.ts`) are available for a `'news'` slide or a
+   * `'qrcode'` slide's own "link to news article" mode to pick from — a
+   * slide's own headline count, rotation speed, and brand-theme toggles are
+   * configured per-slide instead (see `ScreenSlotContent`'s `'news'`
+   * variant), same posture as weather's own per-slide forecast settings.
+   */
+  news: {
+    enabled: boolean
+    enabledSourceIds: string[]
+  }
 }
 
 /** One location's last-reported fetch outcome (see `ExtensionsConfig['weather']['locationStatus']`): `'live'` (fetched fresh just now), `'stale'` (live fetch failed, showing a cached forecast up to 7 days old instead), or `'error'` (live fetch failed and there's no usable cache either). */
@@ -98,11 +112,12 @@ export interface WeatherLocationStatus {
   updatedAt: number
 }
 
-/** Starting values for a cafe that hasn't configured either integration yet. */
+/** Starting values for a cafe that hasn't configured any of these integrations yet. `news.enabledSourceIds` defaults to every seeded source, so News is ready to use the moment it's turned on. */
 export const DEFAULT_EXTENSIONS_CONFIG: ExtensionsConfig = {
   entur: { enabled: false, selectedStops: [] },
   transit: { enabled: false, selectedStops: [] },
   weather: { enabled: false, useStoreLocation: true, locations: [], locationStatus: {} },
+  news: { enabled: false, enabledSourceIds: NEWS_SOURCES.map((source) => source.id) },
 }
 
 /** One upcoming departure from `GET /extensions/departures`, as rendered by `TransitSlide`. */

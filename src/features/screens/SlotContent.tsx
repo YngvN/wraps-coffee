@@ -1,3 +1,4 @@
+import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import type { ScreenSlotContent } from '../../types/screen'
 import { AnnouncementSlide } from './AnnouncementSlide'
 import { CatalogueSlide } from './CatalogueSlide'
@@ -7,6 +8,7 @@ import { EventImageSlide } from './EventImageSlide'
 import { EventMonthSlide } from './EventMonthSlide'
 import { ImageSlide } from './ImageSlide'
 import { MessageBoardSlide } from './MessageBoardSlide'
+import { NewsSlide } from './NewsSlide'
 import { QrCodeSlide } from './QrCodeSlide'
 import { TimeSlide } from './TimeSlide'
 import { TransitSlide } from './TransitSlide'
@@ -14,10 +16,12 @@ import { WeatherSlide } from './WeatherSlide'
 
 interface SlotContentProps {
   slot: ScreenSlotContent
+  /** Every currently-resolved `'news'`-kind pane on this same screen — only consumed by the `'qrcode'` branch (its own "automatic" mode). See `LayoutTree`'s own prop of the same name. */
+  newsSlots: NewsSlotSettings[]
 }
 
 /** Renders whatever a screen slot is configured to show. */
-export function SlotContent({ slot }: SlotContentProps) {
+export function SlotContent({ slot, newsSlots }: SlotContentProps) {
   if (slot.kind === 'catalogue') return <CatalogueSlide catalogueId={slot.catalogueId} categories={slot.categories} />
   if (slot.kind === 'event') {
     const displayMode = slot.displayMode ?? 'calendar'
@@ -27,7 +31,30 @@ export function SlotContent({ slot }: SlotContentProps) {
     return <EventCalendarSlide count={slot.count} />
   }
   if (slot.kind === 'image') return <ImageSlide imageUrl={slot.imageUrl} fit={slot.fit} resizeToFit={slot.resizeToFit} />
-  if (slot.kind === 'qrcode') return <QrCodeSlide url={slot.url} size={slot.size} />
+  if (slot.kind === 'qrcode')
+    return (
+      <QrCodeSlide
+        url={slot.url}
+        size={slot.size}
+        linkMode={slot.linkMode}
+        newsSourceMode={slot.newsSourceMode}
+        linkedNewsSourceId={slot.linkedNewsSourceId}
+        newsSlotOrdinal={slot.newsSlotOrdinal}
+        newsSlots={newsSlots}
+        showSourceLogo={slot.showSourceLogo}
+        useSourceTheme={slot.useSourceTheme}
+      />
+    )
+  if (slot.kind === 'news')
+    return (
+      <NewsSlide
+        sourceIds={slot.sourceIds}
+        headlineCount={slot.headlineCount}
+        rotateSeconds={slot.rotateSeconds}
+        useBrandTheme={slot.useBrandTheme}
+        showBrandLogo={slot.showBrandLogo}
+      />
+    )
   if (slot.kind === 'transit')
     return (
       <TransitSlide

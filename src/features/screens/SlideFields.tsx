@@ -7,10 +7,13 @@ import { useMessageBoardPosts } from '../../hooks/useMessageBoardPosts'
 import { useMessageBoards } from '../../hooks/useMessageBoards'
 import { useScreens } from '../../hooks/useScreens'
 import { useLanguage } from '../../i18n'
+import { NEWS_SOURCES } from '../../types/news'
 import {
   DEFAULT_EVENT_CALENDAR_COUNT,
   DEFAULT_MESSAGE_BOARD_COUNT,
   DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS,
+  DEFAULT_NEWS_HEADLINE_COUNT,
+  DEFAULT_NEWS_ROTATE_SECONDS,
   DEFAULT_QR_CODE_SIZE,
   DEFAULT_TIME_FONT_SIZE,
   DEFAULT_TIME_UNITS,
@@ -62,6 +65,7 @@ function optionValueToContent(value: string, currentContent: ScreenSlotContent, 
     if (currentContent.kind === 'transit') return { ...currentContent, brand, stopId: '' }
     return { kind: 'transit', brand, stopId: '' }
   }
+  if (value === 'news') return { kind: 'news', sourceIds: [] }
   if (value === 'messageboard') return { kind: 'messageboard' }
   if (value === 'announcement') return { kind: 'announcement', title: '', description: '' }
   if (value === 'time') return { kind: 'time' }
@@ -160,6 +164,36 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
     onChange({ ...content, size })
   }
 
+  const setQrCodeLinkMode = (linkMode: 'custom' | 'news') => {
+    if (content.kind !== 'qrcode') return
+    onChange({ ...content, linkMode })
+  }
+
+  /** Handles the combined "News source" selector: `'automatic'` follows whichever headline a sibling News pane is showing, any other value picks that source specifically — set atomically in one `onChange` so the two fields never disagree with each other. */
+  const setQrCodeNewsSourceSelection = (value: string) => {
+    if (content.kind !== 'qrcode') return
+    if (value === 'automatic') {
+      onChange({ ...content, newsSourceMode: 'automatic' })
+    } else {
+      onChange({ ...content, newsSourceMode: 'specific', linkedNewsSourceId: value })
+    }
+  }
+
+  const setQrCodeNewsSlotOrdinal = (newsSlotOrdinal: number) => {
+    if (content.kind !== 'qrcode') return
+    onChange({ ...content, newsSlotOrdinal })
+  }
+
+  const setQrCodeShowSourceLogo = (showSourceLogo: boolean) => {
+    if (content.kind !== 'qrcode') return
+    onChange({ ...content, showSourceLogo })
+  }
+
+  const setQrCodeUseSourceTheme = (useSourceTheme: boolean) => {
+    if (content.kind !== 'qrcode') return
+    onChange({ ...content, useSourceTheme })
+  }
+
   const setTransitStopId = (stopId: string) => {
     if (content.kind !== 'transit') return
     onChange({ ...content, stopId })
@@ -245,6 +279,35 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
 
   const setWeatherShowBrandLogo = (showBrandLogo: boolean) => {
     if (content.kind !== 'weather') return
+    onChange({ ...content, showBrandLogo })
+  }
+
+  /** Toggles one source in/out of a "News" slide's own `sourceIds` — starting from every cafe-wide-enabled source checked (the standard, when `sourceIds` is still empty) so unchecking the first one narrows it down from there, same "filter the fixed order down" technique as `toggleMenuCategory`. */
+  const toggleNewsSource = (sourceId: string, checked: boolean) => {
+    if (content.kind !== 'news') return
+    const allIds = extensionsConfig.news.enabledSourceIds
+    const current = content.sourceIds && content.sourceIds.length > 0 ? content.sourceIds : allIds
+    const next = checked ? [...current, sourceId] : current.filter((existing) => existing !== sourceId)
+    onChange({ ...content, sourceIds: allIds.filter((existing) => next.includes(existing)) })
+  }
+
+  const setNewsHeadlineCount = (headlineCount: number) => {
+    if (content.kind !== 'news') return
+    onChange({ ...content, headlineCount })
+  }
+
+  const setNewsRotateSeconds = (rotateSeconds: number) => {
+    if (content.kind !== 'news') return
+    onChange({ ...content, rotateSeconds })
+  }
+
+  const setNewsUseBrandTheme = (useBrandTheme: boolean) => {
+    if (content.kind !== 'news') return
+    onChange({ ...content, useBrandTheme })
+  }
+
+  const setNewsShowBrandLogo = (showBrandLogo: boolean) => {
+    if (content.kind !== 'news') return
     onChange({ ...content, showBrandLogo })
   }
 
@@ -393,6 +456,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
           <option value="transit:entur">{t('admin.screens.slotTransitEnturLabel')}</option>
         )}
         {(extensionsConfig.weather.enabled || content.kind === 'weather') && <option value="weather">{t('admin.screens.slotWeatherLabel')}</option>}
+        {(extensionsConfig.news.enabled || content.kind === 'news') && <option value="news">{t('admin.screens.slotNewsLabel')}</option>}
         <option value="time">{t('admin.screens.slotTimeLabel')}</option>
         <option value="messageboard">{t('admin.screens.slotMessageBoardLabel')}</option>
         <option value="announcement">{t('admin.screens.slotAnnouncementLabel')}</option>
@@ -456,7 +520,52 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
 
       {content.kind === 'qrcode' && (
         <>
-          <Input id={`${id}-qrcode-url`} type="url" label={t('admin.screens.qrCodeUrlLabel')} value={content.url} onChange={(event) => setQrCodeUrl(event.target.value)} />
+          <select aria-label={t('admin.screens.qrCodeLinkModeLabel')} value={content.linkMode ?? 'custom'} onChange={(event) => setQrCodeLinkMode(event.target.value as 'custom' | 'news')}>
+            <option value="custom">{t('admin.screens.qrCodeLinkModeCustomLabel')}</option>
+            {(extensionsConfig.news.enabled || content.linkMode === 'news') && <option value="news">{t('admin.screens.qrCodeLinkModeNewsLabel')}</option>}
+          </select>
+
+          {(content.linkMode ?? 'custom') === 'custom' ? (
+            <Input id={`${id}-qrcode-url`} type="url" label={t('admin.screens.qrCodeUrlLabel')} value={content.url} onChange={(event) => setQrCodeUrl(event.target.value)} />
+          ) : extensionsConfig.news.enabledSourceIds.length > 0 ? (
+            <>
+              <select
+                aria-label={t('admin.screens.qrCodeNewsSourceLabel')}
+                value={(content.newsSourceMode ?? 'automatic') === 'automatic' ? 'automatic' : (content.linkedNewsSourceId ?? '')}
+                onChange={(event) => setQrCodeNewsSourceSelection(event.target.value)}
+              >
+                <option value="automatic">{t('admin.screens.qrCodeNewsSourceAutomaticLabel')}</option>
+                {NEWS_SOURCES.filter((source) => extensionsConfig.news.enabledSourceIds.includes(source.id)).map((source) => (
+                  <option key={source.id} value={source.id}>
+                    {source.name}
+                  </option>
+                ))}
+              </select>
+              {(content.newsSourceMode ?? 'automatic') === 'automatic' && (
+                <label className="slide-fields__number-field">
+                  <span>{t('admin.screens.qrCodeNewsSlotOrdinalLabel')}</span>
+                  <input type="number" min={1} value={content.newsSlotOrdinal ?? 1} onChange={(event) => setQrCodeNewsSlotOrdinal(Number(event.target.value))} />
+                </label>
+              )}
+              <div className="slide-fields__categories">
+                <Checkbox
+                  id={`${id}-qrcode-source-logo`}
+                  label={t('admin.screens.qrCodeShowSourceLogoLabel')}
+                  checked={content.showSourceLogo ?? true}
+                  onChange={(event) => setQrCodeShowSourceLogo(event.target.checked)}
+                />
+                <Checkbox
+                  id={`${id}-qrcode-source-theme`}
+                  label={t('admin.screens.qrCodeUseSourceThemeLabel')}
+                  checked={content.useSourceTheme ?? true}
+                  onChange={(event) => setQrCodeUseSourceTheme(event.target.checked)}
+                />
+              </div>
+            </>
+          ) : (
+            <p className="slide-fields__hint">{t('admin.screens.newsNoSourcesConfiguredLabel')}</p>
+          )}
+
           <label className="slide-fields__slider">
             <span>
               {t('admin.screens.qrCodeSizeLabel')} — {content.size ?? DEFAULT_QR_CODE_SIZE}%
@@ -629,6 +738,51 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
           </div>
         </>
       )}
+
+      {content.kind === 'news' &&
+        (extensionsConfig.news.enabledSourceIds.length > 0 ? (
+          <>
+            <div className="slide-fields__categories">
+              <span className="slide-fields__categories-label">{t('admin.screens.newsSourcesLabel')}</span>
+              <p className="slide-fields__hint">{t('admin.screens.newsSourcesHint')}</p>
+              {NEWS_SOURCES.filter((source) => extensionsConfig.news.enabledSourceIds.includes(source.id)).map((source) => (
+                <Checkbox
+                  key={source.id}
+                  id={`${id}-news-source-${source.id}`}
+                  label={source.name}
+                  checked={(content.sourceIds && content.sourceIds.length > 0 ? content.sourceIds : extensionsConfig.news.enabledSourceIds).includes(source.id)}
+                  onChange={(event) => toggleNewsSource(source.id, event.target.checked)}
+                />
+              ))}
+            </div>
+            <label className="slide-fields__number-field">
+              <span>{t('admin.screens.newsHeadlineCountLabel')}</span>
+              <input type="number" min={1} max={30} value={content.headlineCount ?? DEFAULT_NEWS_HEADLINE_COUNT} onChange={(event) => setNewsHeadlineCount(Number(event.target.value))} />
+            </label>
+            <label className="slide-fields__number-field">
+              <span>{t('admin.screens.newsRotateSecondsLabel')}</span>
+              <input type="number" min={1} value={content.rotateSeconds ?? DEFAULT_NEWS_ROTATE_SECONDS} onChange={(event) => setNewsRotateSeconds(Number(event.target.value))} />
+            </label>
+            <div className="slide-fields__categories">
+              <Checkbox
+                id={`${id}-news-brand-theme`}
+                label={t('admin.screens.newsUseBrandThemeLabel')}
+                checked={content.useBrandTheme ?? true}
+                onChange={(event) => setNewsUseBrandTheme(event.target.checked)}
+              />
+              {(content.useBrandTheme ?? true) && (
+                <Checkbox
+                  id={`${id}-news-brand-logo`}
+                  label={t('admin.screens.showBrandLogoLabel')}
+                  checked={content.showBrandLogo ?? true}
+                  onChange={(event) => setNewsShowBrandLogo(event.target.checked)}
+                />
+              )}
+            </div>
+          </>
+        ) : (
+          <p className="slide-fields__hint">{t('admin.screens.newsNoSourcesConfiguredLabel')}</p>
+        ))}
 
       {content.kind === 'messageboard' &&
         (messageBoards.length > 0 ? (

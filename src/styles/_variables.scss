@@ -52,6 +52,13 @@ $font-mono: ui-monospace, Consolas, monospace;
 // there via .admin-layout's override (see AdminLayout.scss) rather than
 // applying everywhere the way body/h1/h2 do by default in global.scss.
 $font-dashboard-sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+// Editorial fonts for the News integration's own per-source brand theme
+// (see `NEWS_SOURCES` in `src/types/news.ts`) — evoke each outlet's own
+// typographic character (traditional serif broadsheet vs. bold tabloid
+// headline vs. plain accessible sans) instead of the app's own generic
+// `$font-dashboard-sans` for every source alike.
+$font-editorial-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+$font-editorial-tabloid: 'Oswald', 'Arial Narrow', sans-serif;
 
 // Spacing
 $spacing-unit: 8px;

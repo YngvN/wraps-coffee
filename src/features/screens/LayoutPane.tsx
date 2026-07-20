@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState, type DragEvent } from 'react'
+import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import { useLanguage, type LanguageCode } from '../../i18n'
 import type { PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SlideTransitionDirection, SplitDirection, TextSizes } from '../../types/screen'
 import { backgroundImageTextStyle, slotBackgroundColorStyle } from '../../utils/screenColors'
@@ -51,6 +52,8 @@ interface LayoutPaneProps {
   selected?: boolean
   /** Which of this pane's own edges it should visually grow in from on mount (a real divider, the screen's own edge, or a plain fade — see `resolvePaneGrowthOrigin` in `src/utils/paneGrowth.ts`) — `undefined` renders at full size immediately, which is also always the effective behavior once `reducedMotion` is on (only consulted at React's own true first mount, per `SplitLayout.tsx`'s own doc comment on why this can't be computed in an effect). */
   growEntranceFrom?: PaneGrowthOrigin
+  /** Every currently-resolved `'news'`-kind pane on this screen — threaded straight through to `SlotContent`/`QrCodeSlide`. See `LayoutTree`'s own prop of the same name. */
+  newsSlots: NewsSlotSettings[]
 }
 
 /**
@@ -85,6 +88,7 @@ export function LayoutPane({
   onToggleLock,
   selected,
   growEntranceFrom,
+  newsSlots,
 }: LayoutPaneProps) {
   const { t } = useLanguage()
   const [dragDepth, setDragDepth] = useState(0)
@@ -189,7 +193,7 @@ export function LayoutPane({
           transition={transition}
         >
           <PaneLanguageScope language={language}>
-            <SlotContent slot={content} />
+            <SlotContent slot={content} newsSlots={newsSlots} />
           </PaneLanguageScope>
         </motion.div>
       </AnimatePresence>

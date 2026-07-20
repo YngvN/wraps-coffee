@@ -8,6 +8,7 @@ import { DEFAULT_EXTENSIONS_CONFIG } from '../src/types/extensions'
 import { DEFAULT_SCREEN_ADDRESS_SETTINGS, type ScreenAddressSettings } from '../src/types/screenAddress'
 import { DEFAULT_SIDEBAR_SETTINGS } from '../src/types/sidebarSettings'
 import { SYNCED_KEYS, type AdminRole, type DashboardSection, type SyncedKey } from '../src/types/sync'
+import { DEFAULT_FOODORA_CONFIG, DEFAULT_WOLT_CONFIG } from '../src/types/delivery'
 import { DEFAULT_WINDOW_LAUNCH_SETTINGS, type WindowLaunchSettings } from '../src/types/windowLaunch'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -58,6 +59,10 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.orders': null,
   'admin.messageBoards': null,
   'admin.messageBoardPosts': null,
+  'admin.woltConfig': null,
+  'admin.woltOrders': null,
+  'admin.foodoraConfig': null,
+  'admin.foodoraOrders': null,
 }
 
 /** Hardcoded defaults for the synced keys with no bundled seed file. */
@@ -80,6 +85,14 @@ const HARDCODED_DEFAULTS: Partial<Record<SyncedKey, unknown>> = {
   // One default board so a fresh install has somewhere to post immediately.
   'admin.messageBoards': [{ id: 'general', name: 'General' }],
   'admin.messageBoardPosts': [],
+  'admin.woltConfig': DEFAULT_WOLT_CONFIG,
+  // No bundled seed — Wolt orders only ever arrive via the local server's
+  // own background poller (see `woltPoller.ts`).
+  'admin.woltOrders': [],
+  'admin.foodoraConfig': DEFAULT_FOODORA_CONFIG,
+  // No bundled seed — Foodora orders only ever arrive via the local
+  // server's own background poller (see `foodoraPoller.ts`).
+  'admin.foodoraOrders': [],
 }
 
 function dataFilePath(key: SyncedKey): string {
@@ -285,6 +298,78 @@ export function getNeonDatabaseUrl(): string | null {
 export function setNeonDatabaseUrl(url: string | null) {
   writeFileSync(NEON_URL_FILE, JSON.stringify({ url }), 'utf-8')
   mirrorFile(NEON_URL_FILE)
+}
+
+// --- Wolt delivery-platform credentials --------------------------------------
+//
+// Same "small standalone file, not a synced key" shape as the Neon database
+// URL above — this is a secret (Wolt's POS Integration API credentials),
+// so it's never broadcast to every LAN device the way a `SyncedKey` value
+// is. Plain JSON on disk, same "start simple" precedent as the Neon URL and
+// the developer API key.
+
+const WOLT_CREDENTIALS_FILE = join(DATA_DIR, 'wolt-credentials.json')
+
+/**
+ * Wolt's own POS Integration API credentials for this cafe's venue. TODO:
+ * this is a placeholder shape — confirm the exact fields (venue id + API
+ * key? client id/secret? something else?) against Wolt's own partner docs
+ * once the cafe has partner access; nothing about this shape is verified.
+ * `useDevelopmentEnvironment` (Settings → Testing) picks which of Wolt's own
+ * base URLs `woltAdapter.ts` calls — the confirmed development/test host
+ * while checked, Wolt's production host once unchecked.
+ */
+export interface WoltCredentials {
+  venueId: string | null
+  apiKey: string | null
+  useDevelopmentEnvironment: boolean
+}
+
+const EMPTY_WOLT_CREDENTIALS: WoltCredentials = { venueId: null, apiKey: null, useDevelopmentEnvironment: false }
+
+export function getWoltCredentials(): WoltCredentials {
+  if (!existsSync(WOLT_CREDENTIALS_FILE)) return EMPTY_WOLT_CREDENTIALS
+  // `{ ...EMPTY_WOLT_CREDENTIALS, ... }` covers a file saved before
+  // `useDevelopmentEnvironment` existed — defaults it to `false` (production)
+  // rather than leaving it `undefined`.
+  return { ...EMPTY_WOLT_CREDENTIALS, ...(JSON.parse(readFileSync(WOLT_CREDENTIALS_FILE, 'utf-8')) as Partial<WoltCredentials>) }
+}
+
+export function setWoltCredentials(credentials: WoltCredentials) {
+  writeFileSync(WOLT_CREDENTIALS_FILE, JSON.stringify(credentials), 'utf-8')
+  mirrorFile(WOLT_CREDENTIALS_FILE)
+}
+
+// --- Foodora delivery-platform credentials -----------------------------------
+//
+// Same posture as the Wolt credentials above — a secret, plain JSON on
+// disk, never a synced key.
+
+const FOODORA_CREDENTIALS_FILE = join(DATA_DIR, 'foodora-credentials.json')
+
+/**
+ * Foodora's own POS Integration API credentials for this cafe's venue.
+ * TODO: this is a placeholder shape (mirroring Wolt's own) — no Foodora
+ * partner docs exist yet to confirm the real fields against.
+ * `useDevelopmentEnvironment` (Settings → Testing) is wired the same way as
+ * Wolt's, but `foodoraAdapter.ts` has no real hostname to pick between yet.
+ */
+export interface FoodoraCredentials {
+  venueId: string | null
+  apiKey: string | null
+  useDevelopmentEnvironment: boolean
+}
+
+const EMPTY_FOODORA_CREDENTIALS: FoodoraCredentials = { venueId: null, apiKey: null, useDevelopmentEnvironment: false }
+
+export function getFoodoraCredentials(): FoodoraCredentials {
+  if (!existsSync(FOODORA_CREDENTIALS_FILE)) return EMPTY_FOODORA_CREDENTIALS
+  return { ...EMPTY_FOODORA_CREDENTIALS, ...(JSON.parse(readFileSync(FOODORA_CREDENTIALS_FILE, 'utf-8')) as Partial<FoodoraCredentials>) }
+}
+
+export function setFoodoraCredentials(credentials: FoodoraCredentials) {
+  writeFileSync(FOODORA_CREDENTIALS_FILE, JSON.stringify(credentials), 'utf-8')
+  mirrorFile(FOODORA_CREDENTIALS_FILE)
 }
 
 // How a screen's own `/screens/:screenId` link should be addressed (see

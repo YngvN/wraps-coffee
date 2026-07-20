@@ -131,6 +131,20 @@
   gap: calc($spacing-unit / 2);
 }
 
+.extensions-view__delivery-status {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+  padding: $spacing-unit;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+
+.extensions-view__delivery-status-detail {
+  color: $color-error;
+}
+
 .extensions-view__add-location {
   align-self: flex-start;
 }

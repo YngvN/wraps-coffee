@@ -3,13 +3,14 @@ import { useLocalStorage } from './useLocalStorage'
 
 const STORAGE_KEY = 'admin.extensions'
 
-/** `useLocalStorage` returns stored JSON as-is, with no merging — a config saved before a `transit`/`weather`/`entur` setting was added is missing that key outright. Fills any such gaps with `DEFAULT_EXTENSIONS_CONFIG` so every consumer can read every field without an `undefined` check, regardless of how old the stored config is. */
+/** `useLocalStorage` returns stored JSON as-is, with no merging — a config saved before a `transit`/`weather`/`entur`/`news` setting was added is missing that key outright. Fills any such gaps with `DEFAULT_EXTENSIONS_CONFIG` so every consumer can read every field without an `undefined` check, regardless of how old the stored config is. */
 function withDefaults(config: ExtensionsConfig): ExtensionsConfig {
   return {
     ...config,
     entur: { ...DEFAULT_EXTENSIONS_CONFIG.entur, ...config.entur },
     transit: { ...DEFAULT_EXTENSIONS_CONFIG.transit, ...config.transit },
     weather: { ...DEFAULT_EXTENSIONS_CONFIG.weather, ...config.weather },
+    news: { ...DEFAULT_EXTENSIONS_CONFIG.news, ...config.news },
   }
 }
 

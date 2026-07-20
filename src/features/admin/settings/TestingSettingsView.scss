@@ -1,0 +1,40 @@
+@use '../../../styles/variables' as *;
+
+.testing-settings {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 1.5;
+  max-width: 560px;
+}
+
+.testing-settings__integration {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: 1px solid $color-border;
+  border-radius: 8px;
+
+  h2 {
+    margin: 0;
+    font-size: 1rem;
+  }
+}
+
+.testing-settings__hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: $color-text-muted;
+  font-family: $font-mono, monospace;
+}
+
+.testing-settings__error {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: $color-error;
+}
+
+.testing-settings__saved {
+  font-size: 0.875rem;
+  color: $color-success;
+}

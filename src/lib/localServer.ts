@@ -1,5 +1,8 @@
 import type { DisplayConnectionType } from '../types/displayMachine'
+import type { FoodoraCredentials, WoltCredentials } from '../types/delivery'
 import type { DepartureInfo, NearbyStop, WeatherHour } from '../types/extensions'
+import type { NewsHeadline } from '../types/news'
+import type { OrderStatus } from '../types/order'
 import type { ScreenAddressSettings } from '../types/screenAddress'
 import type { AdminRole, AdminSession, DashboardSection } from '../types/sync'
 import type { WindowLaunchSettings } from '../types/windowLaunch'
@@ -185,6 +188,15 @@ export async function fetchWeather(lat: number, lon: number, hours: number): Pro
   return response.json() as Promise<{ hourly: WeatherHour[]; todayLowC?: number; todayHighC?: number }>
 }
 
+/** Fetches up to `count` merged, newest-first headlines across `sourceIds` — used by `NewsSlide`'s own polling and by a `'qrcode'` slide's "link to news article" mode (with `sourceIds` a single source and `count` 1). No auth needed — public proxy, same posture as image reads. Empty `sourceIds` short-circuits to `[]` without a request. */
+export async function fetchNewsHeadlines(sourceIds: string[], count: number): Promise<NewsHeadline[]> {
+  if (sourceIds.length === 0) return []
+  const response = await fetch(`${serverBaseUrl()}/news/headlines?sources=${sourceIds.map(encodeURIComponent).join(',')}&count=${count}`)
+  if (!response.ok) throw new Error('Could not fetch news headlines')
+  const { headlines } = (await response.json()) as { headlines: NewsHeadline[] }
+  return headlines
+}
+
 /** The current developer API key (see "For developers" in Settings), or `null` if none has been generated yet. */
 export async function getDeveloperKey(token: string): Promise<string | null> {
   const response = await fetch(`${serverBaseUrl()}/developer-key`, { headers: { Authorization: `Bearer ${token}` } })
@@ -230,6 +242,102 @@ export async function setNeonUrl(token: string, url: string | null): Promise<str
   }
   const { url: savedUrl } = (await response.json()) as { url: string | null }
   return savedUrl
+}
+
+/** The saved Wolt POS Integration API credentials (see the Integrations page's Wolt card, and Settings → Testing for the environment checkbox), or `venueId`/`apiKey` both `null` if none have been saved yet. `admin`/`subadmin` only. */
+export async function getWoltCredentials(token: string): Promise<WoltCredentials> {
+  const response = await fetch(`${serverBaseUrl()}/wolt/credentials`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 403) throw new Error('Only admin/subadmin accounts can view Wolt credentials')
+  if (!response.ok) throw new Error('Could not load the Wolt credentials')
+  return response.json() as Promise<WoltCredentials>
+}
+
+/** Saves the Wolt POS Integration API credentials (the full object — callers that only own one field, e.g. the Testing page's environment checkbox, should load the current value first and spread over it, same posture as `AdvancedSettingsView`'s own settings objects) — the local server re-syncs immediately, no restart needed. `admin`/`subadmin` only. */
+export async function setWoltCredentials(token: string, credentials: WoltCredentials): Promise<WoltCredentials> {
+  const response = await fetch(`${serverBaseUrl()}/wolt/credentials`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(credentials),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not save the Wolt credentials')
+  }
+  return response.json() as Promise<WoltCredentials>
+}
+
+/** Triggers an immediate Wolt sync (the Integrations page's own "Sync now" button), instead of waiting for the next automatic poll. `admin`/`subadmin` only. */
+export async function triggerWoltSync(token: string): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/wolt/sync`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Wolt sync failed')
+  }
+}
+
+/** Pushes a status change for one Wolt order back to Wolt itself — call alongside (not instead of) updating `admin.woltOrders` locally, see `OrdersView.tsx`'s `updateStatus`. */
+export async function pushWoltOrderStatus(token: string, orderId: string, status: OrderStatus): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/wolt/status/${orderId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ status }),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not push this status update to Wolt')
+  }
+}
+
+/** The saved Foodora POS Integration API credentials (see the Integrations page's Foodora card, and Settings → Testing for the environment checkbox), or `venueId`/`apiKey` both `null` if none have been saved yet. `admin`/`subadmin` only. */
+export async function getFoodoraCredentials(token: string): Promise<FoodoraCredentials> {
+  const response = await fetch(`${serverBaseUrl()}/foodora/credentials`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 403) throw new Error('Only admin/subadmin accounts can view Foodora credentials')
+  if (!response.ok) throw new Error('Could not load the Foodora credentials')
+  return response.json() as Promise<FoodoraCredentials>
+}
+
+/** Saves the Foodora POS Integration API credentials (the full object — same posture as `setWoltCredentials`) — the local server re-syncs immediately, no restart needed. `admin`/`subadmin` only. */
+export async function setFoodoraCredentials(token: string, credentials: FoodoraCredentials): Promise<FoodoraCredentials> {
+  const response = await fetch(`${serverBaseUrl()}/foodora/credentials`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(credentials),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not save the Foodora credentials')
+  }
+  return response.json() as Promise<FoodoraCredentials>
+}
+
+/** Triggers an immediate Foodora sync (the Integrations page's own "Sync now" button), instead of waiting for the next automatic poll. `admin`/`subadmin` only. */
+export async function triggerFoodoraSync(token: string): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/foodora/sync`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Foodora sync failed')
+  }
+}
+
+/** Pushes a status change for one Foodora order back to Foodora itself — call alongside (not instead of) updating `admin.foodoraOrders` locally, see `OrdersView.tsx`'s `updateStatus`. */
+export async function pushFoodoraOrderStatus(token: string, orderId: string, status: OrderStatus): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/foodora/status/${orderId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ status }),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not push this status update to Foodora')
+  }
 }
 
 /** How a screen's own `/screens/:screenId` link should be addressed (see Settings → Advanced) — public, no auth needed. */

@@ -1,5 +1,6 @@
 import { useReducedMotion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import { useLanguage, type LanguageCode } from '../../i18n'
 import { DEFAULT_SCREEN_BACKGROUND_COLOR, type LayoutNode, type PaneId, type ScreenConfig, type ScreenSlotContent, type SplitDirection, type TextSizes } from '../../types/screen'
 import { applyRatioPatchPreservingDescendants, computeLayoutGeometry, FULL_BOX, type Divider, type LayoutGeometry, type Rect } from '../../utils/layoutGeometry'
@@ -7,7 +8,7 @@ import { listLeaves } from '../../utils/layoutTree'
 import { diffLeafSets, resolvePaneGrowthOrigin, type PaneGrowthOrigin } from '../../utils/paneGrowth'
 import { backgroundImageTextStyle, borderColorStyle, getScreenColorVars } from '../../utils/screenColors'
 import { imageResizeRatioPatch, imageResizeScaleFromDrag, paneResizableAxes, pathKey, type NodePath, type PaneResizableAxes, type RatioPatch } from '../../utils/screenLayout'
-import { isResizeToFitImage } from '../../utils/screenSlots'
+import { isNewsSlotContent, isResizeToFitImage } from '../../utils/screenSlots'
 import { isSlotActive, resolveSlotContent, resolveStageValue, writeStageCheckpoint } from '../../utils/screenStages'
 import { ExitingPaneGhost } from './ExitingPaneGhost'
 import { LayoutTree } from './LayoutTree'
@@ -205,6 +206,12 @@ export function SplitLayout({
     return slot ? resolveSlotContent(slot, effectiveStage) : { kind: 'none' }
   }
 
+  /** Every currently-resolved `'news'`-kind pane on this screen, in leaf order — what a `'qrcode'` slide's own "automatic" `newsSourceMode` (see `QrCodeSlide`) picks from by `newsSlotOrdinal`, so it can follow whichever headline a sibling News pane is showing without any direct communication between the two live components (see `useCurrentNewsHeadline`'s own doc comment). */
+  const newsSlots: NewsSlotSettings[] = leaves
+    .map((leaf) => resolvePaneContent(leaf.id))
+    .filter(isNewsSlotContent)
+    .map((content) => ({ sourceIds: content.sourceIds, headlineCount: content.headlineCount, rotateSeconds: content.rotateSeconds }))
+
   const activeResizeImageUrls = leaves.map((leaf) => resolvePaneContent(leaf.id)).filter(isResizeToFitImage).map((content) => content.imageUrl)
 
   useEffect(() => {
@@ -351,6 +358,7 @@ export function SplitLayout({
         onDeletePane={onDeletePane}
         canDelete={leaves.length > 1}
         enteringGrowth={enteringGrowth}
+        newsSlots={newsSlots}
       />
       {Object.entries(exitingGhosts).map(([leafId, { rect, growth }]) => (
         <ExitingPaneGhost
@@ -364,6 +372,7 @@ export function SplitLayout({
           resolveTextSizes={resolveTextSizes}
           defaultPaneLanguage={defaultPaneLanguage}
           onCollapseComplete={removeGhost}
+          newsSlots={newsSlots}
         />
       ))}
     </div>

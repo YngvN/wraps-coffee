@@ -23,6 +23,7 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.17.0",
+    "rss-parser": "^3.13.0",
     "simple-icons": "^16.26.0"
   },
   "devDependencies": {

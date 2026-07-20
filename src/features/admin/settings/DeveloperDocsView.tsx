@@ -32,6 +32,10 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.orders', descKey: 'admin.settings.developerDocs.keyOrders' },
   { key: 'admin.messageBoards', descKey: 'admin.settings.developerDocs.keyMessageBoards' },
   { key: 'admin.messageBoardPosts', descKey: 'admin.settings.developerDocs.keyMessageBoardPosts' },
+  { key: 'admin.woltConfig', descKey: 'admin.settings.developerDocs.keyWoltConfig' },
+  { key: 'admin.woltOrders', descKey: 'admin.settings.developerDocs.keyWoltOrders' },
+  { key: 'admin.foodoraConfig', descKey: 'admin.settings.developerDocs.keyFoodoraConfig' },
+  { key: 'admin.foodoraOrders', descKey: 'admin.settings.developerDocs.keyFoodoraOrders' },
 ]
 
 /**
@@ -294,6 +298,52 @@ GET /extensions/departures?stopId=<id>&count=<n>
 GET /extensions/weather?lat=<lat>&lon=<lon>&hours=<n>
 → 200 { "hourly": [{ "time", "temperatureC", "precipitationMm", "symbolCode", "windSpeedMs"?, "windFromDirectionDeg"?, "humidityPercent"?, "precipitationProbabilityPercent"?, "uvIndex"?, "pressureHpa"? }] }
    (fields marked ? come from MET's "complete" dataset and are only present when MET reports one for that hour — e.g. "uvIndex" outside daylight)`}</code>
+        </pre>
+      </Card>
+
+      <Card title={t('admin.settings.developerDocs.woltTitle')}>
+        <p>{t('admin.settings.developerDocs.woltIntro')}</p>
+        <pre>
+          <code>{`GET /wolt/credentials              (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "venueId": string | null, "apiKey": string | null, "useDevelopmentEnvironment": boolean }
+
+POST /wolt/credentials             (Authorization: Bearer <token>, admin/subadmin only)
+{ "venueId": string | null, "apiKey": string | null, "useDevelopmentEnvironment": boolean }
+→ 200 { "venueId": string | null, "apiKey": string | null, "useDevelopmentEnvironment": boolean }   (re-syncs immediately)
+   ("useDevelopmentEnvironment" picks Wolt's development/test host over its production one — see Settings → Testing)
+
+POST /wolt/sync                    (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "ok": true }               (triggers an immediate sync instead of waiting for the next poll)
+→ 502 { "error": "..." }
+
+POST /wolt/status/<orderId>        (Authorization: Bearer <token>, admin/subadmin, or "limited" with the "orders" section)
+{ "status": "received" | "accepted" | "preparing" | "ready" | "completed" | "cancelled" }
+→ 200 { "ok": true }               (pushes the status to Wolt, then updates "admin.woltOrders" locally)
+→ 404 { "error": "..." }           (no Wolt order with that id)
+→ 502 { "error": "..." }           (Wolt itself rejected the push)`}</code>
+        </pre>
+      </Card>
+
+      <Card title={t('admin.settings.developerDocs.foodoraTitle')}>
+        <p>{t('admin.settings.developerDocs.foodoraIntro')}</p>
+        <pre>
+          <code>{`GET /foodora/credentials           (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "venueId": string | null, "apiKey": string | null, "useDevelopmentEnvironment": boolean }
+
+POST /foodora/credentials          (Authorization: Bearer <token>, admin/subadmin only)
+{ "venueId": string | null, "apiKey": string | null, "useDevelopmentEnvironment": boolean }
+→ 200 { "venueId": string | null, "apiKey": string | null, "useDevelopmentEnvironment": boolean }   (re-syncs immediately)
+   ("useDevelopmentEnvironment" is wired the same way as Wolt's — see Settings → Testing — but no real base URL is configured yet)
+
+POST /foodora/sync                 (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "ok": true }               (triggers an immediate sync instead of waiting for the next poll)
+→ 502 { "error": "..." }
+
+POST /foodora/status/<orderId>     (Authorization: Bearer <token>, admin/subadmin, or "limited" with the "orders" section)
+{ "status": "received" | "accepted" | "preparing" | "ready" | "completed" | "cancelled" }
+→ 200 { "ok": true }               (pushes the status to Foodora, then updates "admin.foodoraOrders" locally)
+→ 404 { "error": "..." }           (no Foodora order with that id)
+→ 502 { "error": "..." }           (Foodora itself rejected the push, or no partner API access exists yet)`}</code>
         </pre>
       </Card>
 
