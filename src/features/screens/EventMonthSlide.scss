@@ -87,6 +87,20 @@
   &--cancelled {
     opacity: 0.6;
   }
+
+  // Greyed out the same way a cancelled entry is (still legible, clearly
+  // de-emphasized) plus a strikethrough on the title itself — cancelled
+  // means "this was called off," past means "this already happened," so
+  // the two get visually distinct treatments even though an entry could in
+  // principle be both (a cancelled event from earlier in the month), in
+  // which case both modifiers just apply together.
+  &--past {
+    opacity: 0.5;
+
+    .event-month-slide__body h2 {
+      text-decoration: line-through;
+    }
+  }
 }
 
 .event-month-slide__date {

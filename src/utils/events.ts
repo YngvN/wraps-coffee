@@ -20,6 +20,11 @@ function daysBetween(from: Date, to: Date): number {
   return Math.round((toMidnight.getTime() - fromMidnight.getTime()) / msPerDay)
 }
 
+/** Whether `occursAt`'s own calendar day has already fully passed as of `from` (defaulting to today) — ignores time of day, so an event later today isn't "past" the moment its own start time slips by, only once its whole day has elapsed. Used by `EventMonthSlide` to grey out/strike through past entries in an otherwise-unfiltered month list (see `getEventsInMonth`, which unlike `getUpcomingEvents` deliberately keeps past occurrences in range). */
+export function isEventPast(occursAt: Date, from: Date = new Date()): boolean {
+  return daysBetween(from, occursAt) < 0
+}
+
 /** Combines a `YYYY-MM-DD` date string and `HH:MM` time string into a `Date`. */
 export function toDateTime(date: string, time: string): Date {
   return new Date(`${date}T${time}:00`)
