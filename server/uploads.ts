@@ -135,8 +135,8 @@ export function handleServeUpload(res: ServerResponse, requestedFilename: string
   res.end(readFileSync(filePath))
 }
 
-/** Removes the original and all of its `-small`/`-thumb`/`-blur` companions and status/name markers, if present, plus (for a video whose transcode never finished) its still-staged source. Idempotent — always succeeds even if nothing existed. */
-export function handleDeleteUpload(res: ServerResponse, requestedFilename: string) {
+/** Removes the original and all of its `-small`/`-thumb`/`-blur` companions and status/name markers, if present, plus (for a video whose transcode never finished) its still-staged source. Idempotent — always succeeds even if nothing existed. Shared by `handleDeleteUpload` (the Media Library's own manual delete) and `server/storageCleanup.ts` (the admin-confirmed orphaned-image sweep), so both go through the exact same on-disk + backup-mirroring behavior. */
+export function deleteUploadFiles(requestedFilename: string) {
   const safeName = basename(requestedFilename)
   const stem = stemOf(safeName)
 
@@ -161,7 +161,11 @@ export function handleDeleteUpload(res: ServerResponse, requestedFilename: strin
     unlinkSync(stagedSource)
     mirrorFile(stagedSource)
   }
+}
 
+/** HTTP wrapper around `deleteUploadFiles` for the Media Library's own manual "delete" action. */
+export function handleDeleteUpload(res: ServerResponse, requestedFilename: string) {
+  deleteUploadFiles(requestedFilename)
   res.writeHead(204, CORS_HEADERS)
   res.end()
 }

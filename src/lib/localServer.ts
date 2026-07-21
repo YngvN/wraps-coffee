@@ -560,3 +560,52 @@ export async function restoreFromBackupFolder(token: string): Promise<void> {
     throw new Error(body.error ?? 'Could not restore from the backup folder')
   }
 }
+
+export interface CleanupPreview {
+  retentionDays: number
+  displayMachineStaleDays: number
+  orders: { id: string; createdAt: string; customerName: string; totalPrice: number }[]
+  messages: { id: string; receivedAt: string; subject: string; name: string }[]
+  messageBoardPosts: { id: string; title: string; expiresAt: string }[]
+  displayMachines: { machineID: string; label: string; lastSeenAt: string }[]
+  images: { filename: string; url: string; thumbUrl: string; sizeBytes: number; uploadedAt: string }[]
+}
+
+/** Ids/filenames the admin explicitly confirmed deleting, from a `CleanupPreview` they reviewed. */
+export interface CleanupSelection {
+  orderIds?: string[]
+  messageIds?: string[]
+  messageBoardPostIds?: string[]
+  displayMachineIds?: string[]
+  imageFilenames?: string[]
+}
+
+export interface CleanupResult {
+  deletedOrders: number
+  deletedMessages: number
+  deletedMessageBoardPosts: number
+  deletedDisplayMachines: number
+  deletedImages: number
+}
+
+/** Everything currently prunable (old orders/messages, expired message-board posts, stale display machines, orphaned uploaded images) — read-only, deletes nothing. `admin`/`subadmin` only. See `server/storageCleanup.ts`. */
+export async function getCleanupPreview(token: string): Promise<CleanupPreview> {
+  const response = await fetch(`${serverBaseUrl()}/storage-cleanup/preview`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 403) throw new Error('Only admin/subadmin accounts can view storage cleanup')
+  if (!response.ok) throw new Error('Could not load storage cleanup preview')
+  return response.json() as Promise<CleanupPreview>
+}
+
+/** Deletes exactly the ids/filenames in `selection` — each re-checked server-side as still prunable right before deletion, so this is safe to call with a preview that's gone slightly stale. `admin`/`subadmin` only. */
+export async function applyCleanup(token: string, selection: CleanupSelection): Promise<CleanupResult> {
+  const response = await fetch(`${serverBaseUrl()}/storage-cleanup/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(selection),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 403) throw new Error('Only admin/subadmin accounts can apply storage cleanup')
+  if (!response.ok) throw new Error('Could not apply storage cleanup')
+  return response.json() as Promise<CleanupResult>
+}

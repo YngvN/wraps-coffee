@@ -41,15 +41,22 @@ function touchManifest() {
   writeFileSync(MANIFEST_FILE, JSON.stringify(manifest), 'utf-8')
 }
 
-/**
- * Mirrors a single file under server/data or server/uploads to the
- * equivalent path under the sibling WrapsCoffeeBackup folder, or removes the
- * mirrored copy if `absolutePath` no longer exists (a deletion). Called
- * right after every real write (or delete) in store.ts/uploads.ts, so the
- * backup folder stays continuously up to date at near-zero cost - one small
- * extra file copy per write, rather than a periodic bulk directory copy.
- */
-export function mirrorFile(absolutePath: string) {
+// A handful of keys get written far more often than the rest — most notably
+// `admin-displayMachines.json`, rewritten on every display's own ~20s
+// heartbeat (see `mergeDisplayMachineHeartbeat` in server/index.ts). Mirroring
+// perfectly synchronously on every single one of those scales the mirror's
+// own cost (a full copy + manifest write) with fleet size for no real
+// benefit, since nothing reads the backup folder in real time anyway (only a
+// manual "restore" does). Coalescing same-path calls that land within this
+// window into a single mirror pass keeps the backup "continuously up to
+// date" for any practical purpose while cutting redundant disk I/O — a
+// low-frequency key (almost everything else) still gets mirrored within
+// `MIRROR_DEBOUNCE_MS` of its own write, same as before in every way that
+// matters.
+const MIRROR_DEBOUNCE_MS = 1000
+const pendingMirrors = new Map<string, ReturnType<typeof setTimeout>>()
+
+function mirrorFileNow(absolutePath: string) {
   const backupPath = absolutePath.startsWith(DATA_DIR)
     ? join(BACKUP_DATA_DIR, relative(DATA_DIR, absolutePath))
     : join(BACKUP_UPLOADS_DIR, relative(UPLOADS_DIR, absolutePath))
@@ -61,6 +68,39 @@ export function mirrorFile(absolutePath: string) {
     rmSync(backupPath)
   }
   touchManifest()
+}
+
+/**
+ * Mirrors a single file under server/data or server/uploads to the
+ * equivalent path under the sibling WrapsCoffeeBackup folder, or removes the
+ * mirrored copy if `absolutePath` no longer exists (a deletion). Called
+ * right after every real write (or delete) in store.ts/uploads.ts. Debounced
+ * per-path (see `MIRROR_DEBOUNCE_MS`) rather than mirrored instantly every
+ * time — a burst of writes to the same file within that window (e.g. several
+ * kiosks heartbeating in close succession) only ever costs one real mirror
+ * pass, reading whatever's on disk once things settle rather than once per
+ * write. Call `flushPendingMirrors` first if a caller needs the backup
+ * folder guaranteed current *right now* (see `restoreFromBackupFolder`).
+ */
+export function mirrorFile(absolutePath: string) {
+  const existing = pendingMirrors.get(absolutePath)
+  if (existing) clearTimeout(existing)
+  pendingMirrors.set(
+    absolutePath,
+    setTimeout(() => {
+      pendingMirrors.delete(absolutePath)
+      mirrorFileNow(absolutePath)
+    }, MIRROR_DEBOUNCE_MS),
+  )
+}
+
+/** Immediately runs every still-pending debounced mirror instead of waiting for its own timer — so a restore-from-folder (or any other reader of the backup folder) never sees a stale copy just because its own debounce window hadn't elapsed yet. */
+export function flushPendingMirrors() {
+  for (const [absolutePath, timer] of pendingMirrors) {
+    clearTimeout(timer)
+    pendingMirrors.delete(absolutePath)
+    mirrorFileNow(absolutePath)
+  }
 }
 
 function copyDirContents(sourceDir: string, destDir: string) {
@@ -94,6 +134,7 @@ export function restoreFromSiblingBackupIfFresh() {
 export function backupStatus(): { folderBackupAvailable: boolean; updatedAt: string | null } {
   if (!existsSync(BACKUP_DATA_DIR)) return { folderBackupAvailable: false, updatedAt: null }
   if (!existsSync(MANIFEST_FILE)) return { folderBackupAvailable: true, updatedAt: null }
+  flushPendingMirrors()
   const manifest = JSON.parse(readFileSync(MANIFEST_FILE, 'utf-8')) as BackupManifest
   return { folderBackupAvailable: true, updatedAt: manifest.updatedAt }
 }
@@ -153,6 +194,11 @@ export function restoreFromBackupFolder(): { ok: true } | { ok: false; error: st
   if (!existsSync(BACKUP_DATA_DIR)) {
     return { ok: false, error: 'No WrapsCoffeeBackup folder found next to the app.' }
   }
+  // A still-pending debounced mirror (see `mirrorFile`) means the backup
+  // folder could be up to `MIRROR_DEBOUNCE_MS` behind the live data this
+  // exact moment — force those through first so a restore never pulls in a
+  // copy that's staler than it needs to be.
+  flushPendingMirrors()
   copyDirContents(BACKUP_DATA_DIR, DATA_DIR)
   if (existsSync(BACKUP_UPLOADS_DIR)) copyDirContents(BACKUP_UPLOADS_DIR, UPLOADS_DIR)
   return { ok: true }

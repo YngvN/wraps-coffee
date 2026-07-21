@@ -12,7 +12,7 @@ import { getBlurredBackgroundUrl } from '../../utils/responsiveImage'
 import { resolveContentBackgroundImage } from '../../utils/screenSlots'
 import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage, resolveSlotOverflowMode } from '../../utils/screenStages'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
-import { collapsedClipPath, FULL_REVEAL_CLIP_PATH, PANE_GROWTH_DURATION_SECONDS } from './paneGrowthMotion'
+import { collapsedClipPath, FULL_REVEAL_CLIP_PATH, PANE_GROWTH_DURATION_SECONDS, paneTransitionDelaySeconds } from './paneGrowthMotion'
 import { PaneClearButton } from './PaneClearButton'
 import { PaneDeleteButton } from './PaneDeleteButton'
 import { PaneEditButton } from './PaneEditButton'
@@ -35,6 +35,8 @@ interface LayoutPaneProps {
   defaultPaneLanguage: LanguageCode
   editingFocus: ScreenConfig['editingFocus']
   transitionDuration: number
+  /** Which phase of the stage-transition sequence is currently playing (see `SplitLayout`'s own `contentPhase` state) — `'idle'` (the default, when omitted, e.g. `ExitingPaneGhost`'s own wrapped instance) renders content normally; `'exiting'`/`'holding'` both force this pane's content (and background) into their own hidden/exit state via `suppressEnter` below, regardless of whether `activeContentSlot` would otherwise say a slot should be entering. */
+  contentPhase?: 'idle' | 'exiting' | 'holding'
   reducedMotion: boolean | null
   /** Hovering close to the pane's own middle (either axis) reveals a "Split" line/label there; clicking splits it 50/50 along that axis — see `PaneSplitZones`. Omit (like `onEditSlide`) to disable, e.g. while the screen is locked. */
   onSplitPane?: (leafId: PaneId, axis: SplitDirection, edge: 'start' | 'end') => void
@@ -109,6 +111,7 @@ export function LayoutPane({
   defaultPaneLanguage,
   editingFocus,
   transitionDuration,
+  contentPhase = 'idle',
   reducedMotion,
   onSplitPane,
   onSplitFour,
@@ -128,7 +131,12 @@ export function LayoutPane({
 }: LayoutPaneProps) {
   const { t } = useLanguage()
   const [dragDepth, setDragDepth] = useState(0)
-  const transition = reducedMotion ? { duration: 0 } : { duration: transitionDuration, ease: 'easeInOut' as const }
+  /** True for both of `contentPhase`'s non-idle values — this pane's own content/background stays forced into its hidden/exit state for the whole "old content exiting, then borders moving" stretch of the stage-transition sequence, only actually revealing once the caller settles back to `'idle'`. */
+  const suppressEnter = contentPhase !== 'idle'
+
+  /** This pane's own content/background leaving vs. arriving — each gets its own small deterministic-per-pane extra delay (see `paneTransitionDelaySeconds`) so a multi-pane stage advance doesn't have every pane leave/arrive in exact lockstep, rather than sharing one `transition` object like before. */
+  const exitTransition = reducedMotion ? { duration: 0 } : { duration: transitionDuration, delay: paneTransitionDelaySeconds(leafId, 'exit'), ease: 'easeInOut' as const }
+  const enterTransition = reducedMotion ? { duration: 0 } : { duration: transitionDuration, delay: paneTransitionDelaySeconds(leafId, 'enter'), ease: 'easeInOut' as const }
 
   // One outer/inner ref pair per crossfade slot (always exactly 2, see
   // `useCrossfadeSlot`) — `useShrinkToFitScale` is called unconditionally
@@ -280,9 +288,9 @@ export function LayoutPane({
             key={`${backgroundImage.imageUrl}|${backgroundImage.overlay}`}
             className="split-layout__pane-bg"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            animate={{ opacity: suppressEnter ? 0 : 1 }}
             exit={{ opacity: 0 }}
-            transition={transition}
+            transition={suppressEnter ? exitTransition : enterTransition}
           >
             <div className="split-layout__pane-bg-image" style={{ backgroundImage: `url(${getBlurredBackgroundUrl(backgroundImage.imageUrl)})` }} />
             {backgroundImage.overlay !== 'none' && <div className={`split-layout__pane-bg-overlay split-layout__pane-bg-overlay--${backgroundImage.overlay}`} />}
@@ -302,8 +310,8 @@ export function LayoutPane({
             style={{ ...snapshot.textSizeVars, ...slotBackgroundStyle }}
             variants={variants}
             initial="initial"
-            animate={activeContentSlot === slotIndex ? 'animate' : 'exit'}
-            transition={transition}
+            animate={!suppressEnter && activeContentSlot === slotIndex ? 'animate' : 'exit'}
+            transition={!suppressEnter && activeContentSlot === slotIndex ? enterTransition : exitTransition}
           >
             <div className="split-layout__pane-content-inner" ref={slotIndex === 0 ? contentInnerRef0 : contentInnerRef1}>
               <PaneLanguageScope language={snapshot.language}>
@@ -328,7 +336,8 @@ export function LayoutPane({
         so it never blocks any of the above).
       */}
       {onEditSlide && <PaneEditButton onClick={() => onEditSlide(leafId)} />}
-      {onSplitPane && (
+      {/* A video fills its own pane edge-to-edge with no natural split point, so splitting it isn't offered at all — not even the hover highlight. */}
+      {onSplitPane && content.kind !== 'video' && (
         <PaneSplitZones
           onSplit={(axis, edge) => onSplitPane(leafId, axis, edge)}
           onSplitFour={onSplitFour ? () => onSplitFour(leafId) : undefined}

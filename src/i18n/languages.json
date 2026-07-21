@@ -943,6 +943,8 @@
             "displayManagerIntro": "How a machine or browser tab registers itself as a display (see the Display Manager sidebar section) and how a Screen gets assigned to one of its monitors.",
             "backupTitle": "Backup",
             "backupIntro": "server/backup.ts mirrors server/data and server/uploads to a sibling WrapsCoffeeBackup folder continuously (see Settings → Backup). These routes are the manual side of it — a point-in-time zip download, and two ways to restore.",
+            "storageCleanupTitle": "Storage cleanup",
+            "storageCleanupIntro": "server/storageCleanup.ts (see Settings → Backup's own \"Storage cleanup\" section). The preview route only ever computes what's prunable; the apply route deletes only the ids/filenames it's given, after re-checking each one right before deletion.",
             "extensionsTitle": "Extensions proxy (transit + weather)",
             "extensionsIntro": "Thin proxies over Entur's and MET Norway's own public APIs, with a short server-side cache — no token needed.",
             "newsTitle": "News (RSS)",
@@ -1029,7 +1031,23 @@
             "restoreError": "Could not restore this backup.",
             "restoreFromFolderButton": "Restore from backup folder",
             "restoreFromZipButton": "Restore from zip file",
-            "folderUpdatedAt": "Last updated {{date}}"
+            "folderUpdatedAt": "Last updated {{date}}",
+            "cleanup": {
+              "title": "Storage cleanup",
+              "hint": "Finds orders and messages older than {{retentionDays}} days, expired message-board posts, display machines not seen in {{staleDays}} days, and uploaded images no longer used anywhere — nothing is ever deleted automatically. Review the list below and confirm before anything is removed.",
+              "emptyMessage": "Nothing to clean up right now.",
+              "previewError": "Could not check for cleanup opportunities.",
+              "applyError": "Could not delete these items.",
+              "ordersLine": "{{count}} old order(s)",
+              "messagesLine": "{{count}} old message(s)",
+              "messageBoardPostsLine": "{{count}} expired message-board post(s)",
+              "displayMachinesLine": "{{count}} display machine(s) not seen in a while",
+              "imagesLine": "{{count}} unused uploaded image(s)",
+              "deleteButton": "Delete these {{count}} item(s)",
+              "deletingLabel": "Deleting…",
+              "confirm": "This will permanently delete {{count}} item(s) listed above. This can't be undone. Continue?",
+              "success": "Deleted {{count}} item(s)."
+            }
           },
           "testing": {
             "title": "Testing",
@@ -2610,6 +2628,8 @@
             "displayManagerIntro": "Hvordan en maskin eller nettleserfane registrerer seg selv som en skjerm (se Skjermbehandling-seksjonen i sidemenyen) og hvordan en Skjerm tildeles en av dens monitorer.",
             "backupTitle": "Sikkerhetskopi",
             "backupIntro": "server/backup.ts speiler server/data og server/uploads kontinuerlig til en søsteremappe kalt WrapsCoffeeBackup (se Innstillinger → Sikkerhetskopi). Disse rutene er den manuelle siden av det — en zip-nedlasting på et gitt tidspunkt, og to måter å gjenopprette på.",
+            "storageCleanupTitle": "Lagringsopprydding",
+            "storageCleanupIntro": "server/storageCleanup.ts (se Innstillinger → Sikkerhetskopi sin egen \"Lagringsopprydding\"-seksjon). Forhåndsvisningsruten beregner kun hva som kan ryddes bort; anvend-ruten sletter bare de id-ene/filnavnene den får oppgitt, etter å ha sjekket hver enkelt på nytt rett før sletting.",
             "extensionsTitle": "Extensions-proxy (kollektivtransport + vær)",
             "extensionsIntro": "Tynne proxyer over Enturs og Meteorologisk institutts egne offentlige API-er, med en kort server-side cache — ingen token nødvendig.",
             "newsTitle": "Nyheter (RSS)",
@@ -2696,7 +2716,23 @@
             "restoreError": "Kunne ikke gjenopprette denne sikkerhetskopien.",
             "restoreFromFolderButton": "Gjenopprett fra sikkerhetskopimappe",
             "restoreFromZipButton": "Gjenopprett fra zip-fil",
-            "folderUpdatedAt": "Sist oppdatert {{date}}"
+            "folderUpdatedAt": "Sist oppdatert {{date}}",
+            "cleanup": {
+              "title": "Lagringsopprydding",
+              "hint": "Finner bestillinger og meldinger eldre enn {{retentionDays}} dager, utløpte oppslagstavle-innlegg, skjermmaskiner som ikke er sett på {{staleDays}} dager, og opplastede bilder som ikke lenger er i bruk noe sted — ingenting slettes noen gang automatisk. Se gjennom listen under og bekreft før noe fjernes.",
+              "emptyMessage": "Ingenting å rydde opp i akkurat nå.",
+              "previewError": "Kunne ikke sjekke etter ryddemuligheter.",
+              "applyError": "Kunne ikke slette disse elementene.",
+              "ordersLine": "{{count}} gammel(e) bestilling(er)",
+              "messagesLine": "{{count}} gammel(e) melding(er)",
+              "messageBoardPostsLine": "{{count}} utløpt(e) oppslagstavle-innlegg",
+              "displayMachinesLine": "{{count}} skjermmaskin(er) ikke sett på en stund",
+              "imagesLine": "{{count}} ubrukt(e) opplastet(e) bilde(r)",
+              "deleteButton": "Slett disse {{count}} elementet/elementene",
+              "deletingLabel": "Sletter…",
+              "confirm": "Dette vil permanent slette {{count}} element(er) listet over. Dette kan ikke angres. Fortsette?",
+              "success": "Slettet {{count}} element(er)."
+            }
           },
           "testing": {
             "title": "Testing",

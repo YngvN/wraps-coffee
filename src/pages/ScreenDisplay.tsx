@@ -94,6 +94,9 @@ function randomScreensaverTestLabelPosition(): { top: number; left: number } {
   return { top: 10 + Math.random() * 80, left: 10 + Math.random() * 80 }
 }
 
+/** Caps how far back `undoStack` remembers — each entry is a full `ScreenConfig` snapshot (its whole `layout`/`paneSlots` tree), so an editing session left open a long time shouldn't let this grow without bound. */
+const MAX_UNDO_STACK_LENGTH = 50
+
 /** The result of successfully stepping `screens`/`undoStack`/`redoStack` one entry in either direction — `null` when there's nothing to step to, so the caller can no-op. */
 interface UndoRedoStep {
   screens: ScreenConfig[]
@@ -421,7 +424,7 @@ export function ScreenDisplay() {
    * `screen`), so it correctly builds on whatever's currently showing.
    */
   const applyScreenPatch = (patch: Partial<DraftableScreenFields>) => {
-    setUndoStack([...undoStack, screen])
+    setUndoStack([...undoStack, screen].slice(-MAX_UNDO_STACK_LENGTH))
     setRedoStack([])
     setScreens(
       screens.map((existing) =>

@@ -148,6 +148,12 @@ export function useShrinkToFitFontScale(outerRef: RefObject<HTMLElement | null>,
     }
 
     measureAndScale()
+    // Disabled panes (e.g. `overflowMode: 'scroll'`, or a slide kind that
+    // uses the transform-based `useShrinkToFitScale` instead) have nothing
+    // left to measure — installing a live `ResizeObserver`/`MutationObserver`/
+    // poll for them anyway would just be background work with no purpose,
+    // times every such pane on every screen, for as long as the kiosk stays up.
+    if (!enabled) return
 
     const resizeObserver = new ResizeObserver(scheduleMeasure)
     resizeObserver.observe(outer)

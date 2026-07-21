@@ -16,6 +16,7 @@ import { bearerToken, CORS_HEADERS, readJsonBody, sendJson } from './http'
 import * as mdns from './mdns'
 import * as neonBridge from './neonBridge'
 import * as store from './store'
+import * as storageCleanup from './storageCleanup'
 import { handleDeleteUpload, handleRenameUpload, handleServeUpload, handleStorageUsage, handleUpload, listUploads } from './uploads'
 import { handleVideoRetry, handleVideoUpload, startAbandonedVideoUploadSweep } from './videoUploads'
 import * as foodoraAdapter from './foodoraAdapter'
@@ -758,6 +759,48 @@ const httpServer = createServer((req, res) => {
     return
   }
 
+  // Storage cleanup (Settings → Backup's own "Storage cleanup" section) —
+  // admin/subadmin only, same posture as the backup routes above. The
+  // preview route never deletes anything; the apply route only ever deletes
+  // exactly what the admin explicitly confirmed, re-checked as still
+  // prunable at that exact moment — see `server/storageCleanup.ts`'s own
+  // module doc comment.
+  if (req.method === 'GET' && url.pathname === '/storage-cleanup/preview') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view storage cleanup' })
+      return
+    }
+    sendJson(res, 200, storageCleanup.computeCleanupPreview(host))
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/storage-cleanup/apply') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can apply storage cleanup' })
+      return
+    }
+    readJsonBody(req)
+      .then((body) => {
+        const result = storageCleanup.applyCleanup(body as storageCleanup.CleanupSelection, host)
+        console.log(
+          `[storage-cleanup] ${session.username} deleted ${result.deletedOrders} order(s), ${result.deletedMessages} message(s), ${result.deletedMessageBoardPosts} message-board post(s), ${result.deletedDisplayMachines} display machine(s), ${result.deletedImages} image(s)`,
+        )
+        sendJson(res, 200, result)
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
   // Account management (the admin dashboard's own "Users" tab) —
   // admin/subadmin only, same posture as the developer API key/Neon URL
   // routes above. Three extra rules beyond the plain role gate, enforced
@@ -869,6 +912,27 @@ const wss = new WebSocketServer({ server: httpServer, perMessageDeflate: true })
 /** Each connection's own set of keys it's declared interest in via `hello` — see "Scoped subscriptions" in the sync-server plan. */
 const interestSets = new Map<WebSocket, Set<SyncedKey>>()
 
+/**
+ * Whether each socket answered the last `ping` — the standard `ws` liveness
+ * pattern. A kiosk that loses its network ungracefully (power blip, AP
+ * hiccup, unplugged cable) doesn't always produce a clean TCP `close` event
+ * on this end; without this, that socket (and its `interestSets` entry)
+ * could linger indefinitely on a display that's meant to run for weeks.
+ */
+const socketAlive = new Map<WebSocket, boolean>()
+const PING_INTERVAL_MS = 30_000
+
+setInterval(() => {
+  for (const socket of wss.clients) {
+    if (socketAlive.get(socket) === false) {
+      socket.terminate()
+      continue
+    }
+    socketAlive.set(socket, false)
+    socket.ping()
+  }
+}, PING_INTERVAL_MS)
+
 function send(socket: WebSocket, message: ServerMessage) {
   if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message))
 }
@@ -947,6 +1011,8 @@ function applyUpdate(key: SyncedKey, value: unknown) {
 
 wss.on('connection', (socket) => {
   interestSets.set(socket, new Set())
+  socketAlive.set(socket, true)
+  socket.on('pong', () => socketAlive.set(socket, true))
   console.log(`[ws] client connected (${wss.clients.size} total)`)
 
   socket.on('message', (raw) => {
@@ -1005,6 +1071,7 @@ wss.on('connection', (socket) => {
 
   socket.on('close', () => {
     interestSets.delete(socket)
+    socketAlive.delete(socket)
     console.log(`[ws] client disconnected (${wss.clients.size} total)`)
   })
 

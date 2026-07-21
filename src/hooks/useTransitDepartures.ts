@@ -20,13 +20,17 @@ function cacheKey(stopId: string): string {
   return `${CACHE_KEY_PREFIX}${stopId}`
 }
 
-/** `null` if there's no cache for `stopId`, or it's older than `CACHE_MAX_AGE_MS`. Caching is a best-effort fallback, not core functionality, so any read/parse failure (storage disabled, corrupt entry) is treated the same as a cache miss rather than surfaced as an error. */
+/** `null` if there's no cache for `stopId`, or it's older than `CACHE_MAX_AGE_MS` (removing it in that case — an admin who reconfigures the stop over the weeks/months a display runs would otherwise leave every previous stop's own stale entry sitting in `localStorage` forever). Caching is a best-effort fallback, not core functionality, so any read/parse failure (storage disabled, corrupt entry) is treated the same as a cache miss rather than surfaced as an error. */
 function readCache(stopId: string): CachedDepartures | null {
   try {
-    const raw = window.localStorage.getItem(cacheKey(stopId))
+    const key = cacheKey(stopId)
+    const raw = window.localStorage.getItem(key)
     if (!raw) return null
     const parsed = JSON.parse(raw) as CachedDepartures
-    if (Date.now() - parsed.fetchedAt > CACHE_MAX_AGE_MS) return null
+    if (Date.now() - parsed.fetchedAt > CACHE_MAX_AGE_MS) {
+      window.localStorage.removeItem(key)
+      return null
+    }
     return parsed
   } catch {
     return null

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /** Shared with the pre-warm/eviction pass in `ScreenDisplay.tsx`, which needs the same cache name to prune entries this hook isn't actively resolving right now. */
 export const VIDEO_CACHE_NAME = 'wraps-coffee-video-cache-v1'
@@ -34,10 +34,23 @@ async function fetchAndCache(cache: Cache, url: string): Promise<Blob> {
  * web-standard Cache API, no Electron-specific code.
  */
 export function useCachedVideoSrc(videoUrl: string | undefined): string | undefined {
-  const [resolvedByUrl, setResolvedByUrl] = useState<Record<string, string>>({})
+  // Only the current `videoUrl`'s resolution is ever kept — anything else
+  // would mean each pane accumulates one blob URL (and its full underlying
+  // video `Blob`) per distinct video it's ever shown, for as long as the
+  // kiosk display stays up. `objectUrl` is `undefined` for the direct
+  // network-URL fallback case, which is never itself a blob URL to revoke.
+  const [resolved, setResolved] = useState<{ url: string; objectUrl: string | undefined } | undefined>(undefined)
+  const resolvedRef = useRef(resolved)
+  // Keeps `resolvedRef` in sync for the unmount-only cleanup effect further
+  // below — written here (post-render) rather than during render itself,
+  // since this codebase's lint config forbids writing a ref's `current`
+  // during render (see `SplitLayout.tsx`'s own doc comment on the same rule).
+  useEffect(() => {
+    resolvedRef.current = resolved
+  }, [resolved])
 
   useEffect(() => {
-    if (!videoUrl || resolvedByUrl[videoUrl]) return
+    if (!videoUrl || resolved?.url === videoUrl) return
     let cancelled = false
     let attempt = 0
 
@@ -48,7 +61,13 @@ export function useCachedVideoSrc(videoUrl: string | undefined): string | undefi
         const cache = await caches.open(VIDEO_CACHE_NAME)
         const cached = await cache.match(videoUrl)
         const blob = cached ? await cached.blob() : await fetchAndCache(cache, videoUrl)
-        if (!cancelled) setResolvedByUrl((prev) => ({ ...prev, [videoUrl]: URL.createObjectURL(blob) }))
+        if (!cancelled) {
+          const objectUrl = URL.createObjectURL(blob)
+          setResolved((prev) => {
+            if (prev?.objectUrl) URL.revokeObjectURL(prev.objectUrl)
+            return { url: videoUrl, objectUrl }
+          })
+        }
       } catch (error) {
         if (cancelled) return
         if (error instanceof RetryableFetchError) {
@@ -62,7 +81,10 @@ export function useCachedVideoSrc(videoUrl: string | undefined): string | undefi
         // Cache API unsupported, or a real (non-404) fetch failure — last
         // resort so playback still works, just without pre-caching.
         console.error('[useCachedVideoSrc] falling back to the direct network URL:', videoUrl, error)
-        setResolvedByUrl((prev) => ({ ...prev, [videoUrl]: videoUrl }))
+        setResolved((prev) => {
+          if (prev?.objectUrl) URL.revokeObjectURL(prev.objectUrl)
+          return { url: videoUrl, objectUrl: undefined }
+        })
       }
     }
 
@@ -70,9 +92,20 @@ export function useCachedVideoSrc(videoUrl: string | undefined): string | undefi
     return () => {
       cancelled = true
     }
-  }, [videoUrl, resolvedByUrl])
+  }, [videoUrl, resolved?.url])
 
-  return videoUrl ? resolvedByUrl[videoUrl] : undefined
+  // Revoke the last-held blob URL once this hook's own pane is gone for
+  // good — the effect above only ever revokes a *replaced* one. Reads
+  // `resolvedRef` (not `resolved`) since this cleanup must see whatever was
+  // most recently resolved, not whatever `resolved` was on this effect's own
+  // (first and only) run.
+  useEffect(() => {
+    return () => {
+      if (resolvedRef.current?.objectUrl) URL.revokeObjectURL(resolvedRef.current.objectUrl)
+    }
+  }, [])
+
+  return videoUrl && resolved?.url === videoUrl ? (resolved.objectUrl ?? resolved.url) : undefined
 }
 
 /**

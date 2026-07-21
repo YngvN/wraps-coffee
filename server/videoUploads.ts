@@ -235,7 +235,11 @@ function sweepAbandonedVideoUploads() {
   }
 }
 
+let abandonedUploadSweepTimer: ReturnType<typeof setInterval> | null = null
+
+/** Guards against a duplicate, permanently-running interval if this is ever accidentally called more than once (same guard `woltPoller.start`/`foodoraPoller.start` already have). */
 export function startAbandonedVideoUploadSweep() {
   sweepAbandonedVideoUploads()
-  setInterval(sweepAbandonedVideoUploads, 6 * 60 * 60 * 1000)
+  if (abandonedUploadSweepTimer) clearInterval(abandonedUploadSweepTimer)
+  abandonedUploadSweepTimer = setInterval(sweepAbandonedVideoUploads, 6 * 60 * 60 * 1000)
 }

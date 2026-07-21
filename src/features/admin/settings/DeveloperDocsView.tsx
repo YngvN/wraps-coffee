@@ -296,6 +296,33 @@ POST /backups/restore-from-folder  (Authorization: Bearer <token>, admin/subadmi
         </pre>
       </Card>
 
+      <Card title={t('admin.settings.developerDocs.storageCleanupTitle')}>
+        <p>{t('admin.settings.developerDocs.storageCleanupIntro')}</p>
+        <pre>
+          <code>{`GET /storage-cleanup/preview      (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 {
+    "retentionDays": number, "displayMachineStaleDays": number,
+    "orders": [{ "id", "createdAt", "customerName", "totalPrice" }],
+    "messages": [{ "id", "receivedAt", "subject", "name" }],
+    "messageBoardPosts": [{ "id", "title", "expiresAt" }],
+    "displayMachines": [{ "machineID", "label", "lastSeenAt" }],
+    "images": [{ "filename", "url", "thumbUrl", "sizeBytes", "uploadedAt" }]
+  }
+Never deletes anything — purely a computed preview of what's currently prunable (orders/messages
+older than retentionDays, expired message-board posts, display machines not seen in
+displayMachineStaleDays, and uploaded images no longer referenced by any product/event/message-board
+post/screen, live or draft).
+
+POST /storage-cleanup/apply       (Authorization: Bearer <token>, admin/subadmin only, JSON body)
+body = { "orderIds"?, "messageIds"?, "messageBoardPostIds"?, "displayMachineIds"?, "imageFilenames"? }
+→ 200 { "deletedOrders", "deletedMessages", "deletedMessageBoardPosts", "deletedDisplayMachines", "deletedImages" }
+Deletes only the ids/filenames given, and only after re-checking each one still qualifies as
+prunable at this exact moment — an id that's no longer stale (e.g. a display machine that
+reconnected) or an image that started being referenced since the preview was fetched is silently
+skipped rather than deleted anyway.`}</code>
+        </pre>
+      </Card>
+
       <Card title={t('admin.settings.developerDocs.extensionsTitle')}>
         <p>{t('admin.settings.developerDocs.extensionsIntro')}</p>
         <pre>

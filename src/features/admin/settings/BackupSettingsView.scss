@@ -90,3 +90,13 @@
   font-size: 0.875rem;
   color: $color-success;
 }
+
+.backup-settings__cleanup-list {
+  margin: 0;
+  padding-left: $spacing-unit * 1.25;
+  font-size: 0.875rem;
+  color: $color-text;
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+}

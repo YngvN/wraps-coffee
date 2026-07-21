@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { DiscountedPrice } from '../../components'
 import { useCatalogues } from '../../hooks/useCatalogues'
 import { useCategoryPrices } from '../../hooks/useCategoryPrices'
@@ -23,11 +24,23 @@ export function CatalogueSlide({ catalogueId, categories }: CatalogueSlideProps)
   const [categoryPrices] = useCategoryPrices()
   const [catalogues] = useCatalogues()
 
-  const catalogue = catalogues.find((existing) => existing.id === catalogueId) ?? catalogues[0]
-  const categoriesToShow = catalogue ? catalogue.categories.filter((category) => (categories ?? catalogue.categories.map((existing) => existing.id)).includes(category.id)) : []
-  const categoriesWithItems = categoriesToShow
-    .map((category) => ({ category, items: products.filter((product) => product.category === category.id && product.available) }))
-    .filter(({ items }) => items.length > 0)
+  const catalogue = useMemo(() => catalogues.find((existing) => existing.id === catalogueId) ?? catalogues[0], [catalogues, catalogueId])
+
+  // Re-filters/re-groups only when what it actually depends on changes,
+  // instead of on every render of this slide (a crossfade tick, a sibling
+  // pane edit, a stage rotation) — `categories`' own stable serialization is
+  // used as the dependency instead of the array prop itself, since a caller
+  // re-rendering with a fresh-but-equal array literal shouldn't defeat this.
+  const categoriesKey = categories?.join('|')
+  const categoriesWithItems = useMemo(() => {
+    if (!catalogue) return []
+    const allowedCategoryIds = new Set(categories ?? catalogue.categories.map((existing) => existing.id))
+    return catalogue.categories
+      .filter((category) => allowedCategoryIds.has(category.id))
+      .map((category) => ({ category, items: products.filter((product) => product.category === category.id && product.available) }))
+      .filter(({ items }) => items.length > 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `categoriesKey` stands in for `categories` (see above); `catalogue`/`products` are the real object identities this should react to.
+  }, [catalogue, products, categoriesKey])
 
   return (
     <div className="catalogue-slide">

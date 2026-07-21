@@ -31,6 +31,8 @@ interface LayoutTreeProps {
   defaultPaneLanguage: LanguageCode
   editingFocus: ScreenConfig['editingFocus']
   transitionDuration: number
+  /** Threaded straight through to every `LayoutPane`'s own prop of the same name — see `SplitLayout`'s own `contentPhase` state for what each phase drives. */
+  contentPhase: 'idle' | 'exiting' | 'holding'
   reducedMotion: boolean | null
   /** Omit to render every divider read-only (no drag handles at all) — e.g. while the screen is locked. */
   onLiveChange?: (path: NodePath, ratio: number) => void
@@ -104,6 +106,7 @@ export function LayoutTree({
   defaultPaneLanguage,
   editingFocus,
   transitionDuration,
+  contentPhase,
   reducedMotion,
   onLiveChange,
   onCommit,
@@ -148,6 +151,7 @@ export function LayoutTree({
         defaultPaneLanguage={defaultPaneLanguage}
         editingFocus={editingFocus}
         transitionDuration={transitionDuration}
+        contentPhase={contentPhase}
         reducedMotion={reducedMotion}
         selected={node.id === selectedLeafId}
         onSplitPane={locked ? undefined : onSplitPane}
@@ -250,6 +254,7 @@ export function LayoutTree({
         defaultPaneLanguage={defaultPaneLanguage}
         editingFocus={editingFocus}
         transitionDuration={transitionDuration}
+        contentPhase={contentPhase}
         reducedMotion={reducedMotion}
         onLiveChange={onLiveChange}
         onCommit={onCommit}
@@ -287,6 +292,7 @@ export function LayoutTree({
         defaultPaneLanguage={defaultPaneLanguage}
         editingFocus={editingFocus}
         transitionDuration={transitionDuration}
+        contentPhase={contentPhase}
         reducedMotion={reducedMotion}
         onLiveChange={onLiveChange}
         onCommit={onCommit}

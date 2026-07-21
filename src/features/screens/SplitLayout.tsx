@@ -12,7 +12,11 @@ import { isNewsSlotContent, isResizeToFitContent, resizeToFitMediaUrl } from '..
 import { isSlotActive, resolveSlotContent, resolveStageValue, writeStageCheckpoint } from '../../utils/screenStages'
 import { ExitingPaneGhost } from './ExitingPaneGhost'
 import { LayoutTree } from './LayoutTree'
+import { CONTENT_TRANSITION_DURATION_SECONDS, EXIT_PHASE_DURATION_SECONDS, PANE_GROWTH_DURATION_SECONDS } from './paneGrowthMotion'
 import './SplitLayout.scss'
+
+/** The stage-transition sequence's own three phases — see `SplitLayout`'s own `contentPhase` state and doc comment for what each drives. */
+type ContentPhase = 'idle' | 'exiting' | 'holding'
 
 interface SplitLayoutProps {
   screen: ScreenConfig
@@ -114,6 +118,87 @@ export function SplitLayout({
   const [mediaNaturalSizes, setMediaNaturalSizes] = useState<Record<string, { width: number; height: number }>>({})
   const requestedMediaRef = useRef<Set<string>>(new Set())
   const effectiveStage = forcedStage ?? stage
+  /** The raw rotation tick's own target value — see `stageTick` below for why this needs the same delayed catch-up `displayStage` gets, not just the stage number itself. */
+  const effectiveTick = tick ?? 0
+
+  /**
+   * The stage everything below actually renders against — deliberately
+   * lagging `effectiveStage` (the *target*) until the old content has
+   * finished exiting (see `contentPhase` below), so the grid/tree reflow
+   * ("the borders moving") and the pane add/remove diffing both wait for
+   * that exit too, rather than firing the instant the target changes.
+   * Starts equal to `effectiveStage` so the very first render has nothing
+   * to sequence.
+   */
+  const [displayStage, setDisplayStage] = useState(effectiveStage)
+  /**
+   * `tick`'s own equivalent of `displayStage` — without this, a News pane's
+   * headline (or a `'qrcode'` slide's automatic rotation, see `stageTick`
+   * below) would flip the instant `tick` advances, which is the same render
+   * `effectiveStage` changes on — visibly changing a pane's content while it
+   * is still fully on screen, mid-exit-animation, before `displayStage` (and
+   * therefore `stageTick`, if this weren't delayed too) has even started to
+   * catch up. Kept and updated in lockstep with `displayStage` throughout.
+   */
+  const [displayTick, setDisplayTick] = useState(effectiveTick)
+  /**
+   * `'idle'` the rest of the time; `'exiting'` for `EXIT_PHASE_DURATION_SECONDS`
+   * right after `effectiveStage` changes (old content plays its exit
+   * variant — see `LayoutPane.tsx`'s `suppressEnter` and its own randomized
+   * per-pane stagger — while `displayStage` still holds the old value); then
+   * `'holding'` for `PANE_GROWTH_DURATION_SECONDS`
+   * once `displayStage` catches up (the grid/tree reflow and any pane
+   * grow/collapse play, while the new content stays forced into its own
+   * exit variant so it doesn't reveal early); back to `'idle'` once that
+   * settles, letting the new content finally animate in. Skipped
+   * entirely — an immediate snap straight to the target, same as before
+   * this existed — while reduced motion is on, or while `forcedStage` is
+   * set (the pane editor's own stage-tab preview stays instant; only the
+   * live rotation/step controls get the sequenced version).
+   */
+  const [contentPhase, setContentPhase] = useState<ContentPhase>('idle')
+  /**
+   * Detects a genuine target-stage change synchronously during render —
+   * React's own documented "adjusting state when a prop changes" pattern
+   * (same idiom as `prevTree`/`diffBase` below), not a `useEffect`, so the
+   * `'exiting'` phase (and `LayoutPane`'s own `suppressEnter`) is already in
+   * effect on the very same commit `effectiveStage` changed on, with no
+   * extra frame where the old content hasn't started leaving yet. Reduced
+   * motion / `forcedStage` (the pane editor's own stage-tab preview) skip
+   * the sequence entirely and jump `displayStage` straight to the target,
+   * same as before this existed. The actual timers that carry `'exiting'`
+   * through to `'holding'` and back to `'idle'` live in the effect below,
+   * keyed off `contentPhase` itself rather than triggered from here, so an
+   * `effectiveStage` change that arrives again mid-sequence (a rapid
+   * double-advance) naturally cancels and restarts them instead of needing
+   * separate bookkeeping.
+   */
+  const [prevEffectiveStage, setPrevEffectiveStage] = useState(effectiveStage)
+  if (prevEffectiveStage !== effectiveStage) {
+    setPrevEffectiveStage(effectiveStage)
+    if (reducedMotion || forcedStage !== undefined) {
+      setDisplayStage(effectiveStage)
+      setDisplayTick(effectiveTick)
+      setContentPhase('idle')
+    } else {
+      setContentPhase('exiting')
+    }
+  }
+
+  useEffect(() => {
+    if (contentPhase === 'exiting') {
+      const timer = setTimeout(() => {
+        setDisplayStage(effectiveStage)
+        setDisplayTick(effectiveTick)
+        setContentPhase('holding')
+      }, EXIT_PHASE_DURATION_SECONDS * 1000)
+      return () => clearTimeout(timer)
+    }
+    if (contentPhase === 'holding') {
+      const timer = setTimeout(() => setContentPhase('idle'), PANE_GROWTH_DURATION_SECONDS * 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [contentPhase, effectiveStage, effectiveTick])
 
   /** `--screen-bg`/`--screen-text`/etc, redeclared right at this wrapper so every descendant pane — including one with no background color of its own — resolves them from the *screen's* own configured appearance rather than leaking through to whatever ancestor styling happens to surround `SplitLayout` whenever it's used (e.g. the admin form's own "Layout" preview never set these at all otherwise). A pane with its own background color still overrides these locally (see `slotBackgroundColorStyle`), same as ever — this only fixes the fallback. */
   const screenColorStyle = {
@@ -134,13 +219,16 @@ export function SplitLayout({
 
   const fallbackLeafId = Object.keys(screen.paneSlots)[0] ?? 'none'
   // Memoized so it's a *stable* reference across renders that don't change
-  // `screen.layout`/`effectiveStage` (the object-literal fallback branch
+  // `screen.layout`/`displayStage` (the object-literal fallback branch
   // would otherwise be a fresh object every render) — required for the
   // `diffWithBase`/`enteringGrowth` memoization below (both keyed on
-  // `tree`) to actually skip work, not just on paper.
+  // `tree`) to actually skip work, not just on paper. Keyed on `displayStage`
+  // (not `effectiveStage`) so the tree/shape — and everything derived from
+  // it, including the grid reflow and pane grow/collapse diffing — only
+  // updates once the stage-transition sequence's exit phase has finished.
   const tree = useMemo(
-    () => resolveStageValue(screen.layout, effectiveStage) ?? { type: 'leaf' as const, id: fallbackLeafId },
-    [screen.layout, effectiveStage, fallbackLeafId],
+    () => resolveStageValue(screen.layout, displayStage) ?? { type: 'leaf' as const, id: fallbackLeafId },
+    [screen.layout, displayStage, fallbackLeafId],
   )
   const leaves = listLeaves(tree)
   const paneGrowthFallback = screen.paneGrowthFallback ?? 'screenEdge'
@@ -215,7 +303,7 @@ export function SplitLayout({
     })
   const resolvePaneContent = (leafId: PaneId): ScreenSlotContent => {
     const slot = screen.paneSlots[leafId]
-    return slot ? resolveSlotContent(slot, effectiveStage) : { kind: 'none' }
+    return slot ? resolveSlotContent(slot, displayStage) : { kind: 'none' }
   }
 
   /** Every currently-resolved `'news'`-kind pane on this screen, in leaf order — what a `'qrcode'` slide's own "automatic" `newsSourceMode` (see `QrCodeSlide`) picks from by `newsSlotOrdinal`, so it can follow whichever headline a sibling News pane is showing without any direct communication between the two live components (see `useCurrentNewsHeadline`'s own doc comment). */
@@ -224,15 +312,45 @@ export function SplitLayout({
     .filter(isNewsSlotContent)
     .map((content) => ({ sourceIds: content.sourceIds, headlineCount: content.headlineCount, rotateSeconds: content.rotateSeconds }))
 
-  /** Drives News-pane headline (and a `'qrcode'` slide's own "automatic" mode) rotation from the screen's own shared stage advances instead of an independent wall-clock timer, for any screen that actually has more than one stage — `undefined` (no steps at all) falls back to that independent timer instead (see `useCurrentNewsHeadline`). Deliberately the *raw* tick, not the wrapped 1..stageCount `stage` value — keying off `stage` itself would cap a rotating News pane at exactly `stageCount` distinct headlines forever, however many are actually available. */
-  const stageTick = screen.useStages && (screen.stageCount ?? 1) > 1 ? (tick ?? 0) : undefined
+  /** Drives News-pane headline (and a `'qrcode'` slide's own "automatic" mode) rotation from the screen's own shared stage advances instead of an independent wall-clock timer, for any screen that actually has more than one stage — `undefined` (no steps at all) falls back to that independent timer instead (see `useCurrentNewsHeadline`). Deliberately the raw tick's own delayed (`displayTick`, not `effectiveTick`) counterpart, not the wrapped 1..stageCount `stage` value — keying off `stage` itself would cap a rotating News pane at exactly `stageCount` distinct headlines forever, however many are actually available; keying off the *undelayed* tick would flip a still-exiting pane's headline out from under its own mid-exit content (see `displayTick`'s own doc comment). */
+  const stageTick = screen.useStages && (screen.stageCount ?? 1) > 1 ? displayTick : undefined
 
   const activeResizeMediaEntries = leaves
     .map((leaf) => resolvePaneContent(leaf.id))
     .filter(isResizeToFitContent)
     .map((content) => ({ url: resizeToFitMediaUrl(content) as string, kind: content.kind }))
+  const activeResizeMediaKey = activeResizeMediaEntries.map((entry) => entry.url).join('|')
+
+  /**
+   * Drops any `mediaNaturalSizes` entry no longer referenced by this
+   * screen's own `resizeToFit` panes — otherwise every distinct URL an
+   * admin ever assigns to such a pane stays in it forever, for as long as
+   * this screen stays mounted (a kiosk's whole uptime). Pruned here, during
+   * render (React's own documented "adjusting state when a prop changes"
+   * pattern, same idiom as `diffBase`/`prevTree` above), rather than inside
+   * the effect below — a synchronous `setState` as the first thing an
+   * effect does relies on triggering (and waiting out) a whole extra
+   * render/commit just to apply a value already fully computable during
+   * this one.
+   */
+  const [prunedForResizeKey, setPrunedForResizeKey] = useState<string | undefined>(undefined)
+  if (prunedForResizeKey !== activeResizeMediaKey) {
+    const activeUrls = new Set(activeResizeMediaEntries.map((entry) => entry.url))
+    setMediaNaturalSizes((current) => {
+      const next = Object.fromEntries(Object.entries(current).filter(([url]) => activeUrls.has(url)))
+      return Object.keys(next).length === Object.keys(current).length ? current : next
+    })
+    setPrunedForResizeKey(activeResizeMediaKey)
+  }
 
   useEffect(() => {
+    const activeUrls = new Set(activeResizeMediaEntries.map((entry) => entry.url))
+    // Same pruning, applied to `requestedMediaRef` — a ref, so (unlike
+    // `mediaNaturalSizes` above) this belongs in an effect, not render.
+    for (const url of requestedMediaRef.current) {
+      if (!activeUrls.has(url)) requestedMediaRef.current.delete(url)
+    }
+
     activeResizeMediaEntries.forEach(({ url, kind }) => {
       if (requestedMediaRef.current.has(url)) return
       requestedMediaRef.current.add(url)
@@ -349,15 +467,15 @@ export function SplitLayout({
     })
     if (activeMediaResize && scale !== undefined) {
       const slot = screen.paneSlots[activeMediaResize.leafId]
-      const content = slot ? resolveSlotContent(slot, effectiveStage) : undefined
+      const content = slot ? resolveSlotContent(slot, displayStage) : undefined
       if (!slot || !content || (content.kind !== 'image' && content.kind !== 'video')) return
-      const nextSlot = { ...slot, content: writeStageCheckpoint(slot.content, effectiveStage, { ...content, resizeScale: scale }) }
+      const nextSlot = { ...slot, content: writeStageCheckpoint(slot.content, displayStage, { ...content, resizeScale: scale }) }
       onResizeDivider?.({ paneSlots: { ...screen.paneSlots, [activeMediaResize.leafId]: nextSlot } })
       return
     }
-    // Checkpoints the dragged-to tree at the effective stage — "moving the border(s)" only affects whichever stage is currently being viewed/edited. Every other divider re-derives its own ratio to hold its absolute on-screen position (see `applyRatioPatchPreservingDescendants`) rather than drifting along with whichever side of the drag its own container happens to sit in.
+    // Checkpoints the dragged-to tree at whichever stage is actually rendered (`displayStage`, not the `effectiveStage` target — a drag only ever happens against what's on screen) — "moving the border(s)" only affects whichever stage is currently being viewed/edited. Every other divider re-derives its own ratio to hold its absolute on-screen position (see `applyRatioPatchPreservingDescendants`) rather than drifting along with whichever side of the drag its own container happens to sit in.
     const nextTree = applyRatioPatchPreservingDescendants(tree, patch, geometry)
-    onResizeDivider?.({ layout: writeStageCheckpoint(screen.layout, effectiveStage, nextTree) })
+    onResizeDivider?.({ layout: writeStageCheckpoint(screen.layout, displayStage, nextTree) })
   }
   const handleCommit = (path: NodePath, ratio: number) => handleCommitPatch({ [pathKey(path)]: ratio })
 
@@ -369,14 +487,15 @@ export function SplitLayout({
         box={FULL_BOX}
         root={tree}
         paneSlots={screen.paneSlots}
-        stage={effectiveStage}
+        stage={displayStage}
         transitionStyle={screen.transitionStyle}
         resolveTextSizes={resolveTextSizes}
         onEditSlide={onEditSlide}
         onDropImage={onDropImage}
         defaultPaneLanguage={defaultPaneLanguage}
         editingFocus={screen.editingFocus}
-        transitionDuration={0.6}
+        transitionDuration={CONTENT_TRANSITION_DURATION_SECONDS}
+        contentPhase={contentPhase}
         reducedMotion={reducedMotion}
         selectedLeafId={selectedLeafId}
         onLiveChange={onResizeDivider ? handleLiveChange : undefined}
@@ -407,7 +526,7 @@ export function SplitLayout({
           rect={rect}
           growth={growth}
           slot={screen.paneSlots[leafId]}
-          stage={effectiveStage}
+          stage={displayStage}
           transitionStyle={screen.transitionStyle}
           resolveTextSizes={resolveTextSizes}
           defaultPaneLanguage={defaultPaneLanguage}

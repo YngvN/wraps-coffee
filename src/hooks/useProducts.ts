@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import productsSeed from '../data/products.json'
 import type { Product } from '../types/product'
 import { useLocalStorage } from './useLocalStorage'
@@ -9,8 +10,9 @@ function normalizeProduct(product: Product): Product {
   return { ...product, dietaryTags: product.dietaryTags ?? [] }
 }
 
-/** Returns the live product catalogue and a setter that persists edits to localStorage, overlaying `products.json` until a real backend exists. */
+/** Returns the live product catalogue and a setter that persists edits to localStorage, overlaying `products.json` until a real backend exists. Memoized on `products`' own reference (same reasoning as `useScreens`) so this hook's several callers, including the live "Catalogue" kiosk slide, don't re-run the normalize pass on every unrelated re-render. */
 export function useProducts() {
   const [products, setProducts] = useLocalStorage<Product[]>(STORAGE_KEY, productsSeed as Product[])
-  return [products.map(normalizeProduct), setProducts] as const
+  const normalizedProducts = useMemo(() => products.map(normalizeProduct), [products])
+  return [normalizedProducts, setProducts] as const
 }

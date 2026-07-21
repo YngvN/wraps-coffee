@@ -3,7 +3,16 @@ import { useEffect, useState } from 'react'
 import { Button } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
-import { createBackup, getBackupStatus, restoreBackupFromZip, restoreFromBackupFolder, SessionExpiredError } from '../../../lib/localServer'
+import {
+  applyCleanup,
+  createBackup,
+  getBackupStatus,
+  getCleanupPreview,
+  restoreBackupFromZip,
+  restoreFromBackupFolder,
+  SessionExpiredError,
+  type CleanupPreview,
+} from '../../../lib/localServer'
 import './BackupSettingsView.scss'
 
 /**
@@ -26,6 +35,12 @@ export function BackupSettingsView() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
+  const [cleanupPreview, setCleanupPreview] = useState<CleanupPreview | null>(null)
+  const [isLoadingCleanup, setIsLoadingCleanup] = useState(true)
+  const [isApplyingCleanup, setIsApplyingCleanup] = useState(false)
+  const [cleanupError, setCleanupError] = useState<string | null>(null)
+  const [cleanupMessage, setCleanupMessage] = useState<string | null>(null)
+
   useEffect(() => {
     if (!session) return
     getBackupStatus(session.token)
@@ -33,6 +48,24 @@ export function BackupSettingsView() {
       .catch(() => setError(t('admin.settings.backup.statusError')))
       .finally(() => setIsLoadingStatus(false))
   }, [session, t])
+
+  useEffect(() => {
+    if (!session) return
+    getCleanupPreview(session.token)
+      .then(setCleanupPreview)
+      .catch(() => setCleanupError(t('admin.settings.backup.cleanup.previewError')))
+      .finally(() => setIsLoadingCleanup(false))
+  }, [session, t])
+
+  /** Re-fetches the preview after a successful "delete" — called from a plain event handler (`handleApplyCleanup`), not an effect, so (unlike the mount-time fetch above) it's fine to flip `isLoadingCleanup` back to `true` synchronously right before it. */
+  const refreshCleanupPreview = () => {
+    if (!session) return
+    setIsLoadingCleanup(true)
+    getCleanupPreview(session.token)
+      .then(setCleanupPreview)
+      .catch(() => setCleanupError(t('admin.settings.backup.cleanup.previewError')))
+      .finally(() => setIsLoadingCleanup(false))
+  }
 
   const handleSessionExpired = (err: unknown): boolean => {
     if (err instanceof SessionExpiredError) {
@@ -95,6 +128,34 @@ export function BackupSettingsView() {
     }
   }
 
+  const cleanupItemCount = cleanupPreview
+    ? cleanupPreview.orders.length + cleanupPreview.messages.length + cleanupPreview.messageBoardPosts.length + cleanupPreview.displayMachines.length + cleanupPreview.images.length
+    : 0
+
+  const handleApplyCleanup = async () => {
+    if (!session || !cleanupPreview) return
+    if (!window.confirm(t('admin.settings.backup.cleanup.confirm', { count: cleanupItemCount }))) return
+    setCleanupError(null)
+    setCleanupMessage(null)
+    setIsApplyingCleanup(true)
+    try {
+      const result = await applyCleanup(session.token, {
+        orderIds: cleanupPreview.orders.map((order) => order.id),
+        messageIds: cleanupPreview.messages.map((cleanupMessageItem) => cleanupMessageItem.id),
+        messageBoardPostIds: cleanupPreview.messageBoardPosts.map((post) => post.id),
+        displayMachineIds: cleanupPreview.displayMachines.map((machine) => machine.machineID),
+        imageFilenames: cleanupPreview.images.map((image) => image.filename),
+      })
+      const deletedCount = result.deletedOrders + result.deletedMessages + result.deletedMessageBoardPosts + result.deletedDisplayMachines + result.deletedImages
+      setCleanupMessage(t('admin.settings.backup.cleanup.success', { count: deletedCount }))
+      refreshCleanupPreview()
+    } catch (err) {
+      if (!handleSessionExpired(err)) setCleanupError(err instanceof Error ? err.message : t('admin.settings.backup.cleanup.applyError'))
+    } finally {
+      setIsApplyingCleanup(false)
+    }
+  }
+
   return (
     <div className="backup-settings">
       <div className="backup-settings__section">
@@ -128,6 +189,34 @@ export function BackupSettingsView() {
 
       {error && <p className="backup-settings__error">{error}</p>}
       {message && <p className="backup-settings__message">{message}</p>}
+
+      <div className="backup-settings__section">
+        <h2>{t('admin.settings.backup.cleanup.title')}</h2>
+        <p className="backup-settings__hint">
+          {t('admin.settings.backup.cleanup.hint', { retentionDays: cleanupPreview?.retentionDays ?? 180, staleDays: cleanupPreview?.displayMachineStaleDays ?? 30 })}
+        </p>
+
+        {!isLoadingCleanup && cleanupPreview && cleanupItemCount === 0 && <p className="backup-settings__hint">{t('admin.settings.backup.cleanup.emptyMessage')}</p>}
+
+        {!isLoadingCleanup && cleanupPreview && cleanupItemCount > 0 && (
+          <ul className="backup-settings__cleanup-list">
+            {cleanupPreview.orders.length > 0 && <li>{t('admin.settings.backup.cleanup.ordersLine', { count: cleanupPreview.orders.length })}</li>}
+            {cleanupPreview.messages.length > 0 && <li>{t('admin.settings.backup.cleanup.messagesLine', { count: cleanupPreview.messages.length })}</li>}
+            {cleanupPreview.messageBoardPosts.length > 0 && <li>{t('admin.settings.backup.cleanup.messageBoardPostsLine', { count: cleanupPreview.messageBoardPosts.length })}</li>}
+            {cleanupPreview.displayMachines.length > 0 && <li>{t('admin.settings.backup.cleanup.displayMachinesLine', { count: cleanupPreview.displayMachines.length })}</li>}
+            {cleanupPreview.images.length > 0 && <li>{t('admin.settings.backup.cleanup.imagesLine', { count: cleanupPreview.images.length })}</li>}
+          </ul>
+        )}
+
+        {cleanupPreview && cleanupItemCount > 0 && (
+          <Button type="button" variant="secondary" onClick={() => void handleApplyCleanup()} disabled={isApplyingCleanup}>
+            {isApplyingCleanup ? t('admin.settings.backup.cleanup.deletingLabel') : t('admin.settings.backup.cleanup.deleteButton', { count: cleanupItemCount })}
+          </Button>
+        )}
+
+        {cleanupError && <p className="backup-settings__error">{cleanupError}</p>}
+        {cleanupMessage && <p className="backup-settings__message">{cleanupMessage}</p>}
+      </div>
     </div>
   )
 }

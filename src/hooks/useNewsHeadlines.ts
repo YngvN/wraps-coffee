@@ -19,13 +19,17 @@ function cacheKey(sourceIds: string[], count: number): string {
   return `${CACHE_KEY_PREFIX}${[...sourceIds].sort().join(',')}:${count}`
 }
 
-/** `null` if there's no cache for this exact `(sourceIds, count)` combination, or it's older than `CACHE_MAX_AGE_MS`. Caching is a best-effort fallback, not core functionality, so any read/parse failure (storage disabled, corrupt entry) is treated the same as a cache miss rather than surfaced as an error. */
+/** `null` if there's no cache for this exact `(sourceIds, count)` combination, or it's older than `CACHE_MAX_AGE_MS` (removing it in that case — an admin who reconfigures the news sources over the weeks/months a display runs would otherwise leave every previous combination's own stale entry sitting in `localStorage` forever). Caching is a best-effort fallback, not core functionality, so any read/parse failure (storage disabled, corrupt entry) is treated the same as a cache miss rather than surfaced as an error. */
 function readCache(sourceIds: string[], count: number): CachedHeadlines | null {
   try {
-    const raw = window.localStorage.getItem(cacheKey(sourceIds, count))
+    const key = cacheKey(sourceIds, count)
+    const raw = window.localStorage.getItem(key)
     if (!raw) return null
     const parsed = JSON.parse(raw) as CachedHeadlines
-    if (Date.now() - parsed.fetchedAt > CACHE_MAX_AGE_MS) return null
+    if (Date.now() - parsed.fetchedAt > CACHE_MAX_AGE_MS) {
+      window.localStorage.removeItem(key)
+      return null
+    }
     return parsed
   } catch {
     return null

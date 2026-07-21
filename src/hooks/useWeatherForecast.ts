@@ -22,13 +22,17 @@ function cacheKey(lat: number, lon: number): string {
   return `${CACHE_KEY_PREFIX}${weatherLocationKey(lat, lon)}`
 }
 
-/** `null` if there's no cache for `(lat, lon)`, or it's older than `CACHE_MAX_AGE_MS`. Caching is a best-effort fallback, not core functionality, so any read/parse failure (storage disabled, corrupt entry) is treated the same as a cache miss rather than surfaced as an error. */
+/** `null` if there's no cache for `(lat, lon)`, or it's older than `CACHE_MAX_AGE_MS` (removing it in that case — an admin who changes the configured location over the weeks/months a display runs would otherwise leave every previous location's own stale entry sitting in `localStorage` forever). Caching is a best-effort fallback, not core functionality, so any read/parse failure (storage disabled, corrupt entry) is treated the same as a cache miss rather than surfaced as an error. */
 function readCache(lat: number, lon: number): CachedForecast | null {
   try {
-    const raw = window.localStorage.getItem(cacheKey(lat, lon))
+    const key = cacheKey(lat, lon)
+    const raw = window.localStorage.getItem(key)
     if (!raw) return null
     const parsed = JSON.parse(raw) as CachedForecast
-    if (Date.now() - parsed.fetchedAt > CACHE_MAX_AGE_MS) return null
+    if (Date.now() - parsed.fetchedAt > CACHE_MAX_AGE_MS) {
+      window.localStorage.removeItem(key)
+      return null
+    }
     return parsed
   } catch {
     return null

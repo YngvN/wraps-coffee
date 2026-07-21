@@ -121,7 +121,10 @@ function sweepExpiredNewsImages() {
   }
 }
 
-/** Starts the periodic sweep — call once at server boot, same posture as `woltPoller.start`/`foodoraPoller.start`. */
+let sweepTimer: ReturnType<typeof setInterval> | null = null
+
+/** Starts the periodic sweep — call once at server boot, same posture as `woltPoller.start`/`foodoraPoller.start`. Guards against a duplicate, permanently-running interval if this is ever accidentally called more than once (same guard `woltPoller.start`/`foodoraPoller.start` already have). */
 export function startNewsImageCacheSweep() {
-  setInterval(sweepExpiredNewsImages, IMAGE_CACHE_TTL_MS)
+  if (sweepTimer) clearInterval(sweepTimer)
+  sweepTimer = setInterval(sweepExpiredNewsImages, IMAGE_CACHE_TTL_MS)
 }

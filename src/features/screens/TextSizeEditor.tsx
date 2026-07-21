@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Input } from '../../components'
 import { useTextSizePresets } from '../../hooks/useTextSizePresets'
 import { useLanguage } from '../../i18n'
@@ -49,6 +49,13 @@ export function TextSizeEditor({ textSizes, onChange, overflowMode, onOverflowMo
   /** The sizes as they were when this editor opened — the "100%" reference point for the "All" slider below. */
   const [baseline] = useState(() => textSizes)
   const [allPercent, setAllPercent] = useState(100)
+  const justSavedTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  useEffect(() => {
+    return () => {
+      if (justSavedTimeoutRef.current !== undefined) clearTimeout(justSavedTimeoutRef.current)
+    }
+  }, [])
 
   const setSize = (key: keyof TextSizes, value: number) => {
     onChange({ ...textSizes, [key]: value })
@@ -75,7 +82,8 @@ export function TextSizeEditor({ textSizes, onChange, overflowMode, onOverflowMo
     setPresets([...presets, { presetID: `${Date.now()}`, name: presetName.trim(), textSizes }])
     setPresetName('')
     setJustSaved(true)
-    setTimeout(() => setJustSaved(false), 2000)
+    if (justSavedTimeoutRef.current !== undefined) clearTimeout(justSavedTimeoutRef.current)
+    justSavedTimeoutRef.current = setTimeout(() => setJustSaved(false), 2000)
   }
 
   return (
