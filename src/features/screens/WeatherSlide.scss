@@ -8,6 +8,18 @@
   padding: $spacing-unit * 6;
   overflow-x: auto;
   overflow-y: hidden;
+  // Known bug, quick-fixed for now: the hourly-forecast strip's own
+  // horizontal scroll is unconditionally hidden here, unlike every other
+  // scrollable slide (which only hides it while the screen's own
+  // `hideScrollbar` setting is on) — this pane's overflow behavior needs
+  // proper follow-up work (shrinking each hour's card instead of relying on
+  // horizontal scroll at all, and wiring it into the same per-pane
+  // `overflowMode`/`hideScrollbar` system every other pane now uses), not
+  // addressed in this pass.
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 
   &--empty {
     align-items: center;
@@ -49,16 +61,16 @@
 
 .weather-slide__time {
   color: var(--screen-text-muted);
-  font-size: var(--slide-description-size, 1.25rem);
+  font-size: var(--slide-description-size, 4cqmin);
 }
 
 .weather-slide__icon {
-  font-size: calc(var(--slide-heading-size, 3.5rem) * 0.85);
+  font-size: calc(var(--slide-heading-size, 8cqmin) * 0.85);
   line-height: 1;
 }
 
 .weather-slide__temp {
-  font-size: var(--slide-item-title-size, 1.75rem);
+  font-size: var(--slide-item-title-size, 5.5cqmin);
   font-weight: 700;
 }
 
@@ -68,14 +80,14 @@
   align-items: center;
   gap: calc($spacing-unit / 4);
   color: var(--screen-text-muted);
-  font-size: calc(var(--slide-description-size, 1.25rem) * 0.85);
+  font-size: calc(var(--slide-description-size, 4cqmin) * 0.85);
 }
 
 .weather-slide__low-high {
   margin: 0;
   text-align: center;
   color: var(--screen-text-muted);
-  font-size: var(--slide-description-size, 1.25rem);
+  font-size: var(--slide-description-size, 4cqmin);
 }
 
 .weather-slide__stale-notice {
@@ -86,7 +98,7 @@
   margin: 0;
   text-align: center;
   color: var(--screen-text-muted);
-  font-size: calc(var(--slide-description-size, 1.25rem) * 0.7);
+  font-size: calc(var(--slide-description-size, 4cqmin) * 0.7);
 }
 
 // --- Yr brand theme (see `useBrandTheme` in `SlideFields.tsx`) — the one
@@ -113,6 +125,9 @@
   position: absolute;
   top: $spacing-unit * 2;
   left: $spacing-unit * 2;
-  width: 2.5rem;
-  height: 2.5rem;
+  // Scaled off the heading size (manual slider and automatic shrink alike)
+  // instead of a fixed `rem`, same reasoning as `TransitSlide`'s/`NewsSlide`'s
+  // own brand logo.
+  width: calc(var(--slide-heading-size, 8cqmin) * 0.7);
+  height: calc(var(--slide-heading-size, 8cqmin) * 0.7);
 }

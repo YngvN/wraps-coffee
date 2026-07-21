@@ -1,28 +1,26 @@
 @use '../../styles/variables' as *;
+@use '../../styles/mixins' as *;
 
 .transit-slide {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: $spacing-unit * 3;
+  // Sets this pane's own font-size context so every `em` value below it
+  // (padding, gaps, the line badge's own padding) scales together with the
+  // admin's own item-title size, manual slider or automatic shrink alike —
+  // fixed `$spacing-unit` px values wouldn't track either.
+  font-size: var(--slide-item-title-size, 5.5cqmin);
+  gap: 0.75em;
   height: 100%;
-  padding: $spacing-unit * 6;
-  overflow-y: auto;
+  padding: 1.5em;
+  overflow-y: hidden;
   overflow-x: hidden;
 
-  .screen-display--hide-scrollbar & {
-    scrollbar-width: none;
-    &::-webkit-scrollbar {
-      display: none;
-    }
+  .split-layout__pane-content--scroll & {
+    overflow-y: auto;
   }
 
-  > h1 {
-    margin: 0;
-    font-family: $font-heading;
-    font-size: var(--slide-heading-size, 3.5rem);
-    overflow-wrap: break-word;
-  }
+  @include hide-scrollbar-when-screen-hides-it;
 
   &--empty {
     align-items: center;
@@ -30,51 +28,127 @@
     text-align: center;
     color: var(--screen-text-muted);
   }
+
+  // Overrides just the top side of the `padding: 1.5em` above (that value
+  // is relative to the *item-title* size, not the heading size the logo
+  // itself scales with — the two can drift far enough apart that 1.5em
+  // alone doesn't clear the logo's own height) with an explicit floor
+  // covering the logo's own fixed top offset, its own height, and a little
+  // breathing room, so the heading below it (which starts right after this
+  // padding, in normal flow) can never start above where the logo ends.
+  &.transit-slide--has-logo {
+    padding-top: calc(#{$spacing-unit * 2} + var(--slide-heading-size, 8cqmin) * 0.7 + #{$spacing-unit * 2});
+  }
 }
 
 .transit-slide__empty {
   color: var(--screen-text-muted);
-  font-size: var(--slide-description-size, 1.25rem);
+  font-size: var(--slide-description-size, 4cqmin);
 }
 
-// One grid shared by every row (rather than each row solving its own,
-// independent flexbox sum) — the whole point being that "platform"/"time"
-// end up the exact same width on every row because the browser computes
-// all 5 column tracks *together*, once, across every row's cells at once.
-// A per-row flexbox (the previous approach) can't guarantee that: the
-// moment any single row's destination text is long enough to need the
-// space, only *that* row's own flex context shrinks, throwing every
-// column out of alignment with its neighbors — or, if the trailing
-// columns are pinned to a fixed `ch` width instead, that row's content
-// simply overflows the pane edge rather than shrinking at all, since nothing
-// after it in that isolated flex row is left to give up the space. A shared
-// grid has neither failure mode: `minmax(0, max-content)` on the platform/
-// time tracks means they claim only as much width as their longest cell
-// really needs, shared identically by every row, and still shrink in
-// lock-step (never past the container's own edge) if truly out of room.
+.transit-slide > h1 {
+  min-width: 0;
+  margin: 0;
+  font-family: $font-heading;
+  font-size: var(--slide-heading-size, 8cqmin);
+  overflow-wrap: normal;
+
+  // Reserves room for the corner logo (see `.transit-slide__brand-logo`
+  // below — an absolutely-positioned overlay, like News'/Weather's own, so
+  // it doesn't otherwise occupy any flow space of its own) — only while
+  // it's actually showing (`TransitSlide.tsx`'s own `showingLogo`), so the
+  // heading isn't needlessly indented when it's off. Sized off the
+  // heading's own font size (generously, ~3x it, comfortably wider than
+  // the logo's own height) so it stays proportionate at any text size
+  // instead of a fixed guess.
+  .transit-slide--has-logo & {
+    margin-left: calc(var(--slide-heading-size, 8cqmin) * 3);
+  }
+}
+
+// One or more columns side by side (`TransitSlide.tsx`'s own
+// `useColumnCount` decides how many, from the pane's own aspect ratio) —
+// each its own independent list/grid (see `.transit-slide__column` below),
+// rather than one single column growing ever taller: a long departure list
+// otherwise has no ceiling on how small `useShrinkToFitFontScale` needs to
+// shrink its text to fit vertically, long before the pane's own *width* is
+// anywhere near full. Spreading rows across columns first means the shrink
+// only ever has to make up whatever's left after that — usually little to
+// none.
 .transit-slide__list {
+  display: flex;
+  gap: 1.5em;
+  flex: 1;
+  min-height: 0;
+}
+
+// One column's own shared grid — every row inside it (including its own
+// header, see `.transit-slide__column-header`) shares these exact tracks,
+// so the line badge/destination/platform/time all land in the same spot
+// on every row, the same alignment technique the very first (single-
+// column) version of this list already used before columns existed.
+.transit-slide__column {
+  flex: 1 1 0;
+  min-width: 0;
   display: grid;
   grid-template-columns: auto auto minmax(0, 1fr) minmax(0, max-content) minmax(0, max-content);
+  align-content: start;
   align-items: center;
-  row-gap: $spacing-unit * 1.5;
-  column-gap: $spacing-unit * 2;
+  row-gap: 0.4em;
+  column-gap: 0.5em;
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: var(--slide-item-title-size, 1.75rem);
+  font-size: var(--slide-item-title-size, 5.5cqmin);
 }
 
-// A pure logical/animation wrapper: `display: contents` drops the `<li>`
-// itself out of the box/rendering tree (it still exists in the DOM — needed
-// for React's own key + `AnimatePresence` exit tracking — just doesn't
-// generate a box of its own), so its two real children below
-// (`__leading`/`__trailing`) become direct items of `__list`'s grid instead
-// of being laid out inside a nested box per row. `--cancelled`'s own
-// styling targets those two children (not `.transit-slide__item` itself)
-// since a `display: contents` element can't visibly render `opacity` on
-// itself — there's no box for it to apply to.
+.transit-slide__column-header {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  padding-bottom: 0.2em;
+  border-bottom: 1px solid var(--screen-border);
+}
+
+.transit-slide__column-header-label {
+  color: var(--screen-text-muted);
+  font-size: calc(var(--slide-description-size, 4cqmin) * 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+
+  // Matches `.transit-slide__line`'s own position — the 2nd of `__leading`'s
+  // 3 subgrid tracks (after the mode icon).
+  &--line {
+    grid-column: 2;
+  }
+
+  // Matches `.transit-slide__platform`'s/`.transit-slide__time`'s own
+  // positions — see this component's own doc comment for why these can't
+  // just rely on DOM-order auto-placement.
+  &--platform {
+    grid-column: 1;
+  }
+
+  &--arrival {
+    grid-column: 2;
+    text-align: right;
+  }
+}
+
+// Spans the column's own full width as a single grid item — needed for
+// `.transit-slide__leading`/`__trailing` below to able to hand the *same*
+// shared tracks back down to their own children via `subgrid` — while
+// still being a real box of its own (not `display: contents`, which the
+// single-shared-grid-across-all-rows version before columns existed used
+// instead): multi-column mode's own fade + `max-height` collapse/expand
+// animates *this* element directly, which needs a real box to animate.
+// `overflow: hidden` is what actually makes the `max-height` collapse
+// visually clip its own content while animating, in both modes.
 .transit-slide__item {
-  display: contents;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  overflow: hidden;
 
   &--cancelled {
     .transit-slide__leading,
@@ -88,19 +162,18 @@
   }
 }
 
-// Each spans multiple of `__list`'s own column tracks (3 for the icon/line/
-// destination group, 2 for platform/time) while still being its own real,
-// animatable box (needed for the enter/exit slide in `TransitSlide.tsx`) —
-// `grid-template-columns: subgrid` is what lets a box like this both (a)
-// occupy space in the parent grid as a single spanning item, so it can
-// still be independently transformed/faded, and (b) hand its own spanned
-// columns straight back down to its own children, so those children align
-// to the *same* shared tracks as every other row's equivalent cells.
 .transit-slide__leading {
   grid-column: span 3;
   display: grid;
   grid-template-columns: subgrid;
   align-items: center;
+  // A grid item's default `min-width` is `auto` (shrink-to-fit its own
+  // content), not `0` — without this, `.transit-slide__destination`'s own
+  // `white-space: nowrap` below would force this to grow to the
+  // destination's full unwrapped width instead of letting it genuinely
+  // overflow, which is what makes that overflow measurable (and
+  // ellipsis-truncatable) in the first place.
+  min-width: 0;
 }
 
 .transit-slide__trailing {
@@ -114,6 +187,7 @@
   position: relative;
   display: inline-flex;
   align-self: center;
+  flex-shrink: 0;
 }
 
 .transit-slide__mode-icon {
@@ -136,29 +210,42 @@
 }
 
 .transit-slide__line {
+  flex-shrink: 0;
   min-width: 3ch;
-  padding: calc($spacing-unit / 4) calc($spacing-unit * 0.75);
+  padding: 0.1em 0.3em;
   border-radius: 6px;
   background: var(--screen-text);
   color: var(--screen-bg);
   font-weight: 700;
   text-align: center;
+  white-space: nowrap;
 }
 
 .transit-slide__destination {
-  overflow-wrap: break-word;
+  min-width: 0;
+  // A destination name reads as a single label, not prose — stays on one
+  // line and genuinely overflows (rather than wrapping to a second line)
+  // when it doesn't fit, so it ellipsis-truncates instead of a wrap
+  // silently "solving" the width problem the CSS way but leaving an
+  // awkward two-line result. `useShrinkToFitFontScale` (unlike this,
+  // width-only, per-row fallback) only ever shrinks for genuine *vertical*
+  // overflow — see its own doc comment.
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
 }
 
-// Pinned to `__trailing`'s 2nd subgrid column explicitly, rather than relying
-// on plain DOM-order auto-placement — when `showPlatform` is off,
-// `.transit-slide__platform` isn't rendered at all, and without an explicit
-// position this would auto-place into the *first* (platform's own) column
-// instead of its actual (time) one.
+// Pinned to `__trailing`'s 2nd subgrid column explicitly, rather than
+// relying on plain DOM-order auto-placement — when `showPlatform` is off,
+// `.transit-slide__platform` isn't rendered at all, and without an
+// explicit position this would auto-place into the *first* (platform's
+// own) column instead of its actual (time) one.
 .transit-slide__time {
   grid-column: 2;
   text-align: right;
   color: var(--screen-text-muted);
-  font-size: var(--slide-description-size, 1.25rem);
+  font-size: var(--slide-description-size, 4cqmin);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -166,15 +253,20 @@
 
 .transit-slide__line-name {
   display: block;
+  min-width: 0;
   color: var(--screen-text-muted);
-  font-size: var(--slide-description-size, 1.25rem);
+  font-size: var(--slide-description-size, 4cqmin);
+  // Same "shrink instead of wrap" reasoning as `.transit-slide__destination`.
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .transit-slide__platform {
   grid-column: 1;
   text-align: right;
   color: var(--screen-text-muted);
-  font-size: var(--slide-description-size, 1.25rem);
+  font-size: var(--slide-description-size, 4cqmin);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -184,7 +276,7 @@
   margin: 0;
   text-align: center;
   color: var(--screen-text-muted);
-  font-size: calc(var(--slide-description-size, 1.25rem) * 0.7);
+  font-size: calc(var(--slide-description-size, 4cqmin) * 0.7);
 }
 
 // --- Ruter#/Entur brand theme (see `useBrandTheme` in `SlideFields.tsx`) ---
@@ -245,7 +337,11 @@
   top: $spacing-unit * 2;
   left: $spacing-unit * 2;
   width: auto;
-  // Matches every other slide's own corner brand logo (News, Weather) —
-  // one consistent size regardless of which live-data source is showing.
-  height: 2.5rem;
+  // Scaled off the heading size (manual slider and automatic shrink alike)
+  // instead of a fixed `rem`, same reasoning as `NewsSlide`'s/`WeatherSlide`'s
+  // own brand logo. Same absolutely-positioned corner-overlay spot as
+  // those two — the stop-name heading's own `margin-left` (see `> h1`
+  // above) is what keeps this from overlapping it, since this overlay
+  // doesn't occupy any flow space of its own.
+  height: calc(var(--slide-heading-size, 8cqmin) * 0.7);
 }

@@ -3,25 +3,30 @@
 .event-month-slide {
   display: flex;
   flex-direction: column;
-  gap: $spacing-unit * 3;
+  // Sets this pane's own font-size context so every `em` value below it
+  // (padding, gaps between events, the column gap) scales together with
+  // the admin's own item-title size, manual slider or automatic shrink
+  // alike — matches `TransitSlide`'s own root, same reasoning.
+  font-size: var(--slide-item-title-size, 5.5cqmin);
+  gap: 0.75em;
   height: 100%;
-  padding: $spacing-unit * 6;
+  padding: 1.5em;
   overflow: hidden;
 
   > h1 {
     flex-shrink: 0;
     margin: 0;
     font-family: $font-heading;
-    font-size: var(--slide-heading-size, 3.5rem);
+    font-size: var(--slide-heading-size, 8cqmin);
     text-transform: capitalize;
-    overflow-wrap: break-word;
+    overflow-wrap: normal;
   }
 }
 
 .event-month-slide__empty {
   margin: 0;
   color: var(--screen-text-muted);
-  font-size: var(--slide-description-size, 1.25rem);
+  font-size: var(--slide-description-size, 4cqmin);
 }
 
 .event-month-slide__list {
@@ -40,39 +45,43 @@
   // the same var) makes `ch` below resolve relative to the item-title
   // size, matching `EventCalendarSlide`/`CatalogueSlide`'s own auto-fit
   // lists.
-  font-size: var(--slide-item-title-size, 1.75rem);
+  font-size: var(--slide-item-title-size, 5.5cqmin);
   column-width: max(320px, 26ch);
-  column-gap: $spacing-unit * 4;
+  // The steeper `--fit-gap-scale` multiplier (see `useShrinkToFitFontScale`'s
+  // own doc comment) on top of the plain `em` value already tracking the
+  // shrinking text — reclaiming space between columns/events is preferred
+  // over shrinking text down further, so this needs to give up its own
+  // room faster than a plain 1:1 shrink would.
+  column-gap: calc(1.5em * var(--fit-gap-scale, 1));
   column-fill: auto;
   margin: 0;
   padding: 0;
   list-style: none;
-  // However many columns fit still isn't guaranteed to hold every event in
-  // the month — a horizontal scrollbar is the fallback once they don't,
-  // same "content taller/wider than the pane stays reachable" posture the
-  // other slide lists use, just on the other axis (since a fixed-height
-  // multi-column container overflows sideways, not downward).
-  overflow-x: auto;
-  overflow-y: hidden;
-
-  .screen-display--hide-scrollbar & {
-    scrollbar-width: none;
-    &::-webkit-scrollbar {
-      display: none;
-    }
-  }
+  // No overflow fallback of its own (unlike, say, `TransitSlide`'s own
+  // grid, whose destination column gracefully ellipsis-truncates on the
+  // width axis) — CSS multi-column has no equivalent "stop adding columns"
+  // behavior, so a too-long event list would just keep growing sideways
+  // forever if left to scroll internally. Instead this stays a real,
+  // uncontained overflow that bubbles up to `.event-month-slide`'s own
+  // `overflow: hidden` (the same universal backstop every other pane's
+  // content relies on) — which is what lets `useShrinkToFitFontScale`'s own
+  // width check (see `LayoutPane.tsx`'s own `checkWidth` for this kind)
+  // actually *see* this overflow at all and shrink text/gaps until
+  // everything fits, rather than this column silently swallowing it into
+  // its own separate scroll island the shrink hook can't measure through.
 }
 
 .event-month-slide__item {
   display: flex;
   align-items: baseline;
-  gap: $spacing-unit * 2;
+  gap: 0.5em;
   // Multi-column layout has no "row gap" of its own within a column —
   // items are just document-flow-stacked one after another — so spacing
   // between them is a plain margin instead. `break-inside: avoid` keeps
   // one event's own date+title+price+description block from being split
-  // across a column break.
-  margin-bottom: $spacing-unit * 3;
+  // across a column break. The steeper `--fit-gap-scale` multiplier here
+  // too — see `.event-month-slide__list`'s own `column-gap` above.
+  margin-bottom: calc(1em * var(--fit-gap-scale, 1));
   break-inside: avoid;
 
   &--cancelled {
@@ -84,7 +93,7 @@
   flex-shrink: 0;
   min-width: 5ch;
   color: var(--screen-text-muted);
-  font-size: var(--slide-description-size, 1.25rem);
+  font-size: var(--slide-description-size, 4cqmin);
   font-weight: 600;
   text-transform: capitalize;
 }
@@ -95,17 +104,17 @@
   h2 {
     display: flex;
     align-items: center;
-    gap: $spacing-unit;
+    gap: 0.25em;
     margin: 0;
-    font-size: var(--slide-item-title-size, 1.75rem);
-    overflow-wrap: break-word;
+    font-size: var(--slide-item-title-size, 5.5cqmin);
+    overflow-wrap: normal;
   }
 }
 
 .event-month-slide__price,
 .event-month-slide__description {
-  margin: calc($spacing-unit / 2) 0 0;
+  margin: 0.25em 0 0;
   color: var(--screen-text-muted);
-  font-size: var(--slide-description-size, 1.25rem);
-  overflow-wrap: break-word;
+  font-size: var(--slide-description-size, 4cqmin);
+  overflow-wrap: normal;
 }

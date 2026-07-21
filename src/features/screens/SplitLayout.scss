@@ -51,6 +51,12 @@
   position: relative;
   height: 100%;
   overflow: hidden;
+  // Lets every descendant's `cqmin`/`cqw`/`cqh` length (see
+  // `textSizesToCssVars`) resolve against *this* pane's own box instead of
+  // the viewport — `NewsSlide.scss` used to set this locally, just for its
+  // own layout-switching container query; this makes the same container
+  // queryable for text sizing everywhere.
+  container-type: size;
   // Always paints its own background (not just relying on the screen's own
   // showing through) so it fully covers its parent grid's own background —
   // otherwise that divider color (see `.layout-tree__split`'s own
@@ -147,6 +153,21 @@
 .split-layout__pane-content {
   position: absolute;
   inset: 0;
+  // Purely a marker class (no styling of its own) — a pane whose resolved
+  // `overflowMode` is `'scroll'` (see `LayoutPane.tsx`) gets this added, and
+  // each slide's own `.scss` scopes its own `overflow-y: auto` under
+  // `.split-layout__pane-content--scroll &` instead of applying it
+  // unconditionally, same "ancestor modifier selector" pattern
+  // `.screen-display--hide-scrollbar` already uses.
+}
+
+.split-layout__pane-content-inner {
+  width: 100%;
+  height: 100%;
+  // `useShrinkToFitScale`'s own uniform scale-down transform is applied
+  // here, centered so a shrunk pane's content stays visually centered
+  // within its own available space rather than hugging one corner.
+  transform-origin: center;
 }
 
 // The admin editor's own click-feedback flash (see `screen.editingFocus`),

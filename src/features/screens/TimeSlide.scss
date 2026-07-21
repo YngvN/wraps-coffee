@@ -11,11 +11,11 @@
 
   span {
     font-family: $font-heading;
-    font-size: var(--time-slide-font-size, 6rem);
+    font-size: var(--time-slide-font-size, 19cqmin);
     font-variant-numeric: tabular-nums;
     line-height: 1;
     text-align: center;
-    overflow-wrap: break-word;
+    overflow-wrap: normal;
   }
 
   &__colon--blink {

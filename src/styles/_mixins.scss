@@ -1,0 +1,26 @@
+// Shared style snippets reused across more than one screen-display slide —
+// pull in with `@use '../../styles/mixins' as *;`.
+
+/// Clamps a text block to at most `$lines` lines, ellipsizing the rest —
+/// used for a slide's own heading (max 3 lines, so a long headline wraps
+/// before the pane's own `useShrinkToFitScale` shrink kicks in) and, at a
+/// different `$lines` count, its description.
+@mixin line-clamp($lines) {
+  display: -webkit-box;
+  -webkit-line-clamp: $lines;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/// Hides an element's own scrollbar chrome while `.screen-display--hide-scrollbar`
+/// is active on its ancestor screen, without affecting whether it actually
+/// scrolls — see `ScreenConfig.hideScrollbar`'s own doc comment. Only
+/// meaningful on an element that's actually scrollable in the first place.
+@mixin hide-scrollbar-when-screen-hides-it {
+  .screen-display--hide-scrollbar & {
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}

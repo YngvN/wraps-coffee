@@ -2,8 +2,9 @@ import { useMemo } from 'react'
 import screensSeed from '../data/screens.json'
 import type { BackgroundImage, LayoutNode, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SplitDirection, StageTimeline, TextSizes } from '../types/screen'
 import { clampRatio } from '../utils/screenLayout'
+import { hasOwnTextSizeFields } from '../utils/screenSlots'
 import { isSlotActive, resolveStageValue } from '../utils/screenStages'
-import { normalizeTextSizes } from '../utils/textSizeVars'
+import { normalizeTextSizes, remToPercent, textSizesRemToPercent } from '../utils/textSizeVars'
 import { useLocalStorage } from './useLocalStorage'
 
 const STORAGE_KEY = 'admin.screens'
@@ -103,6 +104,14 @@ function migrateContent(content: ScreenSlotContent): ScreenSlotContent {
   return migrateEventsContent(migrateAnnouncementContent(migrateMenuKindRename(migrateCategoryContent(content))))
 }
 
+/** Converts a content checkpoint's own `textSizes` (or, for `'time'`, its `fontSize`) from the old fixed-`rem` unit to the current `cqmin` percentage one — a no-op unless `convertToPercent` (see `normalizeScreen`'s own `usesPercentTextSizes` gate). */
+function migrateContentSizeUnit(content: ScreenSlotContent, convertToPercent: boolean): ScreenSlotContent {
+  if (!convertToPercent) return content
+  if (hasOwnTextSizeFields(content) && content.textSizes) return { ...content, textSizes: textSizesRemToPercent(content.textSizes) } as ScreenSlotContent
+  if (content.kind === 'time' && typeof content.fontSize === 'number') return { ...content, fontSize: remToPercent(content.fontSize) }
+  return content
+}
+
 /** The shape a persisted slot took before shared stages existed: one shared `isSlideshow` flag plus a flat, always-fully-populated list of rotating slides. */
 interface LegacySlot {
   isSlideshow?: boolean
@@ -139,32 +148,52 @@ function isCurrentShapeSlot(value: unknown): value is ScreenSlot {
  * - Even older bare-`ScreenSlotContent` shape, or anything unrecognized:
  *   treated as a single "none" slot.
  */
-function normalizeSlot(value: unknown, legacyTextSizes: TextSizes | undefined): ScreenSlot {
+function normalizeSlot(value: unknown, legacyTextSizes: TextSizes | undefined, convertToPercent: boolean): ScreenSlot {
+  const migrateAndConvert = (checkpoint: ScreenSlotContent) => migrateContentSizeUnit(migrateContent(checkpoint), convertToPercent)
+  const convertedLegacyTextSizes = legacyTextSizes && convertToPercent ? textSizesRemToPercent(legacyTextSizes) : legacyTextSizes
+
   if (isCurrentShapeSlot(value)) {
     const rawContent = Object.keys(value.content ?? {}).length > 0 ? value.content : { 1: { kind: 'none' as const } }
-    const content = Object.fromEntries(Object.entries(rawContent).map(([stageKey, checkpoint]) => [stageKey, migrateContent(checkpoint)])) as ScreenSlot['content']
+    const content = Object.fromEntries(Object.entries(rawContent).map(([stageKey, checkpoint]) => [stageKey, migrateAndConvert(checkpoint)])) as ScreenSlot['content']
     const textSizes = value.textSizes
-      ? (Object.fromEntries(Object.entries(value.textSizes).map(([key, size]) => [key, size ? normalizeTextSizes(size) : size])) as ScreenSlot['textSizes'])
+      ? (Object.fromEntries(
+          Object.entries(value.textSizes).map(([key, size]) => [key, size ? normalizeTextSizes(convertToPercent ? textSizesRemToPercent(size) : size) : size]),
+        ) as ScreenSlot['textSizes'])
       : {}
-    return { content, backgroundColor: value.backgroundColor ?? {}, backgroundImage: value.backgroundImage ?? {}, textSizes, language: value.language ?? {}, locked: value.locked ?? {} }
+    return {
+      content,
+      backgroundColor: value.backgroundColor ?? {},
+      backgroundImage: value.backgroundImage ?? {},
+      textSizes,
+      language: value.language ?? {},
+      locked: value.locked ?? {},
+      overflowMode: value.overflowMode ?? {},
+    }
   }
   if (isLegacySlot(value)) {
     const contents = value.contents.length > 0 ? value.contents : [{ kind: 'none' as const }]
     const firstConfiguredIndex = contents.findIndex((content) => content.kind !== 'none')
     const chosen = contents[firstConfiguredIndex === -1 ? 0 : firstConfiguredIndex]
     return {
-      content: { 1: migrateContent(chosen) },
+      content: { 1: migrateAndConvert(chosen) },
       backgroundColor: { 1: value.backgroundColor },
       backgroundImage: { 1: value.backgroundImage },
-      textSizes: { 1: legacyTextSizes ? normalizeTextSizes(legacyTextSizes) : legacyTextSizes },
+      textSizes: { 1: convertedLegacyTextSizes ? normalizeTextSizes(convertedLegacyTextSizes) : convertedLegacyTextSizes },
       language: {},
       locked: {},
     }
   }
   if (value && typeof value === 'object' && 'kind' in value) {
-    return { content: { 1: migrateContent(value as ScreenSlotContent) }, backgroundColor: { 1: undefined }, backgroundImage: { 1: undefined }, textSizes: { 1: legacyTextSizes }, language: {}, locked: {} }
+    return {
+      content: { 1: migrateAndConvert(value as ScreenSlotContent) },
+      backgroundColor: { 1: undefined },
+      backgroundImage: { 1: undefined },
+      textSizes: { 1: convertedLegacyTextSizes },
+      language: {},
+      locked: {},
+    }
   }
-  return { content: { 1: { kind: 'none' } }, backgroundColor: { 1: undefined }, backgroundImage: { 1: undefined }, textSizes: { 1: legacyTextSizes }, language: {}, locked: {} }
+  return { content: { 1: { kind: 'none' } }, backgroundColor: { 1: undefined }, backgroundImage: { 1: undefined }, textSizes: { 1: convertedLegacyTextSizes }, language: {}, locked: {} }
 }
 
 /** A migrated legacy pane's own deterministic, position-derived id — stable across repeated migrations of the same underlying legacy data (unlike a fresh random id), so a previously-migrated `editingFocus.tab` keeps matching on every re-read, and so this doesn't cause needless remounts. Once a screen is ever saved back with a real `layout`/`paneSlots`, this id scheme is never exercised again for it. */
@@ -271,7 +300,13 @@ function migrateEditingFocusTab(tab: 'global' | number | PaneId): 'global' | Pan
  * keeps this defensive) falls back to a single empty pane.
  */
 function normalizeScreen(screen: ScreenConfig & Partial<LegacyArrangement> & { slotTextSizes?: Record<number, TextSizes> }): ScreenConfig {
-  const textSizes = screen.textSizes ? normalizeTextSizes(screen.textSizes) : screen.textSizes
+  // Whether this screen's own `textSizes`/`fontSize` values still need
+  // converting from the old fixed-`rem` unit to the current `cqmin`
+  // percentage one — see `ScreenConfig.usesPercentTextSizes`'s own doc
+  // comment for why this can't be detected structurally (the value shape is
+  // identical either way, just a plain number) and needs this explicit flag.
+  const convertToPercent = !screen.usesPercentTextSizes
+  const textSizes = screen.textSizes ? normalizeTextSizes(convertToPercent ? textSizesRemToPercent(screen.textSizes) : screen.textSizes) : screen.textSizes
   const useStages = typeof screen.useStages === 'boolean' ? screen.useStages : false
   const stageCount = typeof screen.stageCount === 'number' && screen.stageCount >= 1 ? screen.stageCount : 1
 
@@ -280,9 +315,9 @@ function normalizeScreen(screen: ScreenConfig & Partial<LegacyArrangement> & { s
 
   if (screen.layout && screen.paneSlots) {
     layout = screen.layout
-    paneSlots = Object.fromEntries(Object.entries(screen.paneSlots).map(([id, slot]) => [id, normalizeSlot(slot, undefined)]))
+    paneSlots = Object.fromEntries(Object.entries(screen.paneSlots).map(([id, slot]) => [id, normalizeSlot(slot, undefined, convertToPercent)]))
   } else if (Array.isArray(screen.slots)) {
-    const normalizedSlots = [0, 1, 2, 3].map((index) => normalizeSlot(screen.slots![index], screen.slotTextSizes?.[index]))
+    const normalizedSlots = [0, 1, 2, 3].map((index) => normalizeSlot(screen.slots![index], screen.slotTextSizes?.[index], convertToPercent))
     const fallbackSlotCount = normalizedSlots.filter(isSlotActive).length || 1
     const migrated = migrateLegacyArrangement(
       { slotCount: screen.slotCount ?? fallbackSlotCount, slots: screen.slots, splitDirection: screen.splitDirection, splitBigPosition: screen.splitBigPosition, ratios: screen.ratios },
@@ -293,7 +328,7 @@ function normalizeScreen(screen: ScreenConfig & Partial<LegacyArrangement> & { s
   } else {
     const id = legacyPaneId(0)
     layout = { 1: { type: 'leaf', id } }
-    paneSlots = { [id]: normalizeSlot(undefined, undefined) }
+    paneSlots = { [id]: normalizeSlot(undefined, undefined, convertToPercent) }
   }
 
   const editingFocus = screen.editingFocus ? { ...screen.editingFocus, tab: migrateEditingFocusTab(screen.editingFocus.tab) } : screen.editingFocus
@@ -306,6 +341,7 @@ function normalizeScreen(screen: ScreenConfig & Partial<LegacyArrangement> & { s
     useStages,
     stageCount,
     editingFocus,
+    usesPercentTextSizes: true,
   }
   delete normalized.slots
   delete normalized.slotCount

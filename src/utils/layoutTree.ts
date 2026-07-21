@@ -48,6 +48,7 @@ export function cloneSlot(slot: ScreenSlot): ScreenSlot {
     backgroundImage: { ...slot.backgroundImage },
     textSizes: { ...slot.textSizes },
     ...(slot.language ? { language: { ...slot.language } } : {}),
+    ...(slot.overflowMode ? { overflowMode: { ...slot.overflowMode } } : {}),
   }
 }
 

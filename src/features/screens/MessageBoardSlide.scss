@@ -1,17 +1,17 @@
 @use '../../styles/variables' as *;
+@use '../../styles/mixins' as *;
 
 .message-board-slide {
   height: 100%;
   padding: $spacing-unit * 6;
-  overflow-y: auto;
+  overflow-y: hidden;
   overflow-x: hidden;
 
-  .screen-display--hide-scrollbar & {
-    scrollbar-width: none;
-    &::-webkit-scrollbar {
-      display: none;
-    }
+  .split-layout__pane-content--scroll & {
+    overflow-y: auto;
   }
+
+  @include hide-scrollbar-when-screen-hides-it;
 
   &--single,
   &--rotating {
@@ -47,8 +47,12 @@
 .message-board-slide__post-title {
   margin: 0;
   font-family: $font-heading;
-  font-size: var(--slide-heading-size, 3.5rem);
-  overflow-wrap: break-word;
+  font-size: var(--slide-heading-size, 8cqmin);
+  overflow-wrap: normal;
+  // Wraps up to 3 lines before the pane's own `useShrinkToFitScale` takes
+  // over and shrinks this (already up-to-3-line) title together with the
+  // body/meta below it — same posture as `NewsSlide`'s own headline.
+  @include line-clamp(3);
 }
 
 .message-board-slide__post-image {
@@ -60,13 +64,13 @@
 
 .message-board-slide__post-body {
   margin: 0;
-  font-size: var(--slide-description-size, 1.25rem);
+  font-size: var(--slide-description-size, 4cqmin);
   white-space: pre-wrap;
-  overflow-wrap: break-word;
+  overflow-wrap: normal;
 }
 
 .message-board-slide__post-meta {
   margin: 0;
   color: var(--screen-text-muted);
-  font-size: var(--slide-item-price-size, 1.5rem);
+  font-size: var(--slide-item-price-size, 5cqmin);
 }

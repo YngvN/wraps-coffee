@@ -71,7 +71,7 @@ export function TimeSlide({ displayMode = 'time', units = DEFAULT_TIME_UNITS, bl
     )
 
   return (
-    <div className="time-slide" style={{ '--time-slide-font-size': `${fontSize ?? DEFAULT_TIME_FONT_SIZE}rem` } as CSSProperties}>
+    <div className="time-slide" style={{ '--time-slide-font-size': `${fontSize ?? DEFAULT_TIME_FONT_SIZE}cqmin` } as CSSProperties}>
       <span>{content}</span>
     </div>
   )

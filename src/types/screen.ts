@@ -260,11 +260,13 @@ export type ScreenSlotContent =
       /** Used only when `displayMode` is `'weekday'` — `Intl.DateTimeFormat`'s own `weekday` granularity, from the full day name (`'long'`, e.g. "Monday") down to a single letter (`'narrow'`, e.g. "M"). Falls back to `'long'`. */
       weekdayStyle?: TimeWeekdayStyle
       /**
-       * This pane's own font size (rem), deliberately independent of the
-       * shared per-slot `textSizes` system (`heading`/`itemTitle`/etc.) —
-       * a clock/date pane's ideal size (e.g. one huge digit filling a
-       * narrow split-off pane) doesn't correspond to any of those roles.
-       * Falls back to `DEFAULT_TIME_FONT_SIZE`.
+       * This pane's own font size — a percentage of the pane's own smaller
+       * dimension, same `cqmin`-based unit as `TextSizes` (see its own doc
+       * comment) — deliberately independent of the shared per-slot
+       * `textSizes` system (`heading`/`itemTitle`/etc.) — a clock/date
+       * pane's ideal size (e.g. one huge digit filling a narrow split-off
+       * pane) doesn't correspond to any of those roles. Falls back to
+       * `DEFAULT_TIME_FONT_SIZE`.
        */
       fontSize?: number
     } & OwnBackgroundImageFields)
@@ -302,8 +304,8 @@ export type TimeWeekdayStyle = 'long' | 'short' | 'narrow'
 /** Used when a `'time'` slide's own `units` is unset (`'time'` display mode only) — a full clock. */
 export const DEFAULT_TIME_UNITS: TimeUnit[] = ['hours', 'minutes', 'seconds']
 
-/** Used when a `'time'` slide's own `fontSize` is unset. Deliberately larger than `DEFAULT_TEXT_SIZES.heading` — a clock is usually the sole focus of its pane. */
-export const DEFAULT_TIME_FONT_SIZE = 6
+/** Used when a `'time'` slide's own `fontSize` is unset. Deliberately larger than `DEFAULT_TEXT_SIZES.heading` — a clock is usually the sole focus of its pane. Same percentage/`cqmin` unit as `TextSizes` — see its own doc comment. */
+export const DEFAULT_TIME_FONT_SIZE = 19
 
 /**
  * How an `'event'` slide shows the cafe's events: `'calendar'` lists the
@@ -371,6 +373,17 @@ export interface ScreenSlot {
   locked?: StageTimeline<boolean>
   /** Which "Group" (see the screen editor toolbar's own button) this pane belongs to at a given stage, if any — a fresh id generated per `Group` action, shared by every pane grouped together at that same action. Checkpointed per-stage exactly like every other field here, so grouping (or a later split back apart) at one stage never retroactively changes an earlier or later one: the group only ever exists at stages it was explicitly written to. Optional since it's a newer field — a slot with none set at all was never grouped. Purely a derived-rendering hint (see `LayoutTree.tsx`'s own border-color override) — deleting/moving a pane doesn't clean up its old groupmates' own entries, same "orphaned checkpoint data left in place" posture as everything else here. */
   groupId?: StageTimeline<string | undefined>
+  /**
+   * Whether this pane's own content shrinks to fit its available space
+   * (never overflows, never scrolls) or is instead allowed to render at its
+   * full requested size and scroll if that's taller than the pane —
+   * checkpointed per-stage like every other field here. Optional since it's
+   * a newer field — a slot with none set at all falls back to `'shrink'`
+   * everywhere (see `resolveSlotOverflowMode`). Horizontal overflow is
+   * never allowed in either mode, only vertical, and only in `'scroll'`
+   * mode — see `LayoutPane.tsx`/`useShrinkToFitScale`.
+   */
+  overflowMode?: StageTimeline<'shrink' | 'scroll' | undefined>
 }
 
 /** How a screen's panes are arranged along their split axis: side by side, or stacked. */
@@ -435,10 +448,14 @@ export interface PreviewAspectRatio {
 export const DEFAULT_PREVIEW_ASPECT_RATIO: PreviewAspectRatio = { width: 16, height: 9 }
 
 /**
- * Font sizes (in rem) for the text roles shared by every slide, adjustable
- * per screen via the in-display text size editor. `price` is a category's
- * own default price (shown once in its header); `itemPrice` is each
- * individual product's own price — kept separate since a category that
+ * Font sizes for the text roles shared by every slide, adjustable per screen
+ * via the in-display text size editor. Each number is a percentage of the
+ * pane's own smaller dimension (CSS `cqmin` container-query units — 1 means
+ * 1% of `min(pane width, pane height)`), not a fixed absolute size, so the
+ * same value scales naturally across differently-sized/shaped panes instead
+ * of looking disproportionate — see `textSizesToCssVars`. `price` is a
+ * category's own default price (shown once in its header); `itemPrice` is
+ * each individual product's own price — kept separate since a category that
  * shows one header price (e.g. Nachos) and a category whose items each show
  * their own price (e.g. Coffee & Drinks) aren't necessarily meant to match.
  */
@@ -450,13 +467,19 @@ export interface TextSizes {
   itemPrice: number
 }
 
-/** Sizes matching the slides' original hardcoded values, used when a screen has no `textSizes` of its own yet. */
+/**
+ * Percentages matching the slides' original hardcoded rem values (roughly,
+ * against a reference pane whose own smaller dimension is ~500px, i.e. 1% ≈
+ * 5px there), used when a screen has no `textSizes` of its own yet. Existing
+ * screens saved before this field meant a percentage are converted by
+ * `migrateTextSizesToPercent` in `useScreens.ts`, not read as-is.
+ */
 export const DEFAULT_TEXT_SIZES: TextSizes = {
-  heading: 3.5,
-  itemTitle: 1.75,
-  description: 1.25,
-  price: 1.5,
-  itemPrice: 1.5,
+  heading: 11,
+  itemTitle: 5.5,
+  description: 4,
+  price: 5,
+  itemPrice: 5,
 }
 
 /**
@@ -523,11 +546,22 @@ export interface ScreenConfig {
   paneGrowthFallback?: PaneGrowthFallback
   /** Optional per-screen text size override, set via the display's own "Edit appearance" panel. Falls back to `DEFAULT_TEXT_SIZES` when absent. */
   textSizes?: TextSizes
+  /**
+   * Internal migration marker, not user-facing: whether every `TextSizes`/
+   * `'time'` `fontSize` value reachable from this screen has already been
+   * converted from the old fixed-`rem` unit to the current `cqmin`-percentage
+   * one (see `TextSizes`' own doc comment). Absent/`false` means this screen
+   * predates that rework — `useScreens.ts`'s `normalizeScreen` converts its
+   * values (and sets this to `true`) every time it's read, same read-time-
+   * only posture as this file's other migrations, until it's next actually
+   * saved, which is what makes the conversion (and this flag) stick.
+   */
+  usesPercentTextSizes?: boolean
   /** Whether visible borders are drawn between panes. Falls back to `true` (shown) when absent. */
   showSlotBorders?: boolean
   /** Fixed border color (hex, from `SCREEN_BACKGROUND_COLORS`) between panes. Falls back to an automatic contrast-based color (`--screen-border`) when absent. Only relevant while `showSlotBorders` is on and there's more than one pane. */
   borderColor?: string
-  /** Whether a slide's own scrollbar (shown when its content is taller than the screen) is hidden. Content stays scrollable either way — this only hides the scrollbar UI. Falls back to `false` (shown) when absent. */
+  /** Whether a pane's own scrollbar is hidden — only relevant for a pane whose own `ScreenSlot.overflowMode` is `'scroll'` (the `'shrink'` default never scrolls at all, so has no scrollbar to hide). Content stays scrollable either way — this only hides the scrollbar UI. Falls back to `false` (shown) when absent. */
   hideScrollbar?: boolean
   /** Fixed background color (hex) for this screen, chosen from `SCREEN_BACKGROUND_COLORS`. Falls back to `DEFAULT_SCREEN_BACKGROUND_COLOR` when absent. Not affected by the site's light/dark mode. */
   backgroundColor?: string
@@ -570,4 +604,6 @@ export interface TextSizePreset {
   presetID: string
   name: string
   textSizes: TextSizes
+  /** Same migration marker as `ScreenConfig.usesPercentTextSizes` — absent/`false` means `textSizes` here is still in the old fixed-`rem` unit, converted (and tagged `'percent'`) every time `useTextSizePresets` reads it. */
+  unit?: 'percent'
 }

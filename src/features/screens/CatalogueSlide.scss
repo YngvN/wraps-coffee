@@ -1,4 +1,5 @@
 @use '../../styles/variables' as *;
+@use '../../styles/mixins' as *;
 
 .catalogue-slide {
   display: flex;
@@ -6,19 +7,17 @@
   gap: $spacing-unit * 5;
   height: 100%;
   padding: $spacing-unit * 6;
-  overflow-y: auto;
+  overflow-y: hidden;
   overflow-x: hidden;
 
-  // Hides the scrollbar cross-browser but keeps scrollability, when the
-  // screen's own "Hide scrollbar" setting is on — content taller than the
-  // screen must still be reachable, not clipped off, just without visible
-  // scroll UI.
-  .screen-display--hide-scrollbar & {
-    scrollbar-width: none;
-    &::-webkit-scrollbar {
-      display: none;
-    }
+  // Only actually scrollable while this pane's own `overflowMode` is
+  // `'scroll'` (see `LayoutPane.tsx`) — the `'shrink'` default instead
+  // scales everything down to fit, never scrolls.
+  .split-layout__pane-content--scroll & {
+    overflow-y: auto;
   }
+
+  @include hide-scrollbar-when-screen-hides-it;
 }
 
 .catalogue-slide__category {
@@ -63,9 +62,9 @@
 
   h1 {
     font-family: $font-heading;
-    font-size: var(--slide-heading-size, 3.5rem);
+    font-size: var(--slide-heading-size, 8cqmin);
     margin: 0;
-    overflow-wrap: break-word;
+    overflow-wrap: normal;
   }
 }
 
@@ -73,15 +72,15 @@
   margin: calc($spacing-unit / 2) 0 0;
   color: var(--screen-text-muted);
   font-style: italic;
-  font-size: var(--slide-description-size, 1.25rem);
-  overflow-wrap: break-word;
+  font-size: var(--slide-description-size, 4cqmin);
+  overflow-wrap: normal;
 }
 
 .catalogue-slide__category-price {
   position: absolute;
   top: 0;
   right: 0;
-  font-size: var(--slide-price-size, 1.5rem);
+  font-size: var(--slide-price-size, 5cqmin);
   font-weight: 600;
   color: var(--screen-accent);
   white-space: nowrap;
@@ -100,7 +99,7 @@
   // the same var) makes `ch` below resolve relative to the item-title size,
   // so the minimum column width scales with it live without reserving far
   // more space than the text actually needs.
-  font-size: var(--slide-item-title-size, 1.75rem);
+  font-size: var(--slide-item-title-size, 5.5cqmin);
   grid-template-columns: repeat(auto-fit, minmax(max(160px, 14ch), 1fr));
   gap: $spacing-unit * 3;
   margin: 0;
@@ -114,21 +113,21 @@
 
   h2 {
     margin: 0;
-    font-size: var(--slide-item-title-size, 1.75rem);
-    overflow-wrap: break-word;
+    font-size: var(--slide-item-title-size, 5.5cqmin);
+    overflow-wrap: normal;
   }
 
   p {
     margin: calc($spacing-unit / 2) 0 0;
     color: var(--screen-text-muted);
-    font-size: var(--slide-description-size, 1.25rem);
-    overflow-wrap: break-word;
+    font-size: var(--slide-description-size, 4cqmin);
+    overflow-wrap: normal;
 
     // Scales with the description's own admin-adjustable size above (rather
     // than a flat rem value) so it stays legibly proportioned at any
     // text-size setting, while still reading smaller than the description.
     &.catalogue-slide__item-allergens {
-      font-size: calc(var(--slide-description-size, 1.25rem) * 0.65);
+      font-size: calc(var(--slide-description-size, 4cqmin) * 0.65);
       opacity: 0.8;
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -168,7 +167,7 @@
   background: rgba(0, 0, 0, 0.75);
   color: #fff;
   font-family: $font-heading;
-  font-size: var(--slide-item-title-size, 1.75rem);
+  font-size: var(--slide-item-title-size, 5.5cqmin);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -198,7 +197,7 @@
 }
 
 .catalogue-slide__item-price {
-  font-size: var(--slide-item-price-size, 1.5rem);
+  font-size: var(--slide-item-price-size, 5cqmin);
   font-weight: 600;
   color: var(--screen-accent);
   white-space: nowrap;

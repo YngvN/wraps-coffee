@@ -28,6 +28,9 @@ interface PaneEditorProps {
   onBackgroundImageChange: (image: BackgroundImage | undefined) => void
   textSizes: TextSizes
   onTextSizesChange: (sizes: TextSizes) => void
+  /** Whether this pane's content shrinks to fit or is allowed to overflow (vertically) and scroll instead — see `ScreenSlot.overflowMode`. */
+  overflowMode: 'shrink' | 'scroll'
+  onOverflowModeChange: (mode: 'shrink' | 'scroll') => void
   /** `undefined` means "use the cafe's own Standard pane language" (see `useDefaultPaneLanguage`) — the caller's own `onLanguageChange` decides where an explicit override is written back to. */
   language: LanguageCode | undefined
   onLanguageChange: (language: LanguageCode | undefined) => void
@@ -81,6 +84,8 @@ export function PaneEditor({
   onBackgroundImageChange,
   textSizes,
   onTextSizesChange,
+  overflowMode,
+  onOverflowModeChange,
   language,
   onLanguageChange,
   defaultLanguage,
@@ -133,7 +138,14 @@ export function PaneEditor({
       <SlideTransition viewKey={`${id}-text-size`} direction={direction}>
         <div className="pane-editor__subview">
           {!hideBackButton && <BackButton onClick={goBack}>{t('admin.common.back')}</BackButton>}
-          <TextSizeEditor textSizes={textSizes} onChange={onTextSizesChange} onRestore={onRestore} onDone={onDone} />
+          <TextSizeEditor
+            textSizes={textSizes}
+            onChange={onTextSizesChange}
+            overflowMode={overflowMode}
+            onOverflowModeChange={onOverflowModeChange}
+            onRestore={onRestore}
+            onDone={onDone}
+          />
         </div>
       </SlideTransition>
     )

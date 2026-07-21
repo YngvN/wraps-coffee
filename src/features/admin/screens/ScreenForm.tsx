@@ -33,6 +33,7 @@ import {
   resolveSlotContent,
   resolveSlotLanguage,
   resolveSlotLocked,
+  resolveSlotOverflowMode,
   resolveSlotTextSizes,
   resolveStageValue,
   writeStageCheckpoint,
@@ -204,6 +205,8 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
           onBackgroundImageChange={handleBackgroundImageChange}
           textSizes={liveTextSizes}
           onTextSizesChange={handleLiveTextSizesChange}
+          overflowMode={resolveSlotOverflowMode(activeSlot, clampedActiveStage)}
+          onOverflowModeChange={handleOverflowModeChange}
           language={resolveSlotLanguage(activeSlot, clampedActiveStage)}
           onLanguageChange={handleLanguageChange}
           defaultLanguage={defaultPaneLanguage}
@@ -462,6 +465,15 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
       if (!hasOwnTextSizeFields(content)) return
       updatedSlot = { ...activeSlot, content: writeStageCheckpoint(activeSlot.content, clampedActiveStage, { ...content, textSizes: sizes }) }
     }
+    const nextPaneSlots = { ...draft.paneSlots, [activeLeafId]: updatedSlot }
+    setDraft((current) => ({ ...current, paneSlots: nextPaneSlots }))
+    if (screen) liveUpdateScreen({ paneSlots: nextPaneSlots })
+  }
+
+  /** Writes the active tab's overflow-mode change at the currently active stage — same local-draft-plus-live-push posture as `handleLiveTextSizesChange`, so the shrink/scroll effect previews immediately, but always to the pane's own shared `overflowMode` timeline (unlike text sizes, it has no per-content-checkpoint variant to split between). */
+  const handleOverflowModeChange = (mode: 'shrink' | 'scroll') => {
+    if (!activeLeafId || !activeSlot) return
+    const updatedSlot: ScreenSlot = { ...activeSlot, overflowMode: writeStageCheckpoint(activeSlot.overflowMode, clampedActiveStage, mode) }
     const nextPaneSlots = { ...draft.paneSlots, [activeLeafId]: updatedSlot }
     setDraft((current) => ({ ...current, paneSlots: nextPaneSlots }))
     if (screen) liveUpdateScreen({ paneSlots: nextPaneSlots })

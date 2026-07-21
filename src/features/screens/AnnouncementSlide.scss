@@ -1,4 +1,5 @@
 @use '../../styles/variables' as *;
+@use '../../styles/mixins' as *;
 
 .announcement-slide {
   display: flex;
@@ -9,20 +10,31 @@
   padding: $spacing-unit * 6;
   text-align: center;
   gap: $spacing-unit * 2;
-  overflow: hidden;
+  overflow-y: hidden;
+  overflow-x: hidden;
+
+  .split-layout__pane-content--scroll & {
+    overflow-y: auto;
+  }
+
+  @include hide-scrollbar-when-screen-hides-it;
 
   h1 {
     margin: 0;
     font-family: $font-heading;
-    font-size: var(--slide-heading-size, 3.5rem);
-    overflow-wrap: break-word;
+    font-size: var(--slide-heading-size, 8cqmin);
+    overflow-wrap: normal;
+    // Wraps up to 3 lines before the pane's own `useShrinkToFitScale` takes
+    // over and shrinks this (already up-to-3-line) title together with the
+    // description below it — same posture as `NewsSlide`'s own headline.
+    @include line-clamp(3);
   }
 
   p {
     margin: 0;
     max-width: 60ch;
     color: var(--screen-text-muted);
-    font-size: var(--slide-description-size, 1.25rem);
-    overflow-wrap: break-word;
+    font-size: var(--slide-description-size, 4cqmin);
+    overflow-wrap: normal;
   }
 }

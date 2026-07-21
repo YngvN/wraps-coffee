@@ -43,6 +43,11 @@ export function resolveSlotTextSizes(slot: ScreenSlot, stage: number): TextSizes
   return resolveStageValue(slot.textSizes, stage)
 }
 
+/** Whether this pane shrinks its content to fit or lets it overflow (vertically only) and scroll instead, at `stage` — falls back to `'shrink'` whenever nothing was ever set, same "the fallback IS the default" posture as `resolveSlotLocked`. */
+export function resolveSlotOverflowMode(slot: ScreenSlot, stage: number): 'shrink' | 'scroll' {
+  return resolveStageValue(slot.overflowMode, stage) ?? 'shrink'
+}
+
 /** The persisted (non-live-draft) effective text sizes for a pane at a given stage: its own resolved override, else the screen's own, else the global default. Used both as the shared fallback for that stage's content and as what editing "the pane" (rather than one specific stage) reads/writes in `ScreenDisplay`, and by `ScreenCard`'s own read-only list preview. */
 export function getPersistedSlotTextSizes(screen: ScreenConfig, leafId: PaneId, stage: number): TextSizes {
   const slot = screen.paneSlots[leafId]

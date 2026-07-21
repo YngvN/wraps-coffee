@@ -1,14 +1,16 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useState, type CSSProperties, type DragEvent } from 'react'
+import { useRef, useState, type CSSProperties, type DragEvent } from 'react'
 import { useCrossfadeSlot } from '../../hooks/useCrossfadeSlot'
 import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
+import { useShrinkToFitFontScale } from '../../hooks/useShrinkToFitFontScale'
+import { useShrinkToFitScale } from '../../hooks/useShrinkToFitScale'
 import { useLanguage, type LanguageCode } from '../../i18n'
 import type { BackgroundImageOverlay, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SlideTransitionDirection, SplitDirection, TextSizes } from '../../types/screen'
 import { backgroundImageTextStyle, slotBackgroundColorStyle } from '../../utils/screenColors'
 import type { PaneGrowthOrigin } from '../../utils/paneGrowth'
 import { getBlurredBackgroundUrl } from '../../utils/responsiveImage'
 import { resolveContentBackgroundImage } from '../../utils/screenSlots'
-import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage } from '../../utils/screenStages'
+import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage, resolveSlotOverflowMode } from '../../utils/screenStages'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
 import { collapsedClipPath, FULL_REVEAL_CLIP_PATH, PANE_GROWTH_DURATION_SECONDS } from './paneGrowthMotion'
 import { PaneClearButton } from './PaneClearButton'
@@ -128,6 +130,18 @@ export function LayoutPane({
   const [dragDepth, setDragDepth] = useState(0)
   const transition = reducedMotion ? { duration: 0 } : { duration: transitionDuration, ease: 'easeInOut' as const }
 
+  // One outer/inner ref pair per crossfade slot (always exactly 2, see
+  // `useCrossfadeSlot`) — `useShrinkToFitScale` is called unconditionally
+  // for both, same "fixed number of hook calls" posture every other hook in
+  // this component already has. Named individually (not an array) since the
+  // `react-hooks/refs` lint rule flags indexing into a ref-holding array
+  // during render, even when nothing actually reads `.current` there.
+  const contentOuterRef0 = useRef<HTMLDivElement>(null)
+  const contentInnerRef0 = useRef<HTMLDivElement>(null)
+  const contentOuterRef1 = useRef<HTMLDivElement>(null)
+  const contentInnerRef1 = useRef<HTMLDivElement>(null)
+  const overflowMode = resolveSlotOverflowMode(slot, stage)
+
   /**
    * The `editingFocus.pulse` value already in effect the *first* time this
    * particular pane instance rendered — captured once (a plain `useState`
@@ -192,6 +206,35 @@ export function LayoutPane({
     JSON.stringify({ content: item.content, backgroundColor: item.backgroundColor, overlay: item.overlay, language: item.language }),
   )
 
+  // Re-measures whenever this exact slot's own resolved content or text
+  // size changes — not just on a pane resize (the hook's own
+  // `ResizeObserver` already covers that) — e.g. an admin dragging a text-
+  // size slider live needs a fresh measurement even though the pane itself
+  // never changed size.
+  const shrinkDep0 = contentSlots[0] ? JSON.stringify({ content: contentSlots[0].content, textSizeVars: contentSlots[0].textSizeVars }) : undefined
+  const shrinkDep1 = contentSlots[1] ? JSON.stringify({ content: contentSlots[1].content, textSizeVars: contentSlots[1].textSizeVars }) : undefined
+  // `'transit'`/`'weather'`/the `'event'` kind's own `'month'` display mode
+  // are width-filling grid/flex/multi-column layouts that need an actual
+  // font-size reduction (so they can re-flow and re-fill the available
+  // width), not a uniform paint transform — see `useShrinkToFitFontScale`'s
+  // own doc comment. Every other kind keeps the transform-based hook. Both
+  // hooks are always called (rules of hooks); only one is ever actually
+  // `enabled` per slot.
+  const isEventMonth = (content: ScreenSlotContent | undefined) => content?.kind === 'event' && content.displayMode === 'month'
+  const usesFontScale = (content: ScreenSlotContent | undefined) => content?.kind === 'transit' || content?.kind === 'weather' || isEventMonth(content)
+  const usesFontScale0 = usesFontScale(contentSlots[0]?.content)
+  const usesFontScale1 = usesFontScale(contentSlots[1]?.content)
+  // `EventMonthSlide`'s own CSS multi-column list has no graceful width
+  // fallback of its own (unlike `TransitSlide`'s ellipsis-truncating
+  // destination column) — see `useShrinkToFitFontScale`'s own doc comment
+  // for why it alone opts into that hook's width check too.
+  const checkWidth0 = isEventMonth(contentSlots[0]?.content)
+  const checkWidth1 = isEventMonth(contentSlots[1]?.content)
+  useShrinkToFitScale(contentOuterRef0, contentInnerRef0, overflowMode === 'shrink' && !usesFontScale0, [shrinkDep0])
+  useShrinkToFitScale(contentOuterRef1, contentInnerRef1, overflowMode === 'shrink' && !usesFontScale1, [shrinkDep1])
+  useShrinkToFitFontScale(contentOuterRef0, contentInnerRef0, overflowMode === 'shrink' && usesFontScale0, [shrinkDep0], checkWidth0)
+  useShrinkToFitFontScale(contentOuterRef1, contentInnerRef1, overflowMode === 'shrink' && usesFontScale1, [shrinkDep1], checkWidth1)
+
   const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
     if (!onDropImage) return
     event.preventDefault()
@@ -254,16 +297,19 @@ export function LayoutPane({
         return (
           <motion.div
             key={slotIndex}
-            className="split-layout__pane-content"
+            ref={slotIndex === 0 ? contentOuterRef0 : contentOuterRef1}
+            className={`split-layout__pane-content${overflowMode === 'scroll' ? ' split-layout__pane-content--scroll' : ''}`}
             style={{ ...snapshot.textSizeVars, ...slotBackgroundStyle }}
             variants={variants}
             initial="initial"
             animate={activeContentSlot === slotIndex ? 'animate' : 'exit'}
             transition={transition}
           >
-            <PaneLanguageScope language={snapshot.language}>
-              <SlotContent slot={snapshot.content} newsSlots={newsSlots} stageTick={stageTick} stage={stage} onRequestStageAdvance={onRequestStageAdvance} />
-            </PaneLanguageScope>
+            <div className="split-layout__pane-content-inner" ref={slotIndex === 0 ? contentInnerRef0 : contentInnerRef1}>
+              <PaneLanguageScope language={snapshot.language}>
+                <SlotContent slot={snapshot.content} newsSlots={newsSlots} stageTick={stageTick} stage={stage} onRequestStageAdvance={onRequestStageAdvance} />
+              </PaneLanguageScope>
+            </div>
           </motion.div>
         )
       })}

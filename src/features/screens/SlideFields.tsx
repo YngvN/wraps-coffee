@@ -1159,9 +1159,9 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
 
           <label className="slide-fields__slider">
             <span>
-              {t('admin.screens.timeFontSizeLabel')} — {content.fontSize ?? DEFAULT_TIME_FONT_SIZE}rem
+              {t('admin.screens.timeFontSizeLabel')} — {content.fontSize ?? DEFAULT_TIME_FONT_SIZE}%
             </span>
-            <input type="range" min={1} max={20} step={0.5} value={content.fontSize ?? DEFAULT_TIME_FONT_SIZE} onChange={(event) => setTimeFontSize(Number(event.target.value))} />
+            <input type="range" min={3} max={64} step={1} value={content.fontSize ?? DEFAULT_TIME_FONT_SIZE} onChange={(event) => setTimeFontSize(Number(event.target.value))} />
           </label>
         </>
       )}

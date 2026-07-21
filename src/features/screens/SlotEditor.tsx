@@ -1,7 +1,7 @@
 import { useLanguage, type LanguageCode } from '../../i18n'
 import type { BackgroundImage, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
 import { resolveContentBackgroundImage } from '../../utils/screenSlots'
-import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage, writeStageCheckpoint } from '../../utils/screenStages'
+import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage, resolveSlotOverflowMode, writeStageCheckpoint } from '../../utils/screenStages'
 import { PaneEditor } from './PaneEditor'
 
 interface SlotEditorProps {
@@ -73,10 +73,12 @@ export function SlotEditor({
   const backgroundColor = resolveSlotBackgroundColor(slot, activeStage)
   const backgroundImage = resolveContentBackgroundImage(content, resolveSlotBackgroundImage(slot, activeStage))
   const language = resolveSlotLanguage(slot, activeStage)
+  const overflowMode = resolveSlotOverflowMode(slot, activeStage)
 
   const setContent = (nextContent: ScreenSlotContent) => onSlotChange({ ...slot, content: writeStageCheckpoint(slot.content, activeStage, nextContent) })
   const setBackgroundColor = (nextColor: string | undefined) => onSlotChange({ ...slot, backgroundColor: writeStageCheckpoint(slot.backgroundColor, activeStage, nextColor) })
   const setLanguage = (next: LanguageCode | undefined) => onSlotChange({ ...slot, language: writeStageCheckpoint(slot.language, activeStage, next) })
+  const setOverflowMode = (mode: 'shrink' | 'scroll') => onSlotChange({ ...slot, overflowMode: writeStageCheckpoint(slot.overflowMode, activeStage, mode) })
 
   /** Writes the single consolidated background-image field: to the active stage's own content checkpoint with more than one stage (so each stage's own pane can carry its own distinct image), else to the slot's own shared checkpoint — same split `textSizes` already resolves between, since with just one stage there's nothing for a per-content override to meaningfully differ from. */
   const setBackgroundImage = (next: BackgroundImage | undefined) =>
@@ -93,6 +95,8 @@ export function SlotEditor({
       onBackgroundImageChange={setBackgroundImage}
       textSizes={hasMultipleStages ? textSizes : slotTextSizes}
       onTextSizesChange={hasMultipleStages ? onTextSizesChange : onSlotTextSizesChange}
+      overflowMode={overflowMode}
+      onOverflowModeChange={setOverflowMode}
       language={language}
       onLanguageChange={setLanguage}
       defaultLanguage={defaultLanguage}

@@ -5,18 +5,27 @@ import { useLanguage } from '../../i18n'
 import type { TextSizes } from '../../types/screen'
 import './TextSizeEditor.scss'
 
-/** One slider row's config: which `TextSizes` field it controls, its label key, and its rem range. */
+/** The two choices `overflowMode`/`onOverflowModeChange` toggle between — see `ScreenSlot.overflowMode`'s own doc comment. */
+const OVERFLOW_MODES: { key: 'shrink' | 'scroll'; labelKey: string }[] = [
+  { key: 'shrink', labelKey: 'shrinkToFitOption' },
+  { key: 'scroll', labelKey: 'allowScrollingOption' },
+]
+
+/** One slider row's config: which `TextSizes` field it controls, its label key, and its range — a percentage of the pane's own smaller dimension (`cqmin`), see `TextSizes`' own doc comment. */
 const SLIDERS: { key: keyof TextSizes; labelKey: string; min: number; max: number }[] = [
-  { key: 'heading', labelKey: 'headingLabel', min: 1.5, max: 12 },
-  { key: 'itemTitle', labelKey: 'itemTitleLabel', min: 1, max: 7 },
-  { key: 'description', labelKey: 'descriptionLabel', min: 0.75, max: 5 },
-  { key: 'price', labelKey: 'priceLabel', min: 0.75, max: 6 },
-  { key: 'itemPrice', labelKey: 'itemPriceLabel', min: 0.75, max: 6 },
+  { key: 'heading', labelKey: 'headingLabel', min: 5, max: 38 },
+  { key: 'itemTitle', labelKey: 'itemTitleLabel', min: 3, max: 22 },
+  { key: 'description', labelKey: 'descriptionLabel', min: 2.5, max: 16 },
+  { key: 'price', labelKey: 'priceLabel', min: 2.5, max: 19 },
+  { key: 'itemPrice', labelKey: 'itemPriceLabel', min: 2.5, max: 19 },
 ]
 
 interface TextSizeEditorProps {
   textSizes: TextSizes
   onChange: (textSizes: TextSizes) => void
+  /** Whether this pane's content shrinks to fit or is allowed to overflow (vertically) and scroll instead — see `ScreenSlot.overflowMode`. */
+  overflowMode: 'shrink' | 'scroll'
+  onOverflowModeChange: (mode: 'shrink' | 'scroll') => void
   /** Resets the sizes back to what they were when this editor was opened. Omit to hide the button — there's nothing to restore to when changes are already written live with no "previous" snapshot of their own (the admin form's slot editor). */
   onRestore?: () => void
   /** Called by the "Done" button — typically closes a modal, or (the admin form's inline per-slide editor) returns to the slot's own "Global" tab. Omit to hide the button entirely, for a usage with no such notion of "finishing" (e.g. a flat, always-inline editor with nothing to return to). */
@@ -32,7 +41,7 @@ interface TextSizeEditorProps {
  * the caller is expected to persist it (e.g. on the wrapping modal being
  * closed).
  */
-export function TextSizeEditor({ textSizes, onChange, onRestore, onDone }: TextSizeEditorProps) {
+export function TextSizeEditor({ textSizes, onChange, overflowMode, onOverflowModeChange, onRestore, onDone }: TextSizeEditorProps) {
   const { t } = useLanguage()
   const [presets, setPresets] = useTextSizePresets()
   const [presetName, setPresetName] = useState('')
@@ -71,6 +80,19 @@ export function TextSizeEditor({ textSizes, onChange, onRestore, onDone }: TextS
 
   return (
     <div className="text-size-editor">
+      <div className="text-size-editor__overflow-mode" role="group" aria-label={t('screenDisplay.textSizeEditor.overflowModeLabel')}>
+        {OVERFLOW_MODES.map(({ key, labelKey }) => (
+          <button
+            key={key}
+            type="button"
+            className={`text-size-editor__overflow-mode-option${overflowMode === key ? ' text-size-editor__overflow-mode-option--active' : ''}`}
+            onClick={() => onOverflowModeChange(key)}
+          >
+            {t(`screenDisplay.textSizeEditor.${labelKey}`)}
+          </button>
+        ))}
+      </div>
+
       <label className="text-size-editor__slider text-size-editor__slider--all">
         <span>
           {t('screenDisplay.textSizeEditor.allLabel')} — {allPercent}%
@@ -81,13 +103,13 @@ export function TextSizeEditor({ textSizes, onChange, onRestore, onDone }: TextS
       {SLIDERS.map(({ key, labelKey, min, max }) => (
         <label key={key} className="text-size-editor__slider">
           <span>
-            {t(`screenDisplay.textSizeEditor.${labelKey}`)} — {textSizes[key].toFixed(2)}rem
+            {t(`screenDisplay.textSizeEditor.${labelKey}`)} — {textSizes[key].toFixed(1)}%
           </span>
           <input
             type="range"
             min={min}
             max={max}
-            step={0.05}
+            step={0.1}
             value={textSizes[key]}
             onChange={(event) => setSize(key, Number(event.target.value))}
           />
