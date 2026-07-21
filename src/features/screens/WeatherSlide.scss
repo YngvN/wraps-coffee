@@ -27,6 +27,14 @@
     text-align: center;
     color: var(--screen-text-muted);
   }
+
+  // A vertical-rectangle pane (see `useIsVerticalPane`) scrolls top-to-bottom
+  // through its hour *rows* instead of side-to-side through hour *columns* —
+  // the opposite axis from the default above.
+  &--vertical {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
 }
 
 // Wraps the hourly list and the low/high line below it so both stay
@@ -42,45 +50,229 @@
   width: 100%;
 }
 
+// Shared by both orientations below — which axis (`grid-template-rows` in
+// horizontal mode, `grid-template-columns` in vertical) actually uses
+// `--weather-track-count` differs, but both need the same reset.
 .weather-slide__list {
-  display: flex;
-  gap: $spacing-unit * 4;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+// One column per hour (`.weather-slide__item` below) plus one shared label
+// column at the start (`.weather-slide__row-labels`) — every column shares
+// this same set of row tracks via `subgrid`, the transpose of `TransitSlide`'s
+// own columns-sharing-row-tracks technique (there, a shared header sits
+// *above* rows of departures; here, a shared label column sits *before*
+// columns of hours). `grid-auto-flow: column` is what makes each new
+// `<li>`/label column land in its own column instead of `grid`'s row-first
+// default. The label column's own width is `max-content` (just wide enough
+// for the longest label); every hour column then splits whatever's left
+// evenly (`minmax(0, 1fr)`, same as before this was a grid).
+//
+// `grid-template-rows` needs an *explicit* track count, not just `auto`
+// implicit rows — every subgridded child below anchors its own `grid-row: 1
+// / -1` against this explicit grid, and `-1` only means "last row" relative
+// to an explicit `grid-template-rows`; with none declared, there are zero
+// explicit row lines, so `1 / -1` collapses to a single row and every
+// child's own rows pile on top of each other instead of stacking. The count
+// itself (`--weather-track-count`) is set inline by `WeatherSlide.tsx`,
+// since it varies with which detail rows are toggled on — unlike
+// `TransitSlide`'s own fixed column count, there's no fixed number to
+// hardcode here.
+.weather-slide__list--horizontal {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: max-content;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(var(--weather-track-count, 3), auto);
+  column-gap: $spacing-unit * 3;
+  row-gap: calc($spacing-unit / 2);
   width: 100%;
-  justify-content: space-evenly;
 }
 
+// Spans every row track as a single grid item — needed for `subgrid` below
+// to hand the *same* shared row tracks back down to its own children, same
+// "real box, not `display: contents`" reasoning as `TransitSlide`'s own
+// `.transit-slide__item`. `overflow: hidden` matters for the same reason
+// there too: it's what actually clips this column's content while framer
+// motion animates it sliding out.
 .weather-slide__item {
-  display: flex;
-  flex-direction: column;
+  grid-row: 1 / -1;
+  display: grid;
+  grid-template-rows: subgrid;
+  justify-items: center;
   align-items: center;
-  gap: calc($spacing-unit / 2);
+  overflow: hidden;
+  // A grid item's default `min-width` is `auto` (shrink-to-fit its own
+  // content), not `0` — without this, a value/label's own `white-space:
+  // nowrap` (below) would force this column wider to fit it instead of
+  // letting it genuinely overflow, which is what makes that overflow
+  // measurable (and ellipsis-truncatable) in the first place. Same fallback
+  // `TransitSlide`'s own `.transit-slide__leading` already relies on for its
+  // destination column.
+  min-width: 0;
 }
 
+// The row-label column itself — same subgrid technique as
+// `.weather-slide__item`, just left-aligned (`justify-items: start`)
+// instead of centered, and always the first column (relying on DOM order:
+// it's the first child, before every `.weather-slide__item`). `aria-hidden`
+// in the markup since it's purely a visual legend for the hour columns next
+// to it, not independent content of its own.
+.weather-slide__row-labels {
+  grid-row: 1 / -1;
+  display: grid;
+  grid-template-rows: subgrid;
+  justify-items: start;
+  align-items: center;
+}
+
+// Vertical mode (see `useIsVerticalPane`): one row per hour, sharing column
+// tracks via `subgrid` — the same shape `TransitSlide`'s own
+// `.transit-slide__column` uses (a header row on top, one row per item below
+// it). Columns are all `auto`-width (not `1fr` — there's no "spread across
+// the pane's own full width" goal here the way horizontal mode's hour
+// columns have), so the whole list just shrinks to its own natural content
+// width and `.weather-slide__content`'s own centering handles the rest. Same
+// explicit-track-count reasoning as `--horizontal` above, just on the column
+// axis instead of the row one.
+.weather-slide__list--vertical {
+  display: grid;
+  grid-template-columns: repeat(var(--weather-track-count, 3), auto);
+  column-gap: $spacing-unit * 1.5;
+  row-gap: calc($spacing-unit / 2);
+  align-items: center;
+}
+
+// Angled rather than upright (see `.weather-slide__column-header-label`
+// below) — its own natural text width is what's driving each auto-sized
+// column wider than its actual value content needs, so tilting it is worth
+// more than centering it. `overflow: visible` (`.weather-slide__item`'s own
+// `overflow: hidden` doesn't apply here) lets the tilted text rise clear
+// above this row's own box instead of being clipped by it — the extra
+// `height` below is what actually reserves the room for that, since a
+// `transform` never grows the box it's applied to.
+.weather-slide__column-header {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  justify-items: start;
+  align-items: end;
+  height: 4.5em;
+  padding-bottom: 0.4em;
+  border-bottom: 1px solid var(--screen-border);
+  overflow: visible;
+}
+
+// Spans every column track as a single grid item — the vertical-mode
+// equivalent of `.weather-slide__item` above (there, a column spanning every
+// row; here, a row spanning every column). `justify-items: start` (not
+// `center`) to match `.weather-slide__column-header`'s own alignment — a
+// tilted label's own pivot point (see `.weather-slide__column-header-label`)
+// sits at its column's own left edge, so a value centered in that same
+// column would drift out from under it instead of lining up.
+.weather-slide__row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  justify-items: start;
+  // The icon is by far the tallest cell in its own row (see
+  // `.weather-slide__icon`'s own font size) — centering every other cell
+  // against it, rather than each defaulting to `stretch`/top-aligning on its
+  // own, is what keeps time/temp/detail values reading on one shared visual
+  // middle line instead of drifting to whichever edge they'd otherwise
+  // gravitate to.
+  align-items: center;
+  overflow: hidden;
+}
+
+.weather-slide__row-label,
+.weather-slide__column-header-label {
+  color: var(--screen-text-muted);
+  font-size: calc(var(--slide-description-size, 4cqmin) * 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+// Tilted up and to the right, pivoting from its own bottom-left corner —
+// that corner is what stays put at roughly its own column's own left edge
+// (matching `.weather-slide__column-header`'s own `justify-items: start`),
+// with the label rising away from the column below rather than growing
+// sideways into its neighbor the way an upright label would.
+//
+// `width: 1px` is what actually makes the neighboring columns pack tight —
+// a `transform` is paint-only, so without this the grid track sizing below
+// still reserves each column's *unrotated* text width (e.g. all of
+// "Luftfuktighet" laid out flat), pushing the next column that much further
+// right even though the rotated text no longer visually needs that room.
+// Collapsing the box itself to 1px forces its contribution to the column's
+// own `auto` track size down to (near) nothing; `overflow: visible` on
+// `.weather-slide__column-header` is what then lets the now-oversized text
+// keep painting past its own collapsed box instead of clipping.
+.weather-slide__column-header-label {
+  width: 1px;
+  transform: rotate(-40deg);
+  transform-origin: bottom left;
+
+  // The gap that actually reads as "space between two labels" is driven by
+  // each *column's* own auto width (short values like a single-digit UV
+  // index make for a narrow column), not just the fixed `column-gap` — a
+  // short-valued column right before the last label leaves it looking
+  // crowded against its neighbor even though every pivot point underneath
+  // is still evenly spaced. Nudging only the last one right (rather than
+  // widening `column-gap` everywhere, which would also spread out pairs
+  // that already look fine) is the targeted fix for that specific case.
+  &:last-child {
+    margin-left: 0.6em;
+  }
+}
+
+// `white-space: nowrap` + `text-overflow: ellipsis` on every one of these —
+// the last-resort CSS-only fallback for whenever a horizontal-mode hour
+// column's own `minmax(0, 1fr)` track (see `.weather-slide__list--horizontal`)
+// still ends up narrower than a value/label genuinely needs, e.g. while
+// `LayoutPane`'s own shrink-to-fit measurement is still catching up to a
+// pane that was just resized — same "graceful truncate instead of an
+// abrupt/illegible clip" posture as `TransitSlide`'s own `.transit-slide__destination`.
 .weather-slide__time {
   color: var(--screen-text-muted);
   font-size: var(--slide-description-size, 4cqmin);
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .weather-slide__icon {
   font-size: calc(var(--slide-heading-size, 8cqmin) * 0.85);
   line-height: 1;
+  // A narrow horizontal-mode hour column (see `.weather-slide__item`'s own
+  // `min-width: 0`) can end up thinner than this SVG's own `1em` width —
+  // shrinking it to whatever room is actually left (preserving its aspect
+  // ratio via `height: auto`) is the icon's own equivalent of the text
+  // fallbacks above; there's no "ellipsis" for a picture.
+  max-width: 100%;
+  height: auto;
 }
 
 .weather-slide__temp {
   font-size: var(--slide-item-title-size, 5.5cqmin);
   font-weight: 700;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.weather-slide__details {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: calc($spacing-unit / 4);
+.weather-slide__value {
   color: var(--screen-text-muted);
   font-size: calc(var(--slide-description-size, 4cqmin) * 0.85);
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .weather-slide__low-high {

@@ -16,13 +16,14 @@ const LAUNCH_METHODS: WindowLaunchMethod[] = ['auto', 'electron', 'edge']
 /**
  * How a screen's own `/screens/:screenId` link should be addressed — a
  * machine-level setting, not synced per-device (same posture as the Neon
- * database URL). **Automatic** (default) auto-detects this machine's LAN IP,
- * which can change on a router/computer restart; **Custom** lets the admin
- * type a hostname/IP they've made stable themselves (e.g. a router DHCP
- * reservation); **mDNS** has the local server advertise a name derived from
- * the store's own name (see Store settings) as `<name>.local` on the
- * network itself, so the link stays valid — and literally shows that
- * friendly name in the address bar — even if the underlying IP changes.
+ * database URL). **mDNS** (default) has the local server advertise a name
+ * derived from the store's own name (see Store settings) as `<name>.local`
+ * on the network itself, so the link stays valid — and literally shows that
+ * friendly name in the address bar — even if the underlying IP changes;
+ * **Automatic** auto-detects this machine's LAN IP instead, which can
+ * change on a router/computer restart; **Custom** lets the admin type a
+ * hostname/IP they've made stable themselves (e.g. a router DHCP
+ * reservation).
  * Also holds the "window launch method" choice (`electron`/`edge`/`auto`) —
  * which window `installer/start-wraps-coffee.bat` opens the kiosk display in
  * at boot, normally auto-detected (a native Electron kiosk window if

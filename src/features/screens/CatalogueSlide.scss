@@ -4,9 +4,16 @@
 .catalogue-slide {
   display: flex;
   flex-direction: column;
-  gap: $spacing-unit * 5;
+  // Sets this pane's own font-size context so every `em` value below it
+  // (padding, gaps between categories/items) scales together with the
+  // admin's own item-title size, manual slider or automatic shrink alike —
+  // matches `TransitSlide`/`EventMonthSlide`'s own root, same reasoning:
+  // fixed-px spacing would otherwise stay full-size while the shrink hook
+  // reduces text, eating into the room that should go to reflowed content.
+  font-size: var(--slide-item-title-size, 5.5cqmin);
+  gap: 1.5em;
   height: 100%;
-  padding: $spacing-unit * 6;
+  padding: 2em;
   overflow-y: hidden;
   overflow-x: hidden;
 
@@ -23,8 +30,8 @@
 .catalogue-slide__category {
   display: flex;
   flex-direction: column;
-  gap: $spacing-unit * 3;
-  padding-top: $spacing-unit * 5;
+  gap: 0.75em;
+  padding-top: 1.5em;
   border-top: 2px solid var(--screen-border);
 
   &:first-of-type {
@@ -101,7 +108,11 @@
   // more space than the text actually needs.
   font-size: var(--slide-item-title-size, 5.5cqmin);
   grid-template-columns: repeat(auto-fit, minmax(max(160px, 14ch), 1fr));
-  gap: $spacing-unit * 3;
+  // The steeper `--fit-gap-scale` multiplier (see `useShrinkToFitFontScale`'s
+  // own doc comment) on top of the plain `em` value already tracking the
+  // shrinking text — reclaiming space between items is preferred over
+  // shrinking text down further, same as `EventMonthSlide`'s own column-gap.
+  gap: calc(0.75em * var(--fit-gap-scale, 1));
   margin: 0;
   padding: 0;
   list-style: none;

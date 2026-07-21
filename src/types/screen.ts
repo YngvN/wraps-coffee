@@ -179,6 +179,8 @@ export type ScreenSlotContent =
       realtimeOnly?: boolean
       /** Transport modes (matching `NearbyStop['modes']`, e.g. `"bus"`, `"rail"`) to include — empty/unset means every mode at the stop is shown, unfiltered. */
       modeFilter?: string[]
+      /** Which icon set the mode icons next to each departure are drawn from — see `TransitIconPack`. Falls back to `DEFAULT_TRANSIT_ICON_PACK`. */
+      iconPack?: TransitIconPack
       /** Overrides the pane's own background/font/text colors with a look-alike of whichever brand this pane is (see `brand`) instead of the screen's normal styling. Falls back to `true`. */
       useBrandTheme?: boolean
       /** Shows the pane's own brand's logo in its top-left corner. Only relevant while `useBrandTheme` is on. Falls back to `true`. */
@@ -208,6 +210,8 @@ export type ScreenSlotContent =
       showUvIndex?: boolean
       /** Show air pressure at sea level (hPa). Falls back to `false`. */
       showPressure?: boolean
+      /** Which icon set each hour's own weather symbol is drawn from — see `WeatherIconPack`. Falls back to `DEFAULT_WEATHER_ICON_PACK`. */
+      iconPack?: WeatherIconPack
       /** Overrides the pane's own background/font/text colors with a Yr look-alike theme instead of the screen's normal styling. Falls back to `true`. */
       useBrandTheme?: boolean
       /** Shows the Yr logo in the pane's top-left corner. Only relevant while `useBrandTheme` is on. Falls back to `true`. */
@@ -325,6 +329,31 @@ export const DEFAULT_WEATHER_FORECAST_HOURS = 6
 
 /** Used when a `'transit'` slide's own `departureCount` is unset. */
 export const DEFAULT_TRANSIT_DEPARTURE_COUNT = 5
+
+/**
+ * Which built-in icon set a `'transit'` slide's mode icons are drawn from
+ * (see `TransitModeIcon`). `'standard'` is a familiar, widely-recognized
+ * transit icon style adapted from the open-source Lucide icon set.
+ * `'simple'` is this app's own original hand-drawn outline set, kept around
+ * for existing screens/anyone who prefers it.
+ */
+export type TransitIconPack = 'standard' | 'simple'
+
+/** Used when a `'transit'` slide's own `iconPack` is unset. */
+export const DEFAULT_TRANSIT_ICON_PACK: TransitIconPack = 'standard'
+
+/**
+ * Which built-in icon set a `'weather'` slide's hourly symbols are drawn
+ * from (see `WeatherSymbolIcon`). `'outline'` is a set of dedicated outline
+ * glyphs (sun/cloud/rain/etc, with day/night variants where it has them).
+ * `'system'` is this app's original approach — the device/browser's own
+ * emoji font (see `weatherSymbolToEmoji`) — kept around for existing
+ * screens/anyone who prefers it.
+ */
+export type WeatherIconPack = 'outline' | 'system'
+
+/** Used when a `'weather'` slide's own `iconPack` is unset. */
+export const DEFAULT_WEATHER_ICON_PACK: WeatherIconPack = 'outline'
 
 /** Used when a `'qrcode'` slide's own `size` is unset — fills as much of its pane as it can. */
 export const DEFAULT_QR_CODE_SIZE = 100

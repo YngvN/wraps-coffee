@@ -221,23 +221,36 @@ export function LayoutPane({
   // never changed size.
   const shrinkDep0 = contentSlots[0] ? JSON.stringify({ content: contentSlots[0].content, textSizeVars: contentSlots[0].textSizeVars }) : undefined
   const shrinkDep1 = contentSlots[1] ? JSON.stringify({ content: contentSlots[1].content, textSizeVars: contentSlots[1].textSizeVars }) : undefined
-  // `'transit'`/`'weather'`/the `'event'` kind's own `'month'` display mode
-  // are width-filling grid/flex/multi-column layouts that need an actual
-  // font-size reduction (so they can re-flow and re-fill the available
-  // width), not a uniform paint transform — see `useShrinkToFitFontScale`'s
-  // own doc comment. Every other kind keeps the transform-based hook. Both
-  // hooks are always called (rules of hooks); only one is ever actually
-  // `enabled` per slot.
+  // `'transit'`/`'weather'`/`'catalogue'`/the `'event'` kind's own `'month'`
+  // display mode are width-filling grid/flex/multi-column layouts that need
+  // an actual font-size reduction (so they can re-flow and re-fill the
+  // available width), not a uniform paint transform — see
+  // `useShrinkToFitFontScale`'s own doc comment. Every other kind keeps the
+  // transform-based hook. Both hooks are always called (rules of hooks);
+  // only one is ever actually `enabled` per slot.
   const isEventMonth = (content: ScreenSlotContent | undefined) => content?.kind === 'event' && content.displayMode === 'month'
-  const usesFontScale = (content: ScreenSlotContent | undefined) => content?.kind === 'transit' || content?.kind === 'weather' || isEventMonth(content)
+  const usesFontScale = (content: ScreenSlotContent | undefined) =>
+    content?.kind === 'transit' || content?.kind === 'weather' || content?.kind === 'catalogue' || isEventMonth(content)
   const usesFontScale0 = usesFontScale(contentSlots[0]?.content)
   const usesFontScale1 = usesFontScale(contentSlots[1]?.content)
   // `EventMonthSlide`'s own CSS multi-column list has no graceful width
   // fallback of its own (unlike `TransitSlide`'s ellipsis-truncating
   // destination column) — see `useShrinkToFitFontScale`'s own doc comment
-  // for why it alone opts into that hook's width check too.
-  const checkWidth0 = isEventMonth(contentSlots[0]?.content)
-  const checkWidth1 = isEventMonth(contentSlots[1]?.content)
+  // for why it alone opts into that hook's width check too. `'weather'`
+  // joins it for the same reason, but only in its own vertical-rectangle
+  // layout (`WeatherSlide`'s `useIsVerticalPane`) — its default horizontal
+  // layout already has that same `1fr`-track fallback (an hour column
+  // shrinks before ever truly overflowing), but the vertical layout's own
+  // fixed-width detail columns (Wind/Humidity/Rain/UV/Pressure headers) have
+  // no such fallback, so a narrow enough pane with enough details toggled on
+  // can genuinely run out of width with nothing else left to give.
+  // Harmless to check width unconditionally for every weather pane either
+  // way (the width check runs *in addition to* the height one this hook
+  // already does, at the same real layout-measurement cost) — it just never
+  // has anything to actually correct for while the horizontal layout's own
+  // fallback is still absorbing the overflow itself.
+  const checkWidth0 = isEventMonth(contentSlots[0]?.content) || contentSlots[0]?.content?.kind === 'weather'
+  const checkWidth1 = isEventMonth(contentSlots[1]?.content) || contentSlots[1]?.content?.kind === 'weather'
   useShrinkToFitScale(contentOuterRef0, contentInnerRef0, overflowMode === 'shrink' && !usesFontScale0, [shrinkDep0])
   useShrinkToFitScale(contentOuterRef1, contentInnerRef1, overflowMode === 'shrink' && !usesFontScale1, [shrinkDep1])
   useShrinkToFitFontScale(contentOuterRef0, contentInnerRef0, overflowMode === 'shrink' && usesFontScale0, [shrinkDep0], checkWidth0)

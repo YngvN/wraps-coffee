@@ -190,6 +190,14 @@ end;
 ; failure here only affects LAN reachability, not whether the app runs at all.
 Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""Wraps & Coffee"" dir=in action=allow protocol=TCP localport=4000,4173 profile=any"; Flags: runhidden
 
+; Same reasoning as above, but for mDNS (UDP 5353) - the port bonjour-service
+; needs both to advertise this machine's own "<store name>.local" screen
+; address (see server/mdns.ts) and to browse for a server's presence during
+; first-run role setup (see electron/roleSetup.cjs). Without this rule the
+; multicast traffic is silently dropped and .local names never publish or
+; resolve, even though the app-level feature itself is otherwise working.
+Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""Wraps & Coffee (mDNS)"" dir=in action=allow protocol=UDP localport=5353 profile=any"; Flags: runhidden
+
 ; Offer to launch right away, without waiting for a restart. "nowait" is
 ; required here: the script's own watchdog loop never returns, so waiting
 ; for it to exit would leave the wizard's Finish page open forever.
@@ -198,6 +206,7 @@ Filename: "{app}\start-wraps-coffee.bat"; Description: "Launch Wraps & Coffee no
 [UninstallRun]
 Filename: "schtasks.exe"; Parameters: "/Delete /TN ""WrapsCoffeeLauncher"" /F"; Flags: runhidden
 Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Wraps & Coffee"""; Flags: runhidden
+Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Wraps & Coffee (mDNS)"""; Flags: runhidden
 ; Harmless no-op if the "defenderexclusion" task was never selected at install time.
 Filename: "powershell.exe"; Parameters: "-NoProfile -Command ""Remove-MpPreference -ExclusionPath '{app}'; Remove-MpPreference -ExclusionPath '{localappdata}\npm-cache'"""; Flags: runhidden
 

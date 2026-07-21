@@ -14,11 +14,11 @@ import { getFoodoraCredentials, getWoltCredentials, lookupAddress, searchStops, 
 import type { ExtensionsConfig, NearbyStop, WeatherLocation } from '../../../types/extensions'
 import { NEWS_SOURCES } from '../../../types/news'
 import { TransitModeIcon } from '../../screens/TransitModeIcon'
+import { WeatherSymbolIcon } from '../../screens/WeatherSymbolIcon'
 import { formatDateTime } from '../../../utils/clockFormat'
 import { generateId } from '../../../utils/id'
 import { TRANSIT_MODES } from '../../../utils/transitModes'
 import { weatherLocationKey } from '../../../utils/weatherLocationKey'
-import { weatherSymbolToEmoji } from '../../../utils/weatherSymbols'
 import { ActivationToggle } from './ActivationToggle'
 import { AnimatedDetails } from './AnimatedDetails'
 import { ComingSoonSection } from './ComingSoonSection'
@@ -26,7 +26,7 @@ import { ExtensionSearchBar } from './ExtensionSearchBar'
 import { ExtensionSearchResults } from './ExtensionSearchResults'
 import './ExtensionsView.scss'
 
-/** Every base symbol code `weatherSymbolToEmoji` recognizes (i.e. every key of its own `WEATHER_EMOJI` map), paired with its own i18n label — shown as a legend in the "View weather icons" modal so the admin can see what each emoji on a live forecast slide means. Yr appends `_day`/`_night`/`_polartwilight` to these at runtime; the legend shows the base (daytime) glyph since the emoji itself doesn't change by time of day. */
+/** Every base symbol code `WeatherSymbolIcon` recognizes, paired with its own i18n label — shown as a legend in the "View weather icons" modal so the admin can see what each glyph on a live forecast slide means. Yr appends `_day`/`_night`/`_polartwilight` to these at runtime; passing the bare base code here (no suffix) always renders as `WeatherSymbolIcon`'s own "day" branch. */
 const WEATHER_SYMBOLS: { code: string; labelKey: string }[] = [
   { code: 'clearsky', labelKey: 'admin.extensions.weatherSymbolClearsky' },
   { code: 'fair', labelKey: 'admin.extensions.weatherSymbolFair' },
@@ -1034,9 +1034,7 @@ export function ExtensionsView() {
         <ul className="extensions-view__mode-icons">
           {WEATHER_SYMBOLS.map(({ code, labelKey }) => (
             <li key={code} className="extensions-view__mode-icon-item">
-              <span className="extensions-view__mode-icon" aria-hidden="true">
-                {weatherSymbolToEmoji(code)}
-              </span>
+              <WeatherSymbolIcon symbolCode={code} className="extensions-view__mode-icon" />
               <span>{t(labelKey)}</span>
             </li>
           ))}

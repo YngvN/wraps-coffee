@@ -18,7 +18,9 @@ import {
   DEFAULT_TIME_FONT_SIZE,
   DEFAULT_TIME_UNITS,
   DEFAULT_TRANSIT_DEPARTURE_COUNT,
+  DEFAULT_TRANSIT_ICON_PACK,
   DEFAULT_WEATHER_FORECAST_HOURS,
+  DEFAULT_WEATHER_ICON_PACK,
   MIN_QR_CODE_SIZE,
   type EventDisplayMode,
   type MessageBoardDisplayMode,
@@ -28,6 +30,8 @@ import {
   type TimeDisplayMode,
   type TimeUnit,
   type TimeWeekdayStyle,
+  type TransitIconPack,
+  type WeatherIconPack,
 } from '../../types/screen'
 import { collectAnnouncementMessages } from '../../utils/announcements'
 import { clampMediaResizeScale, MEDIA_RESIZE_MAX_VIEWPORT_FRACTION, MAX_MEDIA_RESIZE_SCALE, MIN_MEDIA_RESIZE_SCALE } from '../../utils/screenLayout'
@@ -39,6 +43,8 @@ import './SlideFields.scss'
 
 const MESSAGE_BOARD_DISPLAY_MODES: MessageBoardDisplayMode[] = ['rotating', 'list', 'single']
 const MESSAGE_BOARD_ORDERS: MessageBoardOrder[] = ['newestFirst', 'oldestFirst']
+const TRANSIT_ICON_PACKS: TransitIconPack[] = ['standard', 'simple']
+const WEATHER_ICON_PACKS: WeatherIconPack[] = ['outline', 'system']
 
 /**
  * Decodes a `<select>` option value back into a `ScreenSlotContent`. An
@@ -285,6 +291,11 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
     onChange({ ...content, modeFilter: TRANSIT_MODES.map((entry) => entry.mode).filter((existing) => next.includes(existing)) })
   }
 
+  const setTransitIconPack = (iconPack: TransitIconPack) => {
+    if (content.kind !== 'transit') return
+    onChange({ ...content, iconPack })
+  }
+
   const setTransitUseBrandTheme = (useBrandTheme: boolean) => {
     if (content.kind !== 'transit') return
     onChange({ ...content, useBrandTheme })
@@ -328,6 +339,11 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
   const setWeatherShowPressure = (showPressure: boolean) => {
     if (content.kind !== 'weather') return
     onChange({ ...content, showPressure })
+  }
+
+  const setWeatherIconPack = (iconPack: WeatherIconPack) => {
+    if (content.kind !== 'weather') return
+    onChange({ ...content, iconPack })
   }
 
   const setWeatherUseBrandTheme = (useBrandTheme: boolean) => {
@@ -810,6 +826,20 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
             ))}
           </div>
           <div className="slide-fields__categories">
+            <span className="slide-fields__categories-label">{t('admin.screens.transitIconPackLabel')}</span>
+            <select
+              aria-label={t('admin.screens.transitIconPackLabel')}
+              value={content.iconPack ?? DEFAULT_TRANSIT_ICON_PACK}
+              onChange={(event) => setTransitIconPack(event.target.value as TransitIconPack)}
+            >
+              {TRANSIT_ICON_PACKS.map((pack) => (
+                <option key={pack} value={pack}>
+                  {t(pack === 'simple' ? 'admin.screens.transitIconPackSimpleOption' : 'admin.screens.transitIconPackStandardOption')}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="slide-fields__categories">
             <Checkbox
               id={`${id}-transit-brand-theme`}
               label={t('admin.screens.transitUseBrandThemeLabel', { brand: content.brand === 'entur' ? 'Entur' : 'Ruter#' })}
@@ -868,6 +898,20 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
               checked={Boolean(content.showPressure)}
               onChange={(event) => setWeatherShowPressure(event.target.checked)}
             />
+          </div>
+          <div className="slide-fields__categories">
+            <span className="slide-fields__categories-label">{t('admin.screens.weatherIconPackLabel')}</span>
+            <select
+              aria-label={t('admin.screens.weatherIconPackLabel')}
+              value={content.iconPack ?? DEFAULT_WEATHER_ICON_PACK}
+              onChange={(event) => setWeatherIconPack(event.target.value as WeatherIconPack)}
+            >
+              {WEATHER_ICON_PACKS.map((pack) => (
+                <option key={pack} value={pack}>
+                  {t(pack === 'system' ? 'admin.screens.weatherIconPackSystemOption' : 'admin.screens.weatherIconPackOutlineOption')}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="slide-fields__categories">
             <Checkbox

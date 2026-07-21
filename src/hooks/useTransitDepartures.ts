@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fetchDepartures } from '../lib/localServer'
 import type { DepartureInfo } from '../types/extensions'
 
@@ -10,8 +10,9 @@ const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 const CACHE_KEY_PREFIX = 'transit-cache:'
 
-interface CachedDepartures {
+interface FullDepartures {
   stopName: string
+  /** The full buffer `handleDepartures` returns (up to `TRANSIT_FETCH_BUFFER`, see its own doc comment in `server/extensions.ts`) — not just however many departures are actually displayed, so there's far more than `count` to keep trimming from while offline (see `selectUpcoming`). */
   departures: DepartureInfo[]
   fetchedAt: number
 }
@@ -21,12 +22,12 @@ function cacheKey(stopId: string): string {
 }
 
 /** `null` if there's no cache for `stopId`, or it's older than `CACHE_MAX_AGE_MS` (removing it in that case — an admin who reconfigures the stop over the weeks/months a display runs would otherwise leave every previous stop's own stale entry sitting in `localStorage` forever). Caching is a best-effort fallback, not core functionality, so any read/parse failure (storage disabled, corrupt entry) is treated the same as a cache miss rather than surfaced as an error. */
-function readCache(stopId: string): CachedDepartures | null {
+function readCache(stopId: string): FullDepartures | null {
   try {
     const key = cacheKey(stopId)
     const raw = window.localStorage.getItem(key)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as CachedDepartures
+    const parsed = JSON.parse(raw) as FullDepartures
     if (Date.now() - parsed.fetchedAt > CACHE_MAX_AGE_MS) {
       window.localStorage.removeItem(key)
       return null
@@ -37,9 +38,9 @@ function readCache(stopId: string): CachedDepartures | null {
   }
 }
 
-function writeCache(stopId: string, stopName: string, departures: DepartureInfo[]) {
+function writeCache(stopId: string, full: FullDepartures) {
   try {
-    window.localStorage.setItem(cacheKey(stopId), JSON.stringify({ stopName, departures, fetchedAt: Date.now() } satisfies CachedDepartures))
+    window.localStorage.setItem(cacheKey(stopId), JSON.stringify(full))
   } catch {
     // Storage full/disabled — losing the offline fallback is a lot less bad than crashing the slide over it.
   }
@@ -53,9 +54,7 @@ function writeCache(stopId: string, stopName: string, departures: DepartureInfo[
  * time) instead of its `expectedDepartureTime` (a live adjustment that may
  * now be stale and misleading) — then drops any that have already passed by
  * wall-clock time, since "in -12 min" reads as broken rather than
- * informative. Applied both the moment the feed drops and on every
- * subsequent poll attempt while it stays down, so the shown list keeps
- * trimming elapsed departures rather than freezing on one stale snapshot.
+ * informative.
  */
 function asScheduled(departures: DepartureInfo[]): DepartureInfo[] {
   const now = Date.now()
@@ -73,39 +72,76 @@ interface TransitDeparturesState {
 }
 
 /**
- * Polls `GET /extensions/departures` for `stopId` every 30s. Every
- * successful fetch is also mirrored into `localStorage` (see `writeCache`),
- * so if a refresh then fails (local server down, no internet) this falls
- * back to whatever's already showing (or, on a fresh mount with nothing yet,
- * the cache) reinterpreted as a static schedule (see `asScheduled`) instead
- * of going blank, as long as it's less than a week old. Either way `stale`
+ * Reads whatever's cached for `stopId` (if anything) and shapes it into both
+ * the full buffer a fresh `fullRef` should start from and the state a fresh
+ * mount should show *immediately*, before its first live fetch has even
+ * resolved. Used both for the very first mount and for every later `stopId`
+ * change within the same mounted instance, so both cases show last-known
+ * departures rather than a blank/loading pane while the live fetch is in
+ * flight — this is what keeps a `'transit'` pane from going blank for a beat
+ * every time a screen's stage rotation brings it back into view: `TransitSlide`
+ * typically unmounts and remounts on each such transition (a different pane
+ * kind was showing in between), which would otherwise restart this hook from
+ * scratch right as the pane becomes visible.
+ */
+function seedFromCache(stopId: string, count: number): { full: FullDepartures | null; state: TransitDeparturesState } {
+  const cached = readCache(stopId)
+  if (!cached) return { full: null, state: { stopName: null, departures: [], loading: true, stale: false } }
+  const full: FullDepartures = { ...cached, departures: asScheduled(cached.departures) }
+  return { full, state: { stopName: full.stopName, departures: full.departures.slice(0, count), loading: true, stale: true } }
+}
+
+/**
+ * Polls `GET /extensions/departures` for `stopId` every 30s. The server
+ * always returns a large buffer of upcoming departures (see
+ * `handleDepartures`'s own `TRANSIT_FETCH_BUFFER` doc comment in
+ * `server/extensions.ts`) regardless of `count` — this hook keeps that full
+ * buffer in `fullRef` (mirrored into `localStorage` via `writeCache`, so it
+ * survives a reload) and only *displays* `count` of them, trimmed to
+ * whichever haven't already departed (`asScheduled`). That split is what
+ * makes offline fallback last for more than just the next `count`
+ * departures: if a refresh then fails (local server down, no internet), the
+ * displayed list is re-derived from whatever's left in that same
+ * much-larger buffer — not frozen on/shrinking from just the `count`-long
+ * slice that happened to be on screen when the connection dropped — so a
+ * display keeps showing something for as long as the buffer still has
+ * departures left, as long as it's less than a week old. Either way `stale`
  * tells `TransitSlide` whether what it's showing is live.
+ *
+ * The very first render (and any later `stopId` change) seeds both `state`
+ * and `fullRef` from `localStorage` via `seedFromCache` rather than starting
+ * blank — see its own doc comment for why that matters for stage rotation.
  */
 export function useTransitDepartures(stopId: string | undefined, count: number): TransitDeparturesState {
-  const [state, setState] = useState<TransitDeparturesState>({ stopName: null, departures: [], loading: Boolean(stopId), stale: false })
+  const [state, setState] = useState<TransitDeparturesState>(() => (stopId ? seedFromCache(stopId, count).state : { stopName: null, departures: [], loading: false, stale: false }))
+  const fullRef = useRef<FullDepartures | null>(null)
 
   useEffect(() => {
     if (!stopId) return
 
+    const seed = seedFromCache(stopId, count)
+    fullRef.current = seed.full
+    setState(seed.state)
     let cancelled = false
     const refresh = () => {
       fetchDepartures(stopId, count)
         .then((result) => {
           if (cancelled) return
-          writeCache(stopId, result.stopName, result.departures)
-          setState({ stopName: result.stopName, departures: result.departures, loading: false, stale: false })
+          const full: FullDepartures = { stopName: result.stopName, departures: result.departures, fetchedAt: Date.now() }
+          fullRef.current = full
+          writeCache(stopId, full)
+          setState({ stopName: full.stopName, departures: full.departures.slice(0, count), loading: false, stale: false })
         })
         .catch(() => {
           if (cancelled) return
-          setState((current) => {
-            // Already showing something (from an earlier successful fetch this
-            // session, or a previous cache fallback) — re-derive it as a
-            // schedule rather than clearing it, same "was live, then dropped"
-            // case `useWeatherForecast` handles.
-            if (current.departures.length > 0) return { ...current, loading: false, stale: true, departures: asScheduled(current.departures) }
-            const cached = readCache(stopId)
-            return cached ? { stopName: cached.stopName, departures: asScheduled(cached.departures), loading: false, stale: true } : { ...current, loading: false }
-          })
+          const source = fullRef.current ?? readCache(stopId)
+          if (!source) {
+            setState((current) => ({ ...current, loading: false }))
+            return
+          }
+          const trimmed: FullDepartures = { ...source, departures: asScheduled(source.departures) }
+          fullRef.current = trimmed
+          setState({ stopName: trimmed.stopName, departures: trimmed.departures.slice(0, count), loading: false, stale: true })
         })
     }
 

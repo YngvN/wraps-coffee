@@ -123,6 +123,18 @@ interface StopPlaceDeparturesResponse {
 
 const departuresCache = new Map<string, CacheEntry<{ stopName: string; departures: unknown[] }>>()
 
+/**
+ * Always fetched from Entur regardless of how many departures a slide is
+ * actually configured to *show* (`count`, admin-capped at 20 in
+ * `SlideFields.tsx`) — a schedule is effectively indefinite, so a display
+ * that goes offline should have far more than just the next `count`
+ * departures buffered client-side (see `useTransitDepartures.ts`'s own
+ * `fullRef`) to keep trimming from as departures pass, the same way
+ * `handleWeather` below always caches Yr's full multi-day forecast rather
+ * than only the admin-chosen display window.
+ */
+const TRANSIT_FETCH_BUFFER = 100
+
 const DEPARTURES_QUERY = `
   query StopPlaceDepartures($id: String!, $numberOfDepartures: Int!) {
     stopPlace(id: $id) {
@@ -140,14 +152,14 @@ const DEPARTURES_QUERY = `
   }
 `
 
-/** Fetches the next `count` real-time departures from stop `stopId`, cached briefly per `(stopId, count)` so several open kiosk/admin tabs don't each hit Entur independently. */
+/** Fetches the next `TRANSIT_FETCH_BUFFER` real-time departures from stop `stopId` (regardless of `count` — see its own doc comment), cached briefly per `stopId` so several open kiosk/admin tabs (even ones configured with a different display `count`) don't each hit Entur independently. Returns the full buffered list; the caller/client is responsible for only *displaying* `count` of them. */
 export async function handleDepartures(res: ServerResponse, stopId: string, count: number) {
   try {
-    const result = await cached(departuresCache, `${stopId}:${count}`, DEPARTURES_CACHE_MS, async () => {
+    const result = await cached(departuresCache, stopId, DEPARTURES_CACHE_MS, async () => {
       const response = await fetch('https://api.entur.io/journey-planner/v3/graphql', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'ET-Client-Name': ENTUR_CLIENT_NAME },
-        body: JSON.stringify({ query: DEPARTURES_QUERY, variables: { id: stopId, numberOfDepartures: count } }),
+        body: JSON.stringify({ query: DEPARTURES_QUERY, variables: { id: stopId, numberOfDepartures: Math.max(count, TRANSIT_FETCH_BUFFER) } }),
       })
       if (!response.ok) throw new Error(`journey planner failed: ${response.status}`)
       const body = (await response.json()) as StopPlaceDeparturesResponse
@@ -222,7 +234,7 @@ function isSameLocalDate(isoTime: string, reference: Date): boolean {
   return date.getFullYear() === reference.getFullYear() && date.getMonth() === reference.getMonth() && date.getDate() === reference.getDate()
 }
 
-/** Fetches an hourly forecast for `(lat, lon)`, cached ~10 minutes (coordinates rounded to ~100m so nearby requests share a cache entry); `hours` only slices the cached timeseries, it isn't part of the upstream request. Uses MET's "complete" dataset rather than "compact" — the same core fields, plus wind/humidity/pressure/UV/precipitation-probability for the optional display toggles in the admin's Weather (Yr) settings. `todayLowC`/`todayHighC` are computed fresh on every request (not baked into the ~10-minute cache) from the *full* cached timeseries — not just the `hours`-long slice `hourly` itself is truncated to — so they stay today's real low/high regardless of how few hours the admin chose to list; falls back to the same slice `hourly` uses if, right around midnight, no cached entry happens to fall on today's date yet. */
+/** Fetches an hourly forecast for `(lat, lon)`, cached ~10 minutes (coordinates rounded to ~100m so nearby requests share a cache entry). Uses MET's "complete" dataset rather than "compact" — the same core fields, plus wind/humidity/pressure/UV/precipitation-probability for the optional display toggles in the admin's Weather (Yr) settings. Returns the *entire* multi-day cached timeseries, not just an `hours`-long slice — MET gives several days of hourly forecast per request regardless of `hours`, and truncating it here would throw away data a display could otherwise buffer client-side for offline use (a schedule/forecast this far ahead is worth keeping around even if only `hours` of it is shown live — see `useWeatherForecast.ts`'s own `fullRef`). `hours` is only used for the `todayLowC`/`todayHighC` midnight-edge fallback below; the caller/client is responsible for slicing `hourly` down to what it actually displays. `todayLowC`/`todayHighC` are computed fresh on every request (not baked into the ~10-minute cache) from the full timeseries, so they stay today's real low/high regardless of how few hours the admin chose to list. */
 export async function handleWeather(res: ServerResponse, lat: number, lon: number, hours: number) {
   const cacheKey = `${lat.toFixed(3)},${lon.toFixed(3)}`
   try {
@@ -258,7 +270,7 @@ export async function handleWeather(res: ServerResponse, lat: number, lon: numbe
     const todayLowC = lowHighSource.length > 0 ? Math.min(...lowHighSource.map((entry) => entry.temperatureC)) : undefined
     const todayHighC = lowHighSource.length > 0 ? Math.max(...lowHighSource.map((entry) => entry.temperatureC)) : undefined
 
-    sendJson(res, 200, { hourly: hourly.slice(0, hours), todayLowC, todayHighC })
+    sendJson(res, 200, { hourly, todayLowC, todayHighC })
   } catch (error) {
     console.error('[extensions] weather lookup failed:', error)
     sendJson(res, 502, { error: 'Could not reach Yr for a forecast' })

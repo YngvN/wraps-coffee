@@ -4,7 +4,7 @@ import { FetchedLogo } from '../../components'
 import { useExtensionsConfig } from '../../hooks/useExtensionsConfig'
 import { useTransitDepartures } from '../../hooks/useTransitDepartures'
 import { useLanguage } from '../../i18n'
-import { DEFAULT_TRANSIT_DEPARTURE_COUNT } from '../../types/screen'
+import { DEFAULT_TRANSIT_DEPARTURE_COUNT, type TransitIconPack } from '../../types/screen'
 import type { DepartureInfo } from '../../types/extensions'
 import { TransitModeIcon } from './TransitModeIcon'
 import './TransitSlide.scss'
@@ -24,6 +24,8 @@ interface TransitSlideProps {
   realtimeOnly?: boolean
   /** Transport modes to include — empty/unset means every mode at the stop is shown. */
   modeFilter?: string[]
+  /** Which icon set the mode icons next to each departure are drawn from — see `TransitIconPack`. Falls back to `DEFAULT_TRANSIT_ICON_PACK`. */
+  iconPack?: TransitIconPack
   /** Overrides the pane's own background/font/text colors with a look-alike of `brand`. Falls back to `true`. */
   useBrandTheme?: boolean
   /** Shows `brand`'s own logo in the pane's top-left corner. Only relevant while `useBrandTheme` is on. Falls back to `true`. */
@@ -327,12 +329,12 @@ function useSequencedColumns(departures: DepartureInfo[], columnCount: number, r
 }
 
 /** One departure's own icon/line/destination content (the row's left half) — split from `TransitDepartureTrailing` below so single-column mode can animate each half separately (sliding in from opposite edges); multi-column mode just renders both side by side inside one shared fade. */
-function TransitDepartureLeading({ departure, showLineName }: { departure: DepartureInfo; showLineName?: boolean }) {
+function TransitDepartureLeading({ departure, showLineName, iconPack }: { departure: DepartureInfo; showLineName?: boolean; iconPack?: TransitIconPack }) {
   const { t } = useLanguage()
   return (
     <>
       <span className="transit-slide__mode-icon-wrap">
-        <TransitModeIcon mode={departure.mode} className="transit-slide__mode-icon" />
+        <TransitModeIcon mode={departure.mode} pack={iconPack} className="transit-slide__mode-icon" />
         {departure.realtime && <span className="transit-slide__realtime-dot" title={t('admin.screens.transitRealtimeDotTitle')} />}
       </span>
       <span className="transit-slide__line">{departure.line}</span>
@@ -387,7 +389,7 @@ function TransitColumnHeader({ showPlatform }: { showPlatform?: boolean }) {
 }
 
 /** Fullscreen rendering of real-time departures from one of the cafe's configured nearby stops (see the admin's Integrations tab), for a screen display's "transit" slot. */
-export function TransitSlide({ brand, stopId, departureCount, showPlatform, showLineName, realtimeOnly, modeFilter, useBrandTheme, showBrandLogo }: TransitSlideProps) {
+export function TransitSlide({ brand, stopId, departureCount, showPlatform, showLineName, realtimeOnly, modeFilter, iconPack, useBrandTheme, showBrandLogo }: TransitSlideProps) {
   const { t } = useLanguage()
   const [config] = useExtensionsConfig()
   const resolvedBrand = brand ?? 'ruter'
@@ -500,7 +502,7 @@ export function TransitSlide({ brand, stopId, departureCount, showPlatform, show
                           className={itemClassName}
                         >
                           <span className="transit-slide__leading">
-                            <TransitDepartureLeading departure={departure} showLineName={showLineName} />
+                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} />
                           </span>
                           <span className="transit-slide__trailing">
                             <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
@@ -526,7 +528,7 @@ export function TransitSlide({ brand, stopId, departureCount, showPlatform, show
                           className={itemClassName}
                         >
                           <span className="transit-slide__leading">
-                            <TransitDepartureLeading departure={departure} showLineName={showLineName} />
+                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} />
                           </span>
                           <span className="transit-slide__trailing">
                             <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
@@ -537,7 +539,7 @@ export function TransitSlide({ brand, stopId, departureCount, showPlatform, show
                     return (
                       <motion.li key={departureKey(departure)} initial="hidden" animate="visible" exit="exit" className={itemClassName}>
                         <motion.span layout="position" className="transit-slide__leading" variants={transitLeadingVariants} transition={transitItemTransition}>
-                          <TransitDepartureLeading departure={departure} showLineName={showLineName} />
+                          <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} />
                         </motion.span>
                         <motion.span layout="position" className="transit-slide__trailing" variants={transitTrailingVariants} transition={transitItemTransition}>
                           <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />

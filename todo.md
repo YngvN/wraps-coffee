@@ -20,6 +20,7 @@
 - PDF/docx export of the menu
 - Local AI for SCSS, edit prices
 - Custom CSS for panes
+- Display machines (Electron kiosk) store the server's LAN IP only once at setup (electron/roleSetup.cjs) and never re-resolve it — if the router reassigns the server's IP later, every display goes stale with no automatic recovery, only the tray's manual "Reconfigure role..." Consider re-probing on connection failure, or preferring the resolved .local hostname over a raw IP when persisting serverHost.
 
 
 1. 

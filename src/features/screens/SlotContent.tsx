@@ -87,6 +87,7 @@ export function SlotContent({ slot, newsSlots, stageTick, stage, onRequestStageA
         showLineName={slot.showLineName}
         realtimeOnly={slot.realtimeOnly}
         modeFilter={slot.modeFilter}
+        iconPack={slot.iconPack}
         useBrandTheme={slot.useBrandTheme}
         showBrandLogo={slot.showBrandLogo}
       />
@@ -101,6 +102,7 @@ export function SlotContent({ slot, newsSlots, stageTick, stage, onRequestStageA
         showPrecipitationProbability={slot.showPrecipitationProbability}
         showUvIndex={slot.showUvIndex}
         showPressure={slot.showPressure}
+        iconPack={slot.iconPack}
         useBrandTheme={slot.useBrandTheme}
         showBrandLogo={slot.showBrandLogo}
       />

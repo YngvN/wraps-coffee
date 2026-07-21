@@ -41,7 +41,7 @@ export function ScreensView() {
   const [formRoute, setFormRoute] = useState<string | undefined>(undefined)
   /** This machine's own LAN IP, used in place of `localhost`/`127.0.0.1` when building each screen's link below — so a URL copied from a dashboard opened via `localhost` still works when pasted into a *different* device (a kiosk display) on the network. Only fetched when actually needed (see the effect below); stays `null` (falling back to `window.location.hostname` as-is) if the lookup fails or isn't applicable. */
   const [lanIp, setLanIp] = useState<string | null>(null)
-  /** How a screen's own link should be addressed (see Settings → Advanced) — `automatic` (the default) defers to the LAN-IP detection above; `custom`/`mdns` override it outright. Fetched once; falls back to `automatic` while loading or if the lookup fails. */
+  /** How a screen's own link should be addressed (see Settings → Advanced) — `mdns` (the default) uses the store's advertised `.local` name; `custom` uses an admin-typed host; `automatic` instead defers to the LAN-IP detection above. Fetched once; falls back to `mdns` while loading or if the lookup fails. */
   const [addressSettings, setAddressSettings] = useState<ScreenAddressSettings>(DEFAULT_SCREEN_ADDRESS_SETTINGS)
   const [storeSettings] = useStoreSettings()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()

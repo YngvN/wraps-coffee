@@ -241,14 +241,14 @@ export async function searchStops(query: string): Promise<NearbyStop[]> {
   return stops
 }
 
-/** Fetches the next `count` departures for `stopId`, used by `TransitSlide`'s polling hook. No auth needed — public proxy, same posture as image reads. */
+/** Fetches Entur's own much-larger buffer of upcoming departures for `stopId` (`count` only hints a floor — see `handleDepartures`'s `TRANSIT_FETCH_BUFFER` doc comment in `server/extensions.ts`; the response isn't trimmed to `count`), used by `TransitSlide`'s polling hook, which is what actually slices it down to `count` for display. No auth needed — public proxy, same posture as image reads. */
 export async function fetchDepartures(stopId: string, count: number): Promise<{ stopName: string; departures: DepartureInfo[] }> {
   const response = await fetch(`${serverBaseUrl()}/extensions/departures?stopId=${encodeURIComponent(stopId)}&count=${count}`)
   if (!response.ok) throw new Error('Could not fetch departures')
   return response.json() as Promise<{ stopName: string; departures: DepartureInfo[] }>
 }
 
-/** Fetches the next `hours` hours of forecast for `(lat, lon)`, plus today's overall low/high (computed server-side from its own fuller cached timeseries, not just this `hours`-long slice) — used by `WeatherSlide`'s polling hook. */
+/** Fetches MET's entire multi-day hourly forecast for `(lat, lon)` (the response isn't trimmed to `hours` — see `handleWeather`'s own doc comment in `server/extensions.ts`), plus today's overall low/high (computed server-side from that same full timeseries) — used by `WeatherSlide`'s polling hook, which is what actually slices `hourly` down to `hours` for display. */
 export async function fetchWeather(lat: number, lon: number, hours: number): Promise<{ hourly: WeatherHour[]; todayLowC?: number; todayHighC?: number }> {
   const response = await fetch(`${serverBaseUrl()}/extensions/weather?lat=${lat}&lon=${lon}&hours=${hours}`)
   if (!response.ok) throw new Error('Could not fetch a forecast')
