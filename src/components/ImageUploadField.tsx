@@ -1,8 +1,10 @@
 import type { ChangeEvent, DragEvent } from 'react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAdminSession } from '../hooks/useAdminSession'
 import { useLanguage } from '../i18n'
-import { deleteUpload, isOwnUploadUrl, SessionExpiredError, uploadImage } from '../lib/localServer'
+import { deleteUpload, isOwnUploadUrl } from '../lib/localServer'
+import { dismissUpload, retryUpload, startUpload, useUpload } from '../lib/uploadManager'
+import { getThumbnailUrl } from '../utils/responsiveImage'
 import { Input } from './Input'
 import { StoredImagePickerModal } from './StoredImagePickerModal'
 import './ImageUploadField.scss'
@@ -11,24 +13,40 @@ interface ImageUploadFieldProps {
   id: string
   value: string
   onChange: (url: string) => void
+  /**
+   * Also accepts video files, uploaded through the server's transcode
+   * pipeline (`server/videoUploads.ts`) instead of the plain image path —
+   * off by default so a consumer whose own render path is still a bare
+   * `<img>` doesn't silently accept a video it has nowhere to actually show.
+   * Only the Screens video slide field passes this today.
+   */
+  acceptVideo?: boolean
+}
+
+/** Every video is always canonicalized to `.mp4` server-side, so this is an unambiguous way to tell a stored value's own kind from its URL alone, with no extra metadata field on this generic field. */
+function isVideoUrl(url: string): boolean {
+  return url.toLowerCase().endsWith('.mp4')
 }
 
 /**
- * Three ways to set an image: upload a new file (dragged-and-dropped
- * anywhere on this field, or picked via the file dialog), reuse one already
- * stored on the server (the "Use stored image" picker), or paste an
- * external URL (hidden behind "Use URL" until needed, since most edits use
- * one of the other two). An upload also generates compressed `-small`/
- * `-thumb` variants server-side — see "Image upload/storage" in the
- * sync-server plan. Replacing a value that pointed at this same server's
- * own upload deletes the old file (fire and forget); an external URL is
- * never touched.
+ * Three ways to set an image (or, with `acceptVideo`, a video too): upload a
+ * new file (dragged-and-dropped anywhere on this field, or picked via the
+ * file dialog), reuse one already stored on the server (the "Use stored"
+ * picker), or paste an external URL (hidden behind "Use URL" until needed,
+ * since most edits use one of the other two). An upload also generates
+ * compressed `-small`/`-thumb` variants server-side for an image, or a
+ * transcoded MP4 + poster frame for a video — see "Image upload/storage" in
+ * the sync-server plan and `server/videoUploads.ts`. Replacing a value that
+ * pointed at this same server's own upload deletes the old file (fire and
+ * forget); an external URL is never touched. Uploads run through the global
+ * `uploadManager` rather than this field's own local state, so a large
+ * video keeps transferring (with its progress still visible) even if this
+ * field itself unmounts mid-upload — e.g. switching form tabs.
  */
-export function ImageUploadField({ id, value, onChange }: ImageUploadFieldProps) {
+export function ImageUploadField({ id, value, onChange, acceptVideo }: ImageUploadFieldProps) {
   const { t } = useLanguage()
-  const { session, clearSession } = useAdminSession()
-  const [uploading, setUploading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { session } = useAdminSession()
+  const [uploadId, setUploadId] = useState<string | undefined>()
   const [showUrlInput, setShowUrlInput] = useState(false)
   const [showPicker, setShowPicker] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -36,33 +54,38 @@ export function ImageUploadField({ id, value, onChange }: ImageUploadFieldProps)
   // drag enter/leave as the pointer crosses them — a counter (rather than a
   // boolean) is what keeps the drop overlay from flickering.
   const dragDepth = useRef(0)
+  // The value this field held right before the in-flight upload started —
+  // captured so the effect below can delete the old own-server file once the
+  // new one is ready, without depending on `value` (which changes the moment
+  // `onChange` fires) inside its own dependency array.
+  const previousValueRef = useRef('')
 
-  const handleFile = async (file: File) => {
+  // Once `dismissUpload` below removes this id from the global store,
+  // `useUpload` naturally starts returning `undefined` for it on its own —
+  // `uploadId` itself is left stale rather than reset, since a stale id that
+  // no longer resolves to anything is harmless, and a *new* upload always
+  // overwrites it via `handleFile` anyway.
+  const tracked = useUpload(uploadId)
+
+  useEffect(() => {
+    if (!tracked || tracked.status !== 'ready' || !tracked.result) return
+    onChange(tracked.result.url)
+    const previousValue = previousValueRef.current
+    if (session && previousValue && isOwnUploadUrl(previousValue)) void deleteUpload(previousValue, session.token)
+    dismissUpload(tracked.id)
+  }, [tracked, onChange, session])
+
+  const handleFile = (file: File) => {
     if (!session) return
-
-    setError(null)
-    setUploading(true)
-    try {
-      const previousValue = value
-      const url = await uploadImage(file, session.token)
-      onChange(url)
-      if (previousValue && isOwnUploadUrl(previousValue)) void deleteUpload(previousValue, session.token)
-    } catch (err) {
-      if (err instanceof SessionExpiredError) {
-        setError(t('imageUpload.sessionExpired'))
-        clearSession()
-      } else {
-        setError(err instanceof Error ? err.message : t('imageUpload.error'))
-      }
-    } finally {
-      setUploading(false)
-    }
+    const isVideo = file.type.startsWith('video/')
+    previousValueRef.current = value
+    setUploadId(startUpload(file, isVideo ? 'video' : 'image', session.token))
   }
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
-    if (file) void handleFile(file)
+    if (file) handleFile(file)
   }
 
   const handleDragEnter = (event: DragEvent) => {
@@ -86,7 +109,7 @@ export function ImageUploadField({ id, value, onChange }: ImageUploadFieldProps)
     dragDepth.current = 0
     setIsDragging(false)
     const file = event.dataTransfer.files[0]
-    if (file?.type.startsWith('image/')) void handleFile(file)
+    if (file && (file.type.startsWith('image/') || (acceptVideo && file.type.startsWith('video/')))) handleFile(file)
   }
 
   const handleRemove = () => {
@@ -95,19 +118,35 @@ export function ImageUploadField({ id, value, onChange }: ImageUploadFieldProps)
     if (session && previousValue && isOwnUploadUrl(previousValue)) void deleteUpload(previousValue, session.token)
   }
 
-  // Once an image is set, the set-an-image actions give way to "Replace"
+  const handleRetry = () => {
+    if (tracked && session) retryUpload(tracked.id, session.token)
+  }
+
+  // Once a value is set, the set-a-value actions give way to "Replace"
   // (still opens the file dialog) and "Remove" — dragging a new file onto
   // the field also still replaces it directly (the drop handlers above
   // aren't gated on this). While actively editing a pasted URL
   // (`showUrlInput`), the full action row stays visible even after `value`
   // gets a first character, so typing one in doesn't yank the input out
   // from under the admin mid-edit.
-  const hasImage = Boolean(value)
+  const hasValue = Boolean(value)
+  const isUploading = tracked?.status === 'uploading'
+  const isProcessing = tracked?.status === 'processing'
+  const isFailed = tracked?.status === 'failed'
+  const busy = isUploading || isProcessing
 
   const fileLabel = (
-    <label className={`image-upload-field__file-label${uploading || !session ? ' image-upload-field__file-label--disabled' : ''}`}>
-      {uploading ? t('imageUpload.uploading') : hasImage ? t('imageUpload.replaceButton') : t('imageUpload.uploadButton')}
-      <input type="file" accept="image/*" onChange={handleFileChange} disabled={uploading || !session} />
+    <label className={`image-upload-field__file-label${busy || !session ? ' image-upload-field__file-label--disabled' : ''}`}>
+      {isUploading
+        ? t('imageUpload.uploadingPercent', { percent: Math.round(tracked.progress * 100) })
+        : isProcessing
+          ? t('imageUpload.processingVideo')
+          : hasValue
+            ? t('imageUpload.replaceButton')
+            : acceptVideo
+              ? t('imageUpload.uploadButtonMedia')
+              : t('imageUpload.uploadButton')}
+      <input type="file" accept={acceptVideo ? 'image/*,video/*' : 'image/*'} onChange={handleFileChange} disabled={busy || !session} />
     </label>
   )
 
@@ -119,28 +158,34 @@ export function ImageUploadField({ id, value, onChange }: ImageUploadFieldProps)
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {hasImage && !showUrlInput ? (
+      {hasValue && !showUrlInput ? (
         <div className="image-upload-field__row">
           <div className="image-upload-field__preview-wrap">
-            <img src={value} alt="" className="image-upload-field__preview" />
+            <img src={isVideoUrl(value) ? getThumbnailUrl(value) : value} alt="" className="image-upload-field__preview" />
             <p className="image-upload-field__replace-hint">{t('imageUpload.dragToReplace')}</p>
           </div>
           <div className="image-upload-field__actions">
             {fileLabel}
-            <button type="button" className="image-upload-field__action-button image-upload-field__action-button--remove" onClick={handleRemove}>
+            <button
+              type="button"
+              className="image-upload-field__action-button image-upload-field__action-button--remove"
+              onClick={handleRemove}
+              disabled={busy}
+            >
               {t('imageUpload.removeButton')}
             </button>
           </div>
         </div>
       ) : (
         <div className="image-upload-field__dropzone">
-          <p className="image-upload-field__dropzone-hint">{t('imageUpload.dropHint')}</p>
+          <p className="image-upload-field__dropzone-hint">{acceptVideo ? t('imageUpload.dropHintMedia') : t('imageUpload.dropHint')}</p>
+          {acceptVideo && <p className="image-upload-field__hint">{t('imageUpload.sizeLimitMedia')}</p>}
           <div className="image-upload-field__actions">
             {fileLabel}
-            <button type="button" className="image-upload-field__action-button" onClick={() => setShowPicker(true)} disabled={!session}>
+            <button type="button" className="image-upload-field__action-button" onClick={() => setShowPicker(true)} disabled={!session || busy}>
               {t('imageUpload.useStoredButton')}
             </button>
-            <button type="button" className="image-upload-field__action-button" onClick={() => setShowUrlInput((shown) => !shown)}>
+            <button type="button" className="image-upload-field__action-button" onClick={() => setShowUrlInput((shown) => !shown)} disabled={busy}>
               {t('imageUpload.useUrlButton')}
             </button>
           </div>
@@ -148,14 +193,30 @@ export function ImageUploadField({ id, value, onChange }: ImageUploadFieldProps)
         </div>
       )}
 
+      {isUploading && (
+        <div className="image-upload-field__progress" role="progressbar" aria-valuenow={Math.round(tracked.progress * 100)} aria-valuemin={0} aria-valuemax={100}>
+          <div className="image-upload-field__progress-bar" style={{ width: `${Math.round(tracked.progress * 100)}%` }} />
+        </div>
+      )}
+
       {isDragging && (
         <div className="image-upload-field__drop-overlay">
-          <p>{t('imageUpload.dropHint')}</p>
+          <p>{acceptVideo ? t('imageUpload.dropHintMedia') : t('imageUpload.dropHint')}</p>
         </div>
       )}
 
       {!session && <p className="image-upload-field__hint">{t('imageUpload.noSession')}</p>}
-      {error && <p className="input-field__error">{error}</p>}
+      {isFailed && (
+        <div className="image-upload-field__error-row">
+          <p className="input-field__error">{tracked?.errorMessage || t('imageUpload.videoFailedFallback')}</p>
+          {/* Only a video has a server-side staged source to retry from — a failed image upload just needs picking the file again via the upload button above. */}
+          {tracked?.kind === 'video' && (
+            <button type="button" className="image-upload-field__action-button" onClick={handleRetry}>
+              {t('imageUpload.retryButton')}
+            </button>
+          )}
+        </div>
+      )}
 
       <StoredImagePickerModal
         open={showPicker}
@@ -164,6 +225,7 @@ export function ImageUploadField({ id, value, onChange }: ImageUploadFieldProps)
           onChange(url)
           setShowPicker(false)
         }}
+        acceptVideo={acceptVideo}
       />
     </div>
   )

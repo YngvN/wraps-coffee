@@ -9,6 +9,12 @@
   padding: $spacing-unit * 6;
   text-align: center;
   overflow: hidden;
+  // Lets `.news-slide__content` below query *this* pane's own shape (not
+  // the viewport's) — a horizontal/landscape pane switches to a side-by-side
+  // layout with the image on the right (see the `@container` rule below),
+  // a vertical/square one keeps the image stacked above the text.
+  container-type: size;
+  container-name: news-slide;
   // A professional baseline even while `useBrandTheme` is off (no source's
   // own `brandFontFamily` inline override active yet) — otherwise this
   // pane falls back to the kiosk's own default heading fonts
@@ -16,28 +22,129 @@
   // menus and announcements), which reads wrong for a news headline.
   font-family: $font-dashboard-sans;
 
+  // Removed outright (not fought with an offsetting negative margin on
+  // `.news-slide__content` below, which needed an over-constrained abs-pos
+  // height calculation to land exactly right and in practice left a stray
+  // gap on some edges) — the image can then genuinely reach every one of
+  // `.news-slide`'s own true edges with nothing to cancel out, and
+  // `.news-slide__text` reinstates its own padding on its own so the text
+  // doesn't end up flush against the pane's edge either.
+  @container news-slide (min-aspect-ratio: 1/1) {
+    padding: 0;
+  }
+
   &--empty {
     color: var(--screen-text-muted);
   }
 }
 
+// Two of these are permanently mounted (see `useCrossfadeSlot` in
+// `NewsSlide.tsx`) and stacked on top of each other via `position: absolute`
+// — `.news-slide` (the positioning host) is already `position: relative` —
+// so opacity-crossfading between them doesn't need `AnimatePresence`'s own
+// mount/unmount cycle, which is what let the previous single-container
+// version's font leak early into a still-fading-out headline.
 .news-slide__content {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: $spacing-unit * 1.5;
-  max-width: 90%;
+  max-width: 100%;
   max-height: 100%;
+
+  > * {
+    max-width: 90%;
+  }
+
+  // A horizontal/landscape pane (its own width at least its own height —
+  // see `.news-slide`'s `container-type` above) switches from image-above-
+  // text to a side-by-side row — `row` puts the image (first in markup) on
+  // the left; `--image-right` (see `NewsSlide.tsx`'s own `stableRandomBit`,
+  // re-rolled per headline) reverses it to the right instead, so it isn't
+  // the same side on every single headline. `.news-slide` itself drops its
+  // own padding in this mode (see above), so this element's own `inset: 0`
+  // already reaches the pane's true edges with nothing left to cancel out.
+  @container news-slide (min-aspect-ratio: 1/1) {
+    flex-direction: row;
+    align-items: stretch;
+    // No longer centering a [text, image] group with room to spare either
+    // side of it — `.news-slide__text` (`flex: 1`) and `.news-slide__image`
+    // (`flex: 0 0 45%`) below now sum to exactly 100% of the row between
+    // them, so there's never leftover space for `justify-content` to
+    // distribute as dead margins on the outer edges in the first place.
+    justify-content: flex-start;
+    text-align: left;
+    gap: 0;
+
+    &.news-slide__content--image-right {
+      flex-direction: row-reverse;
+    }
+
+    > * {
+      // Each side's own share of the row, not of the whole pane's width —
+      // the 90% cap above is specifically a *stacked*-layout concern (never
+      // touching the pane's own left/right edges), moot once side-by-side.
+      max-width: none;
+    }
+  }
+}
+
+.news-slide__text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: $spacing-unit * 1.5;
+  min-width: 0;
+
+  // Only `.news-slide__content`'s own landscape layout actually needs this
+  // — the stacked layout already sits inside `.news-slide`'s own padding
+  // (and this element isn't full-bleed there), so adding it unconditionally
+  // would just double up on space that's already there. `flex: 1` is what
+  // actually fills the row's own remaining width (see `.news-slide__image`'s
+  // own fixed `45%` share below) — without it this only takes its own
+  // content width, leaving the rest as dead space instead of a real gap
+  // between the text and the pane's own outer edge.
+  @container news-slide (min-aspect-ratio: 1/1) {
+    flex: 1;
+    padding: $spacing-unit * 4 $spacing-unit * 5;
+  }
 }
 
 .news-slide__image {
-  max-width: 100%;
+  // Narrower than the 90% every other child of `.news-slide__content` gets
+  // (see above) — padding on the image element itself would leave a gap of
+  // bare background *inside* its own rounded corners instead of narrowing
+  // the photo, since `border-radius`/`object-fit: cover` apply to the full
+  // padded box; capping the width instead keeps the rounded corners
+  // hugging the visible image while still reading as inset from the
+  // headline text on either side.
+  max-width: 80%;
   // Capped rather than a fixed height — a wide pane's own share of the
   // headline (title/description/meta below) still gets the room it needs
   // instead of the image alone claiming most of the pane.
   max-height: 45%;
   border-radius: 12px;
   object-fit: cover;
+
+  // Side-by-side layout (see `.news-slide__content`'s own `@container`
+  // rule above): no rounded corners (a full-bleed edge reads as part of
+  // the pane itself, not an inset photo). A *fixed* 45% share (not just a
+  // cap) plus `flex-shrink: 0` — `object-fit: cover` only has a real box to
+  // crop into once both dimensions are actually fixed, not just capped;
+  // leaving width as a cap let the image render at its own intrinsic
+  // width instead of filling its share, which is what left dead space
+  // next to it before.
+  @container news-slide (min-aspect-ratio: 1/1) {
+    flex: 0 0 45%;
+    width: 45%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+  }
 }
 
 .news-slide__headline {
@@ -94,15 +201,42 @@
   top: $spacing-unit * 2;
   left: $spacing-unit * 2;
   max-width: 40%;
+  // Above `.news-slide__content`'s own two (permanently-mounted) instances
+  // — both are plain siblings with no `z-index` of their own (`auto`), so
+  // without this, whichever one is later in the DOM would otherwise paint
+  // over the corner logo any time a headline's own image ends up sitting
+  // in the same corner (see the row layout above, when the image lands on
+  // the left).
+  z-index: 2;
 
-  // The real-logo-image variant (currently NRK only) gets a fixed height
-  // with auto width; the constructed text-badge variant (every other
-  // source) sizes itself from its own padding/font-size instead (see
-  // `NewsSourceMark.scss`) — forcing the same fixed box on both would
-  // either shrink the image oddly or squash the badge's own pill shape.
+  // Opposite corner from wherever the current headline's own image landed
+  // (see `NewsSlide.tsx`'s own `imageOnRight`) — the two never fight for
+  // the same corner, on top of the still-visible backing chip below.
+  &--right {
+    left: auto;
+    right: $spacing-unit * 2;
+  }
+
+  // The real-logo-image variant (currently NRK, VG, Dagbladet, Aftenposten,
+  // Nettavisen, Dagsavisen and Klar Tale) gets a fixed height with auto
+  // width, plus its own backing chip in the source's own brand color
+  // (already set as `--screen-bg` by `NewsSlide.tsx`'s own `brandStyle`
+  // while branded) — a bare, often part-transparent logo image would
+  // otherwise be hard to spot sitting directly over a headline's own photo.
+  // `box-sizing: content-box` so the padding *adds* to the declared height
+  // instead of eating into it (this app's own global reset otherwise sets
+  // `border-box` everywhere). The constructed text-badge variant (used
+  // only while no real logo file exists for a source) sizes and colors
+  // itself already (see `NewsSourceMark.tsx`'s own inline style), so it
+  // doesn't need any of this — forcing the same fixed box on both would
+  // also squash its own pill shape.
   &.news-source-mark--image {
     height: 2.5rem;
     width: auto;
+    box-sizing: content-box;
+    padding: $spacing-unit * 0.5 $spacing-unit * 0.75;
+    background: var(--screen-bg);
+    border-radius: 8px;
   }
 
   &.news-source-mark--text {

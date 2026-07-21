@@ -11,8 +11,12 @@ export interface NewsSource {
   feedUrl: string
   /** Best-effort brand color — hand-picked, not pulled from any official brand guideline. Sanity-check before relying on it looking exactly right. */
   brandColor: string
-  /** Slug `getLogoSrc`/`FetchedLogo` look up under `src/assets/images/extension-logos/<slug>.(svg|png)`. Only NRK has a real saved file today (its own public-domain wordmark, fetched from Wikimedia Commons) — every other source falls back to the constructed `NewsSourceMark` below (see `markText` etc.) rather than a real logo image, since no cleanly-licensed file exists for them. Dropping a real file in under this same slug later upgrades that source too, with no code change. */
+  /** Slug `getLogoSrc`/`FetchedLogo` look up under `src/assets/images/extension-logos/<slug>.(svg|png|webp)` — used by `NewsSourceMark`'s own on-screen rendering. Only NRK, Klar Tale and Dagsavisen have a real saved file today — every other source falls back to the constructed `NewsSourceMark` below (see `markText` etc.) rather than a real logo image, since no cleanly-licensed file exists for them. Dropping a real file in under this same slug later upgrades that source too, with no code change. */
   logoSlug: string
+  /** A separate logo file, under this same slug, specifically for `QrCodeSlide`'s own embedded QR-code logo — falls back to `logoSlug` when unset. Only worth setting when the on-screen logo doesn't work well shrunk into a small excavated square (e.g. too wide, too much fine detail) and a simplified/more-square variant was saved separately for that case. */
+  qrLogoSlug?: string
+  /** The *QR* logo variant's own width ÷ height (`qrLogoSlug` if set, else `logoSlug`) — only relevant while that resolves to a real image, since `QrCodeSlide`'s embedded-logo sizing needs this to *contain*-fit a non-square real image within its square footprint instead of stretching it to fill a forced square (the constructed `NewsSourceMark`/`buildSourceMark` fallback is always square already, so this is moot for every other source). Omit for sources without a real logo image. */
+  logoAspectRatio?: number
   /** Short wordmark text for the constructed fallback mark (`NewsSourceMark`) — an original, hand-styled text badge, not a reproduction of the source's own real logo artwork. */
   markText: string
   /** Two-letter abbreviation used instead of `markText` when the constructed mark needs to stay square — specifically `QrCodeSlide`'s own embedded logo (see `buildSourceMark`), which must excavate a fixed square area of the code rather than a wide rectangle. */
@@ -31,8 +35,13 @@ export const NEWS_SOURCES: NewsSource[] = [
     id: 'nrk',
     name: 'NRK',
     feedUrl: 'https://www.nrk.no/toppsaker.rss',
-    brandColor: '#e60000',
+    // NRK's own site reads as a near-black navy, not the red from its
+    // logomark (red is a small accent there, not the dominant color) — the
+    // previous `#e60000` mistook the accent for the brand's actual surface
+    // color.
+    brandColor: '#12172b',
     logoSlug: 'nrk',
+    logoAspectRatio: 1435 / 513,
     markText: 'NRK',
     monogram: 'NR',
     markOnBrandBg: true,
@@ -42,8 +51,12 @@ export const NEWS_SOURCES: NewsSource[] = [
     id: 'vg',
     name: 'VG',
     feedUrl: 'https://www.vg.no/rss/feed/?format=rss',
-    brandColor: '#e2001a',
-    logoSlug: 'vg',
+    // Sampled from VG.png's own background fill.
+    brandColor: '#dd0000',
+    // Reused directly for the QR embed too (contain-fit) — same
+    // single-asset treatment as NRK, no separate `qrLogoSlug`.
+    logoSlug: 'VG',
+    logoAspectRatio: 512 / 114,
     markText: 'VG',
     monogram: 'VG',
     markOnBrandBg: true,
@@ -53,8 +66,13 @@ export const NEWS_SOURCES: NewsSource[] = [
     id: 'aftenposten',
     name: 'Aftenposten',
     feedUrl: 'https://www.aftenposten.no/rss/',
-    brandColor: '#000000',
+    // White, not black — `aftenposten.png` is a black wordmark on a
+    // transparent background (matches this source's own real "plain black
+    // wordmark" identity, see `markOnBrandBg` below), which needs a light
+    // pane background to actually stay legible once branded.
+    brandColor: '#ffffff',
     logoSlug: 'aftenposten',
+    qrLogoSlug: 'Aftenposten-qr',
     markText: 'Aftenposten',
     monogram: 'AP',
     markOnBrandBg: false,
@@ -64,8 +82,12 @@ export const NEWS_SOURCES: NewsSource[] = [
     id: 'dagbladet',
     name: 'Dagbladet',
     feedUrl: 'https://www.dagbladet.no/?lab_viewport=rss',
-    brandColor: '#e2001a',
-    logoSlug: 'dagbladet',
+    // Sampled from Dagbladet.png's own background fill.
+    brandColor: '#ed1c24',
+    // Reused directly for the QR embed too (contain-fit) — same
+    // single-asset treatment as NRK, no separate `qrLogoSlug`.
+    logoSlug: 'Dagbladet',
+    logoAspectRatio: 738 / 216,
     markText: 'Dagbladet',
     monogram: 'DB',
     markOnBrandBg: true,
@@ -75,8 +97,12 @@ export const NEWS_SOURCES: NewsSource[] = [
     id: 'nettavisen',
     name: 'Nettavisen',
     feedUrl: 'https://www.nettavisen.no/service/rich-rss',
-    brandColor: '#0d3c78',
-    logoSlug: 'nettavisen',
+    // Sampled from Nettavisen.jpg's own near-white background fill —
+    // confirms the original "white bg, black text" design intent for this
+    // source, rather than the earlier hand-picked navy guess.
+    brandColor: '#fafafa',
+    logoSlug: 'Nettavisen',
+    qrLogoSlug: 'Nettavisen-qr',
     markText: 'Nettavisen.',
     monogram: 'Na.',
     markOnBrandBg: false,
@@ -86,8 +112,15 @@ export const NEWS_SOURCES: NewsSource[] = [
     id: 'dagsavisen',
     name: 'Dagsavisen',
     feedUrl: 'https://www.dagsavisen.no/?lab_viewport=rss',
-    brandColor: '#c8102e',
-    logoSlug: 'dagsavisen',
+    // Sampled from `Dagsavisen-qr.webp`'s own background fill, not a guess —
+    // same treatment as Klar Tale.
+    brandColor: '#991b1b',
+    // The on-screen mark uses the white variant (`_hvit` — Norwegian for
+    // "white") since it's shown against this source's own dark red
+    // `brandColor`, same reasoning as NRK's own recolored logo.
+    logoSlug: 'Dagsavisen_hvit',
+    qrLogoSlug: 'Dagsavisen-qr',
+    logoAspectRatio: 1,
     markText: 'Dagsavisen',
     monogram: 'DA',
     markOnBrandBg: false,
@@ -98,8 +131,14 @@ export const NEWS_SOURCES: NewsSource[] = [
     id: 'klartale',
     name: 'Klar Tale',
     feedUrl: 'https://www.klartale.no/?lab_viewport=rss',
-    brandColor: '#00843d',
+    // Sampled from `klartale-qr.png`'s own background fill, not a guess —
+    // Klar Tale's own real-world identity is a colored mark on a pale blue
+    // field, not a solid saturated brand-color block like most of the
+    // other six.
+    brandColor: '#cbe8fa',
     logoSlug: 'klartale',
+    qrLogoSlug: 'klartale-qr',
+    logoAspectRatio: 424 / 471,
     markText: 'Klar Tale',
     monogram: 'KT',
     markOnBrandBg: true,

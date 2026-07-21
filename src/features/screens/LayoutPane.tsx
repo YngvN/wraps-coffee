@@ -1,13 +1,14 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useState, type DragEvent } from 'react'
+import { useState, type CSSProperties, type DragEvent } from 'react'
+import { useCrossfadeSlot } from '../../hooks/useCrossfadeSlot'
 import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import { useLanguage, type LanguageCode } from '../../i18n'
-import type { PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SlideTransitionDirection, SplitDirection, TextSizes } from '../../types/screen'
+import type { BackgroundImageOverlay, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SlideTransitionDirection, SplitDirection, TextSizes } from '../../types/screen'
 import { backgroundImageTextStyle, slotBackgroundColorStyle } from '../../utils/screenColors'
 import type { PaneGrowthOrigin } from '../../utils/paneGrowth'
 import { getBlurredBackgroundUrl } from '../../utils/responsiveImage'
 import { resolveContentBackgroundImage } from '../../utils/screenSlots'
-import { resolvedCheckpointStage, resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage } from '../../utils/screenStages'
+import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage } from '../../utils/screenStages'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
 import { collapsedClipPath, FULL_REVEAL_CLIP_PATH, PANE_GROWTH_DURATION_SECONDS } from './paneGrowthMotion'
 import { PaneClearButton } from './PaneClearButton'
@@ -15,6 +16,7 @@ import { PaneDeleteButton } from './PaneDeleteButton'
 import { PaneEditButton } from './PaneEditButton'
 import { PaneLanguageScope } from './PaneLanguageScope'
 import { PaneLockButton } from './PaneLockButton'
+import { PaneSelectCheckbox } from './PaneSelectCheckbox'
 import { PaneSplitZones } from './PaneSplitZones'
 import { SlotContent } from './SlotContent'
 import { resolveTransitionVariants } from './transitions'
@@ -50,20 +52,48 @@ interface LayoutPaneProps {
   onToggleLock?: () => void
   /** Draws a persistent highlight ring around this pane — see `SplitLayout`'s own doc comment. */
   selected?: boolean
+  /** Whether this pane is currently checked for the toolbar's own multi-pane actions ("Delete selected"/"Group") — distinct from `selected`'s own single highlight-ring concept. Omit (along with `onToggleChecked`) to hide the checkbox entirely, e.g. while the screen is locked. */
+  checked?: boolean
+  /** Toggles this pane's own `checked` state. Omit (like `onEditSlide`) to disable selection entirely. */
+  onToggleChecked?: () => void
   /** Which of this pane's own edges it should visually grow in from on mount (a real divider, the screen's own edge, or a plain fade — see `resolvePaneGrowthOrigin` in `src/utils/paneGrowth.ts`) — `undefined` renders at full size immediately, which is also always the effective behavior once `reducedMotion` is on (only consulted at React's own true first mount, per `SplitLayout.tsx`'s own doc comment on why this can't be computed in an effect). */
   growEntranceFrom?: PaneGrowthOrigin
   /** Every currently-resolved `'news'`-kind pane on this screen — threaded straight through to `SlotContent`/`QrCodeSlide`. See `LayoutTree`'s own prop of the same name. */
   newsSlots: NewsSlotSettings[]
+  /** Threaded straight through to `SlotContent`/`NewsSlide`/`QrCodeSlide`. See `LayoutTree`'s own prop of the same name. */
+  stageTick: number | undefined
+  /** Threaded straight through to `SlotContent`/`VideoSlide`. See `SplitLayout`'s own prop of the same name. */
+  onRequestStageAdvance?: () => void
+}
+
+/**
+ * One checkpoint's own frozen render input — snapshotted the moment it
+ * becomes current (see `useCrossfadeSlot`), so a still-exiting checkpoint's
+ * content never has its own text size/language/background swapped out from
+ * under it by a *later* checkpoint's values before its own exit animation
+ * finishes. `backgroundColor`/`overlay` are only actually applied per-slot
+ * while `transitionStyle` is `'slide'` (see the render below) — for
+ * `'fade'` the background stays on the always-live ancestor pane exactly as
+ * before, switching immediately.
+ */
+interface PaneContentSnapshot {
+  content: ScreenSlotContent
+  textSizeVars: CSSProperties
+  language: LanguageCode
+  backgroundColor: string | undefined
+  overlay: BackgroundImageOverlay | undefined
 }
 
 /**
  * Renders one pane's currently-showing content (animated whenever its own
- * resolved checkpoint actually changes), background, hover-revealed edit
- * button, and `editingFocus` pulse-flash — extracted from the arrangement's
- * own shape entirely, so it's identical regardless of where in the tree
- * this leaf sits. Each instance owns its own drag-over/content-checkpoint
- * tracking as local state (rather than the whole tree bookkeeping it by
- * index), since React already remounts/keeps this component per leaf id.
+ * resolved content actually changes value — not merely whenever the stage
+ * crosses into a new checkpoint, see the crossfade key below), background,
+ * hover-revealed edit button, and `editingFocus` pulse-flash — extracted
+ * from the arrangement's own shape entirely, so it's identical regardless
+ * of where in the tree this leaf sits. Each instance owns its own
+ * drag-over/content-checkpoint tracking as local state (rather than the
+ * whole tree bookkeeping it by index), since React already remounts/keeps
+ * this component per leaf id.
  */
 export function LayoutPane({
   leafId,
@@ -87,8 +117,12 @@ export function LayoutPane({
   locked,
   onToggleLock,
   selected,
+  checked,
+  onToggleChecked,
   growEntranceFrom,
   newsSlots,
+  stageTick,
+  onRequestStageAdvance,
 }: LayoutPaneProps) {
   const { t } = useLanguage()
   const [dragDepth, setDragDepth] = useState(0)
@@ -115,17 +149,48 @@ export function LayoutPane({
   const growthTransition = { duration: growEntranceFrom && !reducedMotion ? PANE_GROWTH_DURATION_SECONDS : 0, ease: 'easeInOut' as const }
 
   const content = resolveSlotContent(slot, stage)
-  const checkpointStage = resolvedCheckpointStage(slot.content, stage) ?? stage
   const backgroundColor = resolveSlotBackgroundColor(slot, stage)
   const slotBackgroundImage = resolveSlotBackgroundImage(slot, stage)
   const backgroundImage = resolveContentBackgroundImage(content, slotBackgroundImage)
   const language = resolveSlotLanguage(slot, stage) ?? defaultPaneLanguage
+  const isSlideStyle = transitionStyle === 'slide'
+  // While `'fade'`, the background stays here — on the always-live
+  // ancestor, switching immediately the instant the checkpoint/stage
+  // changes (unchanged from before). While `'slide'`, each content slot
+  // below carries its *own* frozen background instead, so it visually
+  // travels with the sliding content rather than snapping separately on
+  // the pane underneath it — this object becomes a harmless fallback base
+  // layer in that case (covered by whichever slot is on top).
   const paneStyle = {
     ...slotBackgroundColorStyle(backgroundColor),
     ...backgroundImageTextStyle(backgroundImage?.overlay),
     ...(!reducedMotion ? { transition: 'background-color 0.4s ease, color 0.4s ease' } : {}),
   }
   const variants = resolveTransitionVariants(transitionStyle, slideDirection)
+
+  const contentSnapshot: PaneContentSnapshot = {
+    content,
+    textSizeVars: textSizesToCssVars(resolveTextSizes(leafId, stage, content)),
+    language,
+    backgroundColor,
+    overlay: backgroundImage?.overlay,
+  }
+  // Keyed on the *resolved content itself* (a stable JSON signature), not
+  // which checkpoint number it happened to resolve from — a stage advance
+  // can very well cross into a checkpoint boundary (a new checkpoint stage)
+  // whose value is nonetheless identical to the last one, e.g. a pane
+  // resize propagated forward across future stages ("keep for next steps
+  // too") writes real checkpoints at each of them, but with the exact same
+  // content/background/language the pane already had — that's a pure size
+  // change, not a content change, and should resize in place with no
+  // fade/slide transition (and, for `'fade'`, no background flash from a
+  // needless crossfade) rather than replaying one for every pane whose only
+  // difference between these two stages is its own on-screen size. Content
+  // that's genuinely different still transitions correctly, since the
+  // signature simply reflects whatever the resolved values actually are.
+  const { slots: contentSlots, activeSlot: activeContentSlot } = useCrossfadeSlot<PaneContentSnapshot>(contentSnapshot, (item) =>
+    JSON.stringify({ content: item.content, backgroundColor: item.backgroundColor, overlay: item.overlay, language: item.language }),
+  )
 
   const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
     if (!onDropImage) return
@@ -181,22 +246,27 @@ export function LayoutPane({
           </motion.div>
         )}
       </AnimatePresence>
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={checkpointStage}
-          className="split-layout__pane-content"
-          style={textSizesToCssVars(resolveTextSizes(leafId, stage, content))}
-          variants={variants}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-          transition={transition}
-        >
-          <PaneLanguageScope language={language}>
-            <SlotContent slot={content} newsSlots={newsSlots} />
-          </PaneLanguageScope>
-        </motion.div>
-      </AnimatePresence>
+      {contentSlots.map((snapshot, slotIndex) => {
+        if (!snapshot) return null
+        const slotBackgroundStyle = isSlideStyle
+          ? { ...slotBackgroundColorStyle(snapshot.backgroundColor), ...backgroundImageTextStyle(snapshot.overlay) }
+          : {}
+        return (
+          <motion.div
+            key={slotIndex}
+            className="split-layout__pane-content"
+            style={{ ...snapshot.textSizeVars, ...slotBackgroundStyle }}
+            variants={variants}
+            initial="initial"
+            animate={activeContentSlot === slotIndex ? 'animate' : 'exit'}
+            transition={transition}
+          >
+            <PaneLanguageScope language={snapshot.language}>
+              <SlotContent slot={snapshot.content} newsSlots={newsSlots} stageTick={stageTick} stage={stage} onRequestStageAdvance={onRequestStageAdvance} />
+            </PaneLanguageScope>
+          </motion.div>
+        )
+      })}
       {/*
         Layering (low to high, see each component's own z-index): pane
         content < `PaneEditButton` (z-index 5, full-pane click target) <
@@ -219,8 +289,13 @@ export function LayoutPane({
           disableOnTouch={disableSplitOnTouch}
         />
       )}
-      {onClearPane && <PaneClearButton onClick={() => onClearPane(leafId)} />}
-      {onDeletePane && canDelete && <PaneDeleteButton onClick={() => onDeletePane(leafId)} />}
+      {onToggleChecked && <PaneSelectCheckbox selected={Boolean(checked)} onToggle={onToggleChecked} />}
+      {(onClearPane || (onDeletePane && canDelete)) && (
+        <div className="pane-corner-button-group">
+          {onClearPane && <PaneClearButton onClick={() => onClearPane(leafId)} />}
+          {onDeletePane && canDelete && <PaneDeleteButton onClick={() => onDeletePane(leafId)} />}
+        </div>
+      )}
       {onToggleLock && <PaneLockButton locked={locked} onClick={onToggleLock} />}
       {editingFocus && (editingFocus.tab === 'global' || editingFocus.tab === leafId) && editingFocus.pulse !== pulseAtMount && (
         <motion.div key={editingFocus.pulse} className="split-layout__pane-pulse" initial={{ opacity: 0.55 }} animate={{ opacity: 0 }} transition={{ duration: 0.6, ease: 'easeOut' }} />

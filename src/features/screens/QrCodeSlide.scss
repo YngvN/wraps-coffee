@@ -23,19 +23,31 @@
   background: var(--screen-bg);
 }
 
+// The admin's own adjustable `size` (a percentage of the pane's available
+// space) is set inline by `QrCodeSlide` as this wrapper's own `width`/
+// `height` — the positioning host for the two permanently-mounted code
+// slots stacked on top of each other below (see `useCrossfadeSlot` in
+// `QrCodeSlide.tsx`), same crossfade mechanism as `NewsSlide`'s own content.
+.qr-code-slide__stack {
+  position: relative;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.qr-code-slide__slot {
+  position: absolute;
+  inset: 0;
+}
+
 .qr-code-slide__code {
   display: block;
-  // `width`/`height` (a percentage of this, its flex-centered container —
-  // the admin's own adjustable `size`) are set inline by `QrCodeSlide`
-  // itself, capped at `max-width`/`max-height: 100%` so a `size` of 100
-  // still respects the small gap above rather than overflowing it.
+  width: 100%;
+  height: 100%;
   // `qrcode.react` sets `preserveAspectRatio="none"` internally, which
   // would otherwise stretch the code out of square to match a non-square
   // box; `object-fit: contain` is what overrides that (an SVG's intrinsic
   // 1:1 ratio, from its own `viewBox`, still applies for CSS sizing
   // purposes even with that attribute set) and keeps it square, centered
   // within whatever box it ends up as.
-  max-width: 100%;
-  max-height: 100%;
   object-fit: contain;
 }

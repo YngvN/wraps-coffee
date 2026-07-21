@@ -17,13 +17,15 @@ function escapeXml(text: string): string {
  * `qrcode.react`'s own `imageSettings` needs both up front rather than an
  * intrinsic size it can measure itself.
  *
- * Deliberately a plain system font, not the editorial `brandFontFamily`
- * (Playfair Display/Oswald) `NewsSourceMark`'s own on-screen rendering
- * uses — a standalone SVG referenced as an image resource (which is what
- * this becomes once handed to `qrcode.react`) isn't guaranteed access to
- * the parent document's own `@font-face` fonts across browsers, so this
- * sticks to a universally-available bold sans-serif rather than risking an
- * invisible/fallback-font label baked into a downloaded or scanned QR code.
+ * Uses the source's own editorial `brandFontFamily` — the same stack the
+ * headline text in `NewsSlide`/`NewsSourceMark`'s on-screen rendering uses
+ * — so the QR code's own embedded mark matches rather than falling back to
+ * a generic system font. This only renders reliably when the referencing
+ * page has that font already loaded (see `index.html`'s Google Fonts
+ * `<link>`) *and* the browser actually extends that to an inline SVG data
+ * URI used as an image source, which isn't guaranteed everywhere — falls
+ * back to `brandFontFamily`'s own later stack entries (e.g. `system-ui`,
+ * `sans-serif`) if not, same as any other CSS font stack.
  */
 export function buildSourceMark(source: NewsSource, size = 40): { uri: string; width: number; height: number } {
   const bg = source.markOnBrandBg ? source.brandColor : '#ffffff'
@@ -31,7 +33,7 @@ export function buildSourceMark(source: NewsSource, size = 40): { uri: string; w
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
 <rect width="${size}" height="${size}" rx="${size * 0.22}" fill="${bg}"${source.markOnBrandBg ? '' : ` stroke="${source.brandColor}" stroke-width="${Math.max(1, size * 0.05)}"`} />
-<text x="${size / 2}" y="${size / 2}" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="${size * 0.42}" fill="${fg}">${escapeXml(source.monogram)}</text>
+<text x="${size / 2}" y="${size / 2}" text-anchor="middle" dominant-baseline="central" font-family="${escapeXml(source.brandFontFamily)}" font-weight="700" font-size="${size * 0.42}" fill="${fg}">${escapeXml(source.monogram)}</text>
 </svg>`
 
   return { uri: `data:image/svg+xml,${encodeURIComponent(svg)}`, width: size, height: size }

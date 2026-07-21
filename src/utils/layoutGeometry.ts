@@ -68,6 +68,51 @@ export function computeLayoutGeometry(node: LayoutNode, box: Rect = FULL_BOX, pa
   }
 }
 
+/** Floating-point slack for the rect-touching checks below — ratios accumulate small rounding error over a few nested splits, so an exact `===` would occasionally miss two rects that are visually flush. */
+const ADJACENCY_EPSILON = 0.01
+
+/** Whether `a` and `b` share a real edge (not just a corner touch) — either a's right edge sits on b's left edge (or vice versa) with overlapping vertical extent, or the same along the horizontal edges. */
+function rectsAreAdjacent(a: Rect, b: Rect): boolean {
+  const verticalOverlap = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) > ADJACENCY_EPSILON
+  const horizontalOverlap = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x) > ADJACENCY_EPSILON
+  const touchingVertically = Math.abs(a.x + a.width - b.x) < ADJACENCY_EPSILON || Math.abs(b.x + b.width - a.x) < ADJACENCY_EPSILON
+  const touchingHorizontally = Math.abs(a.y + a.height - b.y) < ADJACENCY_EPSILON || Math.abs(b.y + b.height - a.y) < ADJACENCY_EPSILON
+  return (touchingVertically && verticalOverlap) || (touchingHorizontally && horizontalOverlap)
+}
+
+/**
+ * Whether `leafIds` (2 or more) forms a single contiguous block within
+ * `root`'s own current arrangement — every one of them reachable from any
+ * other by hopping only between *other selected* leaves that share a real
+ * edge (see `rectsAreAdjacent`), with none left isolated off on its own.
+ * Geometric (via `computeLayoutGeometry`'s own resolved rects), not a tree-
+ * structure guess — two leaves can be direct tree siblings yet not actually
+ * touch (e.g. opposite corners of an asymmetric 2x2), or vice versa. Drives
+ * whether the toolbar's own "Group" action is enabled for the current
+ * checkbox selection (see `ScreenDisplay.tsx`).
+ */
+export function isContiguousBlock(root: LayoutNode, leafIds: Set<PaneId>): boolean {
+  if (leafIds.size < 2) return false
+  const rectsById = new Map(computeLayoutGeometry(root).leaves.map((leaf) => [leaf.id, leaf.rect]))
+  const selected = [...leafIds].filter((id) => rectsById.has(id))
+  if (selected.length !== leafIds.size) return false
+
+  const visited = new Set<PaneId>([selected[0]])
+  const queue = [selected[0]]
+  while (queue.length > 0) {
+    const currentId = queue.pop()!
+    const currentRect = rectsById.get(currentId)!
+    for (const candidateId of selected) {
+      if (visited.has(candidateId)) continue
+      if (rectsAreAdjacent(currentRect, rectsById.get(candidateId)!)) {
+        visited.add(candidateId)
+        queue.push(candidateId)
+      }
+    }
+  }
+  return visited.size === selected.length
+}
+
 /**
  * Applies `patch` (one or more explicit new ratios, keyed by `pathKey` —
  * see `RatioPatch`) to `tree`, while every *other* split node re-derives its

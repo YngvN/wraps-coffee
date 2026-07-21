@@ -123,8 +123,8 @@ export interface PaneResizableAxes {
  * height (a leaf borders exactly one sibling per axis, from whichever
  * ancestor of that axis-type is nearest on its own root-to-leaf path —
  * farther ancestors on the same axis border the sibling *subtree*, not
- * this leaf directly). Used by `imageResizeRatioPatch` to know which axis
- * (or axes) of a pane can be resized to fit an image at all.
+ * this leaf directly). Used by `mediaResizeRatioPatch` to know which axis
+ * (or axes) of a pane can be resized to fit an image or video at all.
  */
 export function paneResizableAxes(root: LayoutNode, leafId: PaneId): PaneResizableAxes {
   const steps = ancestorSteps(root, leafId)
@@ -157,19 +157,19 @@ export function paneDefaultSlideDirection(root: LayoutNode, leafId: PaneId): Sli
   return 'right'
 }
 
-/** The default fraction of the screen's own viewport (standing in for `containerWidth`/`containerHeight`, since an arrangement always fills it entirely) a slide's own `resizeToFit` image's box is fit within, along either axis, until its own `resizeScale` says otherwise. */
-export const IMAGE_RESIZE_MAX_VIEWPORT_FRACTION = 0.4
+/** The default fraction of the screen's own viewport (standing in for `containerWidth`/`containerHeight`, since an arrangement always fills it entirely) a slide's own `resizeToFit` image/video box is fit within, along either axis, until its own `resizeScale` says otherwise. */
+export const MEDIA_RESIZE_MAX_VIEWPORT_FRACTION = 0.4
 
-/** The range a `resizeToFit` image's own `resizeScale` is clamped to — same 10-90% band a divider is clamped to (`MIN_RATIO`/`MAX_RATIO`), expressed as a fraction instead of a percentage, so dragging its box's border can shrink or grow it but never collapse it to nothing or blow it out past the arrangement's own bounds. */
-export const MIN_IMAGE_RESIZE_SCALE = MIN_RATIO / 100
-export const MAX_IMAGE_RESIZE_SCALE = MAX_RATIO / 100
+/** The range a `resizeToFit` image/video's own `resizeScale` is clamped to — same 10-90% band a divider is clamped to (`MIN_RATIO`/`MAX_RATIO`), expressed as a fraction instead of a percentage, so dragging its box's border can shrink or grow it but never collapse it to nothing or blow it out past the arrangement's own bounds. */
+export const MIN_MEDIA_RESIZE_SCALE = MIN_RATIO / 100
+export const MAX_MEDIA_RESIZE_SCALE = MAX_RATIO / 100
 
-export function clampImageResizeScale(scale: number): number {
-  return Math.min(MAX_IMAGE_RESIZE_SCALE, Math.max(MIN_IMAGE_RESIZE_SCALE, scale))
+export function clampMediaResizeScale(scale: number): number {
+  return Math.min(MAX_MEDIA_RESIZE_SCALE, Math.max(MIN_MEDIA_RESIZE_SCALE, scale))
 }
 
 /** Fits a `naturalWidth`x`naturalHeight` box within `maxWidth`x`maxHeight`, preserving aspect ratio and never exceeding either bound — the same math as CSS `object-fit: contain`. */
-export function fitImageBox(naturalWidth: number, naturalHeight: number, maxWidth: number, maxHeight: number): { width: number; height: number } {
+export function fitMediaBox(naturalWidth: number, naturalHeight: number, maxWidth: number, maxHeight: number): { width: number; height: number } {
   if (naturalWidth <= 0 || naturalHeight <= 0 || maxWidth <= 0 || maxHeight <= 0) return { width: maxWidth, height: maxHeight }
   const aspectRatio = naturalWidth / naturalHeight
   let width = maxWidth
@@ -181,57 +181,88 @@ export function fitImageBox(naturalWidth: number, naturalHeight: number, maxWidt
   return { width, height }
 }
 
+/** A resizable axis's own *current* local share (0-100, already complemented for a `!isFirstShare` pane) — `resolveRatio` of the split node at `axis.path` itself, or `axis.isFirstShare`'s complement. Falls back to 50 for a malformed path (shouldn't happen — `axis.path` always comes from `paneResizableAxes`, which only ever points at a real `split` node). */
+function currentLocalSharePercent(root: LayoutNode, axis: PaneAxis): number {
+  const node = nodeAtPath(root, axis.path)
+  if (node.type !== 'split') return CENTER_RATIO
+  const ratio = resolveRatio(node)
+  return axis.isFirstShare ? ratio : 100 - ratio
+}
+
 /**
- * The ratio overrides that resize `leafId`'s own pane to fit an image of
- * `naturalWidth`x`naturalHeight`, capped at `scale` (falling back to
- * `IMAGE_RESIZE_MAX_VIEWPORT_FRACTION`, its own default until dragged to
+ * The ratio overrides that resize `leafId`'s own pane to fit an image or
+ * video of `naturalWidth`x`naturalHeight`, capped at `scale` (falling back
+ * to `MEDIA_RESIZE_MAX_VIEWPORT_FRACTION`, its own default until dragged to
  * something else — see `ScreenSlotContent.resizeScale`) of the
  * arrangement's own `containerWidth`x`containerHeight` — meant to be
  * applied live (never persisted) while that pane's currently-showing slide
- * is an image with `resizeToFit` on, and dropped the instant it isn't (see
- * `SplitLayout`), which is what lets it slide back to the pane's own set
- * size on its own, the same transition a manual resize already animates
- * with.
+ * is an image or video with `resizeToFit` on, and dropped the instant it
+ * isn't (see `SplitLayout`), which is what lets it slide back to the pane's
+ * own set size on its own, the same transition a manual resize already
+ * animates with.
+ *
+ * `currentLeafRect` is `leafId`'s own *current* resolved box, in the same
+ * 0-100-of-the-whole-screen percentage space `computeLayoutGeometry`
+ * returns (see `SplitLayout`'s own `geometry`) — needed because
+ * `axes.width`/`axes.height` (from `paneResizableAxes`) only ever point at
+ * the *nearest* same-direction ancestor divider; a pane nested two levels
+ * deep along the same axis (e.g. one of three side-by-side panes, built as
+ * a row split whose second child is itself another row split) has that
+ * nearest divider's own ratio expressed relative to *its own* local
+ * container, which is narrower than the full screen by whatever the
+ * farther, non-tracked ancestor divider currently has it at. Naively
+ * treating a desired *global* share (`box.width` as a fraction of the whole
+ * `containerWidth`) as if it were already that *local* ratio sizes the pane
+ * wrong the moment such a farther ancestor's own ratio isn't a plain 50/50
+ * — `currentLeafRect` is what lets this convert between the two spaces
+ * correctly instead.
  */
-export function imageResizeRatioPatch(
+export function mediaResizeRatioPatch(
   root: LayoutNode,
   leafId: PaneId,
   naturalWidth: number,
   naturalHeight: number,
   containerWidth: number,
   containerHeight: number,
-  scale: number = IMAGE_RESIZE_MAX_VIEWPORT_FRACTION,
+  currentLeafRect: { width: number; height: number },
+  scale: number = MEDIA_RESIZE_MAX_VIEWPORT_FRACTION,
 ): RatioPatch {
   const axes = paneResizableAxes(root, leafId)
   if (!axes.width && !axes.height) return {}
   if (containerWidth <= 0 || containerHeight <= 0) return {}
 
-  const box = fitImageBox(naturalWidth, naturalHeight, containerWidth * scale, containerHeight * scale)
+  const box = fitMediaBox(naturalWidth, naturalHeight, containerWidth * scale, containerHeight * scale)
 
   const patch: RatioPatch = {}
   if (axes.width) {
-    const share = clampRatio((box.width / containerWidth) * 100)
+    const desiredGlobalShare = clampRatio((box.width / containerWidth) * 100)
+    const localShare = currentLocalSharePercent(root, axes.width)
+    const share = clampRatio(currentLeafRect.width > 0 ? (desiredGlobalShare * localShare) / currentLeafRect.width : desiredGlobalShare)
     patch[pathKey(axes.width.path)] = axes.width.isFirstShare ? share : 100 - share
   }
   if (axes.height) {
-    const share = clampRatio((box.height / containerHeight) * 100)
+    const desiredGlobalShare = clampRatio((box.height / containerHeight) * 100)
+    const localShare = currentLocalSharePercent(root, axes.height)
+    const share = clampRatio(currentLeafRect.height > 0 ? (desiredGlobalShare * localShare) / currentLeafRect.height : desiredGlobalShare)
     patch[pathKey(axes.height.path)] = axes.height.isFirstShare ? share : 100 - share
   }
   return patch
 }
 
 /**
- * Inverts `imageResizeRatioPatch`'s own math: given the raw ratio value a
- * pointer drag just computed for one of `leafId`'s own resizable axes
- * (identified by `path`, from `paneResizableAxes`), returns the
- * `resizeScale` that would make `imageResizeRatioPatch` reproduce that
+ * Inverts `mediaResizeRatioPatch`'s own math: given the raw *local* ratio
+ * value a pointer drag just computed for one of `leafId`'s own resizable
+ * axes (identified by `path`, from `paneResizableAxes`), returns the
+ * `resizeScale` that would make `mediaResizeRatioPatch` reproduce that
  * exact value on that axis — used so dragging the border of a pane
- * currently fit to a `resizeToFit` image changes the image's own persisted
- * scale instead of writing straight to the tree's own ratio, which is
- * recomputed from the scale every render anyway and would otherwise
- * instantly snap back to wherever the scale already put it.
+ * currently fit to a `resizeToFit` image or video changes that media's own
+ * persisted scale instead of writing straight to the tree's own ratio,
+ * which is recomputed from the scale every render anyway and would
+ * otherwise instantly snap back to wherever the scale already put it.
+ * `currentLeafRect` plays the same local-to-global conversion role
+ * described in `mediaResizeRatioPatch`'s own doc comment.
  */
-export function imageResizeScaleFromDrag(
+export function mediaResizeScaleFromDrag(
   root: LayoutNode,
   leafId: PaneId,
   path: NodePath,
@@ -240,17 +271,22 @@ export function imageResizeScaleFromDrag(
   naturalHeight: number,
   containerWidth: number,
   containerHeight: number,
+  currentLeafRect: { width: number; height: number },
 ): number {
   const axes = paneResizableAxes(root, leafId)
   const key = pathKey(path)
   const isWidthAxis = axes.width && pathKey(axes.width.path) === key
   const axis = isWidthAxis ? axes.width : axes.height && pathKey(axes.height.path) === key ? axes.height : undefined
-  if (!axis || containerWidth <= 0 || containerHeight <= 0) return IMAGE_RESIZE_MAX_VIEWPORT_FRACTION
+  if (!axis || containerWidth <= 0 || containerHeight <= 0) return MEDIA_RESIZE_MAX_VIEWPORT_FRACTION
 
-  const unscaledBox = fitImageBox(naturalWidth, naturalHeight, containerWidth, containerHeight)
+  const unscaledBox = fitMediaBox(naturalWidth, naturalHeight, containerWidth, containerHeight)
   const unscaledSharePercent = isWidthAxis ? (unscaledBox.width / containerWidth) * 100 : (unscaledBox.height / containerHeight) * 100
-  if (unscaledSharePercent <= 0) return IMAGE_RESIZE_MAX_VIEWPORT_FRACTION
+  if (unscaledSharePercent <= 0) return MEDIA_RESIZE_MAX_VIEWPORT_FRACTION
 
-  const sharePercent = axis.isFirstShare ? rawValue : 100 - rawValue
-  return clampImageResizeScale(sharePercent / unscaledSharePercent)
+  const draggedLocalShare = axis.isFirstShare ? rawValue : 100 - rawValue
+  const currentLocalShare = currentLocalSharePercent(root, axis)
+  const currentGlobalShare = isWidthAxis ? currentLeafRect.width : currentLeafRect.height
+  const draggedGlobalShare = currentLocalShare > 0 ? (draggedLocalShare * currentGlobalShare) / currentLocalShare : draggedLocalShare
+
+  return clampMediaResizeScale(draggedGlobalShare / unscaledSharePercent)
 }

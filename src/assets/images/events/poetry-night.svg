@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="Poetry night illustration">
+  <rect width="160" height="160" rx="24" fill="#FBF1DD" />
+  <path d="M28 56c18-6 36-6 52 4v54c-16-10-34-10-52-4z" fill="#DFA93E" />
+  <path d="M132 56c-18-6-36-6-52 4v54c16-10 34-10 52-4z" fill="#8F250C" />
+  <path d="M80 60v54" stroke="#FBF1DD" stroke-width="2" opacity="0.6" />
+  <path d="M118 34 132 30 128 44 100 70 92 72 94 64Z" fill="#626C66" />
+  <circle cx="46" cy="78" r="4" fill="#88D18A" />
+</svg>

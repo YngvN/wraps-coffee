@@ -42,16 +42,18 @@ interface OwnBackgroundImageFields {
  * An image checkpoint has no text of its own, so it has no text-size fields
  * at all; `fit` instead controls
  * how its picture fills the slide, falling back to `'contain'` when absent.
- * `resizeToFit` (image checkpoints only) instead makes its own *pane* grow
- * or shrink to match the image's own aspect ratio — capped at `resizeScale`
- * (defaulting to 40%, `IMAGE_RESIZE_MAX_VIEWPORT_FRACTION`) of the screen's
- * viewport width and height (see `imageResizeRatioPatch`) — while it's the
- * one showing, sliding back to the slot's own set size once the stage
- * sequence advances to a checkpoint with different content. `resizeScale`
- * can be dragged smaller or bigger via the pane's own borders on the live
- * display, the same handles an arrangement's own dividers use — both axes
- * always move together from this one shared value, so the image's own
- * aspect ratio stays locked no matter which border is dragged. Every
+ * `resizeToFit` (image and video checkpoints only) instead makes its own
+ * *pane* grow or shrink to match the media's own aspect ratio — capped at
+ * `resizeScale` (defaulting to 40%, `MEDIA_RESIZE_MAX_VIEWPORT_FRACTION`) of
+ * the screen's viewport width and height (see `mediaResizeRatioPatch`) —
+ * while it's the one showing, sliding back to the slot's own set size once
+ * the stage sequence advances to a checkpoint with different content.
+ * `resizeScale` can be dragged smaller or bigger via the pane's own borders
+ * on the live display, the same handles an arrangement's own dividers use —
+ * both axes always move together from this one shared value, so the
+ * media's own aspect ratio stays locked no matter which border is dragged.
+ * Only one resize-to-fit pane (image or video) is ever active at once per
+ * stage, across the whole screen — see `isResizeToFitConflict`. Every
  * kind can independently opt out of its slot's own `backgroundImage` by
  * setting its own `backgroundImage`, regardless of whether it has text of
  * its own. `'announcement'` is a short admin-authored call-to-action — a
@@ -98,6 +100,43 @@ export type ScreenSlotContent =
       textSizes?: TextSizes
     } & OwnBackgroundImageFields)
   | ({ kind: 'image'; imageUrl: string; fit?: ImageFit; resizeToFit?: boolean; resizeScale?: number } & OwnBackgroundImageFields)
+  | ({
+      kind: 'video'
+      videoUrl: string
+      /** Falls back to `'contain'`, same meaning as an image checkpoint's own `fit`. Irrelevant while `resizeToFit` is on — the pane is already sized to hug the video, so there's no extra space left to `'contain'`/`'cover'` differently within. */
+      fit?: ImageFit
+      /** Same meaning as an image checkpoint's own `resizeToFit` — grows or shrinks this slide's own *pane* to match the video's natural aspect ratio (once its dimensions are known, see `SplitLayout`'s own natural-size loading), capped at `resizeScale` of the screen's own viewport. Still draggable like any other pane border while on — dragging one of its own resizable axes changes `resizeScale` instead of writing straight to the tree's own ratio (see `mediaResizeScaleFromDrag`), so the video's own aspect ratio stays locked no matter which edge is dragged. Falls back to `false`. Only one resize-to-fit pane (image or video) is ever allowed active at once per stage — see `isResizeToFitConflict`. */
+      resizeToFit?: boolean
+      /** Same meaning, units, and default (`MEDIA_RESIZE_MAX_VIEWPORT_FRACTION`) as an image checkpoint's own `resizeScale` — only relevant while `resizeToFit` is on. */
+      resizeScale?: number
+      /** Live mute toggle, not a transcode-time change — falls back to `false` (audio plays). */
+      removeAudio?: boolean
+      /** 0-1, falls back to `1`. Only relevant while `removeAudio` is `false`. */
+      volume?: number
+      /**
+       * When `true`, this video plays once (no loop) and, on its own
+       * `ended` event, immediately advances the screen's shared stage
+       * rotation instead of waiting for the normal timed interval. Falls
+       * back to `false` (loop for as long as this checkpoint is showing,
+       * matching every other slide kind's steady-state behavior). Stage
+       * rotation is one timer shared by the whole screen (see
+       * `ScreenDisplay.tsx`'s own `tick` interval), not per-pane —
+       * enabling this on a video pane advances every other pane on the
+       * screen early too, not just this one.
+       */
+      advanceStageOnEnd?: boolean
+      /**
+       * Restarts this video from 0 whenever the screen's shared stage
+       * rotation transitions back to stage 1 — e.g. a video meant to tell a
+       * story alongside the rotation, so it's back at its own beginning
+       * exactly when the whole sequence starts over, rather than sitting at
+       * whatever arbitrary point it naturally reached by then. Falls back
+       * to `false` (keeps playing straight through, same as every other
+       * stage transition). A no-op on a screen with only one stage, since
+       * there's no rotation to ever transition back from.
+       */
+      restartOnStageOne?: boolean
+    } & OwnBackgroundImageFields)
   | ({
       kind: 'qrcode'
       /** Used only while `linkMode` is `'custom'` (or unset). */
@@ -330,6 +369,8 @@ export interface ScreenSlot {
   language?: StageTimeline<LanguageCode | undefined>
   /** Whether this pane is locked at a given stage — while locked, its own content/background/text-size edits, splitting, deleting, and its own divider(s) are all disabled (see `resolveSlotLocked`, `subtreeHasLockedLeaf`), until toggled off again with the same lock button. Optional (like `language`) since it's a newer field — a slot with none set at all is unlocked everywhere. Purely an accidental-edit guard for an admin already in the editor, not a security boundary — there's no PIN or confirmation to unlock, just the same button again. */
   locked?: StageTimeline<boolean>
+  /** Which "Group" (see the screen editor toolbar's own button) this pane belongs to at a given stage, if any — a fresh id generated per `Group` action, shared by every pane grouped together at that same action. Checkpointed per-stage exactly like every other field here, so grouping (or a later split back apart) at one stage never retroactively changes an earlier or later one: the group only ever exists at stages it was explicitly written to. Optional since it's a newer field — a slot with none set at all was never grouped. Purely a derived-rendering hint (see `LayoutTree.tsx`'s own border-color override) — deleting/moving a pane doesn't clean up its old groupmates' own entries, same "orphaned checkpoint data left in place" posture as everything else here. */
+  groupId?: StageTimeline<string | undefined>
 }
 
 /** How a screen's panes are arranged along their split axis: side by side, or stacked. */

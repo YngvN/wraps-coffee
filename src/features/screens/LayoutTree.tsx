@@ -3,9 +3,10 @@ import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import type { LanguageCode } from '../../i18n'
 import type { LayoutNode, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SplitDirection, TextSizes } from '../../types/screen'
 import type { Divider, Rect } from '../../utils/layoutGeometry'
+import { listLeaves } from '../../utils/layoutTree'
 import type { PaneGrowthOrigin } from '../../utils/paneGrowth'
 import { nodeGridTemplate, paneDefaultSlideDirection, pathKey, resolveRatio, type NodePath, type RatioPatch } from '../../utils/screenLayout'
-import { resolveSlotLocked, subtreeHasLockedLeaf } from '../../utils/screenStages'
+import { resolveSlotBackgroundColor, resolveSlotLocked, subtreeGroupId, subtreeHasLockedLeaf } from '../../utils/screenStages'
 import { LayoutPane } from './LayoutPane'
 import { PaneCornerHandle } from './PaneCornerHandle'
 import { SplitLayoutDivider } from './SplitLayoutDivider'
@@ -57,6 +58,14 @@ interface LayoutTreeProps {
   enteringGrowth: Record<PaneId, PaneGrowthOrigin>
   /** Every currently-resolved `'news'`-kind pane on this screen — computed once by `SplitLayout` and threaded straight through (like `allDividers`) rather than re-derived at every nested level. See `LayoutPane`'s own prop of the same name. */
   newsSlots: NewsSlotSettings[]
+  /** Computed once by `SplitLayout` and threaded straight through, like `newsSlots`. See `LayoutPane`'s own prop of the same name. */
+  stageTick: number | undefined
+  /** Which panes are currently checked — see `SplitLayout`'s own prop of the same name. Omit (along with `onToggleChecked`) to hide every pane's own selection checkbox. */
+  selectedLeafIds?: Set<PaneId>
+  /** Toggles a leaf's own membership in `selectedLeafIds`. Omit to disable selection entirely. */
+  onToggleChecked?: (leafId: PaneId) => void
+  /** Threaded straight through to every `LayoutPane`'s own prop of the same name — see `SplitLayout`'s own doc comment. */
+  onRequestStageAdvance?: () => void
 }
 
 /**
@@ -113,6 +122,10 @@ export function LayoutTree({
   onTogglePaneLock,
   enteringGrowth,
   newsSlots,
+  stageTick,
+  selectedLeafIds,
+  onToggleChecked,
+  onRequestStageAdvance,
 }: LayoutTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -147,6 +160,10 @@ export function LayoutTree({
         onToggleLock={onTogglePaneLock ? () => onTogglePaneLock(node.id) : undefined}
         growEntranceFrom={enteringGrowth[node.id]}
         newsSlots={newsSlots}
+        stageTick={stageTick}
+        onRequestStageAdvance={onRequestStageAdvance}
+        checked={selectedLeafIds?.has(node.id)}
+        onToggleChecked={locked ? undefined : onToggleChecked ? () => onToggleChecked(node.id) : undefined}
       />
     )
   }
@@ -180,6 +197,12 @@ export function LayoutTree({
   /** Whether resizing this node's own divider would resize a locked pane on either side — if so, neither the plain divider nor any `PaneCornerHandle` at this node renders at all, since both always move this node's own ratio (which affects both sides) alongside whatever else they touch. */
   const dividerLocked = subtreeHasLockedLeaf(node.first, paneSlots, stage) || subtreeHasLockedLeaf(node.second, paneSlots, stage)
 
+  /** This divider's own shared group color, if *both* sides fully resolve to the same "Group" at this stage (see `subtreeGroupId`) — the divider then paints to match instead of the screen's ordinary border color, and its own `gap` shrinks to 0 so the seam actually disappears rather than just changing color. `undefined` (the ordinary case) leaves this node's CSS untouched. */
+  const firstGroupId = subtreeGroupId(node.first, paneSlots, stage)
+  const secondGroupId = subtreeGroupId(node.second, paneSlots, stage)
+  const sharedGroupId = firstGroupId && firstGroupId === secondGroupId ? firstGroupId : undefined
+  const groupColor = sharedGroupId ? resolveSlotBackgroundColor(paneSlots[listLeaves(node.first)[0].id], stage) : undefined
+
   /** Builds one `PaneCornerHandle`'s props: `childPaths` is one path (a single T-junction corner) or two (a merged "+", both kept equal through the drag). */
   const cornerHandle = (key: string, childRatio: number, childPaths: NodePath[]) => {
     if (!onLiveChangeMulti || !onCommitMulti) return null
@@ -204,7 +227,15 @@ export function LayoutTree({
   }
 
   return (
-    <div ref={containerRef} className="layout-tree__split" style={gridTemplate}>
+    <div
+      ref={containerRef}
+      className={`layout-tree__split${sharedGroupId ? ' layout-tree__split--grouped' : ''}`}
+      style={{
+        ...gridTemplate,
+        ...(sharedGroupId && groupColor ? { backgroundColor: groupColor, gap: 0 } : {}),
+        ...(!reducedMotion ? { transition: [gridTemplate.transition, 'background-color 0.3s ease', 'gap 0.3s ease'].filter(Boolean).join(', ') } : {}),
+      }}
+    >
       <LayoutTree
         node={node.first}
         path={[...path, 'first']}
@@ -237,6 +268,10 @@ export function LayoutTree({
         onTogglePaneLock={onTogglePaneLock}
         enteringGrowth={enteringGrowth}
         newsSlots={newsSlots}
+        stageTick={stageTick}
+        onRequestStageAdvance={onRequestStageAdvance}
+        selectedLeafIds={selectedLeafIds}
+        onToggleChecked={onToggleChecked}
       />
       <LayoutTree
         node={node.second}
@@ -270,6 +305,10 @@ export function LayoutTree({
         onTogglePaneLock={onTogglePaneLock}
         enteringGrowth={enteringGrowth}
         newsSlots={newsSlots}
+        stageTick={stageTick}
+        onRequestStageAdvance={onRequestStageAdvance}
+        selectedLeafIds={selectedLeafIds}
+        onToggleChecked={onToggleChecked}
       />
       {onLiveChange && onCommit && !dividerLocked && (
         <SplitLayoutDivider

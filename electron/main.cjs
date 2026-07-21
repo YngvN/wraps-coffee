@@ -7,6 +7,16 @@ const displayManager = require('./displayManager.cjs')
 const roleSetup = require('./roleSetup.cjs')
 const { connectDisplayMachinesSync } = require('./syncClient.cjs')
 
+// Must be called before app.whenReady() resolves. Chromium's default
+// autoplay policy blocks unmuted `<video>` autoplay without a prior user
+// gesture — fine for a normal browser tab, but this kiosk window has no user
+// around to click anything first, and a signage video pane's own "Remove
+// audio" toggle (see VideoSlide.tsx) is meant to be the only thing muting
+// it. A plain browser-tab display (`connectionType: 'url'`, no Electron
+// wrapper) doesn't get this flag and falls back to VideoSlide's own
+// muted-retry + "tap for sound" handling instead.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+
 let tray = null
 let kioskWindow = null
 let currentRole = null

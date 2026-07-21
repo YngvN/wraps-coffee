@@ -236,15 +236,29 @@ POST /users/<id>/password         (Authorization: Bearer <token>, admin/subadmin
           <code>{`POST /uploads                     (Authorization: Bearer <token>, Content-Type: image/*, body = raw file bytes, max 10MB)
 → 201 { "url": "http://.../uploads/<uuid>.<ext>" }
 
-GET /uploads/<filename>           (public — no token needed)
-GET /uploads/<filename>?size=small   (800px WebP, if it exists)
-GET /uploads/<filename>?size=thumb   (240px WebP, if it exists)
+POST /uploads/video                (Authorization: Bearer <token>, body = raw file bytes, any format, max 500MB)
+→ 202 { "id", "filename": "<uuid>.mp4", "url", "status": "processing" }
+  (transcodes to H.264/AAC MP4 in the background — poll GET /uploads for this filename until "status" clears or becomes "failed")
 
-GET /uploads                      (Authorization: Bearer <token> — lists every original)
-→ 200 [{ "filename", "url", "thumbUrl", "sizeBytes", "uploadedAt" }, ...]
+POST /uploads/video/<id>/retry     (Authorization: Bearer <token>)
+→ 202 { "id", "filename", "status": "processing" }   (re-attempts a failed transcode from its still-staged source, no re-upload needed)
+→ 404   (staged source already gone — succeeded, deleted, or swept after 48h abandoned)
+
+GET /uploads/<filename>           (public — no token needed)
+GET /uploads/<filename>?size=small   (800px WebP, images only, if it exists)
+GET /uploads/<filename>?size=thumb   (240px WebP — an image's thumbnail, or a video's poster frame, if it exists)
+
+GET /uploads                      (Authorization: Bearer <token> — lists every original, image or video)
+→ 200 [{ "filename", "url", "thumbUrl", "sizeBytes", "uploadedAt", "kind": "image" | "video", "status"?: "processing" | "failed", "errorMessage"?, "displayName"? }, ...]
+
+PATCH /uploads/<filename>/name     (Authorization: Bearer <token>, body = { "displayName": string })
+→ 200 { "displayName" }   (empty string clears it)
+
+GET /uploads/storage               (Authorization: Bearer <token>)
+→ 200 { "usedBytes", "availableBytes" }
 
 DELETE /uploads/<filename>        (Authorization: Bearer <token>)
-→ 204   (also removes its -small/-thumb companions; idempotent)`}</code>
+→ 204   (also removes its -small/-thumb/-blur companions and any status/name markers; idempotent)`}</code>
         </pre>
       </Card>
 
@@ -298,6 +312,20 @@ GET /extensions/departures?stopId=<id>&count=<n>
 GET /extensions/weather?lat=<lat>&lon=<lon>&hours=<n>
 → 200 { "hourly": [{ "time", "temperatureC", "precipitationMm", "symbolCode", "windSpeedMs"?, "windFromDirectionDeg"?, "humidityPercent"?, "precipitationProbabilityPercent"?, "uvIndex"?, "pressureHpa"? }] }
    (fields marked ? come from MET's "complete" dataset and are only present when MET reports one for that hour — e.g. "uvIndex" outside daylight)`}</code>
+        </pre>
+      </Card>
+
+      <Card title={t('admin.settings.developerDocs.newsTitle')}>
+        <p>{t('admin.settings.developerDocs.newsIntro')}</p>
+        <pre>
+          <code>{`GET /news/headlines?sources=<id,id,...>&count=<n>
+→ 200 { "headlines": [{ "sourceId", "title", "link", "publishedAt"?, "description"?, "imageUrl"?, "categories"?, "author"? }] }
+   ("count" is a per-source cap — each requested source contributes up to its own "count" newest headlines, merged and sorted newest-first)
+
+GET /news/image?src=<url>
+→ 200, the image, served from this server's own disk cache (refreshed at most once per hour)
+→ 400 { "error": "..." }   (missing/invalid "src")
+→ 502 { "error": "..." }   (couldn't fetch it, and no cached copy exists yet either)`}</code>
         </pre>
       </Card>
 

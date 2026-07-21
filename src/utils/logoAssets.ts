@@ -7,11 +7,11 @@
  * `FetchedLogo.tsx` itself (rather than defined there) since a file mixing
  * component and non-component exports breaks Fast Refresh.
  */
-const logoModules = import.meta.glob('../assets/images/extension-logos/*.{svg,png}', { eager: true, import: 'default' }) as Record<string, string>
+const logoModules = import.meta.glob('../assets/images/extension-logos/*.{svg,png,webp,jpg,jpeg}', { eager: true, import: 'default' }) as Record<string, string>
 
 const logosBySlug: Record<string, string> = {}
 for (const [path, url] of Object.entries(logoModules)) {
-  const slug = path.replace(/^.*\//, '').replace(/\.(svg|png)$/, '')
+  const slug = path.replace(/^.*\//, '').replace(/\.(svg|png|webp|jpg|jpeg)$/, '')
   logosBySlug[slug] = url
 }
 

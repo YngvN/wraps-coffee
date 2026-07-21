@@ -447,7 +447,7 @@
           "displayManager": "Display Manager",
           "extensions": "Integrations",
           "logout": "Log out",
-          "images": "Images",
+          "media": "Media",
           "users": "Users",
           "settings": "Settings",
           "messageBoard": "Message board",
@@ -654,7 +654,7 @@
           "imageFillContainerLabel": "Fill container (crop to fit)",
           "resizeToFitImageLabel": "Resize pane to fit image",
           "resizeToFitBlockedTooltip": "Already used to fit another pane at this step",
-          "resizeScaleLabel": "Image size (% of screen)",
+          "resizeScaleLabel": "Media size (% of screen)",
           "slotTransitRuterLabel": "Ruter# - Departures",
           "slotTransitEnturLabel": "Entur - Departures",
           "transitStopLabel": "Stop",
@@ -693,8 +693,8 @@
           "newsNoHeadlinesLabel": "No headlines available right now.",
           "newsSourcesLabel": "Sources shown",
           "newsSourcesHint": "Leave all checked to rotate through every source enabled in Integrations.",
-          "newsHeadlineCountLabel": "Headlines to cycle through",
-          "newsRotateSecondsLabel": "Seconds per headline",
+          "newsHeadlineCountLabel": "Headlines to cycle through (per source)",
+          "newsRotateSecondsLabel": "Seconds per headline (only while the screen has no steps)",
           "newsUseBrandThemeLabel": "Use source theme",
           "newsNoSourcesConfiguredLabel": "No sources configured — set them up in Integrations.",
           "slotTimeLabel": "Time",
@@ -740,6 +740,8 @@
           "splitPaneLabel": "Split",
           "clearPaneButton": "Clear pane",
           "deletePaneButton": "Delete pane",
+          "selectPaneButton": "Select pane",
+          "deselectPaneButton": "Deselect pane",
           "lockPaneButton": "Lock pane",
           "unlockPaneButton": "Unlock pane",
           "stagesLabel": "Steps",
@@ -796,7 +798,16 @@
           "weatherNowLabel": "Now",
           "weatherStaleNotice": "No live connection — showing the last saved forecast.",
           "transitPlatformValue": "Platform {{platform}}",
-          "transitCancelledLabel": "Cancelled"
+          "transitCancelledLabel": "Cancelled",
+          "slotVideoLabel": "Video",
+          "videoRemoveAudioLabel": "Remove audio",
+          "videoVolumeLabel": "Volume",
+          "videoAdvanceStageOnEndLabel": "Advance to next stage when this video ends",
+          "videoAdvanceStageOnEndHint": "This screen's stage rotation is shared by every pane — enabling this advances the whole screen early, not just this one.",
+          "videoPreviewLabel": "Video preview",
+          "videoRestartOnStageOneLabel": "Restart when back at stage 1",
+          "videoRestartOnStageOneHint": "Resets this video back to its own beginning every time the screen's shared stage rotation comes back around to stage 1, instead of it staying wherever it naturally got to.",
+          "resizeToFitVideoLabel": "Resize pane to fit video"
         },
         "displayManager": {
           "title": "Display Manager",
@@ -822,14 +833,15 @@
           "openMenu": "Open menu",
           "closeMenu": "Close menu"
         },
-        "imageLibrary": {
-          "title": "Image library",
-          "empty": "No images uploaded yet.",
-          "error": "Could not load the image library.",
-          "addButton": "Add image",
-          "dropHint": "Drop images to upload",
-          "uploadError": "One or more images failed to upload.",
-          "description": "Every image currently stored on the local server, for reference — upload new ones from wherever they're used."
+        "mediaLibrary": {
+          "title": "Media library",
+          "description": "Every image/video currently stored on the local server, for reference — upload new ones from wherever they're used.",
+          "addButton": "Add image/video",
+          "dropHint": "Drop files to upload",
+          "empty": "No media uploaded yet.",
+          "error": "Could not load the media library.",
+          "storageSummary": "{{used}} used · {{available}} free on this machine",
+          "failedBadge": "Failed"
         },
         "users": {
           "title": "Users",
@@ -922,14 +934,16 @@
             "keyWoltOrders": "Delivery orders synced from Wolt, fully replaced on every successful poll.",
             "keyFoodoraConfig": "Foodora integration's own enabled flag and live poll-health — not the credentials themselves.",
             "keyFoodoraOrders": "Delivery orders synced from Foodora, fully replaced on every successful poll.",
-            "uploadsTitle": "Image uploads",
-            "uploadsIntro": "Uploading also generates two compressed WebP companions (a \"small\" and a \"thumb\" variant) alongside the original, requestable via a ?size= query param.",
+            "uploadsTitle": "Image/video uploads",
+            "uploadsIntro": "Uploading an image also generates compressed WebP companions (\"small\"/\"thumb\", requestable via a ?size= query param); uploading a video transcodes it to a browser-safe MP4 in the background (also the compressor) and extracts a \"thumb\" poster frame the same way.",
             "displayManagerTitle": "Display Manager",
             "displayManagerIntro": "How a machine or browser tab registers itself as a display (see the Display Manager sidebar section) and how a Screen gets assigned to one of its monitors.",
             "backupTitle": "Backup",
             "backupIntro": "server/backup.ts mirrors server/data and server/uploads to a sibling WrapsCoffeeBackup folder continuously (see Settings → Backup). These routes are the manual side of it — a point-in-time zip download, and two ways to restore.",
             "extensionsTitle": "Extensions proxy (transit + weather)",
             "extensionsIntro": "Thin proxies over Entur's and MET Norway's own public APIs, with a short server-side cache — no token needed.",
+            "newsTitle": "News (RSS)",
+            "newsIntro": "Fetches and normalizes headlines from a fixed set of Norwegian outlets, cached server-side, plus a disk-cached image proxy so a kiosk display doesn't hit each outlet's own hosting on every rotation — no token needed.",
             "woltTitle": "Wolt delivery orders",
             "woltIntro": "Credentials and a background sync loop for Wolt's own POS Integration API (see the Integrations page's Wolt card) — admin/subadmin only, since the credentials are a real secret.",
             "foodoraTitle": "Foodora delivery orders",
@@ -1531,6 +1545,16 @@
           "noBoards": "No boards yet.",
           "boardMissingError": "This board no longer exists.",
           "description": "Create boards of short posts to show on kiosk screens, optionally published to the public website too."
+        },
+        "uploadsIndicator": {
+          "title": "Uploads in progress ({{count}})",
+          "uploadingPercent": "Uploading — {{percent}}%",
+          "processing": "Processing…"
+        },
+        "mediaViewer": {
+          "closeLabel": "Close",
+          "previousLabel": "Previous",
+          "nextLabel": "Next"
         }
       },
       "screenDisplay": {
@@ -1551,6 +1575,10 @@
         "enterFullscreen": "Enter fullscreen",
         "exitFullscreen": "Exit fullscreen",
         "addStageButton": "Add step",
+        "deleteSelectedButton": "Delete selected ({{count}})",
+        "groupButton": "Group",
+        "groupButtonDisabledHint": "Select 2 or more directly adjacent panes forming one contiguous block to group them",
+        "redoButton": "Redo",
         "editSizes": "Edit appearance",
         "liveEditing": "Live editing",
         "publish": "Publish",
@@ -1607,7 +1635,8 @@
           "done": "Done",
           "backgroundImageLabel": "Background image",
           "slotLabel": "Pane {{number}}"
-        }
+        },
+        "videoTapForSound": "Tap for sound"
       },
       "imageUpload": {
         "uploadButton": "Upload image",
@@ -1620,7 +1649,14 @@
         "useUrlButton": "Use URL",
         "dropHint": "Drop image to upload",
         "removeButton": "Remove",
-        "dragToReplace": "Drag and drop to replace"
+        "dragToReplace": "Drag and drop to replace",
+        "dropHintMedia": "Drop image or video to upload",
+        "processingVideo": "Processing video…",
+        "retryButton": "Retry",
+        "sizeLimitMedia": "Images up to 10MB, videos up to 500MB",
+        "uploadButtonMedia": "Upload image/video",
+        "uploadingPercent": "Uploading... {{percent}}%",
+        "videoFailedFallback": "Video processing failed."
       }
     }
   },
@@ -2072,7 +2108,7 @@
           "displayManager": "Skjermbehandling",
           "extensions": "Integrasjoner",
           "logout": "Logg ut",
-          "images": "Bilder",
+          "media": "Media",
           "users": "Brukere",
           "settings": "Innstillinger",
           "messageBoard": "Oppslagstavle",
@@ -2279,7 +2315,7 @@
           "imageFillContainerLabel": "Fyll beholder (beskjær for å tilpasse)",
           "resizeToFitImageLabel": "Tilpass panelet til bildet",
           "resizeToFitBlockedTooltip": "Allerede brukt til å tilpasse et annet panel på dette steget",
-          "resizeScaleLabel": "Bildestørrelse (% av skjermen)",
+          "resizeScaleLabel": "Mediestørrelse (% av skjermen)",
           "slotTransitRuterLabel": "Ruter# - Avganger",
           "slotTransitEnturLabel": "Entur - Avganger",
           "transitStopLabel": "Stopp",
@@ -2318,8 +2354,8 @@
           "newsNoHeadlinesLabel": "Ingen overskrifter tilgjengelig akkurat nå.",
           "newsSourcesLabel": "Kilder som vises",
           "newsSourcesHint": "La alle være avkrysset for å rotere gjennom alle kilder aktivert i Integrasjoner.",
-          "newsHeadlineCountLabel": "Overskrifter å rotere gjennom",
-          "newsRotateSecondsLabel": "Sekunder per overskrift",
+          "newsHeadlineCountLabel": "Overskrifter å rotere gjennom (per kilde)",
+          "newsRotateSecondsLabel": "Sekunder per overskrift (kun når skjermen ikke har steg)",
           "newsUseBrandThemeLabel": "Bruk kildens tema",
           "newsNoSourcesConfiguredLabel": "Ingen kilder konfigurert — sett dem opp i Integrasjoner.",
           "slotTimeLabel": "Klokke",
@@ -2365,6 +2401,8 @@
           "splitPaneLabel": "Del",
           "clearPaneButton": "Tøm felt",
           "deletePaneButton": "Slett felt",
+          "selectPaneButton": "Velg felt",
+          "deselectPaneButton": "Fjern valg av felt",
           "lockPaneButton": "Lås felt",
           "unlockPaneButton": "Lås opp felt",
           "stagesLabel": "Steg",
@@ -2421,7 +2459,16 @@
           "weatherNowLabel": "Nå",
           "weatherStaleNotice": "Ingen tilkobling — viser sist lagrede værmelding.",
           "transitPlatformValue": "Plattform {{platform}}",
-          "transitCancelledLabel": "Innstilt"
+          "transitCancelledLabel": "Innstilt",
+          "slotVideoLabel": "Video",
+          "videoRemoveAudioLabel": "Fjern lyd",
+          "videoVolumeLabel": "Volum",
+          "videoAdvanceStageOnEndLabel": "Gå til neste trinn når denne videoen er ferdig",
+          "videoAdvanceStageOnEndHint": "Denne skjermens trinnrotasjon deles av alle ruter — dette gjør at hele skjermen går videre tidlig, ikke bare denne ruten.",
+          "videoPreviewLabel": "Videoforhåndsvisning",
+          "videoRestartOnStageOneLabel": "Start på nytt når skjermen er tilbake på steg 1",
+          "videoRestartOnStageOneHint": "Starter denne videoen på nytt hver gang skjermens felles trinnrotasjon kommer tilbake til steg 1, i stedet for at den blir stående der den naturlig har kommet til.",
+          "resizeToFitVideoLabel": "Tilpass felt til video"
         },
         "displayManager": {
           "title": "Skjermbehandling",
@@ -2447,14 +2494,15 @@
           "openMenu": "Åpne meny",
           "closeMenu": "Lukk meny"
         },
-        "imageLibrary": {
-          "title": "Bildebibliotek",
-          "empty": "Ingen bilder er lastet opp ennå.",
-          "error": "Kunne ikke laste inn bildebiblioteket.",
-          "addButton": "Legg til bilde",
-          "dropHint": "Slipp bilder for å laste opp",
-          "uploadError": "Ett eller flere bilder kunne ikke lastes opp.",
-          "description": "Alle bilder som for øyeblikket ligger på den lokale serveren, til referanse — last opp nye der de faktisk brukes."
+        "mediaLibrary": {
+          "title": "Mediebibliotek",
+          "description": "Alle bilder/videoer som for øyeblikket ligger på den lokale serveren, til referanse — last opp nye der de faktisk brukes.",
+          "addButton": "Legg til bilde/video",
+          "dropHint": "Slipp filer for å laste opp",
+          "empty": "Ingen media er lastet opp ennå.",
+          "error": "Kunne ikke laste inn mediebiblioteket.",
+          "storageSummary": "{{used}} brukt · {{available}} ledig på denne maskinen",
+          "failedBadge": "Feilet"
         },
         "users": {
           "title": "Brukere",
@@ -2547,14 +2595,16 @@
             "keyWoltOrders": "Leveringsbestillinger synkronisert fra Wolt, fullstendig erstattet ved hver vellykkede synkronisering.",
             "keyFoodoraConfig": "Foodora-integrasjonens egen på/av-status og live synkroniseringshelse — ikke selve tilgangsopplysningene.",
             "keyFoodoraOrders": "Leveringsbestillinger synkronisert fra Foodora, fullstendig erstattet ved hver vellykkede synkronisering.",
-            "uploadsTitle": "Bildeopplasting",
-            "uploadsIntro": "Opplasting genererer også to komprimerte WebP-varianter (en «small» og en «thumb») ved siden av originalen, hentbare via en ?size=-parameter.",
+            "uploadsTitle": "Bilde-/videoopplasting",
+            "uploadsIntro": "Opplasting av et bilde genererer også komprimerte WebP-varianter («small»/«thumb», hentbare via en ?size=-parameter); opplasting av en video transkoderer den til en nettleservennlig MP4 i bakgrunnen (også komprimatoren) og henter ut et «thumb»-forhåndsbilde på samme måte.",
             "displayManagerTitle": "Skjermbehandling",
             "displayManagerIntro": "Hvordan en maskin eller nettleserfane registrerer seg selv som en skjerm (se Skjermbehandling-seksjonen i sidemenyen) og hvordan en Skjerm tildeles en av dens monitorer.",
             "backupTitle": "Sikkerhetskopi",
             "backupIntro": "server/backup.ts speiler server/data og server/uploads kontinuerlig til en søsteremappe kalt WrapsCoffeeBackup (se Innstillinger → Sikkerhetskopi). Disse rutene er den manuelle siden av det — en zip-nedlasting på et gitt tidspunkt, og to måter å gjenopprette på.",
             "extensionsTitle": "Extensions-proxy (kollektivtransport + vær)",
             "extensionsIntro": "Tynne proxyer over Enturs og Meteorologisk institutts egne offentlige API-er, med en kort server-side cache — ingen token nødvendig.",
+            "newsTitle": "Nyheter (RSS)",
+            "newsIntro": "Henter og normaliserer overskrifter fra et fast utvalg norske nyhetskilder, mellomlagret på serversiden, pluss en diskbuffret bildeproxy slik at en skjerm ikke treffer hver enkelt kildes egen hosting ved hver rotasjon — ingen token nødvendig.",
             "woltTitle": "Wolt-leveringsbestillinger",
             "woltIntro": "Tilgangsopplysninger og en synkroniseringsløkke i bakgrunnen for Wolts eget POS Integration API (se Wolt-kortet på Integrasjoner-siden) — kun admin/underadmin, siden tilgangsopplysningene er en reell hemmelighet.",
             "foodoraTitle": "Foodora-leveringsbestillinger",
@@ -3156,6 +3206,16 @@
           "noBoards": "Ingen tavler ennå.",
           "boardMissingError": "Denne tavlen finnes ikke lenger.",
           "description": "Lag oppslagstavler med korte innlegg som vises på kiosk-skjermer, eventuelt også publisert til nettsiden."
+        },
+        "uploadsIndicator": {
+          "title": "Opplastinger pågår ({{count}})",
+          "uploadingPercent": "Laster opp — {{percent}}%",
+          "processing": "Behandler…"
+        },
+        "mediaViewer": {
+          "closeLabel": "Lukk",
+          "previousLabel": "Forrige",
+          "nextLabel": "Neste"
         }
       },
       "screenDisplay": {
@@ -3176,6 +3236,10 @@
         "enterFullscreen": "Gå til fullskjerm",
         "exitFullscreen": "Avslutt fullskjerm",
         "addStageButton": "Legg til steg",
+        "deleteSelectedButton": "Slett valgte ({{count}})",
+        "groupButton": "Grupper",
+        "groupButtonDisabledHint": "Velg 2 eller flere direkte tilstøtende felt som danner én sammenhengende blokk for å gruppere dem",
+        "redoButton": "Gjør om",
         "editSizes": "Rediger utseende",
         "liveEditing": "Live-redigering",
         "publish": "Publiser",
@@ -3232,7 +3296,8 @@
           "done": "Ferdig",
           "backgroundImageLabel": "Bakgrunnsbilde",
           "slotLabel": "Panel {{number}}"
-        }
+        },
+        "videoTapForSound": "Trykk for lyd"
       },
       "imageUpload": {
         "uploadButton": "Last opp bilde",
@@ -3245,7 +3310,14 @@
         "useUrlButton": "Bruk URL",
         "dropHint": "Slipp bilde for å laste opp",
         "removeButton": "Fjern",
-        "dragToReplace": "Dra og slipp for å erstatte"
+        "dragToReplace": "Dra og slipp for å erstatte",
+        "dropHintMedia": "Slipp bilde eller video for å laste opp",
+        "processingVideo": "Behandler video …",
+        "retryButton": "Prøv igjen",
+        "sizeLimitMedia": "Bilder opptil 10MB, videoer opptil 500MB",
+        "uploadButtonMedia": "Last opp bilde/video",
+        "uploadingPercent": "Laster opp... {{percent}}%",
+        "videoFailedFallback": "Videobehandling feilet."
       }
     }
   }

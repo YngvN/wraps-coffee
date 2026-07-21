@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import { Navigate, useMatch, useParams } from 'react-router-dom'
-import { BackButton, Checkbox, Modal } from '../components'
+import { BackButton, Checkbox, Modal, RedoIcon } from '../components'
 import { BackgroundEditor } from '../features/screens/BackgroundEditor'
 import { BorderSettingsEditor } from '../features/screens/BorderSettingsEditor'
 import { FullscreenToggle } from '../features/screens/FullscreenToggle'
@@ -13,6 +13,7 @@ import { SlotEditor } from '../features/screens/SlotEditor'
 import { SplitLayout } from '../features/screens/SplitLayout'
 import { StagePlaybackControls } from '../features/screens/StagePlaybackControls'
 import { useAdminSession } from '../hooks/useAdminSession'
+import { evictUnusedVideoCache, prewarmVideoCache } from '../hooks/useCachedVideoSrc'
 import { useConnectionStatus } from '../hooks/useConnectionStatus'
 import { useDefaultPaneLanguage } from '../hooks/useDefaultPaneLanguage'
 import { useScreens } from '../hooks/useScreens'
@@ -34,6 +35,8 @@ import {
   type TextSizes,
 } from '../types/screen'
 import { findSiblingEventOrdinal } from '../utils/eventOrdinals'
+import { generateId } from '../utils/id'
+import { computeLayoutGeometry, isContiguousBlock } from '../utils/layoutGeometry'
 import { cloneSlot, deleteLeaf, emptySlot, listLeaves, splitLeaf } from '../utils/layoutTree'
 import { getBlurredBackgroundUrl } from '../utils/responsiveImage'
 import { backgroundImageTextStyle, borderColorStyle, getScreenColorVars } from '../utils/screenColors'
@@ -89,6 +92,35 @@ type EditingTarget = 'screen' | { leafId: PaneId } | null
 /** A random spot for the "Screen saver test" label to sit at, kept well clear of the edges. */
 function randomScreensaverTestLabelPosition(): { top: number; left: number } {
   return { top: 10 + Math.random() * 80, left: 10 + Math.random() * 80 }
+}
+
+/** The result of successfully stepping `screens`/`undoStack`/`redoStack` one entry in either direction — `null` when there's nothing to step to, so the caller can no-op. */
+interface UndoRedoStep {
+  screens: ScreenConfig[]
+  undoStack: ScreenConfig[]
+  redoStack: ScreenConfig[]
+}
+
+/** Steps `current` (this exact screen) one entry back in `undoStack`, pushing its own present state onto `redoStack` — shared by `ScreenDisplay`'s own toolbar undo button and its Ctrl+Z keyboard handler, which otherwise can't call each other directly (the keyboard listener has to be a hook called unconditionally above the component's own `!screen` early return, before `handleUndo` is even declared). */
+function undoScreenState(screens: ScreenConfig[], current: ScreenConfig, undoStack: ScreenConfig[], redoStack: ScreenConfig[]): UndoRedoStep | null {
+  if (undoStack.length === 0) return null
+  const previous = undoStack[undoStack.length - 1]
+  return {
+    screens: screens.map((existing) => (existing.screenID === current.screenID ? previous : existing)),
+    undoStack: undoStack.slice(0, -1),
+    redoStack: [...redoStack, current],
+  }
+}
+
+/** The inverse of `undoScreenState` — steps `current` one entry forward in `redoStack` instead. */
+function redoScreenState(screens: ScreenConfig[], current: ScreenConfig, undoStack: ScreenConfig[], redoStack: ScreenConfig[]): UndoRedoStep | null {
+  if (redoStack.length === 0) return null
+  const next = redoStack[redoStack.length - 1]
+  return {
+    screens: screens.map((existing) => (existing.screenID === current.screenID ? next : existing)),
+    undoStack: [...undoStack, current],
+    redoStack: redoStack.slice(0, -1),
+  }
 }
 
 /**
@@ -172,6 +204,12 @@ export function ScreenDisplay() {
   const screen = screens.find((candidate) => candidate.screenID === screenId)
   const [now, setNow] = useState(() => new Date())
   const [editingTarget, setEditingTarget] = useState<EditingTarget>(null)
+  /** Checked via each pane's own `PaneSelectCheckbox` (see `LayoutPane`) — drives the toolbar's "Delete selected"/"Group" buttons, shown once this has 2+ entries. Cleared whenever the editor closes or the arrangement's own leaf set changes, so a deleted/cleared pane can't stay stuck "selected". */
+  const [selectedLeafIds, setSelectedLeafIds] = useState<Set<PaneId>>(new Set())
+  /** A snapshot of this exact screen (as stored in `screens`, `.draft` and all) from just before each `applyScreenPatch` — Ctrl+Z (see `handleUndo`) pops the most recent one and restores it. Cleared on undo/redo re-populates the other stack instead of clearing — see `handleUndo`/`handleRedo`. Session-local (plain component state, not persisted) — reloading the page starts a fresh history, same as most editors' own undo. */
+  const [undoStack, setUndoStack] = useState<ScreenConfig[]>([])
+  /** The inverse of `undoStack` — what Ctrl+Shift+Z / the toolbar's own redo button restores, populated only by `handleUndo` itself and cleared by any *new* edit (see `applyScreenPatch`), matching how redo history works everywhere else once you diverge from it with a fresh change. */
+  const [redoStack, setRedoStack] = useState<ScreenConfig[]>([])
   const [screenDraftSnapshot, setScreenDraftSnapshot] = useState<SizeSnapshot | null>(null)
   /** Whether the whole-screen editor is showing its own "Background" or "Borders" sub-view instead of the main percentage scaler — reset whenever the editor (re)opens. Both write straight through `applyScreenPatch` on every change (see `handleScreenBackgroundColorChange`/`handleScreenBackgroundImageChange`/`handleShowSlotBordersChange`/`handleBorderColorChange`), so unlike the scaler's own fields neither has any local draft/restore state of its own. */
   const [screenSubview, setScreenSubview] = useState<'background' | 'border' | null>(null)
@@ -182,8 +220,10 @@ export function ScreenDisplay() {
   /** The pane's own shared/fallback text sizes at the currently active stage — shown once a screen has more than one stage (see `SlotEditor`). */
   const [draftSlotTextSizes, setDraftSlotTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
   const [originalSlotTextSizes, setOriginalSlotTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
-  /** Whether `KeepEditPrompt` is currently showing in place of `SlotEditor` — see `requestCloseEditor`. Reset to `false` every time a pane editor (re)opens. */
+  /** Whether `KeepEditPrompt` is currently showing in place of `SlotEditor` — see `handleActiveStageChange`. Reset to `false` every time a pane editor (re)opens. */
   const [showKeepEditPrompt, setShowKeepEditPrompt] = useState(false)
+  /** Which stage `KeepEditPrompt` should actually continue on to once resolved, when it's showing because of a stage-tab switch mid-edit rather than the editor closing — `null` in the latter case. See `handleActiveStageChange`/`seedDraftForStage`. */
+  const [pendingStageSwitchTarget, setPendingStageSwitchTarget] = useState<number | null>(null)
   /** `SlotEditor`'s own currently open sub-view (e.g. "Background"), reported via its `onRouteChange` — shown as the modal's own breadcrumb next to its title. Reset whenever a pane editor (re)opens. */
   const [slotEditorRoute, setSlotEditorRoute] = useState<string | undefined>(undefined)
   /** Which stage the pane editor's own tab bar currently has selected. */
@@ -267,6 +307,50 @@ export function ScreenDisplay() {
     return () => clearInterval(interval)
   }, [])
 
+  /** Every video URL referenced by *any* stage of *any* pane on this screen — walked once here rather than just the currently-active stage/pane, so a stage's video is already downloaded via the Cache API before it ever rotates into view (see `useCachedVideoSrc`'s own doc comment for why a pane's `<video>` element can't itself hand out a placeholder network URL while downloading). */
+  const screenVideoUrls = screen
+    ? Array.from(
+        new Set(Object.values(screen.paneSlots).flatMap((slot) => Object.values(slot.content).flatMap((content) => (content.kind === 'video' ? [content.videoUrl] : [])))),
+      )
+    : []
+  const screenVideoUrlsKey = screenVideoUrls.join(',')
+  const hasLoadedScreen = Boolean(screen)
+
+  /** Pre-warms every URL above into the Cache API, and prunes any previously-cached video not in that set (e.g. this display got reassigned to a different screen) — see `prewarmVideoCache`/`evictUnusedVideoCache`'s own doc comments. Best-effort and silent; a pane's own `useCachedVideoSrc` still resolves correctly (just downloading fresh instead of finding a warm cache) if this hasn't finished, or failed, by the time that pane's stage rotates in. */
+  useEffect(() => {
+    if (!hasLoadedScreen) return
+    void prewarmVideoCache(screenVideoUrls)
+    void evictUnusedVideoCache(screenVideoUrls)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the stable `screenVideoUrlsKey` string (and `hasLoadedScreen`), not the `screenVideoUrls` array itself, which is a fresh reference every render.
+  }, [hasLoadedScreen, screenVideoUrlsKey])
+
+  /**
+   * Ctrl+Z / Ctrl+Shift+Z (Cmd on Mac) for undo/redo — only while there's an
+   * editable session on this route, and never while focus is inside a text
+   * input/textarea/contenteditable (so undoing a typo mid-type in a slide's
+   * own text field doesn't instead undo the last *screen*-level edit). Has
+   * to be a hook called unconditionally up here, above the `!screen` early
+   * return below — `handleUndo`/`handleRedo` aren't declared until after
+   * it, so this calls the same shared `undoScreenState`/`redoScreenState`
+   * helpers they do instead of those functions directly.
+   */
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!screen || !session || !isEditorRoute) return
+      if (event.key.toLowerCase() !== 'z' || !(event.metaKey || event.ctrlKey)) return
+      const target = event.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+      const result = event.shiftKey ? redoScreenState(screens, screen, undoStack, redoStack) : undoScreenState(screens, screen, undoStack, redoStack)
+      if (!result) return
+      event.preventDefault()
+      setScreens(result.screens)
+      setUndoStack(result.undoStack)
+      setRedoStack(result.redoStack)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [screen, screens, session, isEditorRoute, undoStack, redoStack, setScreens])
+
   /** While the screensaver's own "Test screensaver" button is on, periodically moves its "Screen saver test" label to a new random spot — same reasoning a real screensaver moves its content around, so nothing sits burned into one spot on the (probably otherwise idle) display for the whole test. */
   useEffect(() => {
     if (!screen?.screensaverTestActive) return
@@ -337,11 +421,22 @@ export function ScreenDisplay() {
    * `screen`), so it correctly builds on whatever's currently showing.
    */
   const applyScreenPatch = (patch: Partial<DraftableScreenFields>) => {
+    setUndoStack([...undoStack, screen])
+    setRedoStack([])
     setScreens(
       screens.map((existing) =>
         existing.screenID === screen.screenID ? (liveEditing ? { ...existing, ...patch } : { ...existing, draft: { ...existing.draft, ...patch } }) : existing,
       ),
     )
+  }
+
+  /** Ctrl+Shift+Z (see the keydown handler above) / the toolbar's own redo button — the inverse of undoing (Ctrl+Z only, no toolbar button of its own — see that same keydown handler, which calls `undoScreenState` directly rather than through a named function here). No-op with nothing to redo (including whenever a fresh edit has cleared `redoStack` since the last undo). */
+  const handleRedo = () => {
+    const result = redoScreenState(screens, screen, undoStack, redoStack)
+    if (!result) return
+    setScreens(result.screens)
+    setUndoStack(result.undoStack)
+    setRedoStack(result.redoStack)
   }
 
   /** Merges the pending draft onto the published fields and clears it — everyone else's own view (which never reads `draft` at all) starts reflecting it immediately. Only ever called while `screen.draft` is actually set (see the toolbar's own Publish button). */
@@ -359,6 +454,17 @@ export function ScreenDisplay() {
 
   /** While a pane's editor is open, forces the *whole* display (every pane, not just the one being edited — every pane shares the same stage sequence) to the stage its own tab bar currently has selected, instead of letting it keep naturally rotating. */
   const forcedStage = typeof editingTarget === 'object' && editingTarget !== null ? activeStage : undefined
+
+  /** `selectedLeafIds` narrowed to ids that actually still exist in the currently-resolved arrangement — a checked pane deleted through some other path (or a stage switch to an arrangement that never had it) just silently drops out of this, rather than needing a separate effect to prune the underlying state proactively. Every consumer below reads this, not `selectedLeafIds` directly. */
+  const activeSelectedLeafIds = (() => {
+    const currentTree = resolveStageValue(viewScreen.layout, forcedStage ?? stage) ?? Object.values(viewScreen.layout)[0]
+    const currentIds = new Set(listLeaves(currentTree).map((leaf) => leaf.id))
+    return new Set([...selectedLeafIds].filter((id) => currentIds.has(id)))
+  })()
+
+  /** Whether the current checkbox selection is eligible for the toolbar's own "Group" action — a directly-adjacent, single contiguous block (see `isContiguousBlock`), not just any 2+ panes. */
+  const canGroupSelected =
+    activeSelectedLeafIds.size >= 2 && isContiguousBlock(resolveStageValue(viewScreen.layout, forcedStage ?? stage) ?? Object.values(viewScreen.layout)[0], activeSelectedLeafIds)
 
   /** Whether the pane currently being edited has more than one stage — the deciding factor for whether a text-size edit goes to that stage's own content (`draftTextSizes`) or the pane's shared/fallback size (`draftSlotTextSizes`), both while editing (see `resolveTextSizes` below) and in `SlotEditor` itself. */
   const hasMultipleStages = typeof editingTarget === 'object' && editingTarget !== null && Boolean(viewScreen.useStages) && (viewScreen.stageCount ?? 1) > 1
@@ -418,6 +524,7 @@ export function ScreenDisplay() {
     setShowKeepEditPrompt(false)
     setSlotEditorRoute(undefined)
     setEditingTarget({ leafId })
+    setSelectedLeafIds(new Set())
     setManuallyPaused(true)
   }
 
@@ -439,28 +546,46 @@ export function ScreenDisplay() {
   }
 
   /**
-   * Switches which stage the pane editor's tab bar has selected. First
-   * folds whatever the currently active stage's own draft text-size holds
-   * into `draftSlot`'s content timeline, *and* the shared/fallback draft
-   * into that same stage's own `textSizes` checkpoint — both independent
-   * timelines, both need flushing, or whichever one wasn't currently bound
-   * to the visible slider (see `SlotEditor`'s own single-vs-multi-stage
-   * branch) would otherwise sit edited only in this component's local
-   * state, never actually reaching `draftSlot`, and so get silently
-   * dropped the next time the stage is switched again before the editor
-   * closes. Only then reseeds the live draft for the stage being switched
-   * to, against the pane's own (possibly just-flushed) values there.
+   * The shared tail end of actually moving the pane editor's tab bar to
+   * `nextStage`, against `fromSlot` (the pane's own values to reseed the
+   * local draft from there — either just-flushed-but-not-yet-persisted, or
+   * just persisted/discarded via `KeepEditPrompt`, see
+   * `handleActiveStageChange` below). Resets `originalSlot`/the text-size
+   * "original" pair to `fromSlot` too, not just `draftSlot` — once this
+   * runs, `fromSlot` *is* the new baseline `detectSlotEditChanges` should
+   * compare the next stage's own edits against, not whatever the pane
+   * looked like when the editor first opened.
+   */
+  const seedDraftForStage = (fromSlot: ScreenSlot, nextStage: number) => {
+    const content = resolveSlotContent(fromSlot, nextStage)
+    const sharedTextSizes = resolveSlotTextSizes(fromSlot, nextStage) ?? viewScreen.textSizes ?? DEFAULT_TEXT_SIZES
+    const effective = resolveContentTextSizes(content, sharedTextSizes)
+    setDraftSlot(fromSlot)
+    setOriginalSlot(fromSlot)
+    setDraftTextSizes(effective)
+    setOriginalTextSizes(effective)
+    setDraftSlotTextSizes(sharedTextSizes)
+    setOriginalSlotTextSizes(sharedTextSizes)
+    setActiveStage(nextStage)
+  }
+
+  /**
+   * Switches which stage the pane editor's tab bar has selected — straight
+   * away if there's nothing to ask about (a single stage, or no real
+   * change at the stage being left), else shows `KeepEditPrompt` first (see
+   * `pendingStageSwitchTarget`) exactly like closing the editor entirely
+   * used to, before this was moved here: continuing to browse other steps
+   * mid-edit is the point where an in-progress change could otherwise
+   * silently carry forward (or get lost) without ever being asked about,
+   * not the point where the modal itself happens to close.
    */
   const handleActiveStageChange = (nextStage: number) => {
-    const flushedSlot = flushStageTextSizeIntoSlot(draftSlot, activeStage, draftTextSizes, hasMultipleStages)
-    const flushedSlotWithSharedSize: ScreenSlot = { ...flushedSlot, textSizes: writeStageCheckpoint(flushedSlot.textSizes, activeStage, draftSlotTextSizes) }
-    if (flushedSlotWithSharedSize !== draftSlot) setDraftSlot(flushedSlotWithSharedSize)
-
-    const content = resolveSlotContent(flushedSlotWithSharedSize, nextStage)
-    const sharedTextSizes = resolveSlotTextSizes(flushedSlotWithSharedSize, nextStage) ?? viewScreen.textSizes ?? DEFAULT_TEXT_SIZES
-    setDraftTextSizes(resolveContentTextSizes(content, sharedTextSizes))
-    setDraftSlotTextSizes(sharedTextSizes)
-    setActiveStage(nextStage)
+    if (hasMultipleStages && Object.values(detectSlotEditChanges()).some(Boolean)) {
+      setPendingStageSwitchTarget(nextStage)
+      setShowKeepEditPrompt(true)
+      return
+    }
+    seedDraftForStage(finalizeDraftSlot(), nextStage)
   }
 
   /** Jumps the shared stage sequence straight to `targetStage`, dragged from the toolbar's own scrubber — sets `tick` to whichever value resolves to exactly that stage (see `currentStage`), so it snaps into position instantly regardless of where the natural rotation currently is. If playback is running, the timer just keeps advancing from here next; scrubbing doesn't itself start or stop it. Deliberately ungated by `requestPendingResizeAction` — a continuous scrubber drag firing that check on every step it passes through would interrupt the drag itself; the previous/next-stage buttons (`handleStepStage`) get the check instead, since those are the discrete "I'm done with this stage" gesture. */
@@ -468,6 +593,9 @@ export function ScreenDisplay() {
 
   /** The previous/next-stage button pair's own discrete jump — same destination as `handleScrubToStage`, but routed through `requestPendingResizeAction` first, since clicking away from a stage is exactly the moment an unresolved pane resize on it should be asked about. */
   const handleStepStage = (targetStage: number) => requestPendingResizeAction(() => setTick(targetStage - 1))
+
+  /** A video pane's own `advanceStageOnEnd` firing when it finishes playing — advances the shared stage rotation immediately via the same discrete-jump path (and same `requestPendingResizeAction` guard) `handleStepStage` uses for the toolbar's "next stage" button, since a video ending is the same kind of "I'm done with this stage" gesture, just triggered by content instead of a click. Every pane shares one stage sequence, so this advances the whole screen, not just the video's own pane — see `ScreenSlotContent`'s own `advanceStageOnEnd` doc comment. */
+  const handleVideoEndedAdvance = () => handleStepStage(stage + 1)
 
   /**
    * The toolbar's own "Add step" button — appends one more stage, turning
@@ -603,6 +731,71 @@ export function ScreenDisplay() {
     if (typeof editingTarget === 'object' && editingTarget?.leafId === leafId) setEditingTarget(null)
   }
 
+  /** Toggles `leafId`'s own membership in `selectedLeafIds` — see that state's own doc comment. */
+  const toggleLeafChecked = (leafId: PaneId) => {
+    setSelectedLeafIds((current) => {
+      const next = new Set(current)
+      if (next.has(leafId)) next.delete(leafId)
+      else next.add(leafId)
+      return next
+    })
+  }
+
+  /** Deletes every currently-checked pane in one combined patch (rather than looping `handleDeletePane`, which would each read the same now-stale `viewScreen` within this same synchronous call) — a no-op if that would leave nothing behind (deleting every pane on the screen), same guard as the single-pane delete button already not rendering at all in that case. */
+  const handleDeleteSelected = () => {
+    const targetStage = forcedStage ?? stage
+    let tree = resolveStageValue(viewScreen.layout, targetStage)
+    if (!tree) return
+    for (const leafId of activeSelectedLeafIds) {
+      const nextTree = deleteLeaf(tree, leafId)
+      if (!nextTree) return
+      tree = nextTree
+    }
+    applyScreenPatch({ layout: writeStageCheckpoint(viewScreen.layout, targetStage, tree) })
+    if (typeof editingTarget === 'object' && editingTarget !== null && activeSelectedLeafIds.has(editingTarget.leafId)) setEditingTarget(null)
+    setSelectedLeafIds(new Set())
+  }
+
+  /**
+   * Gives every currently-checked pane (already confirmed contiguous — see
+   * `canGroupSelected` — before this button is even enabled) the same
+   * background color as the largest one among them, and a fresh shared
+   * `groupId`, both checkpointed at the *current* stage only — grouping (or
+   * a later un-group by splitting one back out) never retroactively touches
+   * any other stage (see `ScreenSlot.groupId`'s own doc comment). The
+   * border between them then renders to match on its own (see
+   * `LayoutTree.tsx`), purely derived from every pane in a split sharing the
+   * same resolved `groupId` — nothing else needs writing for that part.
+   */
+  const handleGroupSelected = () => {
+    if (!canGroupSelected) return
+    const targetStage = forcedStage ?? stage
+    const tree = resolveStageValue(viewScreen.layout, targetStage)
+    if (!tree) return
+    const rectsById = new Map(computeLayoutGeometry(tree).leaves.map((leaf) => [leaf.id, leaf.rect]))
+    const largestLeafId = [...activeSelectedLeafIds].reduce((largest, candidate) => {
+      const candidateRect = rectsById.get(candidate)
+      const largestRect = rectsById.get(largest)
+      if (!candidateRect) return largest
+      if (!largestRect) return candidate
+      return candidateRect.width * candidateRect.height > largestRect.width * largestRect.height ? candidate : largest
+    })
+    const largestSlot = viewScreen.paneSlots[largestLeafId] ?? emptySlot()
+    const sharedColor = resolveSlotBackgroundColor(largestSlot, targetStage) ?? viewScreen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR
+    const groupId = generateId()
+
+    const nextPaneSlots = { ...viewScreen.paneSlots }
+    for (const leafId of activeSelectedLeafIds) {
+      const slot = nextPaneSlots[leafId] ?? emptySlot()
+      nextPaneSlots[leafId] = {
+        ...slot,
+        backgroundColor: writeStageCheckpoint(slot.backgroundColor, targetStage, sharedColor),
+        groupId: writeStageCheckpoint(slot.groupId, targetStage, groupId),
+      }
+    }
+    applyScreenPatch({ paneSlots: nextPaneSlots })
+  }
+
   /**
    * Runs `action` immediately if there's no unresolved pane-resize edit to
    * ask about (see `resizeSessionOriginalTree`), else stashes it and shows
@@ -712,38 +905,43 @@ export function ScreenDisplay() {
     layout: false,
   })
 
-  /** Persists whatever the draft currently holds — just the active stage's own checkpoint — then closes the editor. Also what `KeepEditPrompt`'s own "keep here only" resolves to. */
+  /**
+   * Once a `KeepEditPrompt` resolution has done its own persist/discard
+   * work, this is the shared "what happens now" tail: continue to
+   * `pendingStageSwitchTarget` (seeding the local draft from `resultSlot`)
+   * if this prompt was showing because of a stage-tab switch mid-edit, or
+   * just close the editor entirely otherwise (a prompt shown because the
+   * editor itself was closed — no longer actually reachable now that
+   * closing never asks this, but harmless to keep as the fallback).
+   */
+  const resolveKeepEditPrompt = (resultSlot: ScreenSlot) => {
+    setShowKeepEditPrompt(false)
+    if (pendingStageSwitchTarget !== null) {
+      const target = pendingStageSwitchTarget
+      setPendingStageSwitchTarget(null)
+      seedDraftForStage(resultSlot, target)
+    } else {
+      setEditingTarget(null)
+    }
+  }
+
+  /** Persists whatever the draft currently holds — just the active stage's own checkpoint. Closing the pane editor's modal (its own "Done" button, ×, Escape, clicking outside it) always goes straight here now, no prompt — see `handleActiveStageChange` for where that prompt actually lives instead. Also what `KeepEditPrompt`'s own "keep here only" resolves to, on the rarer path where it's showing because of a stage-tab switch (see `resolveKeepEditPrompt`). */
   const closeEditor = () => {
     if (editingTarget === 'screen') {
       if (screenDraftSnapshot) applyScreenPatch({ textSizes: screenDraftSnapshot.textSizes, paneSlots: screenDraftSnapshot.paneSlots })
-    } else if (editingTarget) {
-      const { leafId } = editingTarget
-      applyScreenPatch({ paneSlots: { ...viewScreen.paneSlots, [leafId]: finalizeDraftSlot() } })
+      setEditingTarget(null)
+      setShowKeepEditPrompt(false)
+      return
     }
-    setEditingTarget(null)
-    setShowKeepEditPrompt(false)
+    if (!editingTarget) return
+    const { leafId } = editingTarget
+    const finalSlot = finalizeDraftSlot()
+    applyScreenPatch({ paneSlots: { ...viewScreen.paneSlots, [leafId]: finalSlot } })
+    resolveKeepEditPrompt(finalSlot)
   }
 
-  /**
-   * What every way the pane editor's modal can exit (its own "Done"
-   * button, ×, Escape, clicking outside it) is actually wired to now. With
-   * more than one stage and at least one real change to report, shows
-   * `KeepEditPrompt` instead of closing outright. Dismissing the prompt
-   * itself (its own ×/Escape/outside-click) falls through to `closeEditor`
-   * — the same "keep here only" outcome closing always had before this
-   * prompt existed — so a stray dismissal never silently discards work.
-   * The whole-screen editor, a single-stage screen, and an edit-free
-   * session all skip the prompt and close straight away, same as before.
-   */
+  /** What every way the pane editor's modal can exit (its own "Done" button, ×, Escape, clicking outside it) is wired to — always just persists and closes now, no prompt (see `handleActiveStageChange` for where "should this edit propagate?" is actually asked instead, at the point a step change could otherwise silently carry it forward or lose it). */
   const requestCloseEditor = () => {
-    if (showKeepEditPrompt) {
-      closeEditor()
-      return
-    }
-    if (typeof editingTarget === 'object' && editingTarget !== null && hasMultipleStages && Object.values(detectSlotEditChanges()).some(Boolean)) {
-      setShowKeepEditPrompt(true)
-      return
-    }
     closeEditor()
   }
 
@@ -778,14 +976,12 @@ export function ScreenDisplay() {
     }
 
     applyScreenPatch({ paneSlots: { ...viewScreen.paneSlots, [leafId]: propagatedSlot } })
-    setEditingTarget(null)
-    setShowKeepEditPrompt(false)
+    resolveKeepEditPrompt(propagatedSlot)
   }
 
   /** `KeepEditPrompt`'s own "remove edits" — discards every change made this editing session. Unlike `closeEditor`, never writes anything back, since the persisted screen already matches `originalSlot`. */
   const handleRemoveEdits = () => {
-    setEditingTarget(null)
-    setShowKeepEditPrompt(false)
+    resolveKeepEditPrompt(originalSlot)
   }
 
   const editingLeaves = listLeaves(resolveStageValue(viewScreen.layout, activeStage) ?? Object.values(viewScreen.layout)[0]).map((leaf) => ({ id: leaf.id, slot: viewScreen.paneSlots[leaf.id] }))
@@ -847,6 +1043,26 @@ export function ScreenDisplay() {
             <button type="button" className="screen-toolbar__button" onClick={handleAddStage} disabled={editingTarget !== null}>
               {t('screenDisplay.addStageButton')}
             </button>
+            {activeSelectedLeafIds.size >= 2 && (
+              <>
+                <button type="button" className="screen-toolbar__button" onClick={handleDeleteSelected} disabled={editingTarget !== null}>
+                  {t('screenDisplay.deleteSelectedButton', { count: activeSelectedLeafIds.size })}
+                </button>
+                <button type="button" className="screen-toolbar__button" onClick={handleGroupSelected} disabled={editingTarget !== null || !canGroupSelected} title={canGroupSelected ? undefined : t('screenDisplay.groupButtonDisabledHint')}>
+                  {t('screenDisplay.groupButton')}
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              className="screen-toolbar__button"
+              onClick={handleRedo}
+              disabled={editingTarget !== null || redoStack.length === 0}
+              aria-label={t('screenDisplay.redoButton')}
+              title={t('screenDisplay.redoButton')}
+            >
+              <RedoIcon />
+            </button>
             <FullscreenToggle />
             <button type="button" className="screen-toolbar__button" onClick={openScreenEditor}>
               {t('screenDisplay.editSizes')}
@@ -873,6 +1089,7 @@ export function ScreenDisplay() {
         onEditSlide={canEdit ? openSlotEditor : undefined}
         stage={stage}
         forcedStage={forcedStage}
+        tick={tick}
         onResizeDivider={canEdit ? handleResizeDivider : undefined}
         onDragStateChange={handleDragStateChange}
         onDropImage={canEdit ? handleDropImage : undefined}
@@ -882,7 +1099,10 @@ export function ScreenDisplay() {
         onDeletePane={canEdit ? handleDeletePane : undefined}
         onBorderClick={canEdit ? openBorderEditor : undefined}
         onTogglePaneLock={canEdit ? handleTogglePaneLock : undefined}
+        selectedLeafIds={activeSelectedLeafIds}
+        onToggleChecked={canEdit ? toggleLeafChecked : undefined}
         defaultPaneLanguage={defaultPaneLanguage}
+        onRequestStageAdvance={handleVideoEndedAdvance}
       />
 
       {screensaverActive && (

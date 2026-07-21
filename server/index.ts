@@ -11,11 +11,13 @@ import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection,
 import * as backup from './backup'
 import { handleDepartures, handleLookup, handleStopSearch, handleWeather } from './extensions'
 import { handleHeadlines } from './news'
+import { handleNewsImage, startNewsImageCacheSweep } from './newsImageCache'
 import { bearerToken, CORS_HEADERS, readJsonBody, sendJson } from './http'
 import * as mdns from './mdns'
 import * as neonBridge from './neonBridge'
 import * as store from './store'
-import { handleDeleteUpload, handleServeUpload, handleUpload, listUploads } from './uploads'
+import { handleDeleteUpload, handleRenameUpload, handleServeUpload, handleStorageUsage, handleUpload, listUploads } from './uploads'
+import { handleVideoRetry, handleVideoUpload, startAbandonedVideoUploadSweep } from './videoUploads'
 import * as foodoraAdapter from './foodoraAdapter'
 import * as foodoraPoller from './foodoraPoller'
 import * as woltAdapter from './woltAdapter'
@@ -172,10 +174,57 @@ const httpServer = createServer((req, res) => {
     return
   }
 
-  // Image uploads. Reads are public (the kiosk display isn't a logged-in
-  // session but still needs to load images); writes (POST/DELETE) and the
-  // list endpoint require a valid session, same as a synced-key `write`.
+  // Image/video uploads. Reads are public (the kiosk display isn't a
+  // logged-in session but still needs to load media); writes
+  // (POST/PATCH/DELETE) and the list/storage endpoints require a valid
+  // session, same as a synced-key `write`. The video-specific sub-routes
+  // (`/uploads/video`, `/uploads/video/<id>/retry`, `/uploads/storage`) are
+  // matched before the generic `<filename>` parsing below, so a literal
+  // upload named e.g. "video" or "storage" can never collide with them —
+  // every real upload's own filename is always a server-generated UUID.
   if (url.pathname === '/uploads' || url.pathname.startsWith('/uploads/')) {
+    if (req.method === 'POST' && url.pathname === '/uploads/video') {
+      const session = store.getSession(bearerToken(req) ?? '')
+      if (!session) {
+        sendJson(res, 401, { error: 'Authentication required' })
+        return
+      }
+      void handleVideoUpload(req, res, host)
+      return
+    }
+
+    const retryMatch = req.method === 'POST' ? url.pathname.match(/^\/uploads\/video\/([^/]+)\/retry$/) : null
+    if (retryMatch) {
+      const session = store.getSession(bearerToken(req) ?? '')
+      if (!session) {
+        sendJson(res, 401, { error: 'Authentication required' })
+        return
+      }
+      handleVideoRetry(res, retryMatch[1])
+      return
+    }
+
+    if (req.method === 'GET' && url.pathname === '/uploads/storage') {
+      const session = store.getSession(bearerToken(req) ?? '')
+      if (!session) {
+        sendJson(res, 401, { error: 'Authentication required' })
+        return
+      }
+      handleStorageUsage(res)
+      return
+    }
+
+    const nameMatch = req.method === 'PATCH' ? url.pathname.match(/^\/uploads\/([^/]+)\/name$/) : null
+    if (nameMatch) {
+      const session = store.getSession(bearerToken(req) ?? '')
+      if (!session) {
+        sendJson(res, 401, { error: 'Authentication required' })
+        return
+      }
+      handleRenameUpload(req, res, nameMatch[1])
+      return
+    }
+
     const filename = url.pathname === '/uploads' ? null : url.pathname.slice('/uploads/'.length)
 
     if (req.method === 'GET' && filename) {
@@ -256,6 +305,15 @@ const httpServer = createServer((req, res) => {
       return
     }
     void handleHeadlines(res, sourceIds, Number.isFinite(count) && count > 0 ? count : 10)
+    return
+  }
+
+  // News article images, proxied through this server's own disk cache
+  // (`server/newsImageCache.ts`) instead of the kiosk hitting each outlet's
+  // own hosting directly on every rotation — same public, unauthenticated
+  // posture as `/news/headlines`.
+  if (req.method === 'GET' && url.pathname === '/news/image') {
+    void handleNewsImage(res, url.searchParams.get('src'))
     return
   }
 
@@ -986,6 +1044,8 @@ store.load()
 neonBridge.start(applyUpdate, broadcastError)
 woltPoller.start(applyUpdate)
 foodoraPoller.start(applyUpdate)
+startNewsImageCacheSweep()
+startAbandonedVideoUploadSweep()
 mdns.apply(store.getScreenAddressSettings(), currentStoreName())
 // Always on, regardless of the opt-in hostname mode above — see
 // advertiseServerPresence's own doc comment for why this needs to be a

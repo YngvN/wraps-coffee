@@ -1,0 +1,106 @@
+@use '../../../styles/variables' as *;
+
+.media-viewer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  // Explicit viewport units rather than `inset: 0` — see `Modal.scss`'s own
+  // comment on why (stays pinned to the true viewport even if an ancestor
+  // happens to establish its own containing block).
+  width: 100vw;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: $color-overlay;
+  z-index: 1000;
+}
+
+.media-viewer__content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $spacing-unit;
+  max-width: min(90vw, 1400px);
+  max-height: 90dvh;
+}
+
+.media-viewer__media {
+  max-width: 100%;
+  max-height: calc(90dvh - 2.5rem);
+  object-fit: contain;
+  border-radius: 8px;
+  background: #000;
+}
+
+.media-viewer__caption {
+  margin: 0;
+  max-width: 100%;
+  padding: 0 $spacing-unit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff; // see the close/nav buttons' own comment below on why this is a plain color, not a theme token
+  font-size: 0.875rem;
+}
+
+.media-viewer__close,
+.media-viewer__nav {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.4);
+  // Deliberately plain white, not a theme token — this overlay's own
+  // backdrop is always dark regardless of the app's light/dark theme (same
+  // posture as `VideoSlide.scss`'s kiosk-display overlay), so its icons/
+  // caption need to stay legible against that, not follow the theme.
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      background: rgb(0 0 0 / 0.6);
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.5);
+  }
+}
+
+.media-viewer__close {
+  top: $spacing-unit;
+  right: $spacing-unit;
+  width: 40px;
+  height: 40px;
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+.media-viewer__nav {
+  top: 50%;
+  transform: translateY(-50%);
+  width: 52px;
+  height: 52px;
+
+  svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  &--previous {
+    left: $spacing-unit;
+  }
+
+  &--next {
+    right: $spacing-unit;
+  }
+}

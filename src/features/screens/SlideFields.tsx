@@ -30,9 +30,9 @@ import {
   type TimeWeekdayStyle,
 } from '../../types/screen'
 import { collectAnnouncementMessages } from '../../utils/announcements'
-import { clampImageResizeScale, IMAGE_RESIZE_MAX_VIEWPORT_FRACTION, MAX_IMAGE_RESIZE_SCALE, MIN_IMAGE_RESIZE_SCALE } from '../../utils/screenLayout'
+import { clampMediaResizeScale, MEDIA_RESIZE_MAX_VIEWPORT_FRACTION, MAX_MEDIA_RESIZE_SCALE, MIN_MEDIA_RESIZE_SCALE } from '../../utils/screenLayout'
 import { formatOrdinal } from '../../utils/formatOrdinal'
-import { getSmallUrl } from '../../utils/responsiveImage'
+import { getSmallUrl, getThumbnailUrl } from '../../utils/responsiveImage'
 import { TRANSIT_MODES } from '../../utils/transitModes'
 import { MessagePickerModal } from './MessagePickerModal'
 import './SlideFields.scss'
@@ -59,6 +59,7 @@ const MESSAGE_BOARD_ORDERS: MessageBoardOrder[] = ['newestFirst', 'oldestFirst']
  */
 function optionValueToContent(value: string, currentContent: ScreenSlotContent, suggestedEventOrdinal: number): ScreenSlotContent {
   if (value === 'image') return { kind: 'image', imageUrl: '' }
+  if (value === 'video') return { kind: 'video', videoUrl: '' }
   if (value === 'qrcode') return { kind: 'qrcode', url: '' }
   if (value === 'transit:ruter' || value === 'transit:entur') {
     const brand = value === 'transit:entur' ? 'entur' : 'ruter'
@@ -91,12 +92,13 @@ interface SlideFieldsProps {
   /** Accessible label for the content-kind selector. */
   label: string
   /**
-   * Disables the "Resize slot to fit image" checkbox, with an explanatory
-   * tooltip, when some other slot's content already resolves to a
-   * resize-to-fit image at this same stage — only one is allowed active at
-   * once, to keep a stage from resizing more than one pane at a time. Never
-   * disables an already-checked box, so this slide can always turn its own
-   * back off regardless.
+   * Disables the "Resize slot to fit image"/"Resize slot to fit video"
+   * checkbox, with an explanatory tooltip, when some other slot's content
+   * already resolves to a resize-to-fit image or video at this same stage —
+   * only one (of either kind) is allowed active at once, to keep a stage
+   * from resizing more than one pane at a time. Never disables an
+   * already-checked box, so this slide can always turn its own back off
+   * regardless.
    */
   resizeToFitBlocked?: boolean
   /** What a fresh switch to "Event image"/"Event details" should default its own `eventOrdinal` to (see `findSiblingEventOrdinal`) — usually another pane's own choice on the same screen, else `1`. */
@@ -106,14 +108,24 @@ interface SlideFieldsProps {
 /**
  * One slide's own fields: what it shows (a content-kind selector), its own
  * URL/fill-container/resize-to-fit/resize-scale fields when set to "Image"
- * (resize-to-fit makes the slide's own *pane* grow or shrink to match the
- * image's aspect ratio, capped at its own resize-scale percentage of the
- * screen's viewport, defaulting to 40% but also adjustable by dragging the
- * pane's own border on the live display — see `SplitLayout`), a checkbox
- * per category when set to "Full menu" (letting the full menu be split
- * across more than one screen — each gets its own subset checked). This
- * slide's own background image (an override of its slot's shared one) is
- * edited alongside the slot's own, in the "Background" sub-menu, not here.
+ * or "Video" (resize-to-fit makes the slide's own *pane* grow or shrink to
+ * match the media's own aspect ratio, capped at its own resize-scale
+ * percentage of the screen's viewport, defaulting to 40% but also
+ * adjustable by dragging the pane's own border on the live display — see
+ * `SplitLayout`; only one resize-to-fit pane, image or video, is ever
+ * active per stage — the checkbox disables itself with an explanatory
+ * tooltip on every other pane while that's the case, see
+ * `resizeToFitBlocked`), a video's own further
+ * remove-audio/volume/advance-stage-on-end/restart-on-stage-one fields
+ * (`advanceStageOnEnd`'s own checkbox surfaces a plain-language warning
+ * here since it advances the whole screen's shared stage rotation, not just
+ * this one pane; `restartOnStageOne` resets the video back to its own
+ * beginning whenever that shared rotation comes back around to stage 1 —
+ * see `ScreenSlotContent`'s own `'video'` variant), a checkbox per category
+ * when set to "Full menu" (letting the full menu be split across more than
+ * one screen — each gets its own subset checked). This slide's own
+ * background image (an override of its slot's shared one) is edited
+ * alongside the slot's own, in the "Background" sub-menu, not here.
  */
 export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, suggestedEventOrdinal }: SlideFieldsProps) {
   const { t, language } = useLanguage()
@@ -147,7 +159,53 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
   /** `resizeScale` is stored as a 0-1 fraction of the viewport but edited here as a whole-number percentage, matching how an arrangement's own dividers are edited elsewhere. */
   const setImageResizeScalePercent = (percent: number) => {
     if (content.kind !== 'image') return
-    onChange({ ...content, resizeScale: clampImageResizeScale(percent / 100) })
+    onChange({ ...content, resizeScale: clampMediaResizeScale(percent / 100) })
+  }
+
+  /** Starts a fresh video slide when switching the selector to "Video"; otherwise just updates the URL in place, keeping this slide's other own fields (fit, resize-to-fit, audio, background image) intact. */
+  const setVideoUrl = (videoUrl: string) => {
+    if (content.kind !== 'video') {
+      onChange({ kind: 'video', videoUrl })
+      return
+    }
+    onChange({ ...content, videoUrl })
+  }
+
+  const setVideoFillContainer = (fillContainer: boolean) => {
+    if (content.kind !== 'video') return
+    onChange({ ...content, fit: fillContainer ? 'cover' : 'contain' })
+  }
+
+  const setVideoResizeToFit = (resizeToFit: boolean) => {
+    if (content.kind !== 'video') return
+    onChange({ ...content, resizeToFit })
+  }
+
+  /** `resizeScale` is stored as a 0-1 fraction of the viewport but edited here as a whole-number percentage, matching `setImageResizeScalePercent`'s own convention. */
+  const setVideoResizeScalePercent = (percent: number) => {
+    if (content.kind !== 'video') return
+    onChange({ ...content, resizeScale: clampMediaResizeScale(percent / 100) })
+  }
+
+  const setVideoRemoveAudio = (removeAudio: boolean) => {
+    if (content.kind !== 'video') return
+    onChange({ ...content, removeAudio })
+  }
+
+  /** `volume` is stored as a 0-1 fraction but edited here as a whole-number percentage, matching `resizeScale`'s own convention. */
+  const setVideoVolumePercent = (percent: number) => {
+    if (content.kind !== 'video') return
+    onChange({ ...content, volume: Math.min(1, Math.max(0, percent / 100)) })
+  }
+
+  const setVideoAdvanceStageOnEnd = (advanceStageOnEnd: boolean) => {
+    if (content.kind !== 'video') return
+    onChange({ ...content, advanceStageOnEnd })
+  }
+
+  const setVideoRestartOnStageOne = (restartOnStageOne: boolean) => {
+    if (content.kind !== 'video') return
+    onChange({ ...content, restartOnStageOne })
   }
 
   /** Starts a fresh QR code slide when switching the selector to "QR code"; otherwise just updates the URL in place. */
@@ -447,6 +505,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
           <option value="event:month">{t('admin.screens.slotEventMonthLabel')}</option>
         </optgroup>
         <option value="image">{t('admin.screens.slotImageLabel')}</option>
+        <option value="video">{t('admin.screens.slotVideoLabel')}</option>
         <option value="qrcode">{t('admin.screens.slotQrCodeLabel')}</option>
         {/* Each integration-backed option only appears once it's turned on in Integrations — except when it's already this pane's own current value, so an existing pane doesn't lose sight of its own setting the moment that integration gets disabled elsewhere. */}
         {(extensionsConfig.transit.enabled || (content.kind === 'transit' && (content.brand ?? 'ruter') === 'ruter')) && (
@@ -482,13 +541,13 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
           {content.resizeToFit && (
             <label className="slide-fields__slider">
               <span>
-                {t('admin.screens.resizeScaleLabel')} — {Math.round((content.resizeScale ?? IMAGE_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}%
+                {t('admin.screens.resizeScaleLabel')} — {Math.round((content.resizeScale ?? MEDIA_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}%
               </span>
               <input
                 type="range"
-                min={MIN_IMAGE_RESIZE_SCALE * 100}
-                max={MAX_IMAGE_RESIZE_SCALE * 100}
-                value={Math.round((content.resizeScale ?? IMAGE_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}
+                min={MIN_MEDIA_RESIZE_SCALE * 100}
+                max={MAX_MEDIA_RESIZE_SCALE * 100}
+                value={Math.round((content.resizeScale ?? MEDIA_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}
                 onChange={(event) => setImageResizeScalePercent(Number(event.target.value))}
               />
             </label>
@@ -505,8 +564,98 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
                   style={
                     content.resizeToFit
                       ? {
-                          maxWidth: `${Math.round((content.resizeScale ?? IMAGE_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}%`,
-                          maxHeight: `${Math.round((content.resizeScale ?? IMAGE_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}%`,
+                          maxWidth: `${Math.round((content.resizeScale ?? MEDIA_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}%`,
+                          maxHeight: `${Math.round((content.resizeScale ?? MEDIA_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}%`,
+                          objectFit: 'contain',
+                        }
+                      : { width: '100%', height: '100%', objectFit: content.fit === 'cover' ? 'cover' : 'contain' }
+                  }
+                />
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {content.kind === 'video' && (
+        <>
+          <ImageUploadField id={`${id}-video-url`} value={content.videoUrl} onChange={setVideoUrl} acceptVideo />
+          <Checkbox
+            id={`${id}-video-fill`}
+            label={t('admin.screens.imageFillContainerLabel')}
+            checked={content.fit === 'cover'}
+            onChange={(event) => setVideoFillContainer(event.target.checked)}
+          />
+          <Checkbox
+            id={`${id}-video-resize-to-fit`}
+            label={t('admin.screens.resizeToFitVideoLabel')}
+            checked={Boolean(content.resizeToFit)}
+            onChange={(event) => setVideoResizeToFit(event.target.checked)}
+            disabled={resizeToFitBlocked && !content.resizeToFit}
+            title={resizeToFitBlocked && !content.resizeToFit ? t('admin.screens.resizeToFitBlockedTooltip') : undefined}
+          />
+          {content.resizeToFit && (
+            <label className="slide-fields__slider">
+              <span>
+                {t('admin.screens.resizeScaleLabel')} — {Math.round((content.resizeScale ?? MEDIA_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}%
+              </span>
+              <input
+                type="range"
+                min={MIN_MEDIA_RESIZE_SCALE * 100}
+                max={MAX_MEDIA_RESIZE_SCALE * 100}
+                value={Math.round((content.resizeScale ?? MEDIA_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}
+                onChange={(event) => setVideoResizeScalePercent(Number(event.target.value))}
+              />
+            </label>
+          )}
+          <Checkbox
+            id={`${id}-video-remove-audio`}
+            label={t('admin.screens.videoRemoveAudioLabel')}
+            checked={Boolean(content.removeAudio)}
+            onChange={(event) => setVideoRemoveAudio(event.target.checked)}
+          />
+          {!content.removeAudio && (
+            <label className="slide-fields__slider">
+              <span>
+                {t('admin.screens.videoVolumeLabel')} — {Math.round((content.volume ?? 1) * 100)}%
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={Math.round((content.volume ?? 1) * 100)}
+                onChange={(event) => setVideoVolumePercent(Number(event.target.value))}
+              />
+            </label>
+          )}
+          <Checkbox
+            id={`${id}-video-advance-stage-on-end`}
+            label={t('admin.screens.videoAdvanceStageOnEndLabel')}
+            checked={Boolean(content.advanceStageOnEnd)}
+            onChange={(event) => setVideoAdvanceStageOnEnd(event.target.checked)}
+          />
+          {content.advanceStageOnEnd && <p className="slide-fields__hint">{t('admin.screens.videoAdvanceStageOnEndHint')}</p>}
+          <Checkbox
+            id={`${id}-video-restart-on-stage-one`}
+            label={t('admin.screens.videoRestartOnStageOneLabel')}
+            checked={Boolean(content.restartOnStageOne)}
+            onChange={(event) => setVideoRestartOnStageOne(event.target.checked)}
+          />
+          {content.restartOnStageOne && <p className="slide-fields__hint">{t('admin.screens.videoRestartOnStageOneHint')}</p>}
+
+          {content.videoUrl && (
+            <div className="slide-fields__preview">
+              <span className="slide-fields__preview-label">{t('admin.screens.videoPreviewLabel')}</span>
+              <div className="slide-fields__preview-screen">
+                <img
+                  src={getThumbnailUrl(content.videoUrl)}
+                  alt=""
+                  className="slide-fields__preview-image"
+                  style={
+                    content.resizeToFit
+                      ? {
+                          maxWidth: `${Math.round((content.resizeScale ?? MEDIA_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}%`,
+                          maxHeight: `${Math.round((content.resizeScale ?? MEDIA_RESIZE_MAX_VIEWPORT_FRACTION) * 100)}%`,
                           objectFit: 'contain',
                         }
                       : { width: '100%', height: '100%', objectFit: content.fit === 'cover' ? 'cover' : 'contain' }

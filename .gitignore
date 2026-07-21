@@ -22,6 +22,10 @@ server/data/*
 server/uploads/*
 !server/uploads/.gitkeep
 
+# Disposable, re-fetchable disk cache of news article images (server/newsImageCache.ts) — never committed, not backed up either (see that file's own doc comment).
+server/news-image-cache/*
+!server/news-image-cache/.gitkeep
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

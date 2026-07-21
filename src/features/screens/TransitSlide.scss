@@ -245,5 +245,7 @@
   top: $spacing-unit * 2;
   left: $spacing-unit * 2;
   width: auto;
-  height: 2.25rem;
+  // Matches every other slide's own corner brand logo (News, Weather) —
+  // one consistent size regardless of which live-data source is showing.
+  height: 2.5rem;
 }

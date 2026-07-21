@@ -98,28 +98,87 @@ export class UploadError extends Error {}
 /** Thrown when the server rejects a request's token — the session is gone (e.g. logged out from another tab, or a session the server no longer recognizes) and the caller should treat this as "logged out," not a generic failure. */
 export class SessionExpiredError extends Error {}
 
-/** Uploads an image file, which the server also compresses into `-small`/`-thumb` companion variants. Returns the original's URL — same shape whether or not compression succeeded. */
-export async function uploadImage(file: File, token: string): Promise<string> {
+/** Runs a raw-bytes upload via `XMLHttpRequest` rather than `fetch` — `fetch` has no upload-progress event, and both `uploadImage`/`uploadVideo` need one for their own progress bars. */
+function xhrUpload(url: string, file: File, token: string, onProgress?: (fraction: number) => void): Promise<{ status: number; body: unknown }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', url)
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    xhr.upload.onprogress = (event) => {
+      if (onProgress && event.lengthComputable) onProgress(event.loaded / event.total)
+    }
+    xhr.onload = () => {
+      let body: unknown = {}
+      try {
+        body = xhr.responseText ? JSON.parse(xhr.responseText) : {}
+      } catch {
+        // Ignore — an empty/non-JSON body is handled by the status check below.
+      }
+      resolve({ status: xhr.status, body })
+    }
+    xhr.onerror = () => reject(new UploadError('Could not reach the local server. Is it running?'))
+    xhr.send(file)
+  })
+}
+
+/** Uploads an image file, which the server also compresses into `-small`/`-thumb` companion variants. Returns the original's URL — same shape whether or not compression succeeded. `onProgress` (0-1) reports network-transfer progress only. */
+export async function uploadImage(file: File, token: string, onProgress?: (fraction: number) => void): Promise<string> {
+  const { status, body } = await xhrUpload(`${serverBaseUrl()}/uploads`, file, token, onProgress)
+  if (status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (status < 200 || status >= 300) throw new UploadError((body as { error?: string }).error ?? 'Upload failed')
+  return (body as { url: string }).url
+}
+
+/** The immediate response to a video upload/retry — transcoding hasn't started resolving yet, so this is deliberately narrower than a full `UploadedMedia` entry (no `thumbUrl`/`sizeBytes` until the poster/transcode exist). Poll `listUploads()` for this `filename` until its `status` flips to `undefined` (ready) or `'failed'`. */
+export interface VideoUploadAck {
+  id: string
+  filename: string
+  url?: string
+  status: 'processing'
+}
+
+/** Uploads a video file for background transcoding into a browser-safe MP4 (also "the compressor" — see `server/videoUploads.ts`) plus a poster frame. `onProgress` (0-1) reports network-transfer progress only — the much longer server-side transcode has no meaningful percentage, see `VideoUploadAck`. */
+export async function uploadVideo(file: File, token: string, onProgress?: (fraction: number) => void): Promise<VideoUploadAck> {
+  const { status, body } = await xhrUpload(`${serverBaseUrl()}/uploads/video`, file, token, onProgress)
+  if (status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (status < 200 || status >= 300) throw new UploadError((body as { error?: string }).error ?? 'Upload failed')
+  return body as VideoUploadAck
+}
+
+/** Re-attempts a failed transcode against its still-staged source, without needing the file re-uploaded. 404s (surfaced as a thrown `UploadError`) if that staged copy is gone — already succeeded, deleted, or swept after 48h abandoned. */
+export async function retryVideoUpload(id: string, token: string): Promise<VideoUploadAck> {
   let response: Response
   try {
-    response = await fetch(`${serverBaseUrl()}/uploads`, {
-      method: 'POST',
-      headers: { 'Content-Type': file.type, Authorization: `Bearer ${token}` },
-      body: file,
-    })
+    response = await fetch(`${serverBaseUrl()}/uploads/video/${id}/retry`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
   } catch {
     throw new UploadError('Could not reach the local server. Is it running?')
   }
-
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
-
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string }
-    throw new UploadError(body.error ?? 'Upload failed')
+    throw new UploadError(body.error ?? 'Retry failed')
   }
+  return response.json() as Promise<VideoUploadAck>
+}
 
-  const { url } = (await response.json()) as { url: string }
-  return url
+/** Sets (or, passing `''`, clears) a user-chosen label for an upload — the Media Library's "rename" action. Applies to both images and videos. */
+export async function renameUpload(filename: string, displayName: string, token: string): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/uploads/${filename}/name`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ displayName }),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) throw new Error('Could not rename this upload')
+}
+
+/** Total bytes used under the server's own uploads folder, and bytes still free on that volume — lets the Media Library warn before a kiosk's disk actually fills up. */
+export async function getStorageUsage(token: string): Promise<{ usedBytes: number; availableBytes: number }> {
+  const response = await fetch(`${serverBaseUrl()}/uploads/storage`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) throw new Error('Could not load storage usage')
+  return response.json() as Promise<{ usedBytes: number; availableBytes: number }>
 }
 
 /** Best-effort delete — a failure just leaves an orphaned file on the server, it doesn't block whatever edit triggered it. */
@@ -136,22 +195,30 @@ export async function deleteUpload(url: string, token: string): Promise<void> {
   }
 }
 
-/** One entry in the Image Library — every original currently stored on the server, newest first. */
-export interface UploadedImage {
+/** One entry in the Media Library — every original image/video currently stored on the server, newest first. */
+export interface UploadedMedia {
   filename: string
   url: string
   thumbUrl: string
   sizeBytes: number
   uploadedAt: string
+  /** Derived server-side purely from extension. */
+  kind: 'image' | 'video'
+  /** Omitted for images (always synchronously ready) and for a video whose transcode already succeeded. */
+  status?: 'processing' | 'failed'
+  /** Only present alongside `status: 'failed'`. */
+  errorMessage?: string
+  /** User-set label from the Media Library's rename action, if any — falls back to the raw filename in the UI when unset. */
+  displayName?: string
 }
 
-export async function listUploads(token: string): Promise<UploadedImage[]> {
+export async function listUploads(token: string): Promise<UploadedMedia[]> {
   const response = await fetch(`${serverBaseUrl()}/uploads`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (!response.ok) throw new Error('Failed to list uploads')
-  return response.json() as Promise<UploadedImage[]>
+  return response.json() as Promise<UploadedMedia[]>
 }
 
 /** True if `url` was served by this same local server's `/uploads/` — the only URLs it's safe to try compressing/deleting via this server's own endpoints. */
@@ -195,6 +262,11 @@ export async function fetchNewsHeadlines(sourceIds: string[], count: number): Pr
   if (!response.ok) throw new Error('Could not fetch news headlines')
   const { headlines } = (await response.json()) as { headlines: NewsHeadline[] }
   return headlines
+}
+
+/** Proxies a headline's own `imageUrl` through this server's own disk cache (`server/newsImageCache.ts`) instead of hitting the source outlet's own hosting on every view — same origin as every other local-server-served image, so `NewsSlide`'s `<img src>` just points here directly. Not a `fetch`-and-return-blob helper like the others in this file, since an `<img>` tag needs a plain URL string, not a promise. */
+export function newsImageProxyUrl(src: string): string {
+  return `${serverBaseUrl()}/news/image?src=${encodeURIComponent(src)}`
 }
 
 /** The current developer API key (see "For developers" in Settings), or `null` if none has been generated yet. */

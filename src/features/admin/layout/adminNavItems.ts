@@ -33,7 +33,7 @@ export const NAV_ITEMS = [
   // Spans uploads from every section rather than belonging to one, so —
   // like "Users" below — it's admin/subadmin-only rather than part of a
   // `limited` account's own scoped sections.
-  { to: 'images', id: 'admin.nav.images', adminOnly: true, toggleable: true },
+  { to: 'media', id: 'admin.nav.media', adminOnly: true, toggleable: true },
   // Account management itself — admin/subadmin-only for the same reason a
   // `limited` account can't grant itself more access than it was given.
   { to: 'users', id: 'admin.nav.users', adminOnly: true, toggleable: true },
@@ -52,7 +52,7 @@ export const ADMIN_NAV_ICONS = {
   screens: ScreensIcon,
   extensions: ExtensionsIcon,
   messageboard: MessageBoardIcon,
-  images: ImagesIcon,
+  media: ImagesIcon,
   users: UsersIcon,
   settings: SettingsIcon,
 }

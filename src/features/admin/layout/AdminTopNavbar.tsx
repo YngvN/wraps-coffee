@@ -5,6 +5,7 @@ import { OverviewIcon, SettingsIcon } from './AdminNavIcons'
 import { MessagesDropdown } from './MessagesDropdown'
 import { NotificationsDropdown } from './NotificationsDropdown'
 import { StoreBrandHeader } from './StoreBrandHeader'
+import { UploadsIndicator } from './UploadsIndicator'
 import './AdminTopNavbar.scss'
 
 interface AdminTopNavbarProps {
@@ -19,8 +20,10 @@ interface AdminTopNavbarProps {
  * shortcuts to Overview ("home"), Settings ("wrench" — the same
  * destination as the sidebar rail's own Settings item, just one click
  * closer), `NotificationsDropdown` (bell — new orders + out-of-stock
- * tracked products) and `MessagesDropdown` (envelope — unread messages),
- * plus the logged-in username. No avatar picture (none exists) and no
+ * tracked products), `MessagesDropdown` (envelope — unread messages), and
+ * `UploadsIndicator` (upload arrow — any image/video upload the global
+ * `uploadManager` is still transferring or transcoding, hidden entirely
+ * once nothing is in flight), plus the logged-in username. No avatar picture (none exists) and no
  * profile dropdown — the user wants the existing sidebar-footer logout
  * button left exactly where it is, not duplicated/moved here.
  */
@@ -63,6 +66,7 @@ export function AdminTopNavbar({ isSidebarOpen, onToggleSidebar }: AdminTopNavba
         </NavLink>
         <NotificationsDropdown />
         <MessagesDropdown />
+        <UploadsIndicator />
       </nav>
 
       {session && <span className="admin-top-navbar__username">{session.username}</span>}

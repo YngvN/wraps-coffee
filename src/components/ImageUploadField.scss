@@ -178,3 +178,29 @@
   color: $color-text-muted;
   font-size: 0.8125rem;
 }
+
+.image-upload-field__progress {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: $color-surface-hover;
+  overflow: hidden;
+}
+
+.image-upload-field__progress-bar {
+  height: 100%;
+  border-radius: 3px;
+  background: $color-accent;
+  transition: width 0.2s ease;
+}
+
+.image-upload-field__error-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  flex-wrap: wrap;
+
+  p {
+    margin: 0;
+  }
+}

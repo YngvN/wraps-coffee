@@ -1,15 +1,22 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statfsSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { basename, dirname, extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import sharp from 'sharp'
 import { mirrorFile } from './backup'
-import { CORS_HEADERS, sendJson } from './http'
+import { CORS_HEADERS, readJsonBody, sendJson } from './http'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 export const UPLOADS_DIR = join(__dirname, 'uploads')
 mkdirSync(UPLOADS_DIR, { recursive: true })
+
+// Staging area for a video upload's raw source while it's being transcoded
+// (see server/videoUploads.ts) — defined here, not there, so this file (the
+// shared upload primitive both uploads.ts and videoUploads.ts build on)
+// never has to import from the video-specific module and create a cycle.
+export const VIDEO_PENDING_DIR = join(UPLOADS_DIR, '.pending')
+mkdirSync(VIDEO_PENDING_DIR, { recursive: true })
 
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
@@ -26,6 +33,7 @@ const EXT_TO_CONTENT_TYPE: Record<string, string> = {
   png: 'image/png',
   webp: 'image/webp',
   gif: 'image/gif',
+  mp4: 'video/mp4',
 }
 
 async function readBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
@@ -127,17 +135,31 @@ export function handleServeUpload(res: ServerResponse, requestedFilename: string
   res.end(readFileSync(filePath))
 }
 
-/** Removes the original and all of its `-small`/`-thumb`/`-blur` companions, if present. Idempotent — always succeeds even if nothing existed. */
+/** Removes the original and all of its `-small`/`-thumb`/`-blur` companions and status/name markers, if present, plus (for a video whose transcode never finished) its still-staged source. Idempotent — always succeeds even if nothing existed. */
 export function handleDeleteUpload(res: ServerResponse, requestedFilename: string) {
   const safeName = basename(requestedFilename)
   const stem = stemOf(safeName)
 
-  for (const name of [safeName, `${stem}-small.webp`, `${stem}-thumb.webp`, `${stem}-blur.webp`]) {
+  for (const name of [
+    safeName,
+    `${stem}-small.webp`,
+    `${stem}-thumb.webp`,
+    `${stem}-blur.webp`,
+    `${safeName}.processing`,
+    `${safeName}.error`,
+    `${safeName}.name`,
+  ]) {
     const filePath = join(UPLOADS_DIR, name)
     if (existsSync(filePath)) unlinkSync(filePath)
     // Mirrors the deletion too (mirrorFile removes its own copy when the
     // source no longer exists) so the backup doesn't accumulate orphans.
     mirrorFile(filePath)
+  }
+
+  const stagedSource = join(VIDEO_PENDING_DIR, `${stem}.src`)
+  if (existsSync(stagedSource)) {
+    unlinkSync(stagedSource)
+    mirrorFile(stagedSource)
   }
 
   res.writeHead(204, CORS_HEADERS)
@@ -150,24 +172,80 @@ export interface UploadListEntry {
   thumbUrl: string
   sizeBytes: number
   uploadedAt: string
+  /** Derived purely from extension — every video is always canonicalized to `.mp4` on a successful transcode, so this is unambiguous with no extra bookkeeping. */
+  kind: 'image' | 'video'
+  /** Omitted for images (always synchronously ready). Only ever set for a video mid-transcode or one whose transcode failed. */
+  status?: 'processing' | 'failed'
+  /** Only present alongside `status: 'failed'`. */
+  errorMessage?: string
+  /** User-set label from the Media Library's rename action, if any — falls back to the raw filename in the UI when unset. */
+  displayName?: string
 }
 
-/** Lists every original upload (excluding `-small`/`-thumb`/`-blur` companions, so each upload appears once), newest first. */
+/** Reads a video's own `.processing`/`.error` status markers (see `server/videoUploads.ts`), if any — `undefined` status means the file is a plain ready upload (every image, and a video whose transcode already succeeded). */
+function readUploadStatus(filename: string): Pick<UploadListEntry, 'status' | 'errorMessage'> {
+  if (existsSync(join(UPLOADS_DIR, `${filename}.processing`))) return { status: 'processing' }
+  const errorPath = join(UPLOADS_DIR, `${filename}.error`)
+  if (existsSync(errorPath)) return { status: 'failed', errorMessage: readFileSync(errorPath, 'utf-8') }
+  return {}
+}
+
+function readDisplayName(filename: string): string | undefined {
+  const namePath = join(UPLOADS_DIR, `${filename}.name`)
+  return existsSync(namePath) ? readFileSync(namePath, 'utf-8') : undefined
+}
+
+/** Lists every original upload (excluding `-small`/`-thumb`/`-blur` companions and status/name marker files, so each upload appears once), newest first. */
 export function listUploads(host: string): UploadListEntry[] {
-  const files = readdirSync(UPLOADS_DIR).filter(
-    (name) => !name.endsWith('-small.webp') && !name.endsWith('-thumb.webp') && !name.endsWith('-blur.webp') && name !== '.gitkeep',
-  )
+  const files = readdirSync(UPLOADS_DIR).filter((name) => {
+    if (name === '.gitkeep' || name === '.pending') return false
+    if (name.endsWith('-small.webp') || name.endsWith('-thumb.webp') || name.endsWith('-blur.webp')) return false
+    if (name.endsWith('.processing') || name.endsWith('.error') || name.endsWith('.name')) return false
+    return true
+  })
 
   return files
     .map((filename) => {
       const stats = statSync(join(UPLOADS_DIR, filename))
+      const kind: UploadListEntry['kind'] = extname(filename).toLowerCase() === '.mp4' ? 'video' : 'image'
       return {
         filename,
         url: `http://${host}/uploads/${filename}`,
         thumbUrl: `http://${host}/uploads/${filename}?size=thumb`,
         sizeBytes: stats.size,
         uploadedAt: stats.mtime.toISOString(),
+        kind,
+        ...readUploadStatus(filename),
+        displayName: readDisplayName(filename),
       }
     })
     .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))
+}
+
+/** Sets or clears (`displayName: ''`) a user-chosen label for an upload — the "rename" the original Image Library's own deferred comment mentioned. Applies to both images and videos. */
+export function handleRenameUpload(req: IncomingMessage, res: ServerResponse, requestedFilename: string) {
+  const safeName = basename(requestedFilename)
+  readJsonBody(req)
+    .then((body) => {
+      const { displayName } = body as { displayName?: string }
+      const namePath = join(UPLOADS_DIR, `${safeName}.name`)
+      const trimmed = typeof displayName === 'string' ? displayName.trim() : ''
+      if (trimmed) writeFileSync(namePath, trimmed, 'utf-8')
+      else if (existsSync(namePath)) unlinkSync(namePath)
+      mirrorFile(namePath)
+      sendJson(res, 200, { displayName: trimmed || undefined })
+    })
+    .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+}
+
+/** Total bytes actually on disk under `UPLOADS_DIR` (originals + every companion/marker) and bytes still free on that volume — lets the Media Library warn before a kiosk's disk actually fills up. */
+export function handleStorageUsage(res: ServerResponse) {
+  const usedBytes = readdirSync(UPLOADS_DIR).reduce((total, name) => {
+    const path = join(UPLOADS_DIR, name)
+    const stats = statSync(path)
+    return stats.isFile() ? total + stats.size : total
+  }, 0)
+  const volume = statfsSync(UPLOADS_DIR)
+  const availableBytes = volume.bavail * volume.bsize
+  sendJson(res, 200, { usedBytes, availableBytes })
 }

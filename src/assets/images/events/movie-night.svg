@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="Movie night illustration">
+  <rect width="160" height="160" rx="24" fill="#FBF1DD" />
+  <rect x="32" y="64" width="96" height="62" rx="6" fill="#626C66" />
+  <path d="M30 60 126 60 130 44 34 44Z" fill="#8F250C" />
+  <path d="M40 60 56 44h14l-16 16Zm28 0 16-16h14l-16 16Zm28 0 16-16h14l-16 16Z" fill="#DFA93E" />
+  <circle cx="80" cy="98" r="16" fill="#FBF1DD" />
+  <path d="M75 90l14 8-14 8z" fill="#88D18A" />
+</svg>

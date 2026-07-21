@@ -68,14 +68,24 @@ async function fetchSourceHeadlines(sourceId: string): Promise<NewsHeadline[]> {
   }
 }
 
-/** Serves `GET /news/headlines?sources=<id,id,...>&count=<n>` — merges the requested sources' own cached-or-freshly-fetched headlines, newest first, capped to `count`. Unknown source ids are silently ignored (matches how an unset/removed `locationId`/`stopId` elsewhere in this app degrades gracefully rather than erroring). */
+/**
+ * Serves `GET /news/headlines?sources=<id,id,...>&count=<n>` — `count` is a
+ * *per-source* cap, not a cap on the combined list: each requested source
+ * contributes up to its own `count` newest headlines, merged and sorted
+ * newest-first only after that. Capping the *combined* list instead (the
+ * original behavior) meant a handful of frequently-posting sources crowded
+ * out everything else, so enabling more sources didn't actually give a
+ * rotating pane more variety — the opposite of what an admin picking
+ * several sources would expect. Unknown source ids are silently ignored
+ * (matches how an unset/removed `locationId`/`stopId` elsewhere in this app
+ * degrades gracefully rather than erroring).
+ */
 export async function handleHeadlines(res: ServerResponse, sourceIds: string[], count: number) {
   try {
     const perSource = await Promise.all(sourceIds.map((sourceId) => fetchSourceHeadlines(sourceId)))
     const merged = perSource
-      .flat()
+      .flatMap((headlines) => headlines.slice(0, count))
       .sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? ''))
-      .slice(0, count)
     sendJson(res, 200, { headlines: merged })
   } catch (error) {
     console.error('[news] headlines request failed:', error)

@@ -91,6 +91,17 @@ export function ImagesIcon(props: IconProps) {
   )
 }
 
+/** Upload-in-progress arrow, for `UploadsIndicator` (the top navbar's own "N uploads in progress" dropdown). */
+export function UploadIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 16V4" />
+      <polyline points="7,9 12,4 17,9" />
+      <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+    </Icon>
+  )
+}
+
 export function UsersIcon(props: IconProps) {
   return (
     <Icon {...props}>

@@ -8,9 +8,26 @@ export function hasOwnTextSizeFields(
   return content.kind === 'catalogue' || content.kind === 'transit' || content.kind === 'weather' || content.kind === 'messageboard' || content.kind === 'announcement'
 }
 
-/** A content kind that's an image with `resizeToFit` on and an actual URL set — the only kind whose pane temporarily overrides its own ratio fields to fit the image (see `imageResizeRatioPatch`) and the only kind subject to the "one at a time per stage" conflict check (see `isResizeToFitConflict`). */
+/** A content kind that's an image with `resizeToFit` on and an actual URL set — one of the two kinds whose pane temporarily overrides its own ratio fields to fit the media (see `mediaResizeRatioPatch`) and is subject to the "one at a time per stage" conflict check (see `isResizeToFitConflict`). */
 export function isResizeToFitImage(content: ScreenSlotContent): content is Extract<ScreenSlotContent, { kind: 'image' }> {
   return content.kind === 'image' && Boolean(content.resizeToFit) && Boolean(content.imageUrl)
+}
+
+/** Same idea as `isResizeToFitImage`, for a video checkpoint instead. */
+export function isResizeToFitVideo(content: ScreenSlotContent): content is Extract<ScreenSlotContent, { kind: 'video' }> {
+  return content.kind === 'video' && Boolean(content.resizeToFit) && Boolean(content.videoUrl)
+}
+
+/** Either resize-to-fit kind at once — the only two kinds whose pane temporarily overrides its own ratio fields to fit the media, and the only two subject to the "one at a time per stage" conflict check (see `isResizeToFitConflict`). */
+export function isResizeToFitContent(content: ScreenSlotContent): content is Extract<ScreenSlotContent, { kind: 'image' | 'video' }> {
+  return isResizeToFitImage(content) || isResizeToFitVideo(content)
+}
+
+/** The bare URL a resize-to-fit image/video checkpoint's own natural dimensions should be measured from (and the cache key `SplitLayout`'s own natural-size lookup uses) — `undefined` for anything else. Image and video content each carry their URL under a differently-named field (`imageUrl`/`videoUrl`), so this is the one place that difference needs handling at all; everywhere else just deals in a plain URL string. */
+export function resizeToFitMediaUrl(content: ScreenSlotContent): string | undefined {
+  if (isResizeToFitImage(content)) return content.imageUrl
+  if (isResizeToFitVideo(content)) return content.videoUrl
+  return undefined
 }
 
 /** Effective background image for a specific piece of content: its own when set (setting one is itself the opt-in, no separate flag needed), else `fallback` — typically the content's slot's own image. */

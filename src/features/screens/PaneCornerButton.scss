@@ -1,12 +1,10 @@
-// Shared by `PaneClearButton` (top-left), `PaneDeleteButton` (top-right) and
-// `PaneLockButton`'s own unlocked state (bottom-left, see `PaneLockButton.scss`
-// for its locked/centered state instead) — small pill buttons revealed by
-// hovering the *whole* pane (not just their own corner), matching the
-// original request ("hovering over panes in general, have a Clear button
-// top-left, a delete button top-right").
+// Shared by `PaneClearButton`/`PaneDeleteButton` (grouped together top-right,
+// see `.pane-corner-button-group` below), `PaneSelectCheckbox` (top-left,
+// where `PaneClearButton` alone used to sit) and `PaneLockButton`'s own
+// unlocked state (bottom-left, see `PaneLockButton.scss` for its
+// locked/centered state instead) — small pill buttons revealed by hovering
+// the *whole* pane (not just their own corner).
 .pane-corner-button {
-  position: absolute;
-  z-index: 7;
   display: inline-flex;
   align-items: center;
   gap: 0.35em;
@@ -22,17 +20,33 @@
   opacity: 0;
   transition: opacity 0.15s ease, background-color 0.15s ease;
 
-  &--clear {
+  // `--clear`/`--delete` are positioned by their shared `.pane-corner-button-group`
+  // wrapper instead (plain flex children here) — `--select`/`--lock` are each
+  // the lone occupant of their own corner, so they position themselves directly.
+  &--select {
+    position: absolute;
+    z-index: 7;
     top: 0.6em;
     left: 0.6em;
+    // At least 1.5em square even with no checkmark showing yet (unchecked) —
+    // otherwise the empty button would collapse to just its own padding.
+    min-width: 1.5em;
+    min-height: 1.5em;
+    justify-content: center;
   }
 
-  &--delete {
-    top: 0.6em;
-    right: 0.6em;
+  // A selected pane's own checkbox stays visible even without hovering, so
+  // it's still obvious which panes are currently part of the selection —
+  // every other corner button here is purely hover-revealed since they're
+  // one-shot actions, not an ongoing state worth keeping on screen.
+  &--select-active {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.75);
   }
 
   &--lock {
+    position: absolute;
+    z-index: 7;
     bottom: 0.6em;
     left: 0.6em;
   }
@@ -58,4 +72,18 @@
   &:active {
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
   }
+}
+
+// Groups `PaneClearButton` + `PaneDeleteButton` side by side in the pane's
+// own top-right corner (previously two independently-positioned corner
+// buttons of their own) — a flex row rather than fixed pixel offsets from
+// the edge, since the two buttons' own widths differ (one is a text label,
+// the other icon-only) and by locale.
+.pane-corner-button-group {
+  position: absolute;
+  z-index: 7;
+  top: 0.6em;
+  right: 0.6em;
+  display: flex;
+  gap: 0.4em;
 }

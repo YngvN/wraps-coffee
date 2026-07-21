@@ -12,16 +12,23 @@ import { NewsSlide } from './NewsSlide'
 import { QrCodeSlide } from './QrCodeSlide'
 import { TimeSlide } from './TimeSlide'
 import { TransitSlide } from './TransitSlide'
+import { VideoSlide } from './VideoSlide'
 import { WeatherSlide } from './WeatherSlide'
 
 interface SlotContentProps {
   slot: ScreenSlotContent
   /** Every currently-resolved `'news'`-kind pane on this same screen — only consumed by the `'qrcode'` branch (its own "automatic" mode). See `LayoutTree`'s own prop of the same name. */
   newsSlots: NewsSlotSettings[]
+  /** Only consumed by the `'news'`/`'qrcode'` branches — see `LayoutTree`'s own prop of the same name. */
+  stageTick: number | undefined
+  /** Only consumed by the `'video'` branch, and only while its own `restartOnStageOne` is on — the screen's current 1-indexed stage, same value `LayoutPane` itself resolves its own content against. */
+  stage: number
+  /** Only consumed by the `'video'` branch, and only while its own `advanceStageOnEnd` is on — see `SplitLayout`'s own prop of the same name. */
+  onRequestStageAdvance?: () => void
 }
 
 /** Renders whatever a screen slot is configured to show. */
-export function SlotContent({ slot, newsSlots }: SlotContentProps) {
+export function SlotContent({ slot, newsSlots, stageTick, stage, onRequestStageAdvance }: SlotContentProps) {
   if (slot.kind === 'catalogue') return <CatalogueSlide catalogueId={slot.catalogueId} categories={slot.categories} />
   if (slot.kind === 'event') {
     const displayMode = slot.displayMode ?? 'calendar'
@@ -31,6 +38,19 @@ export function SlotContent({ slot, newsSlots }: SlotContentProps) {
     return <EventCalendarSlide count={slot.count} />
   }
   if (slot.kind === 'image') return <ImageSlide imageUrl={slot.imageUrl} fit={slot.fit} resizeToFit={slot.resizeToFit} />
+  if (slot.kind === 'video')
+    return (
+      <VideoSlide
+        videoUrl={slot.videoUrl}
+        fit={slot.fit}
+        removeAudio={slot.removeAudio}
+        volume={slot.volume}
+        advanceStageOnEnd={slot.advanceStageOnEnd}
+        onRequestStageAdvance={onRequestStageAdvance}
+        stage={stage}
+        restartOnStageOne={slot.restartOnStageOne}
+      />
+    )
   if (slot.kind === 'qrcode')
     return (
       <QrCodeSlide
@@ -41,6 +61,7 @@ export function SlotContent({ slot, newsSlots }: SlotContentProps) {
         linkedNewsSourceId={slot.linkedNewsSourceId}
         newsSlotOrdinal={slot.newsSlotOrdinal}
         newsSlots={newsSlots}
+        stageTick={stageTick}
         showSourceLogo={slot.showSourceLogo}
         useSourceTheme={slot.useSourceTheme}
       />
@@ -53,6 +74,7 @@ export function SlotContent({ slot, newsSlots }: SlotContentProps) {
         rotateSeconds={slot.rotateSeconds}
         useBrandTheme={slot.useBrandTheme}
         showBrandLogo={slot.showBrandLogo}
+        stageTick={stageTick}
       />
     )
   if (slot.kind === 'transit')

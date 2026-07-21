@@ -21,6 +21,10 @@ interface ExitingPaneGhostProps {
   onCollapseComplete: (leafId: PaneId) => void
   /** Threaded straight through to the wrapped `LayoutPane`. See `LayoutTree`'s own prop of the same name. */
   newsSlots: NewsSlotSettings[]
+  /** Threaded straight through to the wrapped `LayoutPane`. See `LayoutTree`'s own prop of the same name. */
+  stageTick: number | undefined
+  /** Threaded straight through to the wrapped `LayoutPane`. See `SplitLayout`'s own prop of the same name. */
+  onRequestStageAdvance?: () => void
 }
 
 /**
@@ -35,7 +39,20 @@ interface ExitingPaneGhostProps {
  * present, since removing a leaf from the tree never touches `paneSlots`
  * (orphaned entries are deliberately left in place).
  */
-export function ExitingPaneGhost({ leafId, rect, growth, slot, stage, transitionStyle, resolveTextSizes, defaultPaneLanguage, onCollapseComplete, newsSlots }: ExitingPaneGhostProps) {
+export function ExitingPaneGhost({
+  leafId,
+  rect,
+  growth,
+  slot,
+  stage,
+  transitionStyle,
+  resolveTextSizes,
+  defaultPaneLanguage,
+  onCollapseComplete,
+  newsSlots,
+  stageTick,
+  onRequestStageAdvance,
+}: ExitingPaneGhostProps) {
   const collapsedPath = growth.kind !== 'fade' ? collapsedClipPath(growth.edge) : FULL_REVEAL_CLIP_PATH
 
   return (
@@ -61,6 +78,8 @@ export function ExitingPaneGhost({ leafId, rect, growth, slot, stage, transition
         canDelete={false}
         locked={false}
         newsSlots={newsSlots}
+        stageTick={stageTick}
+        onRequestStageAdvance={onRequestStageAdvance}
       />
     </motion.div>
   )

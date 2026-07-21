@@ -7,8 +7,8 @@ import { applyRatioPatchPreservingDescendants, computeLayoutGeometry, FULL_BOX, 
 import { listLeaves } from '../../utils/layoutTree'
 import { diffLeafSets, resolvePaneGrowthOrigin, type PaneGrowthOrigin } from '../../utils/paneGrowth'
 import { backgroundImageTextStyle, borderColorStyle, getScreenColorVars } from '../../utils/screenColors'
-import { imageResizeRatioPatch, imageResizeScaleFromDrag, paneResizableAxes, pathKey, type NodePath, type PaneResizableAxes, type RatioPatch } from '../../utils/screenLayout'
-import { isNewsSlotContent, isResizeToFitImage } from '../../utils/screenSlots'
+import { mediaResizeRatioPatch, mediaResizeScaleFromDrag, paneResizableAxes, pathKey, type NodePath, type PaneResizableAxes, type RatioPatch } from '../../utils/screenLayout'
+import { isNewsSlotContent, isResizeToFitContent, resizeToFitMediaUrl } from '../../utils/screenSlots'
 import { isSlotActive, resolveSlotContent, resolveStageValue, writeStageCheckpoint } from '../../utils/screenStages'
 import { ExitingPaneGhost } from './ExitingPaneGhost'
 import { LayoutTree } from './LayoutTree'
@@ -24,6 +24,8 @@ interface SplitLayoutProps {
   stage: number
   /** Overrides `stage` for every pane at once — e.g. while an admin's pane editor is actively viewing a specific stage, so the whole live display previews exactly that stage instead of its natural rotating one (every pane shares the same stage sequence, so this isn't scoped to just the one pane being edited). */
   forcedStage?: number
+  /** The raw, monotonically-increasing rotation tick `stage` itself is wrapped from (`stage = (tick % stageCount) + 1`, see `src/utils/screenStages.ts`) — only meaningful, and only actually passed, by the real live display (`ScreenDisplay.tsx`); the two static-preview callers (`ScreenCard.tsx`/`ScreenForm.tsx`) have no real rotation timer of their own and simply omit it. See `stageTick`'s own doc comment for what this drives. */
+  tick?: number
   /** Persists a divider's new position (or a structural tree edit) once it's been dragged/made. Omit to render the panes without any draggable dividers at all. */
   onResizeDivider?: (patch: Partial<ScreenConfig>) => void
   /** Reports when a divider drag starts and stops — lets the caller (e.g. pausing the shared stage rotation for the duration, see `ScreenDisplay`) react to a drag in progress without needing to track live ratios itself. */
@@ -48,6 +50,12 @@ interface SplitLayoutProps {
   onBorderClick?: () => void
   /** Toggles a pane's own lock — see `LayoutTree.tsx`'s own prop of the same name for what locking actually disables. Omit to disable pane locking altogether. */
   onTogglePaneLock?: (leafId: PaneId) => void
+  /** Which panes are currently checked for the toolbar's own multi-pane actions ("Delete selected"/"Group") — see `ScreenDisplay.tsx`'s own `activeSelectedLeafIds`. Omit (along with `onToggleChecked`) to hide every pane's own selection checkbox. */
+  selectedLeafIds?: Set<PaneId>
+  /** Toggles a pane's own membership in `selectedLeafIds`. Omit (like `onEditSlide`) to disable selection entirely. */
+  onToggleChecked?: (leafId: PaneId) => void
+  /** Called when a video slide with `advanceStageOnEnd` finishes playing, so the caller can advance the shared stage rotation immediately instead of waiting for the normal timed interval — see `ScreenDisplay`'s own handler, which reuses the same advance logic as the toolbar's "next stage" button. Omit on the two static-preview callers (`ScreenCard.tsx`/`ScreenForm.tsx`), which have no real rotation timer to advance; `VideoSlide` simply never calls it in that case. */
+  onRequestStageAdvance?: () => void
 }
 
 /**
@@ -68,9 +76,9 @@ interface SplitLayoutProps {
  * `LayoutPane.tsx` for the full z-index layering between all of these.
  * Every split gets one draggable divider, sized from its own adjustable
  * ratio — dragging one live-resizes its two sides and persists on release.
- * A pane whose own currently-showing content is an image with
+ * A pane whose own currently-showing content is an image or video with
  * `resizeToFit` on temporarily overrides whichever divider(s) govern its
- * own axes (see `imageResizeRatioPatch`) to fit that image, capped at 40%
+ * own axes (see `mediaResizeRatioPatch`) to fit that media, capped at 40%
  * of the viewport along either — live-visual only, never persisted, so the
  * stage sequence advancing to different content drops the override and the
  * pane slides back to its own set size on its own.
@@ -81,6 +89,7 @@ export function SplitLayout({
   onEditSlide,
   stage,
   forcedStage,
+  tick,
   onResizeDivider,
   onDragStateChange,
   onDropImage,
@@ -93,14 +102,17 @@ export function SplitLayout({
   onDeletePane,
   onBorderClick,
   onTogglePaneLock,
+  selectedLeafIds,
+  onToggleChecked,
+  onRequestStageAdvance,
 }: SplitLayoutProps) {
   const { t } = useLanguage()
   const reducedMotion = useReducedMotion()
   const containerRef = useRef<HTMLDivElement>(null)
   const [liveRatios, setLiveRatios] = useState<RatioPatch>({})
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
-  const [imageNaturalSizes, setImageNaturalSizes] = useState<Record<string, { width: number; height: number }>>({})
-  const requestedImagesRef = useRef<Set<string>>(new Set())
+  const [mediaNaturalSizes, setMediaNaturalSizes] = useState<Record<string, { width: number; height: number }>>({})
+  const requestedMediaRef = useRef<Set<string>>(new Set())
   const effectiveStage = forcedStage ?? stage
 
   /** `--screen-bg`/`--screen-text`/etc, redeclared right at this wrapper so every descendant pane — including one with no background color of its own — resolves them from the *screen's* own configured appearance rather than leaking through to whatever ancestor styling happens to surround `SplitLayout` whenever it's used (e.g. the admin form's own "Layout" preview never set these at all otherwise). A pane with its own background color still overrides these locally (see `slotBackgroundColorStyle`), same as ever — this only fixes the fallback. */
@@ -212,49 +224,73 @@ export function SplitLayout({
     .filter(isNewsSlotContent)
     .map((content) => ({ sourceIds: content.sourceIds, headlineCount: content.headlineCount, rotateSeconds: content.rotateSeconds }))
 
-  const activeResizeImageUrls = leaves.map((leaf) => resolvePaneContent(leaf.id)).filter(isResizeToFitImage).map((content) => content.imageUrl)
+  /** Drives News-pane headline (and a `'qrcode'` slide's own "automatic" mode) rotation from the screen's own shared stage advances instead of an independent wall-clock timer, for any screen that actually has more than one stage — `undefined` (no steps at all) falls back to that independent timer instead (see `useCurrentNewsHeadline`). Deliberately the *raw* tick, not the wrapped 1..stageCount `stage` value — keying off `stage` itself would cap a rotating News pane at exactly `stageCount` distinct headlines forever, however many are actually available. */
+  const stageTick = screen.useStages && (screen.stageCount ?? 1) > 1 ? (tick ?? 0) : undefined
+
+  const activeResizeMediaEntries = leaves
+    .map((leaf) => resolvePaneContent(leaf.id))
+    .filter(isResizeToFitContent)
+    .map((content) => ({ url: resizeToFitMediaUrl(content) as string, kind: content.kind }))
 
   useEffect(() => {
-    activeResizeImageUrls.forEach((url) => {
-      if (requestedImagesRef.current.has(url)) return
-      requestedImagesRef.current.add(url)
+    activeResizeMediaEntries.forEach(({ url, kind }) => {
+      if (requestedMediaRef.current.has(url)) return
+      requestedMediaRef.current.add(url)
+      if (kind === 'video') {
+        // A hidden, never-appended `<video>` — just enough to read its own
+        // natural dimensions off `loadedmetadata`, the video equivalent of
+        // `new Image()`'s own `onload` below. Not the same element (or even
+        // the same *kind* of network request) `VideoSlide`/`useCachedVideoSrc`
+        // use for actual playback — this one only ever needs metadata, never
+        // plays, and is thrown away the moment its dimensions are read.
+        const video = document.createElement('video')
+        video.onloadedmetadata = () => setMediaNaturalSizes((current) => ({ ...current, [url]: { width: video.videoWidth, height: video.videoHeight } }))
+        video.src = url
+        return
+      }
       const img = new Image()
-      img.onload = () => setImageNaturalSizes((current) => ({ ...current, [url]: { width: img.naturalWidth, height: img.naturalHeight } }))
+      img.onload = () => setMediaNaturalSizes((current) => ({ ...current, [url]: { width: img.naturalWidth, height: img.naturalHeight } }))
       img.src = url
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `activeResizeImageUrls` is a new array every render; this key is its faithful (and stable) serialization.
-  }, [activeResizeImageUrls.join('|')])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `activeResizeMediaEntries` is a new array every render; this key is its faithful (and stable) serialization.
+  }, [activeResizeMediaEntries.map((entry) => entry.url).join('|')])
 
-  const imageResizeOverrides: RatioPatch = leaves.reduce<RatioPatch>((patch, leaf) => {
+  /** The arrangement's own *committed* geometry (not `layoutTree`'s live-dragged overlay) — the source of truth both for snap targets (see `LayoutTree.tsx`'s `snapTargets` prop, and `PaneCornerHandle`'s qualifying-corner detection), for `applyRatioPatchPreservingDescendants` below (so a drag in progress doesn't chase its own moving position), and for every leaf's own *current* resolved rect (see `mediaResizeRatioPatch`'s own doc comment on why that's needed, not just each axis's local ratio in isolation). */
+  const geometry: LayoutGeometry = computeLayoutGeometry(tree)
+  const allDividers: Divider[] = geometry.dividers
+  const leafRectById = new Map(geometry.leaves.map((leaf) => [leaf.id, leaf.rect]))
+
+  const mediaResizeOverrides: RatioPatch = leaves.reduce<RatioPatch>((patch, leaf) => {
     const content = resolvePaneContent(leaf.id)
-    if (!isResizeToFitImage(content)) return patch
-    const naturalSize = imageNaturalSizes[content.imageUrl]
-    if (!naturalSize) return patch
-    return { ...patch, ...imageResizeRatioPatch(tree, leaf.id, naturalSize.width, naturalSize.height, containerSize.width, containerSize.height, content.resizeScale) }
+    if (!isResizeToFitContent(content)) return patch
+    const url = resizeToFitMediaUrl(content)
+    const naturalSize = url ? mediaNaturalSizes[url] : undefined
+    const leafRect = leafRectById.get(leaf.id)
+    if (!naturalSize || !leafRect) return patch
+    return { ...patch, ...mediaResizeRatioPatch(tree, leaf.id, naturalSize.width, naturalSize.height, containerSize.width, containerSize.height, leafRect, content.resizeScale) }
   }, {})
 
-  /** The one pane (there's never more than one active per stage — see `isResizeToFitConflict`) currently fit to a `resizeToFit` image, if any — so a divider drag touching one of its own axes can be redirected into changing the image's own `resizeScale` instead of writing straight to the tree's own ratio, which is recomputed from that scale every render anyway. */
-  const resizeImageEntry = leaves.reduce<{ leafId: PaneId; naturalSize: { width: number; height: number } } | undefined>((found, leaf) => {
+  /** The one pane (there's never more than one active per stage — see `isResizeToFitConflict`) currently fit to a `resizeToFit` image or video, if any — so a divider drag touching one of its own axes can be redirected into changing that media's own `resizeScale` instead of writing straight to the tree's own ratio, which is recomputed from that scale every render anyway. */
+  const resizeMediaEntry = leaves.reduce<{ leafId: PaneId; naturalSize: { width: number; height: number }; rect: Rect } | undefined>((found, leaf) => {
     if (found) return found
     const content = resolvePaneContent(leaf.id)
-    if (!isResizeToFitImage(content)) return found
-    const naturalSize = imageNaturalSizes[content.imageUrl]
-    return naturalSize ? { leafId: leaf.id, naturalSize } : found
+    if (!isResizeToFitContent(content)) return found
+    const url = resizeToFitMediaUrl(content)
+    const naturalSize = url ? mediaNaturalSizes[url] : undefined
+    const rect = leafRectById.get(leaf.id)
+    return naturalSize && rect ? { leafId: leaf.id, naturalSize, rect } : found
   }, undefined)
-  const activeImageResize: { leafId: PaneId; axes: PaneResizableAxes; naturalWidth: number; naturalHeight: number } | undefined = resizeImageEntry && {
-    leafId: resizeImageEntry.leafId,
-    axes: paneResizableAxes(tree, resizeImageEntry.leafId),
-    naturalWidth: resizeImageEntry.naturalSize.width,
-    naturalHeight: resizeImageEntry.naturalSize.height,
+  const activeMediaResize: { leafId: PaneId; axes: PaneResizableAxes; naturalWidth: number; naturalHeight: number; rect: Rect } | undefined = resizeMediaEntry && {
+    leafId: resizeMediaEntry.leafId,
+    axes: paneResizableAxes(tree, resizeMediaEntry.leafId),
+    naturalWidth: resizeMediaEntry.naturalSize.width,
+    naturalHeight: resizeMediaEntry.naturalSize.height,
+    rect: resizeMediaEntry.rect,
   }
 
   const isDragging = Object.keys(liveRatios).length > 0
 
-  /** The arrangement's own *committed* geometry (not `layoutTree`'s live-dragged overlay) — the source of truth both for snap targets (see `LayoutTree.tsx`'s `snapTargets` prop, and `PaneCornerHandle`'s qualifying-corner detection) and for `applyRatioPatchPreservingDescendants` below, so a drag in progress doesn't chase its own moving position. */
-  const geometry: LayoutGeometry = computeLayoutGeometry(tree)
-  const allDividers: Divider[] = geometry.dividers
-
-  const liveOverridePatch: RatioPatch = { ...imageResizeOverrides, ...liveRatios }
+  const liveOverridePatch: RatioPatch = { ...mediaResizeOverrides, ...liveRatios }
   const layoutTree = Object.keys(liveOverridePatch).length > 0 ? applyRatioPatchPreservingDescendants(tree, liveOverridePatch, geometry) : tree
 
   if (!leaves.some((leaf) => screen.paneSlots[leaf.id] && isSlotActive(screen.paneSlots[leaf.id]))) {
@@ -268,13 +304,13 @@ export function SplitLayout({
   const borderModifier = screen.showSlotBorders === false ? ' split-layout--no-borders' : ''
   const gridTransition = isDragging ? false : 'grid-template-columns 0.5s ease, grid-template-rows 0.5s ease, background-color 0.4s ease'
 
-  const imageResizeScaleFromPatch = (patch: RatioPatch): number | undefined => {
-    if (!activeImageResize) return undefined
-    const { leafId, axes, naturalWidth, naturalHeight } = activeImageResize
+  const mediaResizeScaleFromPatch = (patch: RatioPatch): number | undefined => {
+    if (!activeMediaResize) return undefined
+    const { leafId, axes, naturalWidth, naturalHeight, rect } = activeMediaResize
     const paths = [axes.width?.path, axes.height?.path].filter((path): path is NodePath => path !== undefined)
     const scales = paths
       .filter((path) => patch[pathKey(path)] !== undefined)
-      .map((path) => imageResizeScaleFromDrag(tree, leafId, path, patch[pathKey(path)], naturalWidth, naturalHeight, containerSize.width, containerSize.height))
+      .map((path) => mediaResizeScaleFromDrag(tree, leafId, path, patch[pathKey(path)], naturalWidth, naturalHeight, containerSize.width, containerSize.height, rect))
     if (scales.length === 0) return undefined
     return scales.reduce((sum, value) => sum + value, 0) / scales.length
   }
@@ -290,10 +326,10 @@ export function SplitLayout({
   const handleLiveChangePatch = (patch: RatioPatch) => {
     if (Object.keys(liveRatios).length === 0) onDragStateChange?.(true)
 
-    const scale = imageResizeScaleFromPatch(patch)
-    if (activeImageResize && scale !== undefined) {
-      const { leafId, naturalWidth, naturalHeight } = activeImageResize
-      setLiveRatios((current) => ({ ...current, ...imageResizeRatioPatch(tree, leafId, naturalWidth, naturalHeight, containerSize.width, containerSize.height, scale) }))
+    const scale = mediaResizeScaleFromPatch(patch)
+    if (activeMediaResize && scale !== undefined) {
+      const { leafId, naturalWidth, naturalHeight, rect } = activeMediaResize
+      setLiveRatios((current) => ({ ...current, ...mediaResizeRatioPatch(tree, leafId, naturalWidth, naturalHeight, containerSize.width, containerSize.height, rect, scale) }))
       return
     }
     setLiveRatios((current) => ({ ...current, ...patch }))
@@ -302,7 +338,7 @@ export function SplitLayout({
 
   /** The general form of a divider drag's commit — see `handleLiveChangePatch`'s own doc comment. */
   const handleCommitPatch = (patch: RatioPatch) => {
-    const scale = imageResizeScaleFromPatch(patch)
+    const scale = mediaResizeScaleFromPatch(patch)
     const keys = Object.keys(patch)
     const stillDragging = Object.keys(liveRatios).some((field) => !keys.includes(field))
     if (!stillDragging) onDragStateChange?.(false)
@@ -311,12 +347,12 @@ export function SplitLayout({
       keys.forEach((key) => delete next[key])
       return next
     })
-    if (activeImageResize && scale !== undefined) {
-      const slot = screen.paneSlots[activeImageResize.leafId]
+    if (activeMediaResize && scale !== undefined) {
+      const slot = screen.paneSlots[activeMediaResize.leafId]
       const content = slot ? resolveSlotContent(slot, effectiveStage) : undefined
-      if (!slot || !content || content.kind !== 'image') return
+      if (!slot || !content || (content.kind !== 'image' && content.kind !== 'video')) return
       const nextSlot = { ...slot, content: writeStageCheckpoint(slot.content, effectiveStage, { ...content, resizeScale: scale }) }
-      onResizeDivider?.({ paneSlots: { ...screen.paneSlots, [activeImageResize.leafId]: nextSlot } })
+      onResizeDivider?.({ paneSlots: { ...screen.paneSlots, [activeMediaResize.leafId]: nextSlot } })
       return
     }
     // Checkpoints the dragged-to tree at the effective stage — "moving the border(s)" only affects whichever stage is currently being viewed/edited. Every other divider re-derives its own ratio to hold its absolute on-screen position (see `applyRatioPatchPreservingDescendants`) rather than drifting along with whichever side of the drag its own container happens to sit in.
@@ -350,6 +386,8 @@ export function SplitLayout({
         allDividers={allDividers}
         onBorderClick={onBorderClick}
         onTogglePaneLock={onTogglePaneLock}
+        selectedLeafIds={selectedLeafIds}
+        onToggleChecked={onToggleChecked}
         gridTransition={gridTransition}
         onSplitPane={onSplitPane}
         onSplitFour={onSplitFour}
@@ -359,6 +397,8 @@ export function SplitLayout({
         canDelete={leaves.length > 1}
         enteringGrowth={enteringGrowth}
         newsSlots={newsSlots}
+        stageTick={stageTick}
+        onRequestStageAdvance={onRequestStageAdvance}
       />
       {Object.entries(exitingGhosts).map(([leafId, { rect, growth }]) => (
         <ExitingPaneGhost
@@ -373,6 +413,8 @@ export function SplitLayout({
           defaultPaneLanguage={defaultPaneLanguage}
           onCollapseComplete={removeGhost}
           newsSlots={newsSlots}
+          stageTick={stageTick}
+          onRequestStageAdvance={onRequestStageAdvance}
         />
       ))}
     </div>
