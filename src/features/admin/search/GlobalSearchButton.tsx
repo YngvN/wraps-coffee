@@ -15,14 +15,22 @@ interface GlobalSearchButtonProps {
  * `GlobalSearchPanel` in an `AdminRightPanel` sliding in from the right edge
  * of the screen, widened (`width="wide"`) since result rows carry more text
  * than Notifications/Messages do — same trigger/panel shape as
- * `NotificationsDropdown`/`MessagesDropdown`.
+ * `NotificationsDropdown`/`MessagesDropdown`. The trigger button itself also
+ * gets the shared `--active` modifier while `open` is true, so it stays
+ * visibly highlighted for as long as its panel is showing.
  */
 export function GlobalSearchButton({ open, onToggle, onClose }: GlobalSearchButtonProps) {
   const { t } = useLanguage()
 
   return (
     <div className="global-search-button">
-      <button type="button" className="admin-top-navbar__icon-link" onClick={onToggle} aria-label={t('admin.search.title')} title={t('admin.search.title')}>
+      <button
+        type="button"
+        className={`admin-top-navbar__icon-link${open ? ' admin-top-navbar__icon-link--active' : ''}`}
+        onClick={onToggle}
+        aria-label={t('admin.search.title')}
+        title={t('admin.search.title')}
+      >
         <SearchIcon />
       </button>
 

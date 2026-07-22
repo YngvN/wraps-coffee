@@ -23,11 +23,12 @@ interface AdminTopNavbarProps {
 /**
  * Fixed top bar for the whole admin dashboard (and login screen, via
  * `AdminLayout`): the mobile sidebar toggle, store brand, and quick-access
- * shortcuts to Overview ("home"), Settings ("wrench" — the same
- * destination as the sidebar rail's own Settings item, just one click
- * closer), `GlobalSearchButton` (magnifying glass — every product,
- * integration, screen, event, and more, see `useGlobalSearchIndex`),
- * `NotificationsDropdown` (bell — new orders + out-of-stock
+ * shortcuts to `GlobalSearchButton` (magnifying glass, kept leftmost of the
+ * shortcuts so it's the first/easiest to reach — every product, integration,
+ * screen, event, and more, see `useGlobalSearchIndex`), Overview ("home"),
+ * Settings ("wrench" — the same destination as the sidebar rail's own
+ * Settings item, just one click closer), `NotificationsDropdown` (bell — new
+ * orders + out-of-stock
  * tracked products) and `MessagesDropdown` (envelope — unread messages),
  * each of which opens its content in an `AdminRightPanel` sliding in from
  * the right edge of the screen (see `activePanel` below — owned here, not
@@ -64,6 +65,11 @@ export function AdminTopNavbar({ isSidebarOpen, onToggleSidebar }: AdminTopNavba
       <StoreBrandHeader />
 
       <nav className="admin-top-navbar__shortcuts">
+        <GlobalSearchButton
+          open={activePanel === 'search'}
+          onToggle={() => setActivePanel((current) => (current === 'search' ? null : 'search'))}
+          onClose={() => setActivePanel(null)}
+        />
         <NavLink
           to="overview"
           className={({ isActive }) => `admin-top-navbar__icon-link${isActive ? ' admin-top-navbar__icon-link--active' : ''}`}
@@ -80,11 +86,6 @@ export function AdminTopNavbar({ isSidebarOpen, onToggleSidebar }: AdminTopNavba
         >
           <SettingsIcon />
         </NavLink>
-        <GlobalSearchButton
-          open={activePanel === 'search'}
-          onToggle={() => setActivePanel((current) => (current === 'search' ? null : 'search'))}
-          onClose={() => setActivePanel(null)}
-        />
         <NotificationsDropdown
           open={activePanel === 'notifications'}
           onToggle={() => setActivePanel((current) => (current === 'notifications' ? null : 'notifications'))}
