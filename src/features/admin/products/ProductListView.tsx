@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Badge, BackButton, ChevronRightIcon, DiscountedPrice, EditDeleteButtons, Modal, PlusIcon, TranslatedText } from '../../../components'
 import { useCategoryPrices } from '../../../hooks/useCategoryPrices'
 import { useProducts } from '../../../hooks/useProducts'
@@ -19,16 +19,36 @@ interface ProductListViewProps {
   /** The owning catalogue's own default price — the fallback beneath the category's own default, in turn beneath a product's own override. */
   cataloguePrice: Price | undefined
   onBack: () => void
+  /** Set by `ProductsView` from a `?productId=` search deep link — opens that exact product's edit form on arrival instead of requiring a click. */
+  initialEditProductId?: string
+  /** Called once `initialEditProductId` has been consumed (the form opened), so `ProductsView` can clear it and a later remount of this view doesn't reopen the same product's form unprompted. */
+  onConsumeInitialEditProduct?: () => void
 }
 
 /** One category's own products: drag-reorderable, existing create/edit/delete CRUD (clicking a row, same as its own explicit Edit button, opens its editor — marked with a trailing chevron, same affordance the catalogue/category rows use for drilling in a level), each row showing a thumbnail (if set). A price only shows on the row itself when the product has its own individual price or a discount — a plain product just inheriting the category/catalogue default already has that shown once, in the category price editor above, so repeating it on every row would be noise. A discounted product's price is struck-through + the new one shown, and the row itself gets a gold border/glow. */
-export function ProductListView({ category, catalogueCategories, cataloguePrice, onBack }: ProductListViewProps) {
+export function ProductListView({ category, catalogueCategories, cataloguePrice, onBack, initialEditProductId, onConsumeInitialEditProduct }: ProductListViewProps) {
   const { t, language } = useLanguage()
   const [products, setProducts] = useProducts()
   const [categoryPrices] = useCategoryPrices()
   const [editingProduct, setEditingProduct] = useState<Product | null | undefined>(undefined)
 
   const items = products.filter((product) => product.category === category.id)
+
+  // Opens `initialEditProductId`'s own edit form as soon as it shows up in
+  // `products` — guarded by checking `onConsumeInitialEditProduct` was
+  // actually called yet (via the prop itself going away once `ProductsView`
+  // clears it), since `products` may still be the seed snapshot for a
+  // moment after mount, same posture as `ProductsView`'s own deep-link
+  // effect for catalogue/category.
+  useEffect(() => {
+    if (!initialEditProductId) return
+    const product = products.find((candidate) => candidate.itemID === initialEditProductId)
+    if (!product) return
+    queueMicrotask(() => {
+      setEditingProduct(product)
+      onConsumeInitialEditProduct?.()
+    })
+  }, [initialEditProductId, products, onConsumeInitialEditProduct])
   const isFormOpen = editingProduct !== undefined
   const closeForm = () => setEditingProduct(undefined)
 

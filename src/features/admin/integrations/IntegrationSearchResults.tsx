@@ -3,38 +3,8 @@ import { Badge, FetchedLogo, YrLogo } from '../../../components'
 import { useLanguage } from '../../../i18n'
 import type { IntegrationsConfig } from '../../../types/integrations'
 import { COMING_SOON_INTEGRATIONS } from './comingSoonIntegrations'
+import { ENTUR_TAGS, TRANSIT_TAGS, WEATHER_TAGS } from './integrationSearchTags'
 import './IntegrationSearchResults.scss'
-
-/** Search-only keywords for the three live integrations, mirroring `ComingSoonIntegration['tags']` — untranslated and never rendered, just matched against. */
-const WEATHER_TAGS = ['vaer', 'vær', 'weather', 'temperatur', 'temperature', 'nedbor', 'nedbør', 'precipitation', 'vind', 'wind', 'yr', 'forecast', 'varsel']
-const TRANSIT_TAGS = ['transport', 'buss', 'bus', 'trikk', 'tram', 'tog', 'train', 'avganger', 'departures', 'kollektivtransport', 'public transport', 'ruter', 'holdeplass', 'stop']
-/** Entur is the same underlying feed as Transit departures (Ruter), listed separately so an admin outside Oslo can find it by their own region's operator name rather than only under "Ruter". */
-const ENTUR_TAGS = [
-  'entur',
-  'nasjonal',
-  'national',
-  'transport',
-  'buss',
-  'bus',
-  'trikk',
-  'tram',
-  'tog',
-  'train',
-  'ferge',
-  'ferry',
-  'avganger',
-  'departures',
-  'holdeplass',
-  'stop',
-  'skyss',
-  'atb',
-  'kolumbus',
-  'brakar',
-  'vy',
-  'go-ahead',
-  'nettbuss',
-  'fram',
-]
 
 interface SearchIndexEntry {
   id: string

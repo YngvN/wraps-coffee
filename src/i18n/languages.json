@@ -1585,6 +1585,22 @@
           "boardMissingError": "This board no longer exists.",
           "description": "Create boards of short posts to show on kiosk screens, optionally published to the public website too."
         },
+        "search": {
+          "title": "Search",
+          "placeholder": "Search everything...",
+          "clearLabel": "Clear search",
+          "emptyStateHint": "Search for a product, integration, screen, event, and more.",
+          "noResultsLabel": "Nothing matches \"{{query}}\".",
+          "types": {
+            "catalogue": "Catalogue",
+            "event": "Event",
+            "screen": "Screen",
+            "integration": "Integration",
+            "newsSource": "News source",
+            "messageBoard": "Message board",
+            "settingsPage": "Settings"
+          }
+        },
         "uploadsIndicator": {
           "title": "Uploads in progress ({{count}})",
           "uploadingPercent": "Uploading — {{percent}}%",
@@ -3287,6 +3303,22 @@
           "noBoards": "Ingen tavler ennå.",
           "boardMissingError": "Denne tavlen finnes ikke lenger.",
           "description": "Lag oppslagstavler med korte innlegg som vises på kiosk-skjermer, eventuelt også publisert til nettsiden."
+        },
+        "search": {
+          "title": "Søk",
+          "placeholder": "Søk i alt...",
+          "clearLabel": "Tøm søk",
+          "emptyStateHint": "Søk etter et produkt, en integrasjon, en skjerm, et arrangement, og mer.",
+          "noResultsLabel": "Ingenting samsvarer med «{{query}}».",
+          "types": {
+            "catalogue": "Katalog",
+            "event": "Arrangement",
+            "screen": "Skjerm",
+            "integration": "Integrasjon",
+            "newsSource": "Nyhetskilde",
+            "messageBoard": "Oppslagstavle",
+            "settingsPage": "Innstillinger"
+          }
         },
         "uploadsIndicator": {
           "title": "Opplastinger pågår ({{count}})",

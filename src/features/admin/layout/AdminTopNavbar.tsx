@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
+import { GlobalSearchButton } from '../search/GlobalSearchButton'
 import { OverviewIcon, SettingsIcon } from './AdminNavIcons'
 import { DashboardWindowControls } from './DashboardWindowControls'
 import { MessagesDropdown } from './MessagesDropdown'
@@ -10,8 +11,8 @@ import { StoreBrandHeader } from './StoreBrandHeader'
 import { UploadsIndicator } from './UploadsIndicator'
 import './AdminTopNavbar.scss'
 
-/** Which of the navbar's own right-side panels (see `AdminRightPanel`) is open, if any — kept here rather than inside `NotificationsDropdown`/`MessagesDropdown` themselves so opening one always closes the other instead of both stacking on top of each other. */
-type ActivePanel = 'notifications' | 'messages' | null
+/** Which of the navbar's own right-side panels (see `AdminRightPanel`) is open, if any — kept here rather than inside `NotificationsDropdown`/`MessagesDropdown`/`GlobalSearchButton` themselves so opening one always closes the others instead of stacking on top of each other. */
+type ActivePanel = 'notifications' | 'messages' | 'search' | null
 
 interface AdminTopNavbarProps {
   /** Whether the mobile sidebar overlay is currently open — mirrors `AdminDashboard`'s own state, since the hamburger toggle now lives here instead of as its own standalone fixed button. */
@@ -24,11 +25,13 @@ interface AdminTopNavbarProps {
  * `AdminLayout`): the mobile sidebar toggle, store brand, and quick-access
  * shortcuts to Overview ("home"), Settings ("wrench" — the same
  * destination as the sidebar rail's own Settings item, just one click
- * closer), `NotificationsDropdown` (bell — new orders + out-of-stock
+ * closer), `GlobalSearchButton` (magnifying glass — every product,
+ * integration, screen, event, and more, see `useGlobalSearchIndex`),
+ * `NotificationsDropdown` (bell — new orders + out-of-stock
  * tracked products) and `MessagesDropdown` (envelope — unread messages),
  * each of which opens its content in an `AdminRightPanel` sliding in from
  * the right edge of the screen (see `activePanel` below — owned here, not
- * inside either dropdown, so opening one always closes the other), and
+ * inside any of the three, so opening one always closes the others), and
  * `UploadsIndicator` (upload arrow — any image/video upload the global
  * `uploadManager` is still transferring or transcoding, hidden entirely
  * once nothing is in flight), plus the logged-in username and, right after
@@ -77,6 +80,11 @@ export function AdminTopNavbar({ isSidebarOpen, onToggleSidebar }: AdminTopNavba
         >
           <SettingsIcon />
         </NavLink>
+        <GlobalSearchButton
+          open={activePanel === 'search'}
+          onToggle={() => setActivePanel((current) => (current === 'search' ? null : 'search'))}
+          onClose={() => setActivePanel(null)}
+        />
         <NotificationsDropdown
           open={activePanel === 'notifications'}
           onToggle={() => setActivePanel((current) => (current === 'notifications' ? null : 'notifications'))}

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Alert, BackButton, Button, Checkbox, CloseIcon, FetchedLogo, Input, Modal, PlusIcon, SlideTransition, TranslatedText, YrLogo } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useClockFormatPreference } from '../../../hooks/useClockFormatPreference'
@@ -7,6 +8,7 @@ import { useDateFormatPreference } from '../../../hooks/useDateFormatPreference'
 import { useIntegrationsConfig } from '../../../hooks/useIntegrationsConfig'
 import { useFoodoraConfig } from '../../../hooks/useFoodoraConfig'
 import { useFoodoraOrders } from '../../../hooks/useFoodoraOrders'
+import { useScrollToAndHighlight } from '../../../hooks/useScrollToAndHighlight'
 import { useWoltConfig } from '../../../hooks/useWoltConfig'
 import { useWoltOrders } from '../../../hooks/useWoltOrders'
 import { useLanguage } from '../../../i18n'
@@ -168,6 +170,96 @@ export function IntegrationsView({ onBack }: IntegrationsViewProps) {
   const [searchQuery, setSearchQuery] = useState('')
   /** `1` once the search bar has text (results slide in from the right), `-1` once it's cleared back to empty (sliding back to the normal view) — same convention `SettingsView` uses for its own sub-views. */
   const [searchDirection, setSearchDirection] = useState<1 | -1>(1)
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  /** Guards the deep-link effect below so it only ever consumes `?integration=`/`?comingSoonCategory=` once — same posture as `ProductsView`'s own deep-link effect. */
+  const consumedIntegrationDeepLinkRef = useRef(false)
+  const weatherSubmenuRef = useRef<HTMLDivElement>(null)
+  const transitSubmenuRef = useRef<HTMLDivElement>(null)
+  const enturSubmenuRef = useRef<HTMLDivElement>(null)
+  const newsSubmenuRef = useRef<HTMLDivElement>(null)
+  const woltSubmenuRef = useRef<HTMLDivElement>(null)
+  const foodoraSubmenuRef = useRef<HTMLDivElement>(null)
+  const submenuSetters = {
+    weather: setWeatherSubmenuOpen,
+    transit: setTransitSubmenuOpen,
+    entur: setEnturSubmenuOpen,
+    news: setNewsSubmenuOpen,
+    wolt: setWoltSubmenuOpen,
+    foodora: setFoodoraSubmenuOpen,
+  } as const
+  const submenuRefs = {
+    weather: weatherSubmenuRef,
+    transit: transitSubmenuRef,
+    entur: enturSubmenuRef,
+    news: newsSubmenuRef,
+    wolt: woltSubmenuRef,
+    foodora: foodoraSubmenuRef,
+  } as const
+  /** Which integration's submenu (if any) still needs to be scrolled into view after a deep link just opened it — cleared the moment the scroll fires. */
+  const [scrollToIntegrationKey, setScrollToIntegrationKey] = useState<keyof typeof submenuRefs | null>(null)
+  /** Set from `?newsSource=<id>` — highlighted once the News submenu has actually finished opening (see the effect below), since its checkbox rows don't exist in the DOM until then. */
+  const [highlightNewsSourceId, setHighlightNewsSourceId] = useState<string | null>(null)
+  const { registerRef: registerNewsSourceRef, triggerHighlight: triggerNewsSourceHighlight } = useScrollToAndHighlight()
+
+  /**
+   * Deep-link support: `?integration=<key>` (weather/transit/entur/news/wolt/foodora)
+   * opens that integration's own submenu and scrolls it into view — what
+   * the global search results (see `useGlobalSearchIndex`) navigate to.
+   * `&newsSource=<id>` additionally scrolls to/highlights that one source's
+   * checkbox inside the News submenu (see the follow-up effect below).
+   *
+   * The strip below is deliberately *not* guarded by `consumedIntegrationDeepLinkRef`
+   * (only the state-opening part is) and instead keeps retrying on every
+   * `searchParams` change until both params are actually gone: this view is
+   * mounted as `SettingsView`'s own child on the very same commit as
+   * `SettingsView`'s own mount-time effect that strips *its* `?view=` param,
+   * and since both effects call `setSearchParams` independently in that
+   * same tick, whichever commits last wins outright (it computes its own
+   * "next" params from a snapshot that doesn't yet reflect the other's
+   * write) — so a single one-shot strip here can silently lose that race.
+   * Re-running the strip once more after `SettingsView`'s own update causes
+   * a re-render (this effect's `searchParams` dependency changes again) is
+   * what makes this self-healing instead of leaving `integration`/`newsSource`
+   * stuck in the URL.
+   */
+  useEffect(() => {
+    const integration = searchParams.get('integration') as keyof typeof submenuSetters | null
+    const newsSource = searchParams.get('newsSource')
+    if (!integration && !newsSource) return
+    if (!consumedIntegrationDeepLinkRef.current && integration && integration in submenuSetters) {
+      consumedIntegrationDeepLinkRef.current = true
+      queueMicrotask(() => {
+        submenuSetters[integration](true)
+        setScrollToIntegrationKey(integration)
+        if (newsSource && integration === 'news') setHighlightNewsSourceId(newsSource)
+      })
+    }
+    setSearchParams((current) => {
+      current.delete('integration')
+      current.delete('newsSource')
+      return current
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `submenuSetters` is a plain object literal recreated every render; only `searchParams`/`setSearchParams` should re-run this.
+  }, [searchParams, setSearchParams])
+
+  /** Scrolls the deep-linked integration's submenu into view once its ref exists — the wrapper div is always rendered (only its `AnimatedDetails` body is conditional), so this can fire immediately after the setter above opens it. */
+  useEffect(() => {
+    if (!scrollToIntegrationKey) return
+    submenuRefs[scrollToIntegrationKey].current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    queueMicrotask(() => setScrollToIntegrationKey(null))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `submenuRefs` is a plain object of stable `useRef` instances; only `scrollToIntegrationKey` itself should retrigger this.
+  }, [scrollToIntegrationKey])
+
+  /** Waits for the News submenu's own open animation (`AnimatedDetails`, ~250ms) to finish before scrolling to/highlighting the deep-linked source's checkbox — its DOM node doesn't exist until the accordion body has actually mounted. */
+  useEffect(() => {
+    if (!highlightNewsSourceId || !newsSubmenuOpen) return
+    const timeout = setTimeout(() => {
+      triggerNewsSourceHighlight(highlightNewsSourceId)
+      setHighlightNewsSourceId(null)
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [highlightNewsSourceId, newsSubmenuOpen, triggerNewsSourceHighlight])
 
   // Loads the saved Wolt credentials once a session exists, same posture as
   // `DeveloperDocsView`'s own Neon URL load — admin/subadmin only, so this
@@ -362,6 +454,7 @@ export function IntegrationsView({ onBack }: IntegrationsViewProps) {
           : 'admin.integrations.statusDisabled'
 
   const weatherSubmenu = (
+    <div ref={weatherSubmenuRef}>
     <AnimatedDetails
       className="integration-submenu"
       summaryClassName="integration-submenu__summary"
@@ -446,9 +539,11 @@ export function IntegrationsView({ onBack }: IntegrationsViewProps) {
         {t('admin.integrations.weatherAddLocationButton')}
       </Button>
     </AnimatedDetails>
+    </div>
   )
 
   const transitSubmenu = (
+    <div ref={transitSubmenuRef}>
     <AnimatedDetails
       className="integration-submenu"
       summaryClassName="integration-submenu__summary"
@@ -559,9 +654,11 @@ export function IntegrationsView({ onBack }: IntegrationsViewProps) {
             </>
           )}
     </AnimatedDetails>
+    </div>
   )
 
   const enturSubmenu = (
+    <div ref={enturSubmenuRef}>
     <AnimatedDetails
       className="integration-submenu"
       summaryClassName="integration-submenu__summary"
@@ -672,6 +769,7 @@ export function IntegrationsView({ onBack }: IntegrationsViewProps) {
         </>
       )}
     </AnimatedDetails>
+    </div>
   )
 
   const toggleNewsSource = (sourceId: string) => {
@@ -681,6 +779,7 @@ export function IntegrationsView({ onBack }: IntegrationsViewProps) {
   }
 
   const newsSubmenu = (
+    <div ref={newsSubmenuRef}>
     <AnimatedDetails
       className="integration-submenu"
       summaryClassName="integration-submenu__summary"
@@ -717,7 +816,7 @@ export function IntegrationsView({ onBack }: IntegrationsViewProps) {
       <p className="integrations-view__stops-label">{t('admin.integrations.newsSourcesLabel')}</p>
       <ul className="integrations-view__stop-list">
         {NEWS_SOURCES.map((source) => (
-          <li key={source.id}>
+          <li key={source.id} ref={registerNewsSourceRef(source.id)}>
             <Checkbox
               id={`integrations-news-source-${source.id}`}
               label={source.name}
@@ -728,6 +827,7 @@ export function IntegrationsView({ onBack }: IntegrationsViewProps) {
         ))}
       </ul>
     </AnimatedDetails>
+    </div>
   )
 
   // Forces the dot/label to read "disabled" while the toggle itself is off,
@@ -769,6 +869,7 @@ export function IntegrationsView({ onBack }: IntegrationsViewProps) {
           : 'admin.integrations.woltStatusDisabled'
 
   const woltSubmenu = (
+    <div ref={woltSubmenuRef}>
     <AnimatedDetails
       className="integration-submenu"
       summaryClassName="integration-submenu__summary"
@@ -852,6 +953,7 @@ export function IntegrationsView({ onBack }: IntegrationsViewProps) {
         {isSyncingWolt ? t('admin.integrations.woltSyncingLabel') : t('admin.integrations.woltSyncNowButton')}
       </Button>
     </AnimatedDetails>
+    </div>
   )
 
   // Same derivation as Wolt's own status above.
@@ -885,6 +987,7 @@ export function IntegrationsView({ onBack }: IntegrationsViewProps) {
           : 'admin.integrations.foodoraStatusDisabled'
 
   const foodoraSubmenu = (
+    <div ref={foodoraSubmenuRef}>
     <AnimatedDetails
       className="integration-submenu"
       summaryClassName="integration-submenu__summary"
@@ -968,6 +1071,7 @@ export function IntegrationsView({ onBack }: IntegrationsViewProps) {
         {isSyncingFoodora ? t('admin.integrations.foodoraSyncingLabel') : t('admin.integrations.foodoraSyncNowButton')}
       </Button>
     </AnimatedDetails>
+    </div>
   )
 
   return (

@@ -82,6 +82,32 @@
   box-sizing: border-box;
 }
 
+// Shared pulse applied by `useScrollToAndHighlight` to whatever row/card a
+// search result deep-links to but can't open a modal for (a checkbox, a
+// list row) — one definition reused across every consumer (news sources,
+// coming-soon cards, message board posts, user rows) instead of each
+// feature folder rolling its own. `outline` rather than `border` so it
+// doesn't shift layout on elements with no border of their own.
+@keyframes search-highlight-pulse {
+  0%,
+  100% {
+    outline-color: transparent;
+    background-color: transparent;
+  }
+  20%,
+  80% {
+    outline-color: $color-accent;
+    background-color: rgba(223, 169, 62, 0.15);
+  }
+}
+
+.search-highlight {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  border-radius: 6px;
+  animation: search-highlight-pulse 2s ease-in-out;
+}
+
 body {
   margin: 0;
   font-family: $font-sans;

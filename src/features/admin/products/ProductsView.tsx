@@ -22,16 +22,20 @@ export function ProductsView() {
   const [openCatalogueId, setOpenCatalogueId] = useState<string | null>(null)
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null)
   const [showAllProducts, setShowAllProducts] = useState(false)
+  /** Set from `?productId=` (search deep link) — passed to `ProductListView` so it opens that exact product's edit form on arrival. Cleared via `onConsumeInitialEditProduct` once consumed, so navigating back to categories and into the same one again doesn't reopen it. */
+  const [openProductId, setOpenProductId] = useState<string | null>(null)
   /** `1` while drilling into a deeper view, `-1` while going back — see `SlideTransition`. */
   const [direction, setDirection] = useState<1 | -1>(1)
   /** Guards the deep-link effect below so it only ever actually opens the drill-down once — `catalogues` starts out as the bundled seed and only gets its real contents once the WS snapshot arrives a moment later, so this effect has to keep re-checking as `catalogues` updates rather than running once on mount; without this ref it would re-open the drill-down on every later `catalogues` change too, even long after the admin has since navigated elsewhere. */
   const consumedDeepLinkRef = useRef(false)
 
   /**
-   * Deep-link support: `?catalogueId=<id>&categoryId=<id>` opens straight
-   * into that catalogue (and, if given, that category) instead of
-   * requiring clicks through the list — what the sidebar's tier-2 flyout
-   * (and "recently opened" entries) actually navigate to. Depends on
+   * Deep-link support: `?catalogueId=<id>&categoryId=<id>&productId=<id>`
+   * opens straight into that catalogue (and, if given, that category and
+   * product) instead of requiring clicks through the list — what the
+   * sidebar's tier-2 flyout, "recently opened" entries, and the global
+   * search results (see `useGlobalSearchIndex`) actually navigate to.
+   * Depends on
    * `catalogues` (not just mount) since the target may not exist yet in it
    * on the very first render (see `consumedDeepLinkRef`); once found, the
    * state updates are deferred via `queueMicrotask` rather than called
@@ -50,11 +54,13 @@ export function ProductsView() {
     const categoryId = searchParams.get('categoryId')
     const category = categoryId ? catalogue.categories.find((candidate) => candidate.id === categoryId) : undefined
     const wantsAllProducts = Boolean(searchParams.get('allProducts'))
+    const productId = searchParams.get('productId')
     queueMicrotask(() => {
       setOpenCatalogueId(catalogue.id)
       if (category) {
         setOpenCategoryId(category.id)
         recordRecentlyOpened('category', category.id, category.name[language])
+        if (productId) setOpenProductId(productId)
       } else if (wantsAllProducts) {
         setShowAllProducts(true)
       }
@@ -63,6 +69,7 @@ export function ProductsView() {
       current.delete('catalogueId')
       current.delete('categoryId')
       current.delete('allProducts')
+      current.delete('productId')
       return current
     })
   }, [catalogues, searchParams, setSearchParams, language, recordRecentlyOpened])
@@ -127,6 +134,8 @@ export function ProductsView() {
             catalogueCategories={openCatalogue.categories}
             cataloguePrice={openCatalogue.price}
             onBack={handleBackToCategories}
+            initialEditProductId={openProductId ?? undefined}
+            onConsumeInitialEditProduct={() => setOpenProductId(null)}
           />
         ) : view === 'allProducts' && openCatalogue ? (
           <AllProductsView catalogue={openCatalogue} onBack={handleBackFromAllProducts} />

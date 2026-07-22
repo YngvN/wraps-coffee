@@ -124,6 +124,15 @@ export function BellIcon(props: IconProps) {
   )
 }
 
+/** A magnifying glass — the admin top navbar's own global search shortcut. Same path `IntegrationSearchBar` already uses for its own at-rest icon, reused here for visual consistency between the two search entry points. */
+export function SearchIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" strokeWidth="1.5" />
+    </Icon>
+  )
+}
+
 /** A hex nut (hexagonal outline with a round hole through its center) — the rail/navbar's own settings shortcut. */
 export function SettingsIcon(props: IconProps) {
   return (

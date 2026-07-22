@@ -2,12 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { Alert, Button, Checkbox, Input } from '../../../components'
 import { useLanguage } from '../../../i18n'
 import { DASHBOARD_SECTIONS, type AdminRole, type DashboardSection } from '../../../types/sync'
+import { sectionNavId } from '../../../utils/dashboardSection'
 import './UserForm.scss'
-
-/** The nav i18n key for one `DashboardSection`'s label — every section matches its own `admin.nav.<key>` entry (see `adminNavItems.ts`) except `messageboard`, whose nav key is camelCased. */
-function sectionNavId(section: DashboardSection): string {
-  return section === 'messageboard' ? 'messageBoard' : section
-}
 
 interface UserFormProps {
   /** Roles the current session is allowed to assign — a `subadmin` session omits `'admin'` (see `UsersView`'s own "Subadmin scope" rule), so the picker below only ever offers what the server would actually accept. */

@@ -10,6 +10,7 @@ import {
   DEFAULT_SCREEN_BACKGROUND_COLOR,
   DEFAULT_TEXT_SIZES,
   type BackgroundImage,
+  type DraftableScreenFields,
   type LayoutNode,
   type PaneGrowthFallback,
   type PaneId,
@@ -97,13 +98,19 @@ function nextDefaultScreenName(screens: ScreenConfig[], prefix: string): string 
  * is hidden and every field is simply the pane's one static stage-1
  * checkpoint. Everything available from the display's own in-place editors
  * is available here too, so the whole screen can be configured externally
- * without ever opening the live display.
+ * without ever opening the live display, including the same "Live editing"
+ * checkbox `ScreenDisplay.tsx`'s own toolbar has (see the main tab's own
+ * header row, `liveEditing`/`applyDraftableScreenPatch`/`handlePublish`) —
+ * off stages every immediate/no-Save-needed edit into `screen.draft`
+ * instead of the published screen, until an explicit "Publish".
  */
 export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTarget }: ScreenFormProps) {
   const { t } = useLanguage()
   const [screens, setScreens] = useScreens()
   const [screensaverSchedule] = useScreensaverSchedule()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
+  /** This form's own "Live editing" checkbox (see the main tab's own header row) — on (the default, matching `ScreenDisplay.tsx`'s own toggle) writes every immediate/no-Save-needed edit (pane splits/resizes/clears/deletes, live text-size pushes, background/border/transition changes) straight to the persisted screen, exactly as this form always behaved before the toggle existed; off stages them into `screen.draft` instead, via `applyDraftableScreenPatch`, invisible to every other viewer until "Publish". Fields this form only ever writes via the explicit Save button (name, useStages/stageCount/slideDuration, showSlotBorders, hideScrollbar, useScreensaver, previewAspectRatio) are unaffected either way — they were never live-pushed to begin with. */
+  const [liveEditing, setLiveEditing] = useState(true)
   /** Which sub-view (replacing the whole tabbed form until its own Back button is pressed) is open: the whole-screen percentage scaler, the interactive "Layout" grid, the pane-border color editor, the screen's own whole-screen "Background" color/image editor, the "Steps" (use-stages/count/duration/transition) editor, the "Screen saver" editor, the "Other settings" editor, or neither. A pane's own fields (content, background, text size) aren't one of these — they're owned by `PaneEditor` itself, which manages its own sub-view navigation internally (see the active-pane tab render below). Seeded from `initialTarget` via a lazy initializer (not an effect) when this form was opened via a deep link straight into a sub-view. */
   const [editingTarget, setEditingTarget] = useState<ScreenFormTarget | null>(() => initialTarget ?? null)
   /** `1` while opening a sub-view (slides in from the right, see `SlideTransition`), `-1` while going back (slides in from the left). Set right before whatever state change actually switches the view. */
@@ -114,9 +121,9 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
   /** Which stage a pane's own tab is currently showing fields for — shared across every pane tab (switching which pane you're viewing doesn't change it), since stages are a screen-wide sequence, not a per-pane one. */
   const [activeStage, setActiveStage] = useState(1)
   const [name, setName] = useState(() => screen?.name ?? nextDefaultScreenName(screens, t('admin.screens.defaultNamePrefix')))
-  /** This screen's own arrangement + every pane's own content, kept as one local draft — a brand-new screen starts as a single pane showing a clock, a reasonable-looking default rather than a blank pane. */
+  /** This screen's own arrangement + every pane's own content, kept as one local draft — a brand-new screen starts as a single pane showing a clock, a reasonable-looking default rather than a blank pane. Seeded from `screen.draft` (a pending, unpublished layout/paneSlots staged from an earlier "Live editing off" session) when one exists, falling back to the published fields otherwise — so opening this form fresh never silently starts from (and risks overwriting) an out-of-date baseline that ignores what's actually staged. */
   const [draft, setDraft] = useState<{ layout: StageTimeline<LayoutNode>; paneSlots: Record<PaneId, ScreenSlot> }>(() => {
-    if (screen) return { layout: screen.layout, paneSlots: screen.paneSlots }
+    if (screen) return { layout: screen.draft?.layout ?? screen.layout, paneSlots: screen.draft?.paneSlots ?? screen.paneSlots }
     const { node, id } = createLeaf()
     return { layout: { 1: node }, paneSlots: { [id]: { ...emptySlot(), content: writeStageCheckpoint(undefined, 1, { kind: 'time' }) } } }
   })
@@ -130,8 +137,9 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
   const [showSlotBorders, setShowSlotBorders] = useState(screen?.showSlotBorders ?? true)
   const [hideScrollbar, setHideScrollbar] = useState(screen?.hideScrollbar ?? false)
   const [useScreensaver, setUseScreensaver] = useState(screen?.useScreensaver ?? false)
-  const [transitionStyle, setTransitionStyle] = useState<ScreenTransitionStyle>(screen?.transitionStyle ?? 'fade')
-  const [paneGrowthFallback, setPaneGrowthFallback] = useState<PaneGrowthFallback>(screen?.paneGrowthFallback ?? 'screenEdge')
+  // Same "prefer a pending draft" seeding as `draft` above — both fields are live-pushed (see `handleTransitionStyleChange`/`handlePaneGrowthFallbackChange`), so a session that starts with Live editing off should continue from whatever was last staged, not the published value.
+  const [transitionStyle, setTransitionStyle] = useState<ScreenTransitionStyle>(screen?.draft?.transitionStyle ?? screen?.transitionStyle ?? 'fade')
+  const [paneGrowthFallback, setPaneGrowthFallback] = useState<PaneGrowthFallback>(screen?.draft?.paneGrowthFallback ?? screen?.paneGrowthFallback ?? 'screenEdge')
 
   const hasMultipleStages = useStages && stageCount > 1
   /** `activeStage` clamped to whatever's actually selectable right now — shrinking `stageCount` while a higher stage was selected shouldn't leave the tab bar (or any resolver below) pointing at a stage that's no longer offered; growing it back reveals the original selection again, since `activeStage` itself is never reset. */
@@ -236,24 +244,28 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
   /** The freshest persisted version of this screen — reflects any live writes already made this session (background color, text sizes) that this form's own local state doesn't separately track, so neither re-seeding a sub-panel nor the final Save can stomp them with stale data. */
   const latestScreen = screen ? (screens.find((candidate) => candidate.screenID === screen.screenID) ?? screen) : null
 
+  /** `latestScreen` with any pending `.draft` fields merged on top — the freshest *complete* picture of this screen, read everywhere a current value is needed for display/continued-editing purposes (the "Layout" grid preview, the whole-screen percentage scaler, the background/border sub-views). Only differs from `latestScreen` while a draft is actually pending; otherwise identical. Unlike `ScreenDisplay.tsx`'s own `viewScreen`, this isn't gated on the "Live editing" checkbox — it's always draft-preferred, since this form's local state (`draft`, `transitionStyle`, `paneGrowthFallback`) is itself only *seeded once* on mount rather than recomputed every render, so a pending draft has to be the baseline from the very first render or it would otherwise be silently lost the moment this form makes its own first live-pushed edit. The checkbox instead only decides where a *new* edit goes (see `applyDraftableScreenPatch`). */
+  const latestScreenWithDraft: ScreenConfig | null = latestScreen ? { ...latestScreen, ...(latestScreen.draft ?? {}) } : null
+
   /**
    * A screen-shaped object reflecting the freshest known state of every
    * live-pushed field — used to render the interactive "Layout" grid (the
    * exact same `SplitLayout` the live display uses) inline in this form.
-   * Built from `latestScreen` (not this form's own local draft/component
-   * state) for every field that can be live-edited from *anywhere* —
-   * `layout`, background, border color, transition style, etc. — so an edit
-   * made directly on the kiosk display (or another open tab/window of this
-   * same screen) shows up here too, not just edits made from this form.
-   * `paneSlots` is the one deliberate exception: pane *content* edits are
-   * draft-only until "Save" (unlike layout/background/etc., which are
-   * live), so previewing this form's own in-progress unsaved content edits
-   * takes priority there. A screen that hasn't been saved yet at all (no
-   * `latestScreen`) falls back to this form's own local field state
-   * entirely, since there's nothing persisted anywhere to prefer instead.
+   * Built from `latestScreenWithDraft` (not this form's own local draft/
+   * component state) for every field that can be live-edited from
+   * *anywhere* — `layout`, background, border color, transition style, etc.
+   * — so an edit made directly on the kiosk display (or another open tab/
+   * window of this same screen) shows up here too, not just edits made from
+   * this form. `paneSlots` is the one deliberate exception: pane *content*
+   * edits are draft-only until "Save" (unlike layout/background/etc., which
+   * are live), so previewing this form's own in-progress unsaved content
+   * edits takes priority there. A screen that hasn't been saved yet at all
+   * (no `latestScreenWithDraft`) falls back to this form's own local field
+   * state entirely, since there's nothing persisted anywhere to prefer
+   * instead.
    */
-  const previewScreen: ScreenConfig = latestScreen
-    ? { ...latestScreen, paneSlots: draft.paneSlots }
+  const previewScreen: ScreenConfig = latestScreenWithDraft
+    ? { ...latestScreenWithDraft, paneSlots: draft.paneSlots }
     : {
         screenID: '',
         name,
@@ -289,18 +301,42 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately mount/unmount-only, see comment above.
   }, [screen])
 
-  /** Writes a partial change straight to the persisted screen, live — so it shows up on the display immediately, in any other tab/window of this browser already showing it. Reads fresh from storage (the functional `setScreens` form) rather than this component's own `screens` state, which — being a separate `useScreens()` instance from `ScreensView`'s — can otherwise lag behind a write the other one just made. */
+  /** Writes a partial change straight to the persisted screen, live, unconditionally — reserved for the two fields `DraftableScreenFields` excludes (`editingFocus`, `screensaverTestActive`), which stay live regardless of the "Live editing" checkbox since they're ephemeral live-signals, not real screen configuration (see that type's own doc comment). Every other live-pushed field goes through `applyDraftableScreenPatch` instead. Reads fresh from storage (the functional `setScreens` form) rather than this component's own `screens` state, which — being a separate `useScreens()` instance from `ScreensView`'s — can otherwise lag behind a write the other one just made. */
   const liveUpdateScreen = (patch: Partial<ScreenConfig>) => {
     if (!screen) return
     setScreens((current) => current.map((existing) => (existing.screenID === screen.screenID ? { ...existing, ...patch } : existing)))
   }
 
+  /**
+   * The single choke point every *draftable* field write in this form goes
+   * through — routes straight to the published screen while "Live editing"
+   * is on (identical to `liveUpdateScreen`), or merges into `screen.draft`
+   * instead while it's off, invisible to every other viewer until
+   * "Publish" (see `handlePublish`). Mirrors `ScreenDisplay.tsx`'s own
+   * `applyScreenPatch`, minus its undo/redo bookkeeping (this form has none
+   * of its own).
+   */
+  const applyDraftableScreenPatch = (patch: Partial<DraftableScreenFields>) => {
+    if (!screen) return
+    setScreens((current) =>
+      current.map((existing) =>
+        existing.screenID === screen.screenID ? (liveEditing ? { ...existing, ...patch } : { ...existing, draft: { ...existing.draft, ...patch } }) : existing,
+      ),
+    )
+  }
+
+  /** Merges the pending draft onto the published fields and clears it — everyone else's own view starts reflecting it immediately. Only ever called while `latestScreen.draft` is actually set (see the main tab's own "Publish" button). Mirrors `ScreenDisplay.tsx`'s own `handlePublish`. */
+  const handlePublish = () => {
+    if (!screen) return
+    setScreens((current) => current.map((existing) => (existing.screenID === screen.screenID ? { ...existing, ...existing.draft, draft: undefined } : existing)))
+  }
+
   /** Seeds the live text-size buffer for one pane at a given stage — that stage's resolved content's own value if it has one, else the pane's own shared/fallback value at that same stage. */
   const seedLiveTextSizes = (leafId: PaneId, stage: number) => {
-    if (!screen || !latestScreen) return
-    const slot = latestScreen.paneSlots[leafId]
+    if (!screen || !latestScreenWithDraft) return
+    const slot = latestScreenWithDraft.paneSlots[leafId]
     if (!slot) return
-    const sharedTextSizes = resolveSlotTextSizes(slot, stage) ?? latestScreen.textSizes ?? DEFAULT_TEXT_SIZES
+    const sharedTextSizes = resolveSlotTextSizes(slot, stage) ?? latestScreenWithDraft.textSizes ?? DEFAULT_TEXT_SIZES
     const content = resolveSlotContent(slot, stage)
     setLiveTextSizes(resolveContentTextSizes(content, sharedTextSizes))
   }
@@ -467,7 +503,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     }
     const nextPaneSlots = { ...draft.paneSlots, [activeLeafId]: updatedSlot }
     setDraft((current) => ({ ...current, paneSlots: nextPaneSlots }))
-    if (screen) liveUpdateScreen({ paneSlots: nextPaneSlots })
+    if (screen) applyDraftableScreenPatch({ paneSlots: nextPaneSlots })
   }
 
   /** Writes the active tab's overflow-mode change at the currently active stage — same local-draft-plus-live-push posture as `handleLiveTextSizesChange`, so the shrink/scroll effect previews immediately, but always to the pane's own shared `overflowMode` timeline (unlike text sizes, it has no per-content-checkpoint variant to split between). */
@@ -476,35 +512,35 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     const updatedSlot: ScreenSlot = { ...activeSlot, overflowMode: writeStageCheckpoint(activeSlot.overflowMode, clampedActiveStage, mode) }
     const nextPaneSlots = { ...draft.paneSlots, [activeLeafId]: updatedSlot }
     setDraft((current) => ({ ...current, paneSlots: nextPaneSlots }))
-    if (screen) liveUpdateScreen({ paneSlots: nextPaneSlots })
+    if (screen) applyDraftableScreenPatch({ paneSlots: nextPaneSlots })
   }
 
   /** Writes a whole-screen percentage-scaled change (the default and every pane's own size, across every stage) straight to the persisted screen, live — same reasoning as `handleLiveTextSizesChange`. */
   const handleGlobalTextSizesChange = (next: SizeSnapshot) => {
     if (!screen) return
     setDraft((current) => ({ ...current, paneSlots: next.paneSlots }))
-    setScreens((current) => current.map((existing) => (existing.screenID === screen.screenID ? { ...existing, textSizes: next.textSizes, paneSlots: next.paneSlots } : existing)))
+    applyDraftableScreenPatch({ textSizes: next.textSizes, paneSlots: next.paneSlots })
   }
 
   /** Writes the screen's own background color straight to the persisted screen, live. */
-  const handleScreenBackgroundColorChange = (color: string) => liveUpdateScreen({ backgroundColor: color })
+  const handleScreenBackgroundColorChange = (color: string) => applyDraftableScreenPatch({ backgroundColor: color })
 
   /** Writes the screen's own whole-screen background image straight to the persisted screen, live. */
-  const handleScreenBackgroundImageChange = (backgroundImage: BackgroundImage | undefined) => liveUpdateScreen({ backgroundImage })
+  const handleScreenBackgroundImageChange = (backgroundImage: BackgroundImage | undefined) => applyDraftableScreenPatch({ backgroundImage })
 
   /** Writes the pane border color straight to the persisted screen, live. `undefined` goes back to the automatic contrast-based color. */
-  const handleBorderColorChange = (color: string | undefined) => liveUpdateScreen({ borderColor: color })
+  const handleBorderColorChange = (color: string | undefined) => applyDraftableScreenPatch({ borderColor: color })
 
   /** Writes the chosen transition style (fade/slide) straight to the persisted screen, live. */
   const handleTransitionStyleChange = (style: ScreenTransitionStyle) => {
     setTransitionStyle(style)
-    liveUpdateScreen({ transitionStyle: style })
+    applyDraftableScreenPatch({ transitionStyle: style })
   }
 
   /** Writes the chosen pane-growth fallback (screen edge / fade — see `PaneGrowthFallback`) straight to the persisted screen, live. */
   const handlePaneGrowthFallbackChange = (fallback: PaneGrowthFallback) => {
     setPaneGrowthFallback(fallback)
-    liveUpdateScreen({ paneGrowthFallback: fallback })
+    applyDraftableScreenPatch({ paneGrowthFallback: fallback })
   }
 
   /** Persists a divider drag (or, once the split/delete UI lands, a structural edit) from the inline "Layout" grid straight to the persisted screen, live — matching how the live display's own dragging already works. */
@@ -513,7 +549,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
       layout: patch.layout ?? current.layout,
       paneSlots: patch.paneSlots ? { ...current.paneSlots, ...patch.paneSlots } : current.paneSlots,
     }))
-    if (screen) liveUpdateScreen(patch)
+    if (screen) applyDraftableScreenPatch(patch)
   }
 
   /**
@@ -533,7 +569,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     const nextPaneSlots = { ...draft.paneSlots, [newPaneId]: cloneSlot(draft.paneSlots[leafId]) }
     setDraft({ layout: nextLayout, paneSlots: nextPaneSlots })
     setActiveTab(newPaneId)
-    if (screen) liveUpdateScreen({ layout: nextLayout, paneSlots: nextPaneSlots })
+    if (screen) applyDraftableScreenPatch({ layout: nextLayout, paneSlots: nextPaneSlots })
   }
 
   /** Splits `leafId` straight into a clean 2x2 of 4 equal panes in one step — see `ScreenDisplay.tsx`'s own `handleSplitPaneFour` for the identical tree-shape reasoning. Same live-pushed posture as `handleSplitPane`; doesn't switch tabs afterward (unlike a plain split's own single new pane, there's no one obviously "right" pane of the 3 new ones to land on). */
@@ -551,7 +587,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
       [bottomRightId]: cloneSlot(originalSlot),
     }
     setDraft({ layout: nextLayout, paneSlots: nextPaneSlots })
-    if (screen) liveUpdateScreen({ layout: nextLayout, paneSlots: nextPaneSlots })
+    if (screen) applyDraftableScreenPatch({ layout: nextLayout, paneSlots: nextPaneSlots })
   }
 
   /** Deletes `leafId` — its sibling takes over the freed space. No-op when it's the only pane left (the delete button isn't rendered at all in that case). Switches back to the "Global" tab if the deleted pane was the one currently open. */
@@ -562,14 +598,14 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     const nextLayout = writeStageCheckpoint(draft.layout, clampedActiveStage, nextTree)
     setDraft((current) => ({ ...current, layout: nextLayout }))
     if (activeLeafId === leafId) setActiveTab('global')
-    if (screen) liveUpdateScreen({ layout: nextLayout })
+    if (screen) applyDraftableScreenPatch({ layout: nextLayout })
   }
 
   /** Resets `leafId`'s own content/background/text-size straight back to a fresh blank `ScreenSlot` — independent of `layout` entirely. Live-pushed immediately, same posture as split/delete. */
   const handleClearPane = (leafId: PaneId) => {
     const nextPaneSlots = { ...draft.paneSlots, [leafId]: emptySlot() }
     setDraft((current) => ({ ...current, paneSlots: nextPaneSlots }))
-    if (screen) liveUpdateScreen({ paneSlots: nextPaneSlots })
+    if (screen) applyDraftableScreenPatch({ paneSlots: nextPaneSlots })
   }
 
   /** Toggles `leafId`'s own lock at the currently active stage — same posture as `handleClearPane`, and same accidental-edit-guard-only semantics as `ScreenDisplay.tsx`'s own `handleTogglePaneLock` (no PIN/confirmation, just this same button again). */
@@ -578,7 +614,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     const nextLocked = !resolveSlotLocked(slot, clampedActiveStage)
     const nextPaneSlots = { ...draft.paneSlots, [leafId]: { ...slot, locked: writeStageCheckpoint(slot.locked, clampedActiveStage, nextLocked) } }
     setDraft((current) => ({ ...current, paneSlots: nextPaneSlots }))
-    if (screen) liveUpdateScreen({ paneSlots: nextPaneSlots })
+    if (screen) applyDraftableScreenPatch({ paneSlots: nextPaneSlots })
   }
 
   /** Toggles the live screensaver preview straight on the persisted screen — unlike `useScreensaver` itself (a plain field saved along with everything else on Submit), this needs to show up immediately on any open kiosk tab to actually be useful as a test. */
@@ -619,7 +655,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     viewKey = 'global'
     formContent = (
       <div className="screen-form__subview">
-        <GlobalTextSizeScaler screen={latestScreen ?? previewScreen} onChange={handleGlobalTextSizesChange} onDone={closeGlobalTextSizeEditor} />
+        <GlobalTextSizeScaler screen={latestScreenWithDraft ?? previewScreen} onChange={handleGlobalTextSizesChange} onDone={closeGlobalTextSizeEditor} />
       </div>
     )
   } else if (editingTarget === 'background' && latestScreen) {
@@ -627,9 +663,9 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     formContent = (
       <div className="screen-form__subview">
         <BackgroundEditor
-          backgroundColor={latestScreen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR}
+          backgroundColor={latestScreenWithDraft?.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR}
           onBackgroundColorChange={handleScreenBackgroundColorChange}
-          backgroundImage={latestScreen.backgroundImage}
+          backgroundImage={latestScreenWithDraft?.backgroundImage}
           onBackgroundImageChange={handleScreenBackgroundImageChange}
         />
       </div>
@@ -744,7 +780,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
         />
         {showSlotBorders && (
           <BackgroundColorPicker
-            backgroundColor={latestScreen?.borderColor}
+            backgroundColor={latestScreenWithDraft?.borderColor}
             onChange={handleBorderColorChange}
             allowTransparent
             label={t('admin.screens.borderColorLabel')}
@@ -785,6 +821,22 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
         <div className="screen-form__tab-panel">
           <Input id="screen-name" label={t('admin.screens.nameLabel')} value={name} onChange={(event) => setName(event.target.value)} required />
 
+          {screen && (
+            <div className="screen-form__live-editing-row">
+              <Checkbox
+                id="screen-form-live-editing"
+                label={t('screenDisplay.liveEditing')}
+                checked={liveEditing}
+                onChange={(event) => setLiveEditing(event.target.checked)}
+              />
+              {latestScreen?.draft && (
+                <Button type="button" variant="secondary" onClick={handlePublish}>
+                  {t('screenDisplay.publish')}
+                </Button>
+              )}
+            </div>
+          )}
+
           {/* The live layout editor itself — a pane's own fields (below) are just one click away on whichever pane is clicked here, so the separate per-pane tab-button row (and the "Layout" sub-view that used to hold this) isn't needed anymore. */}
           <div className="screen-form__layout-picker" role="group" aria-label={t('admin.screens.previewRatioLabel')}>
             {PREVIEW_ASPECT_RATIOS.map(({ ratio, label }) => (
@@ -799,27 +851,29 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
             ))}
           </div>
           {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={clampedActiveStage} onActiveStageChange={handleActiveStageChange} />}
-          <ScaledScreenPreview aspectRatio={previewAspectRatio}>
-            <SplitLayout
-              screen={previewScreen}
-              resolveTextSizes={(leafId, stage, content) => {
-                const slot = draft.paneSlots[leafId]
-                const shared = (slot && resolveSlotTextSizes(slot, stage)) ?? latestScreen?.textSizes ?? DEFAULT_TEXT_SIZES
-                return resolveContentTextSizes(content, shared)
-              }}
-              stage={clampedActiveStage}
-              onResizeDivider={handleResizeDivider}
-              onEditSlide={handleSelectTab}
-              onSplitPane={handleSplitPane}
-              onSplitFour={handleSplitPaneFour}
-              disableSplitOnTouch
-              onClearPane={handleClearPane}
-              onDeletePane={handleDeletePane}
-              onTogglePaneLock={handleTogglePaneLock}
-              selectedLeafId={activeLeafId ?? undefined}
-              defaultPaneLanguage={defaultPaneLanguage}
-            />
-          </ScaledScreenPreview>
+          <div className="screen-form__preview">
+            <ScaledScreenPreview aspectRatio={previewAspectRatio} fit="contain">
+              <SplitLayout
+                screen={previewScreen}
+                resolveTextSizes={(leafId, stage, content) => {
+                  const slot = draft.paneSlots[leafId]
+                  const shared = (slot && resolveSlotTextSizes(slot, stage)) ?? latestScreen?.textSizes ?? DEFAULT_TEXT_SIZES
+                  return resolveContentTextSizes(content, shared)
+                }}
+                stage={clampedActiveStage}
+                onResizeDivider={handleResizeDivider}
+                onEditSlide={handleSelectTab}
+                onSplitPane={handleSplitPane}
+                onSplitFour={handleSplitPaneFour}
+                disableSplitOnTouch
+                onClearPane={handleClearPane}
+                onDeletePane={handleDeletePane}
+                onTogglePaneLock={handleTogglePaneLock}
+                selectedLeafId={activeLeafId ?? undefined}
+                defaultPaneLanguage={defaultPaneLanguage}
+              />
+            </ScaledScreenPreview>
+          </div>
           {activeLeafId && renderActivePaneEditor()}
 
           {screen && (

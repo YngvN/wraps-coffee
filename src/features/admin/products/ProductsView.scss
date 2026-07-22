@@ -22,6 +22,15 @@
     margin: 0;
     font-size: 1.25rem;
   }
+
+  // `BackButton`'s own `align-self: flex-start` (needed where it sits alone
+  // above other stretched column content elsewhere) would otherwise override
+  // this row's own `align-items: center` and pin it to the top instead of
+  // centering it against the title beside it — same fix as
+  // `.screens-view__form-header`.
+  .back-button {
+    align-self: center;
+  }
 }
 
 .products-view__category {

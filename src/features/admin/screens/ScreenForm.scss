@@ -30,6 +30,18 @@
   border-radius: 8px;
 }
 
+// Caps the live layout preview to roughly half the viewport in each
+// direction instead of stretching to the form's own (near-full-page) width
+// — `ScaledScreenPreview`'s `fit="contain"` mode (also used by `ScreenCard`'s
+// grid thumbnails) needs a box with a real width *and* height to letterbox
+// into, which is why this sets both rather than just a `max-width` (a
+// width-only cap would still let a portrait aspect ratio grow taller than
+// the viewport).
+.screen-form__preview {
+  width: 50vw;
+  height: 50vh;
+}
+
 // The Global tab's own row of sub-view buttons (Arrangement, Background,
 // Stages, etc.) — a flat list of full-width rows rather than the app's
 // usual bordered/rounded/accent-colored `.btn--secondary` pill, each ending
@@ -56,6 +68,15 @@
       border-bottom-width: 3px;
     }
   }
+}
+
+// The "Live editing" checkbox + conditional "Publish" button — same pair
+// `ScreenDisplay.tsx`'s own toolbar shows, just laid out as a plain row
+// here rather than inline among a toolbar's other icon buttons.
+.screen-form__live-editing-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit * 2;
 }
 
 .screen-form__field {

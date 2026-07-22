@@ -10,6 +10,8 @@ interface AdminRightPanelProps {
   onClose: () => void
   title: string
   children: ReactNode
+  /** `'wide'` widens the panel (see `.admin-right-panel--wide` in `AdminRightPanel.scss`) — used by the global search panel, which needs more room for result rows than Notifications/Messages do. Defaults to `'default'`. */
+  width?: 'default' | 'wide'
 }
 
 /**
@@ -29,7 +31,7 @@ interface AdminRightPanelProps {
  * z-index. Portaling to `document.body` escapes that context entirely, the
  * same way the navbar's own siblings in `AdminDashboard` do.
  */
-export function AdminRightPanel({ open, onClose, title, children }: AdminRightPanelProps) {
+export function AdminRightPanel({ open, onClose, title, children, width = 'default' }: AdminRightPanelProps) {
   const { t } = useLanguage()
 
   return createPortal(
@@ -45,7 +47,7 @@ export function AdminRightPanel({ open, onClose, title, children }: AdminRightPa
             onClick={onClose}
           />
           <motion.aside
-            className="admin-right-panel"
+            className={`admin-right-panel${width === 'wide' ? ' admin-right-panel--wide' : ''}`}
             role="dialog"
             aria-modal="true"
             aria-label={title}

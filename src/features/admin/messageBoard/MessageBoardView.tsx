@@ -1,9 +1,11 @@
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Button, Checkbox, Input, Modal, PlusIcon, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useMessageBoardPosts } from '../../../hooks/useMessageBoardPosts'
 import { useMessageBoards } from '../../../hooks/useMessageBoards'
+import { useScrollToAndHighlight } from '../../../hooks/useScrollToAndHighlight'
 import { useLanguage } from '../../../i18n'
 import { reportError } from '../../../lib/errorNotifications'
 import type { MessageBoard, MessageBoardPost } from '../../../types/messageBoard'
@@ -32,6 +34,38 @@ export function MessageBoardView() {
   const [editingPost, setEditingPost] = useState<MessageBoardPost | null | undefined>(undefined)
   const [boardModal, setBoardModal] = useState<BoardModalState>(null)
   const [boardNameDraft, setBoardNameDraft] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  /** Guards the deep-link effect below so it only ever selects the target board once — `boards` starts as the bundled seed and gets its real contents once the synced snapshot arrives, same posture as `ProductsView`'s own deep-link effect. */
+  const consumedDeepLinkRef = useRef(false)
+  /** Set from `?postId=` — highlighted once its board's tab has been selected and its post list has actually rendered (see the effect below). */
+  const [highlightPostId, setHighlightPostId] = useState<string | null>(null)
+  const { registerRef: registerPostRef, triggerHighlight: triggerPostHighlight } = useScrollToAndHighlight()
+
+  /**
+   * Deep-link support: `?boardId=<id>` selects that board's tab — what the
+   * global search results (see `useGlobalSearchIndex`) navigate to.
+   * `&postId=<id>` additionally scrolls to/highlights that one post, but
+   * does not open `MessageBoardPostForm` — there's no general "edit"
+   * landing for a post beyond its own board, same posture as `UsersView`'s
+   * own deep link.
+   */
+  useEffect(() => {
+    if (consumedDeepLinkRef.current) return
+    const boardId = searchParams.get('boardId')
+    const board = boardId ? boards.find((candidate) => candidate.id === boardId) : undefined
+    if (!board) return
+    consumedDeepLinkRef.current = true
+    const postId = searchParams.get('postId')
+    queueMicrotask(() => {
+      setSelectedBoardId(board.id)
+      if (postId) setHighlightPostId(postId)
+    })
+    setSearchParams((current) => {
+      current.delete('boardId')
+      current.delete('postId')
+      return current
+    })
+  }, [boards, searchParams, setSearchParams])
 
   const isModerator = session?.role !== 'limited'
   // Falls back to the first board whenever `selectedBoardId` doesn't match
@@ -40,7 +74,15 @@ export function MessageBoardView() {
   // invalid selection is never actually shown, even for one extra frame.
   const selectedBoard = boards.find((board) => board.id === selectedBoardId) ?? boards[0] ?? null
 
-  const boardPosts = selectedBoard ? sortMessageBoardPosts(posts.filter((post) => post.boardId === selectedBoard.id), 'newestFirst') : []
+  const boardPosts = useMemo(() => (selectedBoard ? sortMessageBoardPosts(posts.filter((post) => post.boardId === selectedBoard.id), 'newestFirst') : []), [selectedBoard, posts])
+
+  /** Fires once the deep-linked post actually shows up in `boardPosts` — a plain list with no open animation to wait out, unlike the Integrations page's accordion-gated highlights, so this can trigger as soon as the board switch above has taken effect. */
+  useEffect(() => {
+    if (!highlightPostId) return
+    if (!boardPosts.some((post) => post.id === highlightPostId)) return
+    triggerPostHighlight(highlightPostId)
+    queueMicrotask(() => setHighlightPostId(null))
+  }, [highlightPostId, boardPosts, triggerPostHighlight])
 
   const isPostFormOpen = editingPost !== undefined
   const closePostForm = () => setEditingPost(undefined)
@@ -176,7 +218,14 @@ export function MessageBoardView() {
             <div className="message-board-view__list">
               <AnimatePresence initial={false}>
                 {boardPosts.map((post) => (
-                  <motion.div key={post.id} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}>
+                  <motion.div
+                    key={post.id}
+                    ref={registerPostRef(post.id)}
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.15 }}
+                  >
                     <MessageBoardPostItem
                       post={post}
                       canManage={isModerator || post.authorUsername === session?.username}

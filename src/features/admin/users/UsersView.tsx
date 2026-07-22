@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Badge, Button, Card, Modal, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
+import { useScrollToAndHighlight } from '../../../hooks/useScrollToAndHighlight'
 import { useLanguage } from '../../../i18n'
 import { reportError } from '../../../lib/errorNotifications'
 import { createUser, deleteUser, listUsers, resetUserPassword, SessionExpiredError, type AdminUserSummary } from '../../../lib/localServer'
 import type { AdminRole, DashboardSection } from '../../../types/sync'
+import { sectionNavId } from '../../../utils/dashboardSection'
 import { ResetPasswordForm } from './ResetPasswordForm'
 import { UserForm } from './UserForm'
 import './UsersView.scss'
@@ -13,11 +16,6 @@ const ROLE_BADGE_VARIANT: Record<AdminRole, 'success' | 'info' | 'neutral'> = {
   admin: 'success',
   subadmin: 'info',
   limited: 'neutral',
-}
-
-/** The nav i18n key for one `DashboardSection`'s label — see `UserForm`'s own copy of this mapping. */
-function sectionNavId(section: DashboardSection): string {
-  return section === 'messageboard' ? 'messageBoard' : section
 }
 
 /**
@@ -41,6 +39,24 @@ export function UsersView() {
   const [addError, setAddError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [resetTarget, setResetTarget] = useState<AdminUserSummary | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  /** Guards the deep-link effect below so it only ever highlights the target user once — `users` starts `null` and only becomes an array once `refresh()` resolves, so this effect has to keep re-checking as `users` updates rather than running once on mount, same posture as `ProductsView`'s own deep-link effect. */
+  const consumedDeepLinkRef = useRef(false)
+  const { registerRef: registerUserRef, triggerHighlight: triggerUserHighlight } = useScrollToAndHighlight()
+
+  /** Deep-link support: `?userId=<id>` scrolls to and highlights that user's row — what the global search results (see `useGlobalSearchIndex`) navigate to. No modal opens (there's no general "edit user" form, only Add/Reset password/Delete), same posture as `MessageBoardView`'s own post highlight. */
+  useEffect(() => {
+    if (consumedDeepLinkRef.current) return
+    const userId = searchParams.get('userId')
+    const user = userId && users ? users.find((candidate) => candidate.id === userId) : undefined
+    if (!user) return
+    consumedDeepLinkRef.current = true
+    triggerUserHighlight(user.id)
+    setSearchParams((current) => {
+      current.delete('userId')
+      return current
+    })
+  }, [users, searchParams, setSearchParams, triggerUserHighlight])
 
   const handleSessionExpired = () => {
     reportError(t('imageUpload.sessionExpired'))
@@ -144,7 +160,7 @@ export function UsersView() {
                     ? t('admin.users.cantDeleteAdmin')
                     : undefined
               return (
-                <li key={user.id} className="users-view__item">
+                <li key={user.id} ref={registerUserRef(user.id)} className="users-view__item">
                   <div className="users-view__item-info">
                     <span className="users-view__item-name">{user.username}</span>
                     <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{t(`admin.users.roles.${user.role}`)}</Badge>

@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Badge, Button, EditDeleteButtons, Modal, TranslatedText } from '../../../components'
 import { useClockFormatPreference } from '../../../hooks/useClockFormatPreference'
 import { useDateFormatPreference } from '../../../hooks/useDateFormatPreference'
@@ -31,6 +32,23 @@ export function EventsView() {
   const [dateFormat] = useDateFormatPreference()
   const [events, setEvents] = useEvents()
   const [editingEvent, setEditingEvent] = useState<EventRecord | null | undefined>(undefined)
+  const [searchParams, setSearchParams] = useSearchParams()
+  /** Guards the deep-link effect below so it only opens the target event once — `events` starts as the bundled seed and gets its real contents once the synced snapshot arrives, same posture as `ProductsView`'s own deep-link effect. */
+  const consumedDeepLinkRef = useRef(false)
+
+  /** Deep-link support: `?eventId=<id>` opens straight into that event's edit form — what the global search results (see `useGlobalSearchIndex`) navigate to. */
+  useEffect(() => {
+    if (consumedDeepLinkRef.current) return
+    const eventId = searchParams.get('eventId')
+    const event = eventId ? events.find((candidate) => candidate.eventID === eventId) : undefined
+    if (!event) return
+    consumedDeepLinkRef.current = true
+    queueMicrotask(() => setEditingEvent(event))
+    setSearchParams((current) => {
+      current.delete('eventId')
+      return current
+    })
+  }, [events, searchParams, setSearchParams])
 
   const isFormOpen = editingEvent !== undefined
   const closeForm = () => setEditingEvent(undefined)

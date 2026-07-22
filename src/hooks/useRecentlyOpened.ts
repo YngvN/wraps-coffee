@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-export type RecentlyOpenedType = 'screen' | 'category'
+export type RecentlyOpenedType = 'screen' | 'category' | 'product' | 'event'
 
 /** One entry in the recently-opened log — `label` is snapshotted at the time it was opened (not re-derived live), so a since-renamed screen/category still reads sensibly in the list until it's opened again. */
 export interface RecentlyOpenedEntry {
@@ -28,13 +28,13 @@ function readEntries(): RecentlyOpenedEntry[] {
  * Per-device (plain `localStorage`, never synced across displays/admins —
  * unlike every other admin dataset, "what I was just working on" is
  * specific to this one browser, not something to broadcast), most-recent-
- * first log of screens/categories opened for editing. Powers the
- * sidebar's tier-2 flyout "recently opened" section (see
- * `AdminSidebarNav`/`SidebarFlyout`) — a quick way back into whatever was
- * just being worked on, pinned above that flyout's own live full list.
- * Capped at `MAX_ENTRIES`, deduplicated by `(type, id)` (re-opening
- * something already in the list just moves it back to the front rather
- * than appearing twice).
+ * first log of screens/categories/products/events opened for editing.
+ * Powers the sidebar's tier-2 flyout "recently opened" section (see
+ * `AdminSidebarNav`/`SidebarFlyout`) and `GlobalSearchPanel`'s own
+ * empty-state recents — a quick way back into whatever was just being
+ * worked on. Capped at `MAX_ENTRIES`, deduplicated by `(type, id)`
+ * (re-opening something already in the list just moves it back to the
+ * front rather than appearing twice).
  */
 export function useRecentlyOpened() {
   const [entries, setEntries] = useState<RecentlyOpenedEntry[]>(() => readEntries())
