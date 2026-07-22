@@ -4,6 +4,17 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    // A screen link normally addresses this dev server by its mDNS name
+    // (`<store name>-screen.local`, derived per-store in `deriveMdnsName` —
+    // see `server/mdns.ts`) rather than a raw LAN IP, so it keeps working
+    // across router/computer restarts (see the README's "Getting started").
+    // Vite's dev server otherwise rejects any request whose `Host` header
+    // isn't in this list — the leading dot allows every such hostname, not
+    // just today's store name, which would otherwise break the moment the
+    // store's own name (and therefore its mDNS name) changes.
+    allowedHosts: ['.local'],
+  },
   plugins: [
     react(),
     // Precaches the built app shell (JS/CSS/HTML/icons) so an already-visited

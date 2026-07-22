@@ -40,7 +40,6 @@ import { findSiblingEventOrdinal } from '../utils/eventOrdinals'
 import { generateId } from '../utils/id'
 import { computeLayoutGeometry, isContiguousBlock } from '../utils/layoutGeometry'
 import { cloneSlot, deleteLeaf, emptySlot, listLeaves, splitLeaf } from '../utils/layoutTree'
-import { getBlurredBackgroundUrl } from '../utils/responsiveImage'
 import { backgroundImageTextStyle, borderColorStyle, getScreenColorVars } from '../utils/screenColors'
 import { isWithinScreensaverWindow } from '../utils/screensaver'
 import { hasOwnTextSizeFields, resolveContentBackgroundImage } from '../utils/screenSlots'
@@ -142,9 +141,11 @@ function redoScreenState(screens: ScreenConfig[], current: ScreenConfig, undoSta
  * own "Background" button, opening a sub-view (`BackgroundEditor`) for the
  * screen's own overall background color and an optional whole-screen
  * background image (blurred and scaled to cover, same technique as a
- * pane's own — see `.screen-display__bg`), shown through any pane that
- * doesn't have its own background color/image (a pane's own individual
- * background is only editable from that pane's own editor, not here).
+ * pane's own — see `SplitLayout.tsx`'s own `screenBackgroundImage`, which
+ * renders it for every one of that component's callers, not just this
+ * page), shown through any pane that doesn't have its own background
+ * color/image (a pane's own individual background is only editable from
+ * that pane's own editor, not here).
  * Unlike the scaler's own fields, both write on every change, with no
  * local draft/"restore previous" step of their own (they're still subject
  * to the toolbar's own Live editing toggle, like everything else — see
@@ -1014,12 +1015,6 @@ export function ScreenDisplay() {
       className={`screen-display${viewScreen.hideScrollbar ? ' screen-display--hide-scrollbar' : ''}`}
       style={screenAppearanceToCssVars(activeTextSizes, viewScreen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR, viewScreen.borderColor, viewScreen.backgroundImage)}
     >
-      {viewScreen.backgroundImage && (
-        <div className="screen-display__bg">
-          <div className="screen-display__bg-image" style={{ backgroundImage: `url(${getBlurredBackgroundUrl(viewScreen.backgroundImage.imageUrl)})` }} />
-          {viewScreen.backgroundImage.overlay !== 'none' && <div className={`screen-display__bg-overlay screen-display__bg-overlay--${viewScreen.backgroundImage.overlay}`} />}
-        </div>
-      )}
       {!connected && (
         <div className="screen-display__connection-badge" title={t('screenDisplay.noConnection')} aria-label={t('screenDisplay.noConnection')}>
           <NoConnectionIcon />

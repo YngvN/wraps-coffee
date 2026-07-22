@@ -17,41 +17,6 @@
   transition: background-color 0.4s ease, color 0.4s ease;
 }
 
-// The screen's own whole-screen background image — sits behind everything
-// (before the toolbar/slots in DOM order, with no `z-index` of its own), so
-// any pane without its own background color/image shows it through instead
-// of the plain `--screen-bg` color underneath.
-.screen-display__bg {
-  position: absolute;
-  inset: 0;
-}
-
-// Overscanned past the screen's own edges and blurred — same reasoning as a
-// slot's own background image (see `.split-layout__pane-bg-image`, including
-// why this is only a small residual live blur on top of a pre-baked one):
-// the overscan keeps the blur's soft edge from peeking in, clipped away by
-// `.screen-display`'s own `overflow: hidden`.
-.screen-display__bg-image {
-  position: absolute;
-  inset: -30px;
-  background-size: cover;
-  background-position: center;
-  filter: blur(4px);
-}
-
-.screen-display__bg-overlay {
-  position: absolute;
-  inset: 0;
-
-  &--light {
-    background: rgba(255, 255, 255, 0.55);
-  }
-
-  &--dark {
-    background: rgba(0, 0, 0, 0.55);
-  }
-}
-
 // A quiet "showing stored content" watermark (see useConnectionStatus) —
 // shares the toolbar's own z-index so it stays visible over the screensaver
 // too, since a disconnected screen not knowing whether its own scheduled

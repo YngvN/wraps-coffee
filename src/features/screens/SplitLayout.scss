@@ -19,6 +19,43 @@
   }
 }
 
+// The screen's own whole-screen background image — sized to exactly cover
+// `.split-layout` itself (its own positioning context for the overscanned,
+// blurred image below), rendered first in DOM order so every pane simply
+// paints over it, no z-index needed. Same technique as `.split-layout__pane-bg`
+// below, just screen-wide instead of per-pane — see `SplitLayout.tsx`'s own
+// `screenBackgroundImage`.
+.split-layout__bg {
+  position: absolute;
+  inset: 0;
+}
+
+// Overscanned past the screen's own edges and blurred — same reasoning as
+// `.split-layout__pane-bg-image` below (including why this is only a small
+// residual live blur on top of a pre-baked one): the overscan keeps the
+// blur's soft edge from peeking in, clipped away by `.split-layout`'s own
+// implicit clipping (every pane fully covers its own grid cell).
+.split-layout__bg-image {
+  position: absolute;
+  inset: -30px;
+  background-size: cover;
+  background-position: center;
+  filter: blur(4px);
+}
+
+.split-layout__bg-overlay {
+  position: absolute;
+  inset: 0;
+
+  &--light {
+    background: rgba(255, 255, 255, 0.55);
+  }
+
+  &--dark {
+    background: rgba(0, 0, 0, 0.55);
+  }
+}
+
 // One of these per `split` node in the tree (see `LayoutTree.tsx`) — a
 // plain 2-cell grid holding that node's own two children (each in turn a
 // pane or another nested split), sized live via inline style

@@ -9,6 +9,7 @@ import { diffLeafSets, resolvePaneGrowthOrigin, type PaneGrowthOrigin } from '..
 import { backgroundImageTextStyle, borderColorStyle, getScreenColorVars } from '../../utils/screenColors'
 import { mediaResizeRatioPatch, mediaResizeScaleFromDrag, paneResizableAxes, pathKey, type NodePath, type PaneResizableAxes, type RatioPatch } from '../../utils/screenLayout'
 import { isNewsSlotContent, isResizeToFitContent, resizeToFitMediaUrl } from '../../utils/screenSlots'
+import { getBlurredBackgroundUrl } from '../../utils/responsiveImage'
 import { isSlotActive, resolveSlotContent, resolveStageValue, writeStageCheckpoint } from '../../utils/screenStages'
 import { ExitingPaneGhost } from './ExitingPaneGhost'
 import { LayoutTree } from './LayoutTree'
@@ -411,9 +412,32 @@ export function SplitLayout({
   const liveOverridePatch: RatioPatch = { ...mediaResizeOverrides, ...liveRatios }
   const layoutTree = Object.keys(liveOverridePatch).length > 0 ? applyRatioPatchPreservingDescendants(tree, liveOverridePatch, geometry) : tree
 
+  /**
+   * The screen's own whole-screen background image (distinct from any one
+   * pane's own — see `.split-layout__pane-bg-image` — this one sits behind
+   * every pane, showing through only where a pane has no background color/
+   * image of its own), rendered first in DOM order so ordinary painting
+   * puts every pane on top of it, no z-index needed — same technique (and
+   * class-naming convention, just screen-wide instead of per-pane) as
+   * `LayoutPane.tsx`'s own background image. Computed once and reused by
+   * both the empty-screen branch below and the normal return, since a
+   * screen-wide background is independent of whether it has any active
+   * pane content yet. Every one of `SplitLayout`'s own callers — the real
+   * kiosk display, the admin form's inline "Layout" preview, and
+   * `ScreenCard`'s own grid thumbnail — gets this for free just by
+   * rendering `SplitLayout` at all, rather than each needing its own copy.
+   */
+  const screenBackgroundImage = screen.backgroundImage ? (
+    <div className="split-layout__bg">
+      <div className="split-layout__bg-image" style={{ backgroundImage: `url(${getBlurredBackgroundUrl(screen.backgroundImage.imageUrl)})` }} />
+      {screen.backgroundImage.overlay !== 'none' && <div className={`split-layout__bg-overlay split-layout__bg-overlay--${screen.backgroundImage.overlay}`} />}
+    </div>
+  ) : null
+
   if (!leaves.some((leaf) => screen.paneSlots[leaf.id] && isSlotActive(screen.paneSlots[leaf.id]))) {
     return (
       <div className="split-layout split-layout--empty" style={screenColorStyle}>
+        {screenBackgroundImage}
         <p>{t('screenDisplay.emptyLabel')}</p>
       </div>
     )
@@ -481,6 +505,7 @@ export function SplitLayout({
 
   return (
     <div ref={containerRef} className={`split-layout${borderModifier}`} style={screenColorStyle}>
+      {screenBackgroundImage}
       <LayoutTree
         node={layoutTree}
         path={[]}
