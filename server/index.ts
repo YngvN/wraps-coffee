@@ -9,7 +9,7 @@ import type { WindowLaunchSettings } from '../src/types/windowLaunch'
 import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
 import * as backup from './backup'
-import { handleDepartures, handleLookup, handleStopSearch, handleWeather } from './extensions'
+import { handleDepartures, handleLookup, handleStopSearch, handleWeather } from './integrations'
 import { handleHeadlines } from './news'
 import { handleNewsImage, startNewsImageCacheSweep } from './newsImageCache'
 import { bearerToken, CORS_HEADERS, readJsonBody, sendJson } from './http'
@@ -39,7 +39,7 @@ const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
   'admin.textSizePresets': 'screens',
   'admin.screensaverSchedule': 'screens',
   'admin.displayMachines': 'displaymanager',
-  'admin.extensions': 'extensions',
+  'admin.integrations': 'integrations',
   'admin.orders': 'orders',
   'admin.messageBoards': 'messageboard',
   'admin.messageBoardPosts': 'messageboard',
@@ -255,20 +255,20 @@ const httpServer = createServer((req, res) => {
     }
   }
 
-  // Extensions (Ruter transit + Yr weather proxies). Public, no auth — these
+  // Integrations (Ruter transit + Yr weather proxies). Public, no auth — these
   // are read-only proxies of public data, and the kiosk display that renders
   // them is never a logged-in session either.
-  if (req.method === 'GET' && url.pathname === '/extensions/lookup') {
+  if (req.method === 'GET' && url.pathname === '/integrations/lookup') {
     void handleLookup(res, url.searchParams.get('address') ?? '')
     return
   }
 
-  if (req.method === 'GET' && url.pathname === '/extensions/stops/search') {
+  if (req.method === 'GET' && url.pathname === '/integrations/stops/search') {
     void handleStopSearch(res, url.searchParams.get('query') ?? '')
     return
   }
 
-  if (req.method === 'GET' && url.pathname === '/extensions/departures') {
+  if (req.method === 'GET' && url.pathname === '/integrations/departures') {
     const stopId = url.searchParams.get('stopId')
     const count = Number(url.searchParams.get('count') ?? '5')
     if (!stopId) {
@@ -279,7 +279,7 @@ const httpServer = createServer((req, res) => {
     return
   }
 
-  if (req.method === 'GET' && url.pathname === '/extensions/weather') {
+  if (req.method === 'GET' && url.pathname === '/integrations/weather') {
     const lat = Number(url.searchParams.get('lat'))
     const lon = Number(url.searchParams.get('lon'))
     const hours = Number(url.searchParams.get('hours') ?? '6')
@@ -292,7 +292,7 @@ const httpServer = createServer((req, res) => {
   }
 
   // News (RSS headlines) proxy — same public, unauthenticated posture as
-  // the Extensions proxies above: read-only, cached, publicly published
+  // the Integrations proxies above: read-only, cached, publicly published
   // content, and the kiosk display that renders it is never a logged-in
   // session either.
   if (req.method === 'GET' && url.pathname === '/news/headlines') {

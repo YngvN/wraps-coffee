@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Button, Checkbox, ImageUploadField, Input, Textarea } from '../../components'
 import { useCatalogues } from '../../hooks/useCatalogues'
 import { useEvents } from '../../hooks/useEvents'
-import { useExtensionsConfig } from '../../hooks/useExtensionsConfig'
+import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
 import { useMessageBoardPosts } from '../../hooks/useMessageBoardPosts'
 import { useMessageBoards } from '../../hooks/useMessageBoards'
 import { useScreens } from '../../hooks/useScreens'
@@ -136,7 +136,7 @@ interface SlideFieldsProps {
 export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, suggestedEventOrdinal }: SlideFieldsProps) {
   const { t, language } = useLanguage()
   const [catalogues] = useCatalogues()
-  const [extensionsConfig] = useExtensionsConfig()
+  const [integrationsConfig] = useIntegrationsConfig()
   const [messageBoards] = useMessageBoards()
   const [messageBoardPosts] = useMessageBoardPosts()
   const [screens] = useScreens()
@@ -359,7 +359,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
   /** Toggles one source in/out of a "News" slide's own `sourceIds` — starting from every cafe-wide-enabled source checked (the standard, when `sourceIds` is still empty) so unchecking the first one narrows it down from there, same "filter the fixed order down" technique as `toggleMenuCategory`. */
   const toggleNewsSource = (sourceId: string, checked: boolean) => {
     if (content.kind !== 'news') return
-    const allIds = extensionsConfig.news.enabledSourceIds
+    const allIds = integrationsConfig.news.enabledSourceIds
     const current = content.sourceIds && content.sourceIds.length > 0 ? content.sourceIds : allIds
     const next = checked ? [...current, sourceId] : current.filter((existing) => existing !== sourceId)
     onChange({ ...content, sourceIds: allIds.filter((existing) => next.includes(existing)) })
@@ -388,8 +388,8 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
   /** The catalogue a "Catalogue" slide currently resolves to — its own `catalogueId` if set, else the first one, matching `CatalogueSlide`'s own fallback. */
   const activeCatalogue = content.kind === 'catalogue' ? (catalogues.find((catalogue) => catalogue.id === content.catalogueId) ?? catalogues[0]) : undefined
 
-  /** The stop pool a "Ruter# - Departures"/"Entur - Departures" slide picks from — each brand's own independently-curated list (see `ExtensionsConfig`'s `transit`/`entur`), never the other's. */
-  const availableTransitStops = content.kind === 'transit' && content.brand === 'entur' ? extensionsConfig.entur.selectedStops : extensionsConfig.transit.selectedStops
+  /** The stop pool a "Ruter# - Departures"/"Entur - Departures" slide picks from — each brand's own independently-curated list (see `IntegrationsConfig`'s `transit`/`entur`), never the other's. */
+  const availableTransitStops = content.kind === 'transit' && content.brand === 'entur' ? integrationsConfig.entur.selectedStops : integrationsConfig.transit.selectedStops
 
   /** Switches which catalogue a "Catalogue" slide shows — clears `categories`, since a category selection almost never carries over to a different catalogue (same precedent as switching a message board clearing its post selection). */
   const setMenuCatalogueId = (catalogueId: string) => {
@@ -524,14 +524,14 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
         <option value="video">{t('admin.screens.slotVideoLabel')}</option>
         <option value="qrcode">{t('admin.screens.slotQrCodeLabel')}</option>
         {/* Each integration-backed option only appears once it's turned on in Integrations — except when it's already this pane's own current value, so an existing pane doesn't lose sight of its own setting the moment that integration gets disabled elsewhere. */}
-        {(extensionsConfig.transit.enabled || (content.kind === 'transit' && (content.brand ?? 'ruter') === 'ruter')) && (
+        {(integrationsConfig.transit.enabled || (content.kind === 'transit' && (content.brand ?? 'ruter') === 'ruter')) && (
           <option value="transit:ruter">{t('admin.screens.slotTransitRuterLabel')}</option>
         )}
-        {(extensionsConfig.entur.enabled || (content.kind === 'transit' && content.brand === 'entur')) && (
+        {(integrationsConfig.entur.enabled || (content.kind === 'transit' && content.brand === 'entur')) && (
           <option value="transit:entur">{t('admin.screens.slotTransitEnturLabel')}</option>
         )}
-        {(extensionsConfig.weather.enabled || content.kind === 'weather') && <option value="weather">{t('admin.screens.slotWeatherLabel')}</option>}
-        {(extensionsConfig.news.enabled || content.kind === 'news') && <option value="news">{t('admin.screens.slotNewsLabel')}</option>}
+        {(integrationsConfig.weather.enabled || content.kind === 'weather') && <option value="weather">{t('admin.screens.slotWeatherLabel')}</option>}
+        {(integrationsConfig.news.enabled || content.kind === 'news') && <option value="news">{t('admin.screens.slotNewsLabel')}</option>}
         <option value="time">{t('admin.screens.slotTimeLabel')}</option>
         <option value="messageboard">{t('admin.screens.slotMessageBoardLabel')}</option>
         <option value="announcement">{t('admin.screens.slotAnnouncementLabel')}</option>
@@ -687,12 +687,12 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
         <>
           <select aria-label={t('admin.screens.qrCodeLinkModeLabel')} value={content.linkMode ?? 'custom'} onChange={(event) => setQrCodeLinkMode(event.target.value as 'custom' | 'news')}>
             <option value="custom">{t('admin.screens.qrCodeLinkModeCustomLabel')}</option>
-            {(extensionsConfig.news.enabled || content.linkMode === 'news') && <option value="news">{t('admin.screens.qrCodeLinkModeNewsLabel')}</option>}
+            {(integrationsConfig.news.enabled || content.linkMode === 'news') && <option value="news">{t('admin.screens.qrCodeLinkModeNewsLabel')}</option>}
           </select>
 
           {(content.linkMode ?? 'custom') === 'custom' ? (
             <Input id={`${id}-qrcode-url`} type="url" label={t('admin.screens.qrCodeUrlLabel')} value={content.url} onChange={(event) => setQrCodeUrl(event.target.value)} />
-          ) : extensionsConfig.news.enabledSourceIds.length > 0 ? (
+          ) : integrationsConfig.news.enabledSourceIds.length > 0 ? (
             <>
               <select
                 aria-label={t('admin.screens.qrCodeNewsSourceLabel')}
@@ -700,7 +700,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
                 onChange={(event) => setQrCodeNewsSourceSelection(event.target.value)}
               >
                 <option value="automatic">{t('admin.screens.qrCodeNewsSourceAutomaticLabel')}</option>
-                {NEWS_SOURCES.filter((source) => extensionsConfig.news.enabledSourceIds.includes(source.id)).map((source) => (
+                {NEWS_SOURCES.filter((source) => integrationsConfig.news.enabledSourceIds.includes(source.id)).map((source) => (
                   <option key={source.id} value={source.id}>
                     {source.name}
                   </option>
@@ -861,14 +861,14 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
       {content.kind === 'weather' && (
         <>
           <select aria-label={t('admin.screens.weatherLocationLabel')} value={content.locationId ?? ''} onChange={(event) => setWeatherLocationId(event.target.value)}>
-            {extensionsConfig.weather.useStoreLocation && <option value="">{t('admin.screens.weatherStoreLocationOption')}</option>}
-            {extensionsConfig.weather.locations.map((location) => (
+            {integrationsConfig.weather.useStoreLocation && <option value="">{t('admin.screens.weatherStoreLocationOption')}</option>}
+            {integrationsConfig.weather.locations.map((location) => (
               <option key={location.id} value={location.id}>
                 {location.name || t('admin.screens.weatherLocationUnnamedOption')}
               </option>
             ))}
           </select>
-          {!extensionsConfig.weather.useStoreLocation && extensionsConfig.weather.locations.length === 0 && (
+          {!integrationsConfig.weather.useStoreLocation && integrationsConfig.weather.locations.length === 0 && (
             <p className="slide-fields__hint">{t('admin.screens.weatherNoLocationsConfiguredLabel')}</p>
           )}
           <label className="slide-fields__number-field">
@@ -933,17 +933,17 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
       )}
 
       {content.kind === 'news' &&
-        (extensionsConfig.news.enabledSourceIds.length > 0 ? (
+        (integrationsConfig.news.enabledSourceIds.length > 0 ? (
           <>
             <div className="slide-fields__categories">
               <span className="slide-fields__categories-label">{t('admin.screens.newsSourcesLabel')}</span>
               <p className="slide-fields__hint">{t('admin.screens.newsSourcesHint')}</p>
-              {NEWS_SOURCES.filter((source) => extensionsConfig.news.enabledSourceIds.includes(source.id)).map((source) => (
+              {NEWS_SOURCES.filter((source) => integrationsConfig.news.enabledSourceIds.includes(source.id)).map((source) => (
                 <Checkbox
                   key={source.id}
                   id={`${id}-news-source-${source.id}`}
                   label={source.name}
-                  checked={(content.sourceIds && content.sourceIds.length > 0 ? content.sourceIds : extensionsConfig.news.enabledSourceIds).includes(source.id)}
+                  checked={(content.sourceIds && content.sourceIds.length > 0 ? content.sourceIds : integrationsConfig.news.enabledSourceIds).includes(source.id)}
                   onChange={(event) => toggleNewsSource(source.id, event.target.checked)}
                 />
               ))}

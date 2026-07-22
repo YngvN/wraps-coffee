@@ -1,18 +1,18 @@
 @use '../../../styles/variables' as *;
 
-.extension-search-results {
+.integration-search-results {
   display: flex;
   flex-direction: column;
   gap: $spacing-unit;
 }
 
-.extension-search-results__count {
+.integration-search-results__count {
   margin: 0;
   color: $color-text-muted;
   font-size: 0.875rem;
 }
 
-.extension-search-results__list {
+.integration-search-results__list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: calc($spacing-unit * 1.5);

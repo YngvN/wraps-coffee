@@ -1,7 +1,11 @@
 @use '../../../styles/variables' as *;
 
 // Shared by both `NotificationsDropdown` (bell) and `MessagesDropdown`
-// (envelope) — same click-to-toggle panel shape, different content.
+// (envelope) — same trigger-button badge, and the same list styling reused
+// inside their own `AdminRightPanel` bodies (see AdminRightPanel.scss for
+// the actual sliding panel/scrim). `position: relative` anchors the badge
+// below to the trigger button, not the (fixed-position, so otherwise
+// unaffected) panel that also lives inside this wrapper.
 .notifications-dropdown {
   position: relative;
 }
@@ -22,27 +26,6 @@
   font-size: 0.625rem;
   font-weight: 700;
   line-height: 1;
-}
-
-.notifications-dropdown__panel {
-  position: absolute;
-  top: calc(100% + #{$spacing-unit});
-  right: 0;
-  z-index: 40;
-  width: 300px;
-  max-height: 360px;
-  overflow-y: auto;
-  padding: calc($spacing-unit * 1.5) $spacing-unit;
-  background: $color-surface;
-  border: 1px solid $color-border;
-  border-radius: 10px;
-  box-shadow: 0 8px 24px $color-shadow;
-}
-
-.notifications-dropdown__header {
-  padding: calc($spacing-unit / 2) $spacing-unit;
-  font-weight: 700;
-  color: $color-text;
 }
 
 .notifications-dropdown__empty {

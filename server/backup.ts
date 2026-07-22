@@ -24,11 +24,18 @@ const MANIFEST_FILE = join(BACKUP_ROOT, 'backup-manifest.json')
 
 // Bump this - and add an explicit migration/fallback in restoreBackupFromZip/
 // restoreFromBackupFolder below - if a future change would ever stop an older
-// backup from restoring cleanly. Right now it wouldn't: every synced key and
+// backup from restoring cleanly. Usually it wouldn't: every synced key and
 // setting is just a flat JSON file, and `store.ts`'s own loadKey already
 // falls back to a fresh default for any file that's missing, so an old
-// backup that predates a newer key restores fine on its own.
-const BACKUP_FORMAT_VERSION = 1
+// backup that predates a newer key restores fine on its own. Bumped to 2 when
+// the `admin.extensions` synced key was renamed to `admin.integrations` (the
+// "Extensions" feature became "Integrations") - a rename changes an existing
+// file's name rather than adding a new one, so it needs its own fallback
+// instead of relying on the "missing file -> default" behavior above; see
+// `migrateLegacyDataFile` in store.ts, run on every boot (including right
+// after a restore, since the HTTP route that calls this file's restore
+// functions always calls `store.load()` again afterward).
+const BACKUP_FORMAT_VERSION = 2
 
 interface BackupManifest {
   formatVersion: number

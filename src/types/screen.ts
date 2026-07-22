@@ -63,16 +63,16 @@ interface OwnBackgroundImageFields {
  * a one-off message unrelated to the menu/events/message-board systems. Two
  * further kinds are backed by live
  * external data rather than admin-authored content, configured from the
- * admin's Extensions tab (see `useExtensionsConfig`): `'transit'` shows
+ * admin's Integrations tab (see `useIntegrationsConfig`): `'transit'` shows
  * real-time departures from one of the cafe's configured nearby stops
- * (`stopId`, referencing either `ExtensionsConfig['transit']['selectedStops']`
- * or `ExtensionsConfig['entur']['selectedStops']` depending on the pane's own
+ * (`stopId`, referencing either `IntegrationsConfig['transit']['selectedStops']`
+ * or `IntegrationsConfig['entur']['selectedStops']` depending on the pane's own
  * `brand`), and `'weather'` shows an hourly forecast for the cafe's own address —
  * neither renders anything (see `TransitSlide`/`WeatherSlide`) unless its
  * integration is enabled. Unlike transit, `'weather'`'s own display
  * settings (`forecastHours`, `showWind`, `showHumidity`,
  * `showPrecipitationProbability`, `showUvIndex`, `showPressure`) live on
- * the slide itself rather than in `ExtensionsConfig` — the Integrations tab
+ * the slide itself rather than in `IntegrationsConfig` — the Integrations tab
  * only toggles whether weather is enabled at all, so different weather
  * panes across a screen (or across screens) can each show different detail
  * fields. `'time'` is a live-ticking clock/date/weekday/week
@@ -147,7 +147,7 @@ export type ScreenSlotContent =
       linkMode?: 'custom' | 'news'
       /** Only relevant while `linkMode` is `'news'`. `'automatic'` (the default) follows whichever headline a `'news'`-kind pane on this same screen is currently showing — see `newsSlotOrdinal` for picking *which* one, when there's more than one. `'specific'` instead always links to `linkedNewsSourceId`'s own latest headline, independent of any News pane. */
       newsSourceMode?: 'automatic' | 'specific'
-      /** Which of `ExtensionsConfig['news']['enabledSourceIds']` this code links to. Only relevant while `newsSourceMode` is `'specific'` — a QR code encodes one URL, so this is a single pick, not a multi-select like a `'news'` slide's own `sourceIds`. */
+      /** Which of `IntegrationsConfig['news']['enabledSourceIds']` this code links to. Only relevant while `newsSourceMode` is `'specific'` — a QR code encodes one URL, so this is a single pick, not a multi-select like a `'news'` slide's own `sourceIds`. */
       linkedNewsSourceId?: string
       /** Which `'news'`-kind pane on this same screen/stage to follow, by 1-based position among them — only relevant (and only meaningful with more than one) while `newsSourceMode` is `'automatic'`. Same "simple admin-set ordinal" pattern as `'event'`'s own `eventOrdinal`. Falls back to `1`. */
       newsSlotOrdinal?: number
@@ -160,8 +160,8 @@ export type ScreenSlotContent =
       kind: 'transit'
       /**
        * Which brand's own stop pool this pane picks `stopId` from —
-       * `ExtensionsConfig['transit']['selectedStops']` for `'ruter'`,
-       * `ExtensionsConfig['entur']['selectedStops']` for `'entur'` (see the
+       * `IntegrationsConfig['transit']['selectedStops']` for `'ruter'`,
+       * `IntegrationsConfig['entur']['selectedStops']` for `'entur'` (see the
        * admin's own "Ruter# - Departures"/"Entur - Departures" options for
        * this slide kind, `SlideFields.tsx`). Falls back to `'ruter'` for
        * panes saved before this field existed. Also decides which of the
@@ -190,7 +190,7 @@ export type ScreenSlotContent =
   | ({
       kind: 'weather'
       /**
-       * Which of `ExtensionsConfig['weather']['locations']` this pane shows
+       * Which of `IntegrationsConfig['weather']['locations']` this pane shows
        * the forecast for, by id. Unset — or referencing a location that's
        * since been removed — falls back to the store's own address
        * (`addressLookup.coordinates`) while `useStoreLocation` is on, else
@@ -220,7 +220,7 @@ export type ScreenSlotContent =
     } & OwnBackgroundImageFields)
   | ({
       kind: 'news'
-      /** Which of `ExtensionsConfig['news']['enabledSourceIds']` this pane pulls headlines from. Empty/unset means every cafe-wide-enabled source. */
+      /** Which of `IntegrationsConfig['news']['enabledSourceIds']` this pane pulls headlines from. Empty/unset means every cafe-wide-enabled source. */
       sourceIds?: string[]
       /** How many headlines this pane cycles through. Falls back to `DEFAULT_NEWS_HEADLINE_COUNT`. */
       headlineCount?: number

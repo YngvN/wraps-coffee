@@ -12,7 +12,7 @@ import './TestingSettingsView.scss'
  * environment" checkbox, which picks which of that platform's two base URLs
  * its own adapter (`server/woltAdapter.ts`/`server/foodoraAdapter.ts`)
  * calls. Each block loads/saves the same credentials object as that
- * integration's own card on the Integrations page (`ExtensionsView.tsx`) —
+ * integration's own card on the Integrations page (Settings → Integrations, `IntegrationsView.tsx`) —
  * this page only ever edits `useDevelopmentEnvironment`, carrying
  * `venueId`/`apiKey` through unchanged, same posture as those cards
  * carrying this flag through unchanged the other way. `admin`/`subadmin`

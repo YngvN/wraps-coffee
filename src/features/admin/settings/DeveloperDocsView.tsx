@@ -27,7 +27,7 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.dashboardScreensaver', descKey: 'admin.settings.developerDocs.keyDashboardScreensaver' },
   { key: 'admin.screens', descKey: 'admin.settings.developerDocs.keyScreens' },
   { key: 'admin.displayMachines', descKey: 'admin.settings.developerDocs.keyDisplayMachines' },
-  { key: 'admin.extensions', descKey: 'admin.settings.developerDocs.keyExtensions' },
+  { key: 'admin.integrations', descKey: 'admin.settings.developerDocs.keyIntegrations' },
   { key: 'admin.sidebarSettings', descKey: 'admin.settings.developerDocs.keySidebarSettings' },
   { key: 'admin.orders', descKey: 'admin.settings.developerDocs.keyOrders' },
   { key: 'admin.messageBoards', descKey: 'admin.settings.developerDocs.keyMessageBoards' },
@@ -323,20 +323,20 @@ skipped rather than deleted anyway.`}</code>
         </pre>
       </Card>
 
-      <Card title={t('admin.settings.developerDocs.extensionsTitle')}>
-        <p>{t('admin.settings.developerDocs.extensionsIntro')}</p>
+      <Card title={t('admin.settings.developerDocs.integrationsTitle')}>
+        <p>{t('admin.settings.developerDocs.integrationsIntro')}</p>
         <pre>
-          <code>{`GET /extensions/lookup?address=<text>
+          <code>{`GET /integrations/lookup?address=<text>
 → 200 { "coordinates": { "lat", "lon" } | null, "nearbyStops": [{ "id", "name", "modes": [...] }] }
 
-GET /extensions/stops/search?query=<text>
+GET /integrations/stops/search?query=<text>
 → 200 { "stops": [{ "id", "name", "modes": [...] }] }
    (searches stop places by name anywhere, not just near a given address)
 
-GET /extensions/departures?stopId=<id>&count=<n>
+GET /integrations/departures?stopId=<id>&count=<n>
 → 200 { "stopName", "departures": [{ "line", "lineName"?, "mode", "destination", "expectedDepartureTime", "aimedDepartureTime", "realtime", "platform"?, "cancelled" }] }
 
-GET /extensions/weather?lat=<lat>&lon=<lon>&hours=<n>
+GET /integrations/weather?lat=<lat>&lon=<lon>&hours=<n>
 → 200 { "hourly": [{ "time", "temperatureC", "precipitationMm", "symbolCode", "windSpeedMs"?, "windFromDirectionDeg"?, "humidityPercent"?, "precipitationProbabilityPercent"?, "uvIndex"?, "pressureHpa"? }] }
    (fields marked ? come from MET's "complete" dataset and are only present when MET reports one for that hour — e.g. "uvIndex" outside daylight)`}</code>
         </pre>

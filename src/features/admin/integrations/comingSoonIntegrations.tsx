@@ -32,9 +32,9 @@ import {
   ZendeskLogo,
 } from './BrandLogos'
 import { FetchedLogo, YrLogo } from '../../../components'
-import { BarcodeIcon, ForecastTrendIcon, GiftIcon, PriceRadarIcon, QrCodeIcon, ScaleIcon, TablePlanIcon } from './GenericExtensionIcons'
+import { BarcodeIcon, ForecastTrendIcon, GiftIcon, PriceRadarIcon, QrCodeIcon, ScaleIcon, TablePlanIcon } from './GenericIntegrationIcons'
 
-/** One of the 18 grouping headers shown in the "Coming soon" extensions directory — matches `admin.extensions.comingSoon.categories.<id>.title` in `languages.json`. */
+/** One of the 18 grouping headers shown in the "Coming soon" integrations directory — matches `admin.integrations.comingSoon.categories.<id>.title` in `languages.json`. */
 export type ComingSoonCategoryId =
   | 'payments'
   | 'logistics'
@@ -79,7 +79,7 @@ export const COMING_SOON_CATEGORIES: ComingSoonCategoryId[] = [
 
 /**
  * One not-yet-built integration shown as a disabled "Coming soon" card. `id`
- * is the item's key under its category in `admin.extensions.comingSoon.categories.<categoryId>.items.<id>`
+ * is the item's key under its category in `admin.integrations.comingSoon.categories.<categoryId>.items.<id>`
  * (both `.name` and `.description`). `logos` are rendered side by side —
  * most items show one brand mark, a few (e.g. "Fiken / Tripletex") pair two.
  * `tags` are search-only keywords (never rendered) so the Integrations page's
@@ -89,14 +89,14 @@ export const COMING_SOON_CATEGORIES: ComingSoonCategoryId[] = [
  * Deliberately untranslated/mixed English+Norwegian, since these are never
  * shown to the user, only matched against.
  */
-export interface ComingSoonExtension {
+export interface ComingSoonIntegration {
   id: string
   categoryId: ComingSoonCategoryId
   logos: ReactNode[]
   tags: string[]
 }
 
-export const COMING_SOON_EXTENSIONS: ComingSoonExtension[] = [
+export const COMING_SOON_INTEGRATIONS: ComingSoonIntegration[] = [
   // Betaling, Salg & Kassesystem (POS)
   { id: 'zettle', categoryId: 'payments', logos: [<FetchedLogo key="zettle" slug="zettle" label="Zettle" className="logo-chip" />, <PaypalLogo key="paypal" />], tags: ['pos', 'kasse', 'kassesystem', 'kassaapparat', 'kasseapparat', 'betaling', 'betalingsterminal', 'kortterminal', 'card reader', 'payment terminal', 'checkout', 'register'] },
   { id: 'vippsMobilepay', categoryId: 'payments', logos: [<FetchedLogo key="vipps" slug="vipps-mobilepay" label="Vipps MobilePay" />], tags: ['pos', 'kasse', 'kassaapparat', 'kasseapparat', 'betaling', 'payment', 'mobilbetaling', 'mobile payment', 'qr', 'vipps', 'mobilepay', 'checkout', 'register'] },
@@ -133,7 +133,7 @@ export const COMING_SOON_EXTENSIONS: ComingSoonExtension[] = [
 
   // Kundeservice, Bestilling & Booking
   // Wolt and Foodora are no longer "coming soon" — both are real,
-  // toggleable integrations now (see `ExtensionsView.tsx`'s own
+  // toggleable integrations now (see `IntegrationsView.tsx`'s own
   // `woltSubmenu`/`foodoraSubmenu`).
   { id: 'tablePlanner', categoryId: 'booking', logos: [<TablePlanIcon key="tableplanner" />], tags: ['bordbestilling', 'table booking', 'reservasjon', 'reservation', 'selskap', 'event booking', 'bordkart'] },
   { id: 'zendesk', categoryId: 'booking', logos: [<ZendeskLogo key="zendesk" />], tags: ['kundeservice', 'customer service', 'chat', 'support', 'innboks', 'inbox'] },

@@ -4,16 +4,26 @@
   display: flex;
   flex-direction: column;
   gap: $spacing-unit * 3;
-  max-width: 900px;
+}
+
+.message-board-view__tabs-header {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .message-board-view__tabs {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: calc($spacing-unit / 2);
-  padding-bottom: $spacing-unit;
+  flex-wrap: wrap;
+  gap: $spacing-unit;
   border-bottom: 1px solid $color-border;
+  padding-bottom: calc($spacing-unit / 2);
+}
+
+.message-board-view__tab-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc($spacing-unit / 2);
 }
 
 .message-board-view__tab-wrapper {
@@ -24,22 +34,24 @@
 }
 
 .message-board-view__tab {
-  padding: calc($spacing-unit / 2) calc($spacing-unit * 1.5);
-  border: 1px solid $color-border;
-  border-radius: 999px;
-  background: $color-bg;
+  position: relative;
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  border: none;
+  border-radius: 6px 6px 0 0;
+  background: none;
   color: $color-text-muted;
   font-size: 0.875rem;
-  font-family: inherit;
+  font: inherit;
+  font-weight: 600;
   cursor: pointer;
   transition:
-    border-color 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    background-color 0.15s ease;
 
   @media (hover: hover) {
     &:hover {
       color: $color-text;
-      border-color: $color-accent;
+      background: $color-surface-hover;
     }
   }
 
@@ -48,11 +60,21 @@
   }
 
   &--active {
-    border-color: $color-accent;
     color: $color-text;
-    background: $color-surface;
-    font-weight: 600;
   }
+}
+
+// The active tab's own underline — a `motion.span` sharing one `layoutId`
+// (see `MessageBoardView.tsx`) so switching tabs slides it from its old spot
+// to its new one instead of snapping, same pattern as `LanguageTabs`.
+.message-board-view__tab-indicator {
+  position: absolute;
+  left: calc($spacing-unit / 2);
+  right: calc($spacing-unit / 2);
+  bottom: -1px;
+  height: 2px;
+  border-radius: 1px;
+  background: $color-accent;
 }
 
 .message-board-view__tab-manage {
@@ -78,20 +100,26 @@
 }
 
 .message-board-view__add-board {
-  padding: calc($spacing-unit / 2) calc($spacing-unit * 1.5);
-  border: 1px dashed $color-border;
-  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  border: none;
+  border-radius: 6px;
   background: none;
   color: $color-text-muted;
   font-size: 0.875rem;
-  font-family: inherit;
+  font: inherit;
+  font-weight: 600;
   cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
 
   @media (hover: hover) {
     &:hover {
+      background: $color-surface-hover;
       color: $color-text;
-      border-color: $color-accent;
     }
   }
 
@@ -103,9 +131,15 @@
 .message-board-view__toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: $spacing-unit * 2;
+}
+
+.message-board-view__add-post {
+  display: inline-flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
 }
 
 .message-board-view__empty {

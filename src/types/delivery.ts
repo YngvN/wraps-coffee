@@ -6,7 +6,7 @@
  * Integrations page's own status dot and "last synced" line so an admin can
  * tell whether it's actually working without leaving the dashboard. Purely
  * a live status signal, not configuration — same posture as
- * `ExtensionsConfig['weather']['locationStatus']`.
+ * `IntegrationsConfig['weather']['locationStatus']`.
  */
 export interface DeliveryProviderStatus {
   state: 'live' | 'stale' | 'error' | 'disabled'

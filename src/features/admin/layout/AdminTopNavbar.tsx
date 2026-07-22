@@ -1,12 +1,17 @@
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
 import { OverviewIcon, SettingsIcon } from './AdminNavIcons'
+import { DashboardWindowControls } from './DashboardWindowControls'
 import { MessagesDropdown } from './MessagesDropdown'
 import { NotificationsDropdown } from './NotificationsDropdown'
 import { StoreBrandHeader } from './StoreBrandHeader'
 import { UploadsIndicator } from './UploadsIndicator'
 import './AdminTopNavbar.scss'
+
+/** Which of the navbar's own right-side panels (see `AdminRightPanel`) is open, if any — kept here rather than inside `NotificationsDropdown`/`MessagesDropdown` themselves so opening one always closes the other instead of both stacking on top of each other. */
+type ActivePanel = 'notifications' | 'messages' | null
 
 interface AdminTopNavbarProps {
   /** Whether the mobile sidebar overlay is currently open — mirrors `AdminDashboard`'s own state, since the hamburger toggle now lives here instead of as its own standalone fixed button. */
@@ -20,16 +25,24 @@ interface AdminTopNavbarProps {
  * shortcuts to Overview ("home"), Settings ("wrench" — the same
  * destination as the sidebar rail's own Settings item, just one click
  * closer), `NotificationsDropdown` (bell — new orders + out-of-stock
- * tracked products), `MessagesDropdown` (envelope — unread messages), and
+ * tracked products) and `MessagesDropdown` (envelope — unread messages),
+ * each of which opens its content in an `AdminRightPanel` sliding in from
+ * the right edge of the screen (see `activePanel` below — owned here, not
+ * inside either dropdown, so opening one always closes the other), and
  * `UploadsIndicator` (upload arrow — any image/video upload the global
  * `uploadManager` is still transferring or transcoding, hidden entirely
- * once nothing is in flight), plus the logged-in username. No avatar picture (none exists) and no
+ * once nothing is in flight), plus the logged-in username and, right after
+ * it, the window-chrome buttons (minimize/fullscreen/close — see
+ * `DashboardWindowControls`, rendered here `inline` rather than its own
+ * default fixed overlay, which would sit right underneath this sticky
+ * navbar). No avatar picture (none exists) and no
  * profile dropdown — the user wants the existing sidebar-footer logout
  * button left exactly where it is, not duplicated/moved here.
  */
 export function AdminTopNavbar({ isSidebarOpen, onToggleSidebar }: AdminTopNavbarProps) {
   const { t } = useLanguage()
   const { session } = useAdminSession()
+  const [activePanel, setActivePanel] = useState<ActivePanel>(null)
 
   return (
     <header className="admin-top-navbar">
@@ -64,12 +77,23 @@ export function AdminTopNavbar({ isSidebarOpen, onToggleSidebar }: AdminTopNavba
         >
           <SettingsIcon />
         </NavLink>
-        <NotificationsDropdown />
-        <MessagesDropdown />
+        <NotificationsDropdown
+          open={activePanel === 'notifications'}
+          onToggle={() => setActivePanel((current) => (current === 'notifications' ? null : 'notifications'))}
+          onClose={() => setActivePanel(null)}
+        />
+        <MessagesDropdown
+          open={activePanel === 'messages'}
+          onToggle={() => setActivePanel((current) => (current === 'messages' ? null : 'messages'))}
+          onClose={() => setActivePanel(null)}
+        />
         <UploadsIndicator />
       </nav>
 
       {session && <span className="admin-top-navbar__username">{session.username}</span>}
+      <div className="admin-top-navbar__window-controls">
+        <DashboardWindowControls variant="inline" />
+      </div>
     </header>
   )
 }

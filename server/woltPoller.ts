@@ -51,7 +51,7 @@ export async function pollOnce(): Promise<void> {
   // saving credentials would have every poll tick silently overwrite
   // `admin.woltOrders` with `[]` and report a misleadingly "live" status;
   // the Integrations page's own card already shows a "needs credentials"
-  // status locally (see `woltMissingCredentials` in `ExtensionsView.tsx`)
+  // status locally (see `woltMissingCredentials` in `IntegrationsView.tsx`)
   // without needing a poll attempt at all.
   if (!credentials.apiKey || !credentials.venueId) return
 

@@ -1,6 +1,6 @@
 import { NEWS_SOURCES } from './news'
 
-/** One nearby public-transport stop place found via Entur's geocoder, a candidate for `ExtensionsConfig['transit']['selectedStops']`. */
+/** One nearby public-transport stop place found via Entur's geocoder, a candidate for `IntegrationsConfig['transit']['selectedStops']`. */
 export interface NearbyStop {
   /** Entur's own stop place id (e.g. `"NSR:StopPlace:12345"`), passed straight through to the departures lookup. */
   id: string
@@ -11,7 +11,7 @@ export interface NearbyStop {
 
 /**
  * Result of the last "Look up address" action in the admin's Integrations tab
- * (see `ExtensionsView.tsx`). `address` is the exact Contact info address
+ * (see `IntegrationsView.tsx`). `address` is the exact Contact info address
  * text this was looked up for, so the UI can tell when Contact info's own
  * address has since changed and this result is stale. `coordinates` is
  * `null` when the address couldn't be geocoded at all.
@@ -25,7 +25,7 @@ export interface AddressLookupResult {
 /**
  * One extra named location an admin has added for the weather integration,
  * in addition to (or instead of) the store's own address — looked up the
- * same way, via the same `/extensions/lookup` proxy (only `coordinates` is
+ * same way, via the same `/integrations/lookup` proxy (only `coordinates` is
  * used here; a location's own nearby stops, if any, are irrelevant to
  * weather). `coordinates` is `null` until looked up, or if the lookup
  * failed/hasn't been retried since `address` last changed.
@@ -38,7 +38,7 @@ export interface WeatherLocation {
 }
 
 /** Cafe-wide configuration for the live "Integrations" (Ruter transit departures, Entur, Yr weather), edited from the admin's Integrations tab and consumed by any screen slide of the matching content kind. */
-export interface ExtensionsConfig {
+export interface IntegrationsConfig {
   addressLookup?: AddressLookupResult
   /**
    * Entur is the exact same underlying transit feed as `transit` below (Ruter
@@ -106,21 +106,21 @@ export interface ExtensionsConfig {
   }
 }
 
-/** One location's last-reported fetch outcome (see `ExtensionsConfig['weather']['locationStatus']`): `'live'` (fetched fresh just now), `'stale'` (live fetch failed, showing a cached forecast up to 7 days old instead), or `'error'` (live fetch failed and there's no usable cache either). */
+/** One location's last-reported fetch outcome (see `IntegrationsConfig['weather']['locationStatus']`): `'live'` (fetched fresh just now), `'stale'` (live fetch failed, showing a cached forecast up to 7 days old instead), or `'error'` (live fetch failed and there's no usable cache either). */
 export interface WeatherLocationStatus {
   state: 'live' | 'stale' | 'error'
   updatedAt: number
 }
 
 /** Starting values for a cafe that hasn't configured any of these integrations yet. `news.enabledSourceIds` defaults to every seeded source, so News is ready to use the moment it's turned on. */
-export const DEFAULT_EXTENSIONS_CONFIG: ExtensionsConfig = {
+export const DEFAULT_INTEGRATIONS_CONFIG: IntegrationsConfig = {
   entur: { enabled: false, selectedStops: [] },
   transit: { enabled: false, selectedStops: [] },
   weather: { enabled: false, useStoreLocation: true, locations: [], locationStatus: {} },
   news: { enabled: false, enabledSourceIds: NEWS_SOURCES.map((source) => source.id) },
 }
 
-/** One upcoming departure from `GET /extensions/departures`, as rendered by `TransitSlide`. */
+/** One upcoming departure from `GET /integrations/departures`, as rendered by `TransitSlide`. */
 export interface DepartureInfo {
   /** The line's public-facing number/code (e.g. `"31"`). */
   line: string
@@ -140,7 +140,7 @@ export interface DepartureInfo {
   cancelled: boolean
 }
 
-/** One hour of `GET /extensions/weather`'s forecast, as rendered by `WeatherSlide`. Only `time`/`temperatureC`/`precipitationMm`/`symbolCode` are guaranteed — the rest come from MET's "complete" dataset and are missing where MET itself doesn't report them for that hour (e.g. `uvIndex` outside daylight). */
+/** One hour of `GET /integrations/weather`'s forecast, as rendered by `WeatherSlide`. Only `time`/`temperatureC`/`precipitationMm`/`symbolCode` are guaranteed — the rest come from MET's "complete" dataset and are missing where MET itself doesn't report them for that hour (e.g. `uvIndex` outside daylight). */
 export interface WeatherHour {
   time: string
   temperatureC: number

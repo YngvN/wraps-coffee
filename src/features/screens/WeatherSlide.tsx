@@ -2,10 +2,10 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { YrLogo } from '../../components'
 import { useClockFormatPreference } from '../../hooks/useClockFormatPreference'
-import { useExtensionsConfig } from '../../hooks/useExtensionsConfig'
+import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
 import { useWeatherForecast } from '../../hooks/useWeatherForecast'
 import { useLanguage } from '../../i18n'
-import type { ExtensionsConfig, WeatherHour, WeatherLocationStatus } from '../../types/extensions'
+import type { IntegrationsConfig, WeatherHour, WeatherLocationStatus } from '../../types/integrations'
 import { DEFAULT_WEATHER_FORECAST_HOURS, type WeatherIconPack } from '../../types/screen'
 import { formatClockTime } from '../../utils/clockFormat'
 import { weatherLocationKey } from '../../utils/weatherLocationKey'
@@ -127,7 +127,7 @@ function useSequencedHours(target: WeatherHour[], resetKey: string): WeatherHour
  * since-deleted location (or never set at all) still shows *something*
  * rather than going blank, same posture as `TransitSlide`'s `effectiveStopId`.
  */
-function resolveWeatherCoordinates(config: ExtensionsConfig, locationId: string | undefined) {
+function resolveWeatherCoordinates(config: IntegrationsConfig, locationId: string | undefined) {
   const customLocation = locationId ? config.weather.locations.find((location) => location.id === locationId) : undefined
   if (customLocation) return customLocation.coordinates ?? undefined
   if (config.weather.useStoreLocation) return config.addressLookup?.coordinates
@@ -135,7 +135,7 @@ function resolveWeatherCoordinates(config: ExtensionsConfig, locationId: string 
 }
 
 interface WeatherSlideProps {
-  /** Which of `ExtensionsConfig['weather']['locations']` to show, by id — see `resolveWeatherCoordinates`. */
+  /** Which of `IntegrationsConfig['weather']['locations']` to show, by id — see `resolveWeatherCoordinates`. */
   locationId?: string
   /** How many hours ahead the forecast list shows. Falls back to `DEFAULT_WEATHER_FORECAST_HOURS`. */
   forecastHours?: number
@@ -172,7 +172,7 @@ export function WeatherSlide({
 }: WeatherSlideProps) {
   const { t, language } = useLanguage()
   const [clockFormat] = useClockFormatPreference()
-  const [config, setConfig] = useExtensionsConfig()
+  const [config, setConfig] = useIntegrationsConfig()
   const coordinates = resolveWeatherCoordinates(config, locationId)
   const { hourly, todayLowC, todayHighC, loading, stale } = useWeatherForecast(coordinates?.lat, coordinates?.lon, forecastHours ?? DEFAULT_WEATHER_FORECAST_HOURS)
   // Changing location or how many hours are shown isn't the natural
@@ -182,7 +182,7 @@ export function WeatherSlide({
 
   // Reports this location's fetch outcome back into the synced config, so the
   // Integrations page's own status dot (a different device/browser) can show
-  // it — see `ExtensionsConfig['weather']['locationStatus']`. Only fires on a
+  // it — see `IntegrationsConfig['weather']['locationStatus']`. Only fires on a
   // genuine transition (not merely because `config`/`setConfig` are fresh
   // references every render, which they always are).
   useEffect(() => {
@@ -194,7 +194,7 @@ export function WeatherSlide({
       ...current,
       weather: { ...current.weather, locationStatus: { ...current.weather.locationStatus, [key]: { state, updatedAt: Date.now() } } },
     }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `config`/`setConfig` intentionally excluded: `useExtensionsConfig` re-wraps both fresh every render, so including them would re-run this on every render instead of only on a genuine fetch-outcome change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `config`/`setConfig` intentionally excluded: `useIntegrationsConfig` re-wraps both fresh every render, so including them would re-run this on every render instead of only on a genuine fetch-outcome change.
   }, [coordinates?.lat, coordinates?.lon, loading, stale, hourly.length])
 
   // Measures the pane's own shape (see `useIsVerticalPane`) — same "declare

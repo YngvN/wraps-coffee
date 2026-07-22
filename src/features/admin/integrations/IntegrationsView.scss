@@ -1,19 +1,18 @@
 @use '../../../styles/variables' as *;
 
-.extensions-view {
+.integrations-view {
   display: flex;
   flex-direction: column;
   gap: $spacing-unit * 2;
-  max-width: 700px;
 }
 
-.extensions-view__header {
+.integrations-view__header {
   display: grid;
   grid-template-columns: 1fr 16rem;
   align-items: start;
   gap: $spacing-unit * 2;
 
-  // The search bar's own width transition (see ExtensionSearchBar.scss) happens
+  // The search bar's own width transition (see IntegrationSearchBar.scss) happens
   // entirely within this fixed 16rem column — anchored to its right edge — so
   // it never changes how much space the title/description column gets, which
   // would otherwise reflow that text (and shift everything below it) every
@@ -32,42 +31,51 @@
   }
 }
 
+// The Back button + title row — same flex-row treatment as
+// `.store-settings-view__sub-header`/`.settings-view__docs-header`, since
+// this view is reached only as a Settings submenu (see `onBack`).
+.integrations-view__sub-header {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+}
+
 @media (max-width: 500px) {
-  .extensions-view__header {
+  .integrations-view__header {
     grid-template-columns: 1fr;
   }
 }
 
-.extensions-view__main {
+.integrations-view__main {
   display: flex;
   flex-direction: column;
   gap: $spacing-unit * 2;
 }
 
-.extensions-view__lookup {
+.integrations-view__lookup {
   display: flex;
   align-items: center;
   gap: $spacing-unit * 1.5;
   flex-wrap: wrap;
 }
 
-.extensions-view__coordinates {
+.integrations-view__coordinates {
   color: $color-text-muted;
   font-size: 0.875rem;
 }
 
-.extensions-view__hint {
+.integrations-view__hint {
   margin: 0;
   color: $color-text-muted;
   font-size: 0.875rem;
 }
 
-.extensions-view__stops-label {
+.integrations-view__stops-label {
   margin: $spacing-unit 0 0;
   font-weight: 600;
 }
 
-.extensions-view__stop-list {
+.integrations-view__stop-list {
   display: flex;
   flex-direction: column;
   gap: calc($spacing-unit / 2);
@@ -76,7 +84,7 @@
   list-style: none;
 }
 
-.extensions-view__stop-search {
+.integrations-view__stop-search {
   display: flex;
   align-items: flex-end;
   gap: $spacing-unit;
@@ -86,14 +94,14 @@
   }
 }
 
-.extensions-view__stop-search-result {
+.integrations-view__stop-search-result {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: $spacing-unit;
 }
 
-.extensions-view__icon-button {
+.integrations-view__icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -103,7 +111,7 @@
   padding: 0;
 }
 
-.extensions-view__location-list {
+.integrations-view__location-list {
   display: flex;
   flex-direction: column;
   gap: $spacing-unit;
@@ -112,7 +120,7 @@
   list-style: none;
 }
 
-.extensions-view__location-row {
+.integrations-view__location-row {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
@@ -126,12 +134,12 @@
   }
 }
 
-.extensions-view__location-row-actions {
+.integrations-view__location-row-actions {
   display: flex;
   gap: calc($spacing-unit / 2);
 }
 
-.extensions-view__delivery-status {
+.integrations-view__delivery-status {
   display: flex;
   flex-direction: column;
   gap: calc($spacing-unit / 4);
@@ -141,15 +149,15 @@
   font-size: 0.875rem;
 }
 
-.extensions-view__delivery-status-detail {
+.integrations-view__delivery-status-detail {
   color: $color-error;
 }
 
-.extensions-view__add-location {
+.integrations-view__add-location {
   align-self: flex-start;
 }
 
-.extensions-view__category {
+.integrations-view__category {
   display: flex;
   flex-direction: column;
   gap: $spacing-unit;
@@ -163,7 +171,7 @@
   }
 }
 
-.extension-submenu {
+.integration-submenu {
   border: 1px solid $color-border;
   border-radius: 8px;
   overflow: hidden;
@@ -194,28 +202,28 @@
   }
 }
 
-.extension-submenu__title {
+.integration-submenu__title {
   display: inline-flex;
   align-items: center;
   gap: calc($spacing-unit / 2);
 }
 
-.extension-submenu__label {
+.integration-submenu__label {
   font-weight: 400;
   font-size: 0.8125rem;
 }
 
-.extension-submenu__chevron {
+.integration-submenu__chevron {
   display: inline-flex;
   transition: transform 0.15s ease;
   color: $color-text-muted;
 }
 
-.extension-submenu[data-open='true'] .extension-submenu__chevron {
+.integration-submenu[data-open='true'] .integration-submenu__chevron {
   transform: rotate(90deg);
 }
 
-.extension-submenu__icon {
+.integration-submenu__icon {
   width: 1.75rem;
   height: 1.75rem;
   flex-shrink: 0;
@@ -244,14 +252,14 @@
   }
 }
 
-.extension-submenu__body {
+.integration-submenu__body {
   display: flex;
   flex-direction: column;
   gap: $spacing-unit;
   padding: 0 calc($spacing-unit * 1.5) calc($spacing-unit * 1.5);
 }
 
-.extensions-view__mode-icons {
+.integrations-view__mode-icons {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   gap: $spacing-unit * 2;
@@ -260,7 +268,7 @@
   list-style: none;
 }
 
-.extensions-view__mode-icon-item {
+.integrations-view__mode-icon-item {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -268,7 +276,7 @@
   text-align: center;
 }
 
-.extensions-view__mode-icon {
+.integrations-view__mode-icon {
   font-size: 2rem;
   color: $color-text;
 }

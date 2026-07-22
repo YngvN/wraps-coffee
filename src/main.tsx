@@ -11,7 +11,6 @@ import { EventsView as AdminEventsView } from './features/admin/events/EventsVie
 import { MediaLibraryView } from './features/admin/mediaLibrary/MediaLibraryView'
 import { OrdersView } from './features/admin/orders/OrdersView'
 import { ScreensView } from './features/admin/screens/ScreensView'
-import { ExtensionsView } from './features/admin/extensions/ExtensionsView'
 import { MessageBoardView } from './features/admin/messageBoard/MessageBoardView'
 import { SettingsView } from './features/admin/settings/SettingsView'
 import { NotFoundRedirect } from './features/admin/layout/NotFoundRedirect'
@@ -45,7 +44,6 @@ const router = createBrowserRouter([
           { path: 'events', element: <AdminEventsView /> },
           { path: 'orders', element: <OrdersView /> },
           { path: 'screens', element: <ScreensView /> },
-          { path: 'extensions', element: <ExtensionsView /> },
           { path: 'messageboard', element: <MessageBoardView /> },
           { path: 'media', element: <MediaLibraryView /> },
           { path: 'users', element: <UsersView /> },

@@ -1,18 +1,18 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FetchedLogo } from '../../components'
-import { useExtensionsConfig } from '../../hooks/useExtensionsConfig'
+import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
 import { useTransitDepartures } from '../../hooks/useTransitDepartures'
 import { useLanguage } from '../../i18n'
 import { DEFAULT_TRANSIT_DEPARTURE_COUNT, type TransitIconPack } from '../../types/screen'
-import type { DepartureInfo } from '../../types/extensions'
+import type { DepartureInfo } from '../../types/integrations'
 import { TransitModeIcon } from './TransitModeIcon'
 import './TransitSlide.scss'
 
 interface TransitSlideProps {
-  /** Which brand's own stop pool `stopId` (below) refers to — `ExtensionsConfig['transit']['selectedStops']` for `'ruter'`, `ExtensionsConfig['entur']['selectedStops']` for `'entur'`. Falls back to `'ruter'` for panes saved before this field existed. */
+  /** Which brand's own stop pool `stopId` (below) refers to — `IntegrationsConfig['transit']['selectedStops']` for `'ruter'`, `IntegrationsConfig['entur']['selectedStops']` for `'entur'`. Falls back to `'ruter'` for panes saved before this field existed. */
   brand?: 'ruter' | 'entur'
-  /** The stop to show departures for, referencing `brand`'s own stop pool — falls back to the first available stop in that same pool if unset or no longer among the configured ones (e.g. removed from Extensions after this slide was set up). */
+  /** The stop to show departures for, referencing `brand`'s own stop pool — falls back to the first available stop in that same pool if unset or no longer among the configured ones (e.g. removed from Integrations after this slide was set up). */
   stopId?: string
   /** How many upcoming departures the list shows. Falls back to `DEFAULT_TRANSIT_DEPARTURE_COUNT`. */
   departureCount?: number
@@ -391,7 +391,7 @@ function TransitColumnHeader({ showPlatform }: { showPlatform?: boolean }) {
 /** Fullscreen rendering of real-time departures from one of the cafe's configured nearby stops (see the admin's Integrations tab), for a screen display's "transit" slot. */
 export function TransitSlide({ brand, stopId, departureCount, showPlatform, showLineName, realtimeOnly, modeFilter, iconPack, useBrandTheme, showBrandLogo }: TransitSlideProps) {
   const { t } = useLanguage()
-  const [config] = useExtensionsConfig()
+  const [config] = useIntegrationsConfig()
   const resolvedBrand = brand ?? 'ruter'
   const selectedStops = resolvedBrand === 'entur' ? config.entur.selectedStops : config.transit.selectedStops
   const effectiveStopId = stopId && selectedStops.some((stop) => stop.id === stopId) ? stopId : selectedStops[0]?.id

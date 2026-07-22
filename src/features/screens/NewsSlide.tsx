@@ -2,7 +2,7 @@ import { motion } from 'framer-motion'
 import type { CSSProperties } from 'react'
 import { useCrossfadeSlot } from '../../hooks/useCrossfadeSlot'
 import { useCurrentNewsHeadline } from '../../hooks/useCurrentNewsHeadline'
-import { useExtensionsConfig } from '../../hooks/useExtensionsConfig'
+import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
 import { useLanguage } from '../../i18n'
 import { newsImageProxyUrl } from '../../lib/localServer'
 import type { NewsHeadline, NewsSource } from '../../types/news'
@@ -34,7 +34,7 @@ function stableRandomBit(text: string): boolean {
 }
 
 interface NewsSlideProps {
-  /** Which of `ExtensionsConfig['news']['enabledSourceIds']` to pull from — see `resolveNewsSourceIds`. */
+  /** Which of `IntegrationsConfig['news']['enabledSourceIds']` to pull from — see `resolveNewsSourceIds`. */
   sourceIds?: string[]
   headlineCount?: number
   rotateSeconds?: number
@@ -63,7 +63,7 @@ interface NewsSlideProps {
  */
 export function NewsSlide({ sourceIds, headlineCount, rotateSeconds, useBrandTheme, showBrandLogo, stageTick }: NewsSlideProps) {
   const { t } = useLanguage()
-  const [config] = useExtensionsConfig()
+  const [config] = useIntegrationsConfig()
   const { headline: currentHeadline, source } = useCurrentNewsHeadline({ sourceIds, headlineCount, rotateSeconds }, config.news.enabledSourceIds, stageTick)
   const { slots, activeSlot } = useCrossfadeSlot<NewsContentSnapshot>(
     currentHeadline ? { headline: currentHeadline, source } : undefined,

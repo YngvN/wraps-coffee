@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import { Navigate, useMatch, useParams } from 'react-router-dom'
 import { BackButton, Checkbox, Modal, RedoIcon } from '../components'
+import { DashboardWindowControls } from '../features/admin/layout/DashboardWindowControls'
 import { BackgroundEditor } from '../features/screens/BackgroundEditor'
 import { BorderSettingsEditor } from '../features/screens/BorderSettingsEditor'
 import { FullscreenToggle } from '../features/screens/FullscreenToggle'
@@ -12,6 +13,7 @@ import { ScreenToolbar } from '../features/screens/ScreenToolbar'
 import { SlotEditor } from '../features/screens/SlotEditor'
 import { SplitLayout } from '../features/screens/SplitLayout'
 import { StagePlaybackControls } from '../features/screens/StagePlaybackControls'
+import { useIdleVisibility } from '../features/screens/useIdleVisibility'
 import { useAdminSession } from '../hooks/useAdminSession'
 import { evictUnusedVideoCache, prewarmVideoCache } from '../hooks/useCachedVideoSrc'
 import { useConnectionStatus } from '../hooks/useConnectionStatus'
@@ -204,6 +206,8 @@ export function ScreenDisplay() {
   const connected = useConnectionStatus()
   const [screensaverSchedule] = useScreensaverSchedule()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
+  /** Drives the editor's own top-right window-chrome buttons (see `DashboardWindowControls` below) fading out after mouse/touch inactivity, same idle window as `ScreenToolbar`'s own — a separate call rather than sharing its state, since the two fade independently and neither needs to know about the other. */
+  const windowControlsVisible = useIdleVisibility(3000)
   const screen = screens.find((candidate) => candidate.screenID === screenId)
   const [now, setNow] = useState(() => new Date())
   const [editingTarget, setEditingTarget] = useState<EditingTarget>(null)
@@ -1021,6 +1025,7 @@ export function ScreenDisplay() {
           <NoConnectionIcon />
         </div>
       )}
+      {canEdit && <DashboardWindowControls hidden={!windowControlsVisible} />}
       <ScreenToolbar>
         {canEdit && (
           <>

@@ -1,3 +1,5 @@
+@use '../../styles/variables' as *;
+
 // Shared by `PaneClearButton`/`PaneDeleteButton` (grouped together top-right,
 // see `.pane-corner-button-group` below), `PaneSelectCheckbox` (top-left,
 // where `PaneClearButton` alone used to sit) and `PaneLockButton`'s own
@@ -26,7 +28,11 @@
   &--select {
     position: absolute;
     z-index: 7;
-    top: 0.6em;
+    // Cleared past the editor's own fixed top-right window-chrome buttons
+    // (see `DashboardWindowControls`, rendered in `ScreenDisplay.tsx` only
+    // while editing — exactly when these corner buttons exist at all) so
+    // panes touching the top edge don't get their own controls covered.
+    top: calc($spacing-unit * 6 + 0.6em);
     left: 0.6em;
     // At least 1.5em square even with no checkmark showing yet (unchecked) —
     // otherwise the empty button would collapse to just its own padding.
@@ -82,7 +88,9 @@
 .pane-corner-button-group {
   position: absolute;
   z-index: 7;
-  top: 0.6em;
+  // See the matching comment on `.pane-corner-button--select` above — same
+  // clearance, kept in sync so both top corners line up.
+  top: calc($spacing-unit * 6 + 0.6em);
   right: 0.6em;
   display: flex;
   gap: 0.4em;

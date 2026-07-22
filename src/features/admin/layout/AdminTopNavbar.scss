@@ -28,14 +28,25 @@
   margin-left: auto;
 }
 
+// Shared by the Overview/Settings `NavLink`s and the Notifications/Messages
+// `<button>`s — the reset properties below only matter for the latter (an
+// `<a>` has no default browser chrome to begin with), so without them the
+// two buttons render with a native button background/border that the two
+// links don't, even though `.admin-top-navbar__icon-link` is applied
+// identically to all four.
 .admin-top-navbar__icon-link {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 36px;
   height: 36px;
+  padding: 0;
+  border: none;
   border-radius: 999px;
+  background: none;
+  font: inherit;
   color: $color-text-muted;
+  cursor: pointer;
 
   @media (hover: hover) {
     &:hover {
@@ -64,6 +75,11 @@
   font-weight: 600;
   color: $color-text;
   white-space: nowrap;
+}
+
+.admin-top-navbar__window-controls {
+  display: flex;
+  align-items: center;
 }
 
 @media (max-width: 800px) {
@@ -111,9 +127,12 @@
 
   // Icon labels/username crowd a narrow mobile bar — the shortcuts are
   // still one tap from the sidebar overlay itself, so trimming them here
-  // (rather than shrinking everything to fit) keeps the bar legible.
+  // (rather than shrinking everything to fit) keeps the bar legible. The
+  // window controls go with them — a touch-sized mobile viewport is never
+  // the Electron kiosk window they exist for.
   .admin-top-navbar__shortcuts,
-  .admin-top-navbar__username {
+  .admin-top-navbar__username,
+  .admin-top-navbar__window-controls {
     display: none;
   }
 }

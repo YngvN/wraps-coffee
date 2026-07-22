@@ -1,6 +1,5 @@
 import {
   EventsIcon,
-  ExtensionsIcon,
   ImagesIcon,
   MessageBoardIcon,
   MessagesIcon,
@@ -28,7 +27,6 @@ export const NAV_ITEMS = [
   { to: 'events', id: 'admin.nav.events', adminOnly: false, toggleable: true },
   { to: 'orders', id: 'admin.nav.orders', adminOnly: false, toggleable: true },
   { to: 'screens', id: 'admin.nav.screens', adminOnly: false, toggleable: true },
-  { to: 'extensions', id: 'admin.nav.extensions', adminOnly: false, toggleable: true },
   { to: 'messageboard', id: 'admin.nav.messageBoard', adminOnly: false, toggleable: true },
   // Spans uploads from every section rather than belonging to one, so —
   // like "Users" below — it's admin/subadmin-only rather than part of a
@@ -50,7 +48,6 @@ export const ADMIN_NAV_ICONS = {
   events: EventsIcon,
   orders: OrdersIcon,
   screens: ScreensIcon,
-  extensions: ExtensionsIcon,
   messageboard: MessageBoardIcon,
   media: ImagesIcon,
   users: UsersIcon,

@@ -294,6 +294,33 @@
   }
 }
 
+// Darkens the dashboard content behind an open flyout, matching `Modal`'s
+// own backdrop color (`$color-overlay`) — always in the DOM, same reasoning
+// as `.admin-sidebar-nav__flyout` below (so it fades instead of popping).
+// Sits above the main dashboard content (via this whole `<nav>`'s own
+// z-index: 27) but beneath the rail/flyout panels themselves (z-index
+// 3/2/1), so it darkens whatever's behind the menu without ever covering
+// the menu itself. Clicking it closes both tiers, the same as clicking
+// anywhere else outside the whole cluster (see `closeFlyouts` in
+// AdminSidebarNav.tsx).
+.admin-sidebar-nav__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: $color-overlay;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 200ms ease, visibility 0s linear 200ms;
+
+  &--visible {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition: opacity 200ms ease, visibility 0s linear 0s;
+  }
+}
+
 // Tier-2/tier-3 flyout panels — always in the DOM once anything is active
 // (see AdminSidebarNav.tsx's own state), never unmounted/hidden-then-
 // reshown between two different active sections, so switching what's

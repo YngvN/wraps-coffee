@@ -11,9 +11,9 @@ function hueFromLabel(label: string): number {
 
 /**
  * One integration's brand mark — used both by the admin's "Coming soon"
- * extensions directory and by a live kiosk slide's own branded-theme logo
+ * integrations directory and by a live kiosk slide's own branded-theme logo
  * (see `TransitSlide`/`WeatherSlide`). Renders the real logo saved under
- * `extension-logos/<slug>.(svg|png)` when one was found (see `getLogoSrc`);
+ * `integration-logos/<slug>.(svg|png)` when one was found (see `getLogoSrc`);
  * otherwise falls back to a colored monogram badge (the brand's first
  * letter) rather than silently rendering nothing or a misleading
  * placeholder image. Pass `onDark` for the few saved logos that are

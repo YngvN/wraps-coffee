@@ -1,0 +1,86 @@
+@use '../../../styles/variables' as *;
+
+// This component is portaled straight into `document.body` (see
+// `AdminRightPanel.tsx`), so — unlike `AdminDashboard.scss`'s own mobile
+// sidebar overlay, which is nested inside `.admin-dashboard` — it's a true
+// top-level sibling of every other positioned element in the app, and its
+// z-index has to be picked with all of them in mind, not just the two the
+// mobile overlay itself cares about: above `.admin-sidebar-nav--desktop`'s
+// own rail (27, see `AdminSidebarNav.scss`), so it actually dims/blocks
+// the persistent desktop sidebar too, but still *below*
+// `.admin-top-navbar`'s own z-index (30, see `AdminTopNavbar.scss`), so
+// the navbar (and its Notifications/Messages toggle buttons) stays visible
+// and clickable above the panel while it's open. `top: 56px` (matching the
+// navbar's own fixed height) keeps the panel, and its own header/× button,
+// entirely below the sticky navbar too, rather than starting at the very
+// top of the screen and being partly covered by it.
+.admin-right-panel__scrim {
+  position: fixed;
+  top: 56px;
+  left: 0;
+  width: 100vw;
+  height: calc(100dvh - 56px);
+  z-index: 28;
+  background: $color-overlay;
+}
+
+.admin-right-panel {
+  position: fixed;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  z-index: 29;
+  width: min(360px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background: $color-surface;
+  border-left: 1px solid $color-border;
+  box-shadow: -8px 0 24px $color-shadow;
+}
+
+.admin-right-panel__header {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  flex-shrink: 0;
+  padding: $spacing-unit * 2;
+  border-bottom: 1px solid $color-border;
+}
+
+.admin-right-panel__title {
+  flex: 1;
+  font-weight: 700;
+  color: $color-text;
+}
+
+.admin-right-panel__close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: $color-text-muted;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+      color: $color-text;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
+.admin-right-panel__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: $spacing-unit;
+}

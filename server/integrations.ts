@@ -1,5 +1,5 @@
 import type { ServerResponse } from 'node:http'
-import type { NearbyStop } from '../src/types/extensions'
+import type { NearbyStop } from '../src/types/integrations'
 import { sendJson } from './http'
 
 /** Identifies this app to Entur's APIs, per their usage terms — no personal/secret info needed, just a stable `<company>-<application>` string. */
@@ -35,7 +35,7 @@ interface GeocoderResponse {
   features: GeocoderFeature[]
 }
 
-/** Geocodes `address` to a coordinate, then finds nearby stop places around it — powers the Extensions tab's "Look up address" action. Not cached: a one-shot admin action, not something polled. */
+/** Geocodes `address` to a coordinate, then finds nearby stop places around it — powers the Integrations tab's "Look up address" action. Not cached: a one-shot admin action, not something polled. */
 export async function handleLookup(res: ServerResponse, address: string) {
   if (!address.trim()) {
     sendJson(res, 200, { coordinates: null, nearbyStops: [] })
@@ -69,7 +69,7 @@ export async function handleLookup(res: ServerResponse, address: string) {
 
     sendJson(res, 200, { coordinates: { lat, lon }, nearbyStops })
   } catch (error) {
-    console.error('[extensions] address lookup failed:', error)
+    console.error('[integrations] address lookup failed:', error)
     sendJson(res, 502, { error: 'Could not reach Entur to look up this address' })
   }
 }
@@ -78,7 +78,7 @@ export async function handleLookup(res: ServerResponse, address: string) {
  * Searches stop places by name (not by proximity to any address) — powers
  * the Integrations tab's "Search for a stop" box, which lets an admin add a
  * specific stop anywhere (not just ones near the store's own address, unlike
- * `handleLookup`'s `nearbyStops`) to `ExtensionsConfig['transit']['selectedStops']`.
+ * `handleLookup`'s `nearbyStops`) to `IntegrationsConfig['transit']['selectedStops']`.
  * Not cached, same one-shot-admin-action posture as `handleLookup`.
  */
 export async function handleStopSearch(res: ServerResponse, query: string) {
@@ -101,7 +101,7 @@ export async function handleStopSearch(res: ServerResponse, query: string) {
 
     sendJson(res, 200, { stops })
   } catch (error) {
-    console.error('[extensions] stop search failed:', error)
+    console.error('[integrations] stop search failed:', error)
     sendJson(res, 502, { error: 'Could not reach Entur to search for stops' })
   }
 }
@@ -182,7 +182,7 @@ export async function handleDepartures(res: ServerResponse, stopId: string, coun
     })
     sendJson(res, 200, result)
   } catch (error) {
-    console.error('[extensions] departures lookup failed:', error)
+    console.error('[integrations] departures lookup failed:', error)
     sendJson(res, 502, { error: 'Could not reach Entur for departures' })
   }
 }
@@ -272,7 +272,7 @@ export async function handleWeather(res: ServerResponse, lat: number, lon: numbe
 
     sendJson(res, 200, { hourly, todayLowC, todayHighC })
   } catch (error) {
-    console.error('[extensions] weather lookup failed:', error)
+    console.error('[integrations] weather lookup failed:', error)
     sendJson(res, 502, { error: 'Could not reach Yr for a forecast' })
   }
 }

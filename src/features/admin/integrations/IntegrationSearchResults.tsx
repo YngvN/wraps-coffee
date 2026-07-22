@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react'
 import { Badge, FetchedLogo, YrLogo } from '../../../components'
 import { useLanguage } from '../../../i18n'
-import type { ExtensionsConfig } from '../../../types/extensions'
-import { COMING_SOON_EXTENSIONS } from './comingSoonExtensions'
-import './ExtensionSearchResults.scss'
+import type { IntegrationsConfig } from '../../../types/integrations'
+import { COMING_SOON_INTEGRATIONS } from './comingSoonIntegrations'
+import './IntegrationSearchResults.scss'
 
-/** Search-only keywords for the three live integrations, mirroring `ComingSoonExtension['tags']` — untranslated and never rendered, just matched against. */
+/** Search-only keywords for the three live integrations, mirroring `ComingSoonIntegration['tags']` — untranslated and never rendered, just matched against. */
 const WEATHER_TAGS = ['vaer', 'vær', 'weather', 'temperatur', 'temperature', 'nedbor', 'nedbør', 'precipitation', 'vind', 'wind', 'yr', 'forecast', 'varsel']
 const TRANSIT_TAGS = ['transport', 'buss', 'bus', 'trikk', 'tram', 'tog', 'train', 'avganger', 'departures', 'kollektivtransport', 'public transport', 'ruter', 'holdeplass', 'stop']
 /** Entur is the same underlying feed as Transit departures (Ruter), listed separately so an admin outside Oslo can find it by their own region's operator name rather than only under "Ruter". */
@@ -48,42 +48,42 @@ interface SearchIndexEntry {
 }
 
 /** Every searchable entry on the Integrations page: the two live integrations (Yr, Ruter) plus all 57 "Coming soon" cards, each reduced to plain matchable text. Rebuilt on every render since it depends on the active language via `t()` — cheap enough (59 short strings) not to bother memoizing across language switches. */
-function buildSearchIndex(t: (key: string, vars?: Record<string, string | number>) => string, config: ExtensionsConfig): SearchIndexEntry[] {
+function buildSearchIndex(t: (key: string, vars?: Record<string, string | number>) => string, config: IntegrationsConfig): SearchIndexEntry[] {
   const live: SearchIndexEntry[] = [
     {
       id: 'live-weather',
-      name: t('admin.extensions.weatherTitle'),
-      description: t('admin.extensions.weatherSearchDescription'),
-      categoryLabel: t('admin.extensions.weatherTitle'),
+      name: t('admin.integrations.weatherTitle'),
+      description: t('admin.integrations.weatherSearchDescription'),
+      categoryLabel: t('admin.integrations.weatherTitle'),
       logos: [<YrLogo key="yr" />],
       tags: WEATHER_TAGS,
       enabled: config.weather.enabled,
     },
     {
       id: 'live-transit',
-      name: t('admin.extensions.transitTitle'),
-      description: t('admin.extensions.transitSearchDescription'),
-      categoryLabel: t('admin.extensions.transitTitle'),
+      name: t('admin.integrations.transitTitle'),
+      description: t('admin.integrations.transitSearchDescription'),
+      categoryLabel: t('admin.integrations.transitTitle'),
       logos: [<FetchedLogo key="ruter" slug="ruter" label="Ruter#" />],
       tags: TRANSIT_TAGS,
       enabled: config.transit.enabled,
     },
     {
       id: 'live-entur',
-      name: t('admin.extensions.enturBrandName'),
-      description: t('admin.extensions.enturSearchDescription'),
-      categoryLabel: t('admin.extensions.enturBrandName'),
+      name: t('admin.integrations.enturBrandName'),
+      description: t('admin.integrations.enturSearchDescription'),
+      categoryLabel: t('admin.integrations.enturBrandName'),
       logos: [<FetchedLogo key="entur" slug="entur" label="Entur" className="logo-chip" />],
       tags: ENTUR_TAGS,
       enabled: config.entur.enabled,
     },
   ]
 
-  const comingSoon: SearchIndexEntry[] = COMING_SOON_EXTENSIONS.map((item) => ({
+  const comingSoon: SearchIndexEntry[] = COMING_SOON_INTEGRATIONS.map((item) => ({
     id: item.id,
-    name: t(`admin.extensions.comingSoon.categories.${item.categoryId}.items.${item.id}.name`),
-    description: t(`admin.extensions.comingSoon.categories.${item.categoryId}.items.${item.id}.description`),
-    categoryLabel: t(`admin.extensions.comingSoon.categories.${item.categoryId}.title`),
+    name: t(`admin.integrations.comingSoon.categories.${item.categoryId}.items.${item.id}.name`),
+    description: t(`admin.integrations.comingSoon.categories.${item.categoryId}.items.${item.id}.description`),
+    categoryLabel: t(`admin.integrations.comingSoon.categories.${item.categoryId}.title`),
     logos: item.logos,
     tags: item.tags,
   }))
@@ -97,24 +97,24 @@ function matches(entry: SearchIndexEntry, query: string): boolean {
   return haystack.includes(query)
 }
 
-interface ExtensionSearchResultsProps {
+interface IntegrationSearchResultsProps {
   query: string
-  config: ExtensionsConfig
+  config: IntegrationsConfig
 }
 
 /** The Integrations page's search results — a flat (uncategorized) list, unlike the "Coming soon" section's own per-category accordions, since a search result set is usually small and already filtered to what's relevant. */
-export function ExtensionSearchResults({ query, config }: ExtensionSearchResultsProps) {
+export function IntegrationSearchResults({ query, config }: IntegrationSearchResultsProps) {
   const { t } = useLanguage()
   const normalizedQuery = query.trim().toLowerCase()
   const results = buildSearchIndex(t, config).filter((entry) => matches(entry, normalizedQuery))
 
   return (
-    <div className="extension-search-results">
-      <p className="extension-search-results__count">{t(results.length === 1 ? 'admin.extensions.searchResultsCountLabel' : 'admin.extensions.searchResultsCountLabelPlural', { count: results.length })}</p>
+    <div className="integration-search-results">
+      <p className="integration-search-results__count">{t(results.length === 1 ? 'admin.integrations.searchResultsCountLabel' : 'admin.integrations.searchResultsCountLabelPlural', { count: results.length })}</p>
       {results.length === 0 ? (
-        <p className="extensions-view__hint">{t('admin.extensions.searchNoResultsLabel', { query })}</p>
+        <p className="integrations-view__hint">{t('admin.integrations.searchNoResultsLabel', { query })}</p>
       ) : (
-        <ul className="extension-search-results__list">
+        <ul className="integration-search-results__list">
           {results.map((entry) => (
             <li key={entry.id} className="coming-soon-item">
               <div className="coming-soon-item__logos">{entry.logos}</div>
@@ -123,11 +123,11 @@ export function ExtensionSearchResults({ query, config }: ExtensionSearchResults
                 <p className="coming-soon-item__description">{entry.description}</p>
               </div>
               {entry.enabled === undefined ? (
-                <Badge variant="neutral">{t('admin.extensions.comingSoon.badge')}</Badge>
+                <Badge variant="neutral">{t('admin.integrations.comingSoon.badge')}</Badge>
               ) : (
                 <span
                   className={`status-dot${entry.enabled ? ' status-dot--active' : ' status-dot--disabled'}`}
-                  title={t(entry.enabled ? 'admin.extensions.statusEnabled' : 'admin.extensions.statusDisabled')}
+                  title={t(entry.enabled ? 'admin.integrations.statusEnabled' : 'admin.integrations.statusDisabled')}
                 />
               )}
             </li>

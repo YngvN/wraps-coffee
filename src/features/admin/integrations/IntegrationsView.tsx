@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react'
-import { Alert, Button, Checkbox, CloseIcon, FetchedLogo, Input, Modal, PlusIcon, SlideTransition, TranslatedText, YrLogo } from '../../../components'
+import { Alert, BackButton, Button, Checkbox, CloseIcon, FetchedLogo, Input, Modal, PlusIcon, SlideTransition, TranslatedText, YrLogo } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useClockFormatPreference } from '../../../hooks/useClockFormatPreference'
 import { useContactInfo } from '../../../hooks/useContactInfo'
 import { useDateFormatPreference } from '../../../hooks/useDateFormatPreference'
-import { useExtensionsConfig } from '../../../hooks/useExtensionsConfig'
+import { useIntegrationsConfig } from '../../../hooks/useIntegrationsConfig'
 import { useFoodoraConfig } from '../../../hooks/useFoodoraConfig'
 import { useFoodoraOrders } from '../../../hooks/useFoodoraOrders'
 import { useWoltConfig } from '../../../hooks/useWoltConfig'
 import { useWoltOrders } from '../../../hooks/useWoltOrders'
 import { useLanguage } from '../../../i18n'
 import { getFoodoraCredentials, getWoltCredentials, lookupAddress, searchStops, setFoodoraCredentials, setWoltCredentials, triggerFoodoraSync, triggerWoltSync } from '../../../lib/localServer'
-import type { ExtensionsConfig, NearbyStop, WeatherLocation } from '../../../types/extensions'
+import type { IntegrationsConfig, NearbyStop, WeatherLocation } from '../../../types/integrations'
 import { NEWS_SOURCES } from '../../../types/news'
 import { TransitModeIcon } from '../../screens/TransitModeIcon'
 import { WeatherSymbolIcon } from '../../screens/WeatherSymbolIcon'
@@ -22,32 +22,32 @@ import { weatherLocationKey } from '../../../utils/weatherLocationKey'
 import { ActivationToggle } from './ActivationToggle'
 import { AnimatedDetails } from './AnimatedDetails'
 import { ComingSoonSection } from './ComingSoonSection'
-import { ExtensionSearchBar } from './ExtensionSearchBar'
-import { ExtensionSearchResults } from './ExtensionSearchResults'
-import './ExtensionsView.scss'
+import { IntegrationSearchBar } from './IntegrationSearchBar'
+import { IntegrationSearchResults } from './IntegrationSearchResults'
+import './IntegrationsView.scss'
 
 /** Every base symbol code `WeatherSymbolIcon` recognizes, paired with its own i18n label — shown as a legend in the "View weather icons" modal so the admin can see what each glyph on a live forecast slide means. Yr appends `_day`/`_night`/`_polartwilight` to these at runtime; passing the bare base code here (no suffix) always renders as `WeatherSymbolIcon`'s own "day" branch. */
 const WEATHER_SYMBOLS: { code: string; labelKey: string }[] = [
-  { code: 'clearsky', labelKey: 'admin.extensions.weatherSymbolClearsky' },
-  { code: 'fair', labelKey: 'admin.extensions.weatherSymbolFair' },
-  { code: 'partlycloudy', labelKey: 'admin.extensions.weatherSymbolPartlycloudy' },
-  { code: 'cloudy', labelKey: 'admin.extensions.weatherSymbolCloudy' },
-  { code: 'fog', labelKey: 'admin.extensions.weatherSymbolFog' },
-  { code: 'rainshowers', labelKey: 'admin.extensions.weatherSymbolRainshowers' },
-  { code: 'rainshowersandthunder', labelKey: 'admin.extensions.weatherSymbolRainshowersandthunder' },
-  { code: 'sleetshowers', labelKey: 'admin.extensions.weatherSymbolSleetshowers' },
-  { code: 'snowshowers', labelKey: 'admin.extensions.weatherSymbolSnowshowers' },
-  { code: 'rain', labelKey: 'admin.extensions.weatherSymbolRain' },
-  { code: 'heavyrain', labelKey: 'admin.extensions.weatherSymbolHeavyrain' },
-  { code: 'lightrain', labelKey: 'admin.extensions.weatherSymbolLightrain' },
-  { code: 'rainandthunder', labelKey: 'admin.extensions.weatherSymbolRainandthunder' },
-  { code: 'sleet', labelKey: 'admin.extensions.weatherSymbolSleet' },
-  { code: 'snow', labelKey: 'admin.extensions.weatherSymbolSnow' },
-  { code: 'lightsnow', labelKey: 'admin.extensions.weatherSymbolLightsnow' },
-  { code: 'heavysnow', labelKey: 'admin.extensions.weatherSymbolHeavysnow' },
-  { code: 'snowandthunder', labelKey: 'admin.extensions.weatherSymbolSnowandthunder' },
-  { code: 'sleetshowersandthunder', labelKey: 'admin.extensions.weatherSymbolSleetshowersandthunder' },
-  { code: 'snowshowersandthunder', labelKey: 'admin.extensions.weatherSymbolSnowshowersandthunder' },
+  { code: 'clearsky', labelKey: 'admin.integrations.weatherSymbolClearsky' },
+  { code: 'fair', labelKey: 'admin.integrations.weatherSymbolFair' },
+  { code: 'partlycloudy', labelKey: 'admin.integrations.weatherSymbolPartlycloudy' },
+  { code: 'cloudy', labelKey: 'admin.integrations.weatherSymbolCloudy' },
+  { code: 'fog', labelKey: 'admin.integrations.weatherSymbolFog' },
+  { code: 'rainshowers', labelKey: 'admin.integrations.weatherSymbolRainshowers' },
+  { code: 'rainshowersandthunder', labelKey: 'admin.integrations.weatherSymbolRainshowersandthunder' },
+  { code: 'sleetshowers', labelKey: 'admin.integrations.weatherSymbolSleetshowers' },
+  { code: 'snowshowers', labelKey: 'admin.integrations.weatherSymbolSnowshowers' },
+  { code: 'rain', labelKey: 'admin.integrations.weatherSymbolRain' },
+  { code: 'heavyrain', labelKey: 'admin.integrations.weatherSymbolHeavyrain' },
+  { code: 'lightrain', labelKey: 'admin.integrations.weatherSymbolLightrain' },
+  { code: 'rainandthunder', labelKey: 'admin.integrations.weatherSymbolRainandthunder' },
+  { code: 'sleet', labelKey: 'admin.integrations.weatherSymbolSleet' },
+  { code: 'snow', labelKey: 'admin.integrations.weatherSymbolSnow' },
+  { code: 'lightsnow', labelKey: 'admin.integrations.weatherSymbolLightsnow' },
+  { code: 'heavysnow', labelKey: 'admin.integrations.weatherSymbolHeavysnow' },
+  { code: 'snowandthunder', labelKey: 'admin.integrations.weatherSymbolSnowandthunder' },
+  { code: 'sleetshowersandthunder', labelKey: 'admin.integrations.weatherSymbolSleetshowersandthunder' },
+  { code: 'snowshowersandthunder', labelKey: 'admin.integrations.weatherSymbolSnowshowersandthunder' },
 ]
 
 /** The Weather card's own status-dot state: `'disabled'` grey (turned off), `'error'` red (turned on but genuinely not working — no live data and no cache to fall back on), `'stale'` yellow (a currently-open pane is showing cached data — see `WeatherSlide`), `'live'` green. */
@@ -61,7 +61,7 @@ type WeatherStatus = 'disabled' | 'error' | 'stale' | 'live'
  * integration `'error'`, even if others are fine. A location nobody's
  * currently displaying (no report yet) simply doesn't contribute either way.
  */
-function computeWeatherStatus(config: ExtensionsConfig): WeatherStatus {
+function computeWeatherStatus(config: IntegrationsConfig): WeatherStatus {
   if (!config.weather.enabled) return 'disabled'
   const activeCoordinates: { lat: number; lon: number }[] = []
   if (config.weather.useStoreLocation && config.addressLookup?.coordinates) activeCoordinates.push(config.addressLookup.coordinates)
@@ -77,9 +77,9 @@ function computeWeatherStatus(config: ExtensionsConfig): WeatherStatus {
  * departures (Ruter, via Entur's public APIs) and an hourly weather
  * forecast (Yr / MET Norway) — both derived from the cafe's own address, as
  * set in Contact info. "Look up address" geocodes that address and finds
- * nearby stops through the local server's `/extensions/lookup` proxy; the
+ * nearby stops through the local server's `/integrations/lookup` proxy; the
  * result (coordinates + candidate stops) is cached in the synced
- * `admin.extensions` config so every device sees the same options without
+ * `admin.integrations` config so every device sees the same options without
  * re-looking it up.
  *
  * Each of the two lives under whichever of two categories matches its own
@@ -105,20 +105,28 @@ function computeWeatherStatus(config: ExtensionsConfig): WeatherStatus {
  * added there, each independently geocoded through the same address-lookup
  * proxy.
  *
- * The search bar at the top matches every live/coming-soon extension by
- * name, description, category and tags (see `ExtensionSearchResults.tsx`)
+ * The search bar at the top matches every live/coming-soon integration by
+ * name, description, category and tags (see `IntegrationSearchResults.tsx`)
  * and swaps in for the rest of the page's own content — lookup section,
  * categories, and the "Coming soon" directory — via `SlideTransition`, the
  * same slide-in-from-the-right treatment `SettingsView` uses for its own
  * sub-views.
+ *
+ * Rendered from `SettingsView` as a submenu, hence the `onBack` prop
+ * instead of a route of its own — same pattern as `StoreSettingsView`.
  */
-export function ExtensionsView() {
+interface IntegrationsViewProps {
+  /** Returns to the Settings main list — this view is reached only as a Settings submenu, not its own top-level route, so it has no back button of its own. */
+  onBack: () => void
+}
+
+export function IntegrationsView({ onBack }: IntegrationsViewProps) {
   const { t, language } = useLanguage()
   const { session } = useAdminSession()
   const [clockFormat] = useClockFormatPreference()
   const [dateFormat] = useDateFormatPreference()
   const [contactInfo] = useContactInfo()
-  const [config, setConfig] = useExtensionsConfig()
+  const [config, setConfig] = useIntegrationsConfig()
   const [woltConfig, setWoltConfig] = useWoltConfig()
   const [woltOrders] = useWoltOrders()
   const [woltSubmenuOpen, setWoltSubmenuOpen] = useState(false)
@@ -188,7 +196,7 @@ export function ExtensionsView() {
       .then(({ venueId, apiKey }) => {
         setHasSavedWoltCredentials(Boolean(venueId && apiKey))
       })
-      .catch(() => setWoltCredentialsError(t('admin.extensions.woltCredentialsSaveError')))
+      .catch(() => setWoltCredentialsError(t('admin.integrations.woltCredentialsSaveError')))
       .finally(() => setIsSavingWoltCredentials(false))
   }
 
@@ -197,7 +205,7 @@ export function ExtensionsView() {
     setIsSyncingWolt(true)
     setWoltSyncError(null)
     triggerWoltSync(session.token)
-      .catch(() => setWoltSyncError(t('admin.extensions.woltSyncError')))
+      .catch(() => setWoltSyncError(t('admin.integrations.woltSyncError')))
       .finally(() => setIsSyncingWolt(false))
   }
 
@@ -225,7 +233,7 @@ export function ExtensionsView() {
       .then(({ venueId, apiKey }) => {
         setHasSavedFoodoraCredentials(Boolean(venueId && apiKey))
       })
-      .catch(() => setFoodoraCredentialsError(t('admin.extensions.foodoraCredentialsSaveError')))
+      .catch(() => setFoodoraCredentialsError(t('admin.integrations.foodoraCredentialsSaveError')))
       .finally(() => setIsSavingFoodoraCredentials(false))
   }
 
@@ -234,7 +242,7 @@ export function ExtensionsView() {
     setIsSyncingFoodora(true)
     setFoodoraSyncError(null)
     triggerFoodoraSync(session.token)
-      .catch(() => setFoodoraSyncError(t('admin.extensions.foodoraSyncError')))
+      .catch(() => setFoodoraSyncError(t('admin.integrations.foodoraSyncError')))
       .finally(() => setIsSyncingFoodora(false))
   }
 
@@ -257,7 +265,7 @@ export function ExtensionsView() {
       .then((result) => {
         setConfig({ ...config, addressLookup: { address: contactInfo.address, ...result } })
       })
-      .catch(() => setLookupError(t('admin.extensions.lookupError')))
+      .catch(() => setLookupError(t('admin.integrations.lookupError')))
       .finally(() => setIsLookingUp(false))
   }
 
@@ -267,7 +275,7 @@ export function ExtensionsView() {
     setConfig({ ...config, transit: { ...config.transit, selectedStops } })
   }
 
-  /** Entur's own stop pool, deliberately independent of Ruter's `config.transit.selectedStops` — see the doc comment on `ExtensionsConfig['entur']`. */
+  /** Entur's own stop pool, deliberately independent of Ruter's `config.transit.selectedStops` — see the doc comment on `IntegrationsConfig['entur']`. */
   const toggleEnturStop = (stop: NearbyStop) => {
     const isSelected = config.entur.selectedStops.some((selected) => selected.id === stop.id)
     const selectedStops = isSelected ? config.entur.selectedStops.filter((selected) => selected.id !== stop.id) : [...config.entur.selectedStops, stop]
@@ -281,7 +289,7 @@ export function ExtensionsView() {
     setStopSearchError(null)
     searchStops(stopSearchQuery)
       .then((results) => setStopSearchResults(results))
-      .catch(() => setStopSearchError(t('admin.extensions.stopSearchError')))
+      .catch(() => setStopSearchError(t('admin.integrations.stopSearchError')))
       .finally(() => setIsSearchingStops(false))
   }
 
@@ -337,7 +345,7 @@ export function ExtensionsView() {
     setLocationLookupError(null)
     lookupAddress(address)
       .then((result) => updateWeatherLocation(id, { coordinates: result.coordinates }))
-      .catch(() => setLocationLookupError(t('admin.extensions.lookupError')))
+      .catch(() => setLocationLookupError(t('admin.integrations.lookupError')))
       .finally(() => setLookingUpLocationId(null))
   }
 
@@ -346,87 +354,87 @@ export function ExtensionsView() {
     weatherStatus === 'live' ? 'status-dot--active' : weatherStatus === 'stale' ? 'status-dot--stale' : weatherStatus === 'error' ? 'status-dot--inactive' : 'status-dot--disabled'
   const weatherStatusTitleKey =
     weatherStatus === 'live'
-      ? 'admin.extensions.statusEnabled'
+      ? 'admin.integrations.statusEnabled'
       : weatherStatus === 'stale'
-        ? 'admin.extensions.statusStale'
+        ? 'admin.integrations.statusStale'
         : weatherStatus === 'error'
-          ? 'admin.extensions.statusError'
-          : 'admin.extensions.statusDisabled'
+          ? 'admin.integrations.statusError'
+          : 'admin.integrations.statusDisabled'
 
   const weatherSubmenu = (
     <AnimatedDetails
-      className="extension-submenu"
-      summaryClassName="extension-submenu__summary"
-      bodyClassName="extension-submenu__body"
+      className="integration-submenu"
+      summaryClassName="integration-submenu__summary"
+      bodyClassName="integration-submenu__body"
       open={weatherSubmenuOpen}
       onToggle={() => setWeatherSubmenuOpen((current) => !current)}
       summary={
         <>
           <ActivationToggle
-            id="extensions-weather-enabled"
-            label={t('admin.extensions.weatherEnableLabel')}
+            id="integrations-weather-enabled"
+            label={t('admin.integrations.weatherEnableLabel')}
             checked={config.weather.enabled}
             disabled={!hasWeatherCoordinates}
-            confirmMessage={t('admin.extensions.weatherDeactivateConfirm')}
+            confirmMessage={t('admin.integrations.weatherDeactivateConfirm')}
             onChange={(checked) => setConfig({ ...config, weather: { ...config.weather, enabled: checked } })}
           />
-          <YrLogo className="extension-submenu__icon" />
-          <span className="extension-submenu__title">
-            <span className="extension-submenu__brand">{t('admin.extensions.weatherBrandName')}</span>
-            <span className="extension-submenu__label">{t('admin.extensions.weatherLabel')}</span>
+          <YrLogo className="integration-submenu__icon" />
+          <span className="integration-submenu__title">
+            <span className="integration-submenu__brand">{t('admin.integrations.weatherBrandName')}</span>
+            <span className="integration-submenu__label">{t('admin.integrations.weatherLabel')}</span>
           </span>
           <span className={`status-dot ${weatherStatusDotClass}`} title={t(weatherStatusTitleKey)} />
-          <span className="extension-submenu__chevron" aria-hidden="true">
+          <span className="integration-submenu__chevron" aria-hidden="true">
             ▸
           </span>
         </>
       }
     >
-      {config.weather.useStoreLocation && !addressLookup?.coordinates && <p className="extensions-view__hint">{t('admin.extensions.needsLookupHint')}</p>}
-      <p className="extensions-view__hint">{t('admin.extensions.weatherEnabledDescription')}</p>
+      {config.weather.useStoreLocation && !addressLookup?.coordinates && <p className="integrations-view__hint">{t('admin.integrations.needsLookupHint')}</p>}
+      <p className="integrations-view__hint">{t('admin.integrations.weatherEnabledDescription')}</p>
       <Button type="button" variant="secondary" onClick={() => setWeatherIconsOpen(true)}>
-        {t('admin.extensions.weatherIconsButton')}
+        {t('admin.integrations.weatherIconsButton')}
       </Button>
 
       <Checkbox
-        id="extensions-weather-use-store-location"
-        label={t('admin.extensions.weatherUseStoreLocationLabel')}
+        id="integrations-weather-use-store-location"
+        label={t('admin.integrations.weatherUseStoreLocationLabel')}
         checked={config.weather.useStoreLocation}
         onChange={(event) => setConfig({ ...config, weather: { ...config.weather, useStoreLocation: event.target.checked } })}
       />
 
       {config.weather.locations.length > 0 && (
-        <ul className="extensions-view__location-list">
+        <ul className="integrations-view__location-list">
           {config.weather.locations.map((location) => (
-            <li key={location.id} className="extensions-view__location-row">
+            <li key={location.id} className="integrations-view__location-row">
               <Input
-                id={`extensions-weather-location-name-${location.id}`}
-                label={t('admin.extensions.weatherLocationNameLabel')}
+                id={`integrations-weather-location-name-${location.id}`}
+                label={t('admin.integrations.weatherLocationNameLabel')}
                 value={location.name}
                 onChange={(event) => updateWeatherLocation(location.id, { name: event.target.value })}
               />
               <Input
-                id={`extensions-weather-location-address-${location.id}`}
-                label={t('admin.extensions.weatherLocationAddressLabel')}
+                id={`integrations-weather-location-address-${location.id}`}
+                label={t('admin.integrations.weatherLocationAddressLabel')}
                 value={location.address}
                 onChange={(event) => updateWeatherLocation(location.id, { address: event.target.value, coordinates: null })}
               />
-              <div className="extensions-view__location-row-actions">
+              <div className="integrations-view__location-row-actions">
                 <Button
                   type="button"
                   variant="secondary"
                   onClick={() => handleLookupWeatherLocation(location.id, location.address)}
                   disabled={!location.address.trim() || lookingUpLocationId === location.id}
                 >
-                  {lookingUpLocationId === location.id ? t('admin.extensions.lookupButtonLoading') : t('admin.extensions.weatherLocationLookupButton')}
+                  {lookingUpLocationId === location.id ? t('admin.integrations.lookupButtonLoading') : t('admin.integrations.weatherLocationLookupButton')}
                 </Button>
                 <Button type="button" variant="secondary" onClick={() => removeWeatherLocation(location.id)}>
-                  {t('admin.extensions.weatherLocationRemoveButton')}
+                  {t('admin.integrations.weatherLocationRemoveButton')}
                 </Button>
               </div>
               {location.coordinates && (
-                <span className="extensions-view__coordinates">
-                  {t('admin.extensions.coordinatesLabel', { lat: location.coordinates.lat.toFixed(4), lon: location.coordinates.lon.toFixed(4) })}
+                <span className="integrations-view__coordinates">
+                  {t('admin.integrations.coordinatesLabel', { lat: location.coordinates.lat.toFixed(4), lon: location.coordinates.lon.toFixed(4) })}
                 </span>
               )}
             </li>
@@ -434,55 +442,55 @@ export function ExtensionsView() {
         </ul>
       )}
       {locationLookupError && <Alert variant="error">{locationLookupError}</Alert>}
-      <Button type="button" variant="secondary" className="extensions-view__add-location" onClick={addWeatherLocation}>
-        {t('admin.extensions.weatherAddLocationButton')}
+      <Button type="button" variant="secondary" className="integrations-view__add-location" onClick={addWeatherLocation}>
+        {t('admin.integrations.weatherAddLocationButton')}
       </Button>
     </AnimatedDetails>
   )
 
   const transitSubmenu = (
     <AnimatedDetails
-      className="extension-submenu"
-      summaryClassName="extension-submenu__summary"
-      bodyClassName="extension-submenu__body"
+      className="integration-submenu"
+      summaryClassName="integration-submenu__summary"
+      bodyClassName="integration-submenu__body"
       open={transitSubmenuOpen}
       onToggle={() => setTransitSubmenuOpen((current) => !current)}
       summary={
         <>
           <ActivationToggle
-            id="extensions-transit-enabled"
-            label={t('admin.extensions.transitEnableLabel')}
+            id="integrations-transit-enabled"
+            label={t('admin.integrations.transitEnableLabel')}
             checked={config.transit.enabled}
             disabled={!addressLookup?.nearbyStops.length}
-            confirmMessage={t('admin.extensions.transitDeactivateConfirm')}
+            confirmMessage={t('admin.integrations.transitDeactivateConfirm')}
             onChange={(checked) => setConfig({ ...config, transit: { ...config.transit, enabled: checked } })}
           />
-          <FetchedLogo slug="ruter" label="Ruter#" className="extension-submenu__icon" />
-          <span className="extension-submenu__title">
-            <span className="extension-submenu__brand">{t('admin.extensions.transitBrandName')}</span>
-            <span className="extension-submenu__label">{t('admin.extensions.transitLabel')}</span>
+          <FetchedLogo slug="ruter" label="Ruter#" className="integration-submenu__icon" />
+          <span className="integration-submenu__title">
+            <span className="integration-submenu__brand">{t('admin.integrations.transitBrandName')}</span>
+            <span className="integration-submenu__label">{t('admin.integrations.transitLabel')}</span>
           </span>
-          <span className={`status-dot${config.transit.enabled ? ' status-dot--active' : ' status-dot--disabled'}`} title={t(config.transit.enabled ? 'admin.extensions.statusEnabled' : 'admin.extensions.statusDisabled')} />
-          <span className="extension-submenu__chevron" aria-hidden="true">
+          <span className={`status-dot${config.transit.enabled ? ' status-dot--active' : ' status-dot--disabled'}`} title={t(config.transit.enabled ? 'admin.integrations.statusEnabled' : 'admin.integrations.statusDisabled')} />
+          <span className="integration-submenu__chevron" aria-hidden="true">
             ▸
           </span>
         </>
       }
     >
-      {!addressLookup?.nearbyStops.length && <p className="extensions-view__hint">{t('admin.extensions.needsLookupHint')}</p>}
+      {!addressLookup?.nearbyStops.length && <p className="integrations-view__hint">{t('admin.integrations.needsLookupHint')}</p>}
       <Button type="button" variant="secondary" onClick={() => setTransitIconsOpen(true)}>
-            {t('admin.extensions.transitIconsButton')}
+            {t('admin.integrations.transitIconsButton')}
           </Button>
           {config.transit.enabled && (
             <>
               {config.transit.selectedStops.length > 0 && (
                 <>
-                  <p className="extensions-view__stops-label">{t('admin.extensions.selectedStopsLabel')}</p>
-                  <ul className="extensions-view__stop-list">
+                  <p className="integrations-view__stops-label">{t('admin.integrations.selectedStopsLabel')}</p>
+                  <ul className="integrations-view__stop-list">
                     {config.transit.selectedStops.map((stop) => (
-                      <li key={stop.id} className="extensions-view__stop-search-result">
+                      <li key={stop.id} className="integrations-view__stop-search-result">
                         <span>{stop.modes.length ? `${stop.name} (${stop.modes.join(', ')})` : stop.name}</span>
-                        <Button type="button" variant="secondary" className="extensions-view__icon-button" onClick={() => toggleStop(stop)} aria-label={t('admin.extensions.stopRemoveButton')}>
+                        <Button type="button" variant="secondary" className="integrations-view__icon-button" onClick={() => toggleStop(stop)} aria-label={t('admin.integrations.stopRemoveButton')}>
                           <CloseIcon />
                         </Button>
                       </li>
@@ -491,17 +499,17 @@ export function ExtensionsView() {
                 </>
               )}
 
-              <p className="extensions-view__stops-label">{t('admin.extensions.nearbyStopsLabel')}</p>
+              <p className="integrations-view__stops-label">{t('admin.integrations.nearbyStopsLabel')}</p>
               {(() => {
                 const availableNearbyStops = (addressLookup?.nearbyStops ?? []).filter((stop) => !config.transit.selectedStops.some((selected) => selected.id === stop.id))
-                if (!addressLookup || addressLookup.nearbyStops.length === 0) return <p className="extensions-view__hint">{t('admin.extensions.noStopsFoundHint')}</p>
-                if (availableNearbyStops.length === 0) return <p className="extensions-view__hint">{t('admin.extensions.allNearbyStopsAddedHint')}</p>
+                if (!addressLookup || addressLookup.nearbyStops.length === 0) return <p className="integrations-view__hint">{t('admin.integrations.noStopsFoundHint')}</p>
+                if (availableNearbyStops.length === 0) return <p className="integrations-view__hint">{t('admin.integrations.allNearbyStopsAddedHint')}</p>
                 return (
-                  <ul className="extensions-view__stop-list">
+                  <ul className="integrations-view__stop-list">
                     {availableNearbyStops.map((stop) => (
-                      <li key={stop.id} className="extensions-view__stop-search-result">
+                      <li key={stop.id} className="integrations-view__stop-search-result">
                         <span>{stop.modes.length ? `${stop.name} (${stop.modes.join(', ')})` : stop.name}</span>
-                        <Button type="button" variant="secondary" className="extensions-view__icon-button" onClick={() => toggleStop(stop)} aria-label={t('admin.extensions.stopAddButton')}>
+                        <Button type="button" variant="secondary" className="integrations-view__icon-button" onClick={() => toggleStop(stop)} aria-label={t('admin.integrations.stopAddButton')}>
                           <PlusIcon />
                         </Button>
                       </li>
@@ -510,35 +518,35 @@ export function ExtensionsView() {
                 )
               })()}
 
-              <p className="extensions-view__stops-label">{t('admin.extensions.stopSearchLabel')}</p>
-              <p className="extensions-view__hint">{t('admin.extensions.stopSearchHint')}</p>
-              <div className="extensions-view__stop-search">
+              <p className="integrations-view__stops-label">{t('admin.integrations.stopSearchLabel')}</p>
+              <p className="integrations-view__hint">{t('admin.integrations.stopSearchHint')}</p>
+              <div className="integrations-view__stop-search">
                 <Input
-                  id="extensions-transit-stop-search-query"
-                  label={t('admin.extensions.stopSearchLabel')}
+                  id="integrations-transit-stop-search-query"
+                  label={t('admin.integrations.stopSearchLabel')}
                   value={stopSearchQuery}
                   onChange={(event) => handleStopSearchQueryChange(event.target.value)}
                   onKeyDown={(event) => event.key === 'Enter' && handleSearchStops()}
                 />
                 <Button type="button" variant="secondary" onClick={handleSearchStops} disabled={!stopSearchQuery.trim() || isSearchingStops}>
-                  {isSearchingStops ? t('admin.extensions.lookupButtonLoading') : t('admin.extensions.stopSearchButton')}
+                  {isSearchingStops ? t('admin.integrations.lookupButtonLoading') : t('admin.integrations.stopSearchButton')}
                 </Button>
               </div>
               {stopSearchError && <Alert variant="error">{stopSearchError}</Alert>}
               {stopSearchResults.length > 0 && (
-                <ul className="extensions-view__stop-list">
+                <ul className="integrations-view__stop-list">
                   {stopSearchResults.map((stop) => {
                     const alreadyAdded = config.transit.selectedStops.some((selected) => selected.id === stop.id)
                     return (
-                      <li key={stop.id} className="extensions-view__stop-search-result">
+                      <li key={stop.id} className="integrations-view__stop-search-result">
                         <span>{stop.modes.length ? `${stop.name} (${stop.modes.join(', ')})` : stop.name}</span>
                         <Button
                           type="button"
                           variant="secondary"
-                          className="extensions-view__icon-button"
+                          className="integrations-view__icon-button"
                           disabled={alreadyAdded}
                           onClick={() => addSearchedStop(stop)}
-                          aria-label={t(alreadyAdded ? 'admin.extensions.stopAddedLabel' : 'admin.extensions.stopAddButton')}
+                          aria-label={t(alreadyAdded ? 'admin.integrations.stopAddedLabel' : 'admin.integrations.stopAddButton')}
                         >
                           {alreadyAdded ? '✓' : <PlusIcon />}
                         </Button>
@@ -555,47 +563,47 @@ export function ExtensionsView() {
 
   const enturSubmenu = (
     <AnimatedDetails
-      className="extension-submenu"
-      summaryClassName="extension-submenu__summary"
-      bodyClassName="extension-submenu__body"
+      className="integration-submenu"
+      summaryClassName="integration-submenu__summary"
+      bodyClassName="integration-submenu__body"
       open={enturSubmenuOpen}
       onToggle={() => setEnturSubmenuOpen((current) => !current)}
       summary={
         <>
           <ActivationToggle
-            id="extensions-entur-enabled"
-            label={t('admin.extensions.enturEnableLabel')}
+            id="integrations-entur-enabled"
+            label={t('admin.integrations.enturEnableLabel')}
             checked={config.entur.enabled}
             disabled={!addressLookup?.nearbyStops.length}
-            confirmMessage={t('admin.extensions.enturDeactivateConfirm')}
+            confirmMessage={t('admin.integrations.enturDeactivateConfirm')}
             onChange={(checked) => setConfig({ ...config, entur: { ...config.entur, enabled: checked } })}
           />
-          <FetchedLogo slug="entur" label="Entur" className="extension-submenu__icon logo-chip" />
-          <span className="extension-submenu__title">
-            <span className="extension-submenu__brand">{t('admin.extensions.enturBrandName')}</span>
-            <span className="extension-submenu__label">{t('admin.extensions.enturLabel')}</span>
+          <FetchedLogo slug="entur" label="Entur" className="integration-submenu__icon logo-chip" />
+          <span className="integration-submenu__title">
+            <span className="integration-submenu__brand">{t('admin.integrations.enturBrandName')}</span>
+            <span className="integration-submenu__label">{t('admin.integrations.enturLabel')}</span>
           </span>
-          <span className={`status-dot${config.entur.enabled ? ' status-dot--active' : ' status-dot--disabled'}`} title={t(config.entur.enabled ? 'admin.extensions.statusEnabled' : 'admin.extensions.statusDisabled')} />
-          <span className="extension-submenu__chevron" aria-hidden="true">
+          <span className={`status-dot${config.entur.enabled ? ' status-dot--active' : ' status-dot--disabled'}`} title={t(config.entur.enabled ? 'admin.integrations.statusEnabled' : 'admin.integrations.statusDisabled')} />
+          <span className="integration-submenu__chevron" aria-hidden="true">
             ▸
           </span>
         </>
       }
     >
-      {!addressLookup?.nearbyStops.length && <p className="extensions-view__hint">{t('admin.extensions.needsLookupHint')}</p>}
+      {!addressLookup?.nearbyStops.length && <p className="integrations-view__hint">{t('admin.integrations.needsLookupHint')}</p>}
       <Button type="button" variant="secondary" onClick={() => setTransitIconsOpen(true)}>
-        {t('admin.extensions.transitIconsButton')}
+        {t('admin.integrations.transitIconsButton')}
       </Button>
       {config.entur.enabled && (
         <>
           {config.entur.selectedStops.length > 0 && (
             <>
-              <p className="extensions-view__stops-label">{t('admin.extensions.selectedStopsLabel')}</p>
-              <ul className="extensions-view__stop-list">
+              <p className="integrations-view__stops-label">{t('admin.integrations.selectedStopsLabel')}</p>
+              <ul className="integrations-view__stop-list">
                 {config.entur.selectedStops.map((stop) => (
-                  <li key={stop.id} className="extensions-view__stop-search-result">
+                  <li key={stop.id} className="integrations-view__stop-search-result">
                     <span>{stop.modes.length ? `${stop.name} (${stop.modes.join(', ')})` : stop.name}</span>
-                    <Button type="button" variant="secondary" className="extensions-view__icon-button" onClick={() => toggleEnturStop(stop)} aria-label={t('admin.extensions.stopRemoveButton')}>
+                    <Button type="button" variant="secondary" className="integrations-view__icon-button" onClick={() => toggleEnturStop(stop)} aria-label={t('admin.integrations.stopRemoveButton')}>
                       <CloseIcon />
                     </Button>
                   </li>
@@ -604,17 +612,17 @@ export function ExtensionsView() {
             </>
           )}
 
-          <p className="extensions-view__stops-label">{t('admin.extensions.nearbyStopsLabel')}</p>
+          <p className="integrations-view__stops-label">{t('admin.integrations.nearbyStopsLabel')}</p>
           {(() => {
             const availableNearbyStops = (addressLookup?.nearbyStops ?? []).filter((stop) => !config.entur.selectedStops.some((selected) => selected.id === stop.id))
-            if (!addressLookup || addressLookup.nearbyStops.length === 0) return <p className="extensions-view__hint">{t('admin.extensions.noStopsFoundHint')}</p>
-            if (availableNearbyStops.length === 0) return <p className="extensions-view__hint">{t('admin.extensions.allNearbyStopsAddedHint')}</p>
+            if (!addressLookup || addressLookup.nearbyStops.length === 0) return <p className="integrations-view__hint">{t('admin.integrations.noStopsFoundHint')}</p>
+            if (availableNearbyStops.length === 0) return <p className="integrations-view__hint">{t('admin.integrations.allNearbyStopsAddedHint')}</p>
             return (
-              <ul className="extensions-view__stop-list">
+              <ul className="integrations-view__stop-list">
                 {availableNearbyStops.map((stop) => (
-                  <li key={stop.id} className="extensions-view__stop-search-result">
+                  <li key={stop.id} className="integrations-view__stop-search-result">
                     <span>{stop.modes.length ? `${stop.name} (${stop.modes.join(', ')})` : stop.name}</span>
-                    <Button type="button" variant="secondary" className="extensions-view__icon-button" onClick={() => toggleEnturStop(stop)} aria-label={t('admin.extensions.stopAddButton')}>
+                    <Button type="button" variant="secondary" className="integrations-view__icon-button" onClick={() => toggleEnturStop(stop)} aria-label={t('admin.integrations.stopAddButton')}>
                       <PlusIcon />
                     </Button>
                   </li>
@@ -623,35 +631,35 @@ export function ExtensionsView() {
             )
           })()}
 
-          <p className="extensions-view__stops-label">{t('admin.extensions.stopSearchLabel')}</p>
-          <p className="extensions-view__hint">{t('admin.extensions.stopSearchHint')}</p>
-          <div className="extensions-view__stop-search">
+          <p className="integrations-view__stops-label">{t('admin.integrations.stopSearchLabel')}</p>
+          <p className="integrations-view__hint">{t('admin.integrations.stopSearchHint')}</p>
+          <div className="integrations-view__stop-search">
             <Input
-              id="extensions-entur-stop-search-query"
-              label={t('admin.extensions.stopSearchLabel')}
+              id="integrations-entur-stop-search-query"
+              label={t('admin.integrations.stopSearchLabel')}
               value={stopSearchQuery}
               onChange={(event) => handleStopSearchQueryChange(event.target.value)}
               onKeyDown={(event) => event.key === 'Enter' && handleSearchStops()}
             />
             <Button type="button" variant="secondary" onClick={handleSearchStops} disabled={!stopSearchQuery.trim() || isSearchingStops}>
-              {isSearchingStops ? t('admin.extensions.lookupButtonLoading') : t('admin.extensions.stopSearchButton')}
+              {isSearchingStops ? t('admin.integrations.lookupButtonLoading') : t('admin.integrations.stopSearchButton')}
             </Button>
           </div>
           {stopSearchError && <Alert variant="error">{stopSearchError}</Alert>}
           {stopSearchResults.length > 0 && (
-            <ul className="extensions-view__stop-list">
+            <ul className="integrations-view__stop-list">
               {stopSearchResults.map((stop) => {
                 const alreadyAdded = config.entur.selectedStops.some((selected) => selected.id === stop.id)
                 return (
-                  <li key={stop.id} className="extensions-view__stop-search-result">
+                  <li key={stop.id} className="integrations-view__stop-search-result">
                     <span>{stop.modes.length ? `${stop.name} (${stop.modes.join(', ')})` : stop.name}</span>
                     <Button
                       type="button"
                       variant="secondary"
-                      className="extensions-view__icon-button"
+                      className="integrations-view__icon-button"
                       disabled={alreadyAdded}
                       onClick={() => addSearchedEnturStop(stop)}
-                      aria-label={t(alreadyAdded ? 'admin.extensions.stopAddedLabel' : 'admin.extensions.stopAddButton')}
+                      aria-label={t(alreadyAdded ? 'admin.integrations.stopAddedLabel' : 'admin.integrations.stopAddButton')}
                     >
                       {alreadyAdded ? '✓' : <PlusIcon />}
                     </Button>
@@ -674,44 +682,44 @@ export function ExtensionsView() {
 
   const newsSubmenu = (
     <AnimatedDetails
-      className="extension-submenu"
-      summaryClassName="extension-submenu__summary"
-      bodyClassName="extension-submenu__body"
+      className="integration-submenu"
+      summaryClassName="integration-submenu__summary"
+      bodyClassName="integration-submenu__body"
       open={newsSubmenuOpen}
       onToggle={() => setNewsSubmenuOpen((current) => !current)}
       summary={
         <>
           <ActivationToggle
-            id="extensions-news-enabled"
-            label={t('admin.extensions.newsEnableLabel')}
+            id="integrations-news-enabled"
+            label={t('admin.integrations.newsEnableLabel')}
             checked={config.news.enabled}
             disabled={config.news.enabledSourceIds.length === 0}
-            confirmMessage={t('admin.extensions.newsDeactivateConfirm')}
+            confirmMessage={t('admin.integrations.newsDeactivateConfirm')}
             onChange={(checked) => setConfig({ ...config, news: { ...config.news, enabled: checked } })}
           />
-          <FetchedLogo slug="rss" label="RSS" className="extension-submenu__icon" />
-          <span className="extension-submenu__title">
-            <span className="extension-submenu__brand">{t('admin.extensions.newsBrandName')}</span>
-            <span className="extension-submenu__label">{t('admin.extensions.newsLabel')}</span>
+          <FetchedLogo slug="rss" label="RSS" className="integration-submenu__icon" />
+          <span className="integration-submenu__title">
+            <span className="integration-submenu__brand">{t('admin.integrations.newsBrandName')}</span>
+            <span className="integration-submenu__label">{t('admin.integrations.newsLabel')}</span>
           </span>
           <span
             className={`status-dot${config.news.enabled ? ' status-dot--active' : ' status-dot--disabled'}`}
-            title={t(config.news.enabled ? 'admin.extensions.statusEnabled' : 'admin.extensions.statusDisabled')}
+            title={t(config.news.enabled ? 'admin.integrations.statusEnabled' : 'admin.integrations.statusDisabled')}
           />
-          <span className="extension-submenu__chevron" aria-hidden="true">
+          <span className="integration-submenu__chevron" aria-hidden="true">
             ▸
           </span>
         </>
       }
     >
-      <p className="extensions-view__hint">{t('admin.extensions.newsEnabledDescription')}</p>
-      {config.news.enabledSourceIds.length === 0 && <p className="extensions-view__hint">{t('admin.extensions.newsNeedsSourceHint')}</p>}
-      <p className="extensions-view__stops-label">{t('admin.extensions.newsSourcesLabel')}</p>
-      <ul className="extensions-view__stop-list">
+      <p className="integrations-view__hint">{t('admin.integrations.newsEnabledDescription')}</p>
+      {config.news.enabledSourceIds.length === 0 && <p className="integrations-view__hint">{t('admin.integrations.newsNeedsSourceHint')}</p>}
+      <p className="integrations-view__stops-label">{t('admin.integrations.newsSourcesLabel')}</p>
+      <ul className="integrations-view__stop-list">
         {NEWS_SOURCES.map((source) => (
           <li key={source.id}>
             <Checkbox
-              id={`extensions-news-source-${source.id}`}
+              id={`integrations-news-source-${source.id}`}
               label={source.name}
               checked={config.news.enabledSourceIds.includes(source.id)}
               onChange={() => toggleNewsSource(source.id)}
@@ -742,106 +750,106 @@ export function ExtensionsView() {
           ? 'status-dot--inactive'
           : 'status-dot--disabled'
   const woltStatusTitleKey = woltMissingCredentials
-    ? 'admin.extensions.woltNeedsCredentialsHint'
+    ? 'admin.integrations.woltNeedsCredentialsHint'
     : woltEffectiveState === 'live'
-      ? 'admin.extensions.statusEnabled'
+      ? 'admin.integrations.statusEnabled'
       : woltEffectiveState === 'stale'
-        ? 'admin.extensions.statusStale'
+        ? 'admin.integrations.statusStale'
         : woltEffectiveState === 'error'
-          ? 'admin.extensions.statusError'
-          : 'admin.extensions.statusDisabled'
+          ? 'admin.integrations.statusError'
+          : 'admin.integrations.statusDisabled'
   const woltStatusLabelKey = woltMissingCredentials
-    ? 'admin.extensions.woltStatusMissingCredentials'
+    ? 'admin.integrations.woltStatusMissingCredentials'
     : woltEffectiveState === 'live'
-      ? 'admin.extensions.woltStatusLive'
+      ? 'admin.integrations.woltStatusLive'
       : woltEffectiveState === 'stale'
-        ? 'admin.extensions.woltStatusStale'
+        ? 'admin.integrations.woltStatusStale'
         : woltEffectiveState === 'error'
-          ? 'admin.extensions.woltStatusError'
-          : 'admin.extensions.woltStatusDisabled'
+          ? 'admin.integrations.woltStatusError'
+          : 'admin.integrations.woltStatusDisabled'
 
   const woltSubmenu = (
     <AnimatedDetails
-      className="extension-submenu"
-      summaryClassName="extension-submenu__summary"
-      bodyClassName="extension-submenu__body"
+      className="integration-submenu"
+      summaryClassName="integration-submenu__summary"
+      bodyClassName="integration-submenu__body"
       open={woltSubmenuOpen}
       onToggle={() => setWoltSubmenuOpen((current) => !current)}
       summary={
         <>
           <ActivationToggle
-            id="extensions-wolt-enabled"
-            label={t('admin.extensions.woltEnableLabel')}
+            id="integrations-wolt-enabled"
+            label={t('admin.integrations.woltEnableLabel')}
             checked={woltConfig.enabled}
-            confirmMessage={t('admin.extensions.woltDeactivateConfirm')}
+            confirmMessage={t('admin.integrations.woltDeactivateConfirm')}
             onChange={(checked) => setWoltConfig({ ...woltConfig, enabled: checked })}
           />
-          <FetchedLogo slug="wolt" label="Wolt" className="extension-submenu__icon" />
-          <span className="extension-submenu__title">
-            <span className="extension-submenu__brand">{t('admin.extensions.woltBrandName')}</span>
-            <span className="extension-submenu__label">{t('admin.extensions.woltLabel')}</span>
+          <FetchedLogo slug="wolt" label="Wolt" className="integration-submenu__icon" />
+          <span className="integration-submenu__title">
+            <span className="integration-submenu__brand">{t('admin.integrations.woltBrandName')}</span>
+            <span className="integration-submenu__label">{t('admin.integrations.woltLabel')}</span>
           </span>
           <span
             className={`status-dot ${woltStatusDotClass}`}
             title={!woltMissingCredentials && woltEffectiveState === 'error' && woltConfig.status.detail ? woltConfig.status.detail : t(woltStatusTitleKey)}
           />
-          <span className="extension-submenu__chevron" aria-hidden="true">
+          <span className="integration-submenu__chevron" aria-hidden="true">
             ▸
           </span>
         </>
       }
     >
-      <p className="extensions-view__hint">{t('admin.extensions.woltEnabledDescription')}</p>
-      {!hasSavedWoltCredentials && <p className="extensions-view__hint">{t('admin.extensions.woltNeedsCredentialsHint')}</p>}
+      <p className="integrations-view__hint">{t('admin.integrations.woltEnabledDescription')}</p>
+      {!hasSavedWoltCredentials && <p className="integrations-view__hint">{t('admin.integrations.woltNeedsCredentialsHint')}</p>}
 
       <Input
-        id="extensions-wolt-venue-id"
-        label={t('admin.extensions.woltVenueIdLabel')}
+        id="integrations-wolt-venue-id"
+        label={t('admin.integrations.woltVenueIdLabel')}
         value={woltVenueIdDraft}
         onChange={(event) => setWoltVenueIdDraft(event.target.value)}
       />
       <Input
-        id="extensions-wolt-api-key"
+        id="integrations-wolt-api-key"
         type="password"
-        label={t('admin.extensions.woltApiKeyLabel')}
+        label={t('admin.integrations.woltApiKeyLabel')}
         value={woltApiKeyDraft}
         onChange={(event) => setWoltApiKeyDraft(event.target.value)}
       />
-      <p className="extensions-view__hint">{t('admin.extensions.woltCredentialsHint')}</p>
+      <p className="integrations-view__hint">{t('admin.integrations.woltCredentialsHint')}</p>
       {woltCredentialsError && <Alert variant="error">{woltCredentialsError}</Alert>}
       <Button type="button" variant="secondary" onClick={handleSaveWoltCredentials} disabled={isSavingWoltCredentials || (!woltVenueIdDraft.trim() && !woltApiKeyDraft.trim())}>
-        {isSavingWoltCredentials ? t('admin.extensions.woltCredentialsSavingButton') : t('admin.extensions.woltCredentialsSaveButton')}
+        {isSavingWoltCredentials ? t('admin.integrations.woltCredentialsSavingButton') : t('admin.integrations.woltCredentialsSaveButton')}
       </Button>
 
-      <div className="extensions-view__delivery-status">
-        <p className="extensions-view__stops-label">{t('admin.extensions.woltStatusSectionTitle')}</p>
+      <div className="integrations-view__delivery-status">
+        <p className="integrations-view__stops-label">{t('admin.integrations.woltStatusSectionTitle')}</p>
         <span>
-          {t('admin.extensions.woltStatusLabel')}: {t(woltStatusLabelKey)}
+          {t('admin.integrations.woltStatusLabel')}: {t(woltStatusLabelKey)}
         </span>
         {woltConfig.status.updatedAt > 0 && (
           <span>
-            {t('admin.extensions.woltLastSyncedLabel')}: {formatDateTime(new Date(woltConfig.status.updatedAt), language, clockFormat, dateFormat)}
+            {t('admin.integrations.woltLastSyncedLabel')}: {formatDateTime(new Date(woltConfig.status.updatedAt), language, clockFormat, dateFormat)}
           </span>
         )}
         {woltConfig.status.state === 'error' && woltConfig.status.detail && (
-          <span className="extensions-view__delivery-status-detail">
-            {t('admin.extensions.woltLastErrorLabel')}: {woltConfig.status.detail}
+          <span className="integrations-view__delivery-status-detail">
+            {t('admin.integrations.woltLastErrorLabel')}: {woltConfig.status.detail}
           </span>
         )}
         <span>
-          {t('admin.extensions.woltOrdersSyncedLabel')}: {woltOrders.length}
+          {t('admin.integrations.woltOrdersSyncedLabel')}: {woltOrders.length}
         </span>
         {woltConfig.status.lastOrderAt && (
           <span>
-            {t('admin.extensions.woltLastOrderLabel')}: {formatDateTime(new Date(woltConfig.status.lastOrderAt), language, clockFormat, dateFormat)}
+            {t('admin.integrations.woltLastOrderLabel')}: {formatDateTime(new Date(woltConfig.status.lastOrderAt), language, clockFormat, dateFormat)}
           </span>
         )}
-        <span className="extensions-view__hint">{t('admin.extensions.woltPollIntervalHint')}</span>
+        <span className="integrations-view__hint">{t('admin.integrations.woltPollIntervalHint')}</span>
       </div>
 
       {woltSyncError && <Alert variant="error">{woltSyncError}</Alert>}
       <Button type="button" variant="secondary" onClick={handleSyncWoltNow} disabled={isSyncingWolt || !hasSavedWoltCredentials}>
-        {isSyncingWolt ? t('admin.extensions.woltSyncingLabel') : t('admin.extensions.woltSyncNowButton')}
+        {isSyncingWolt ? t('admin.integrations.woltSyncingLabel') : t('admin.integrations.woltSyncNowButton')}
       </Button>
     </AnimatedDetails>
   )
@@ -858,138 +866,141 @@ export function ExtensionsView() {
           ? 'status-dot--inactive'
           : 'status-dot--disabled'
   const foodoraStatusTitleKey = foodoraMissingCredentials
-    ? 'admin.extensions.foodoraNeedsCredentialsHint'
+    ? 'admin.integrations.foodoraNeedsCredentialsHint'
     : foodoraEffectiveState === 'live'
-      ? 'admin.extensions.statusEnabled'
+      ? 'admin.integrations.statusEnabled'
       : foodoraEffectiveState === 'stale'
-        ? 'admin.extensions.statusStale'
+        ? 'admin.integrations.statusStale'
         : foodoraEffectiveState === 'error'
-          ? 'admin.extensions.statusError'
-          : 'admin.extensions.statusDisabled'
+          ? 'admin.integrations.statusError'
+          : 'admin.integrations.statusDisabled'
   const foodoraStatusLabelKey = foodoraMissingCredentials
-    ? 'admin.extensions.foodoraStatusMissingCredentials'
+    ? 'admin.integrations.foodoraStatusMissingCredentials'
     : foodoraEffectiveState === 'live'
-      ? 'admin.extensions.foodoraStatusLive'
+      ? 'admin.integrations.foodoraStatusLive'
       : foodoraEffectiveState === 'stale'
-        ? 'admin.extensions.foodoraStatusStale'
+        ? 'admin.integrations.foodoraStatusStale'
         : foodoraEffectiveState === 'error'
-          ? 'admin.extensions.foodoraStatusError'
-          : 'admin.extensions.foodoraStatusDisabled'
+          ? 'admin.integrations.foodoraStatusError'
+          : 'admin.integrations.foodoraStatusDisabled'
 
   const foodoraSubmenu = (
     <AnimatedDetails
-      className="extension-submenu"
-      summaryClassName="extension-submenu__summary"
-      bodyClassName="extension-submenu__body"
+      className="integration-submenu"
+      summaryClassName="integration-submenu__summary"
+      bodyClassName="integration-submenu__body"
       open={foodoraSubmenuOpen}
       onToggle={() => setFoodoraSubmenuOpen((current) => !current)}
       summary={
         <>
           <ActivationToggle
-            id="extensions-foodora-enabled"
-            label={t('admin.extensions.foodoraEnableLabel')}
+            id="integrations-foodora-enabled"
+            label={t('admin.integrations.foodoraEnableLabel')}
             checked={foodoraConfig.enabled}
-            confirmMessage={t('admin.extensions.foodoraDeactivateConfirm')}
+            confirmMessage={t('admin.integrations.foodoraDeactivateConfirm')}
             onChange={(checked) => setFoodoraConfig({ ...foodoraConfig, enabled: checked })}
           />
-          <FetchedLogo slug="foodora" label="Foodora" className="extension-submenu__icon" />
-          <span className="extension-submenu__title">
-            <span className="extension-submenu__brand">{t('admin.extensions.foodoraBrandName')}</span>
-            <span className="extension-submenu__label">{t('admin.extensions.foodoraLabel')}</span>
+          <FetchedLogo slug="foodora" label="Foodora" className="integration-submenu__icon" />
+          <span className="integration-submenu__title">
+            <span className="integration-submenu__brand">{t('admin.integrations.foodoraBrandName')}</span>
+            <span className="integration-submenu__label">{t('admin.integrations.foodoraLabel')}</span>
           </span>
           <span
             className={`status-dot ${foodoraStatusDotClass}`}
             title={!foodoraMissingCredentials && foodoraEffectiveState === 'error' && foodoraConfig.status.detail ? foodoraConfig.status.detail : t(foodoraStatusTitleKey)}
           />
-          <span className="extension-submenu__chevron" aria-hidden="true">
+          <span className="integration-submenu__chevron" aria-hidden="true">
             ▸
           </span>
         </>
       }
     >
-      <p className="extensions-view__hint">{t('admin.extensions.foodoraEnabledDescription')}</p>
-      {!hasSavedFoodoraCredentials && <p className="extensions-view__hint">{t('admin.extensions.foodoraNeedsCredentialsHint')}</p>}
+      <p className="integrations-view__hint">{t('admin.integrations.foodoraEnabledDescription')}</p>
+      {!hasSavedFoodoraCredentials && <p className="integrations-view__hint">{t('admin.integrations.foodoraNeedsCredentialsHint')}</p>}
 
       <Input
-        id="extensions-foodora-venue-id"
-        label={t('admin.extensions.foodoraVenueIdLabel')}
+        id="integrations-foodora-venue-id"
+        label={t('admin.integrations.foodoraVenueIdLabel')}
         value={foodoraVenueIdDraft}
         onChange={(event) => setFoodoraVenueIdDraft(event.target.value)}
       />
       <Input
-        id="extensions-foodora-api-key"
+        id="integrations-foodora-api-key"
         type="password"
-        label={t('admin.extensions.foodoraApiKeyLabel')}
+        label={t('admin.integrations.foodoraApiKeyLabel')}
         value={foodoraApiKeyDraft}
         onChange={(event) => setFoodoraApiKeyDraft(event.target.value)}
       />
-      <p className="extensions-view__hint">{t('admin.extensions.foodoraCredentialsHint')}</p>
+      <p className="integrations-view__hint">{t('admin.integrations.foodoraCredentialsHint')}</p>
       {foodoraCredentialsError && <Alert variant="error">{foodoraCredentialsError}</Alert>}
       <Button type="button" variant="secondary" onClick={handleSaveFoodoraCredentials} disabled={isSavingFoodoraCredentials || (!foodoraVenueIdDraft.trim() && !foodoraApiKeyDraft.trim())}>
-        {isSavingFoodoraCredentials ? t('admin.extensions.foodoraCredentialsSavingButton') : t('admin.extensions.foodoraCredentialsSaveButton')}
+        {isSavingFoodoraCredentials ? t('admin.integrations.foodoraCredentialsSavingButton') : t('admin.integrations.foodoraCredentialsSaveButton')}
       </Button>
 
-      <div className="extensions-view__delivery-status">
-        <p className="extensions-view__stops-label">{t('admin.extensions.foodoraStatusSectionTitle')}</p>
+      <div className="integrations-view__delivery-status">
+        <p className="integrations-view__stops-label">{t('admin.integrations.foodoraStatusSectionTitle')}</p>
         <span>
-          {t('admin.extensions.foodoraStatusLabel')}: {t(foodoraStatusLabelKey)}
+          {t('admin.integrations.foodoraStatusLabel')}: {t(foodoraStatusLabelKey)}
         </span>
         {foodoraConfig.status.updatedAt > 0 && (
           <span>
-            {t('admin.extensions.foodoraLastSyncedLabel')}: {formatDateTime(new Date(foodoraConfig.status.updatedAt), language, clockFormat, dateFormat)}
+            {t('admin.integrations.foodoraLastSyncedLabel')}: {formatDateTime(new Date(foodoraConfig.status.updatedAt), language, clockFormat, dateFormat)}
           </span>
         )}
         {foodoraConfig.status.state === 'error' && foodoraConfig.status.detail && (
-          <span className="extensions-view__delivery-status-detail">
-            {t('admin.extensions.foodoraLastErrorLabel')}: {foodoraConfig.status.detail}
+          <span className="integrations-view__delivery-status-detail">
+            {t('admin.integrations.foodoraLastErrorLabel')}: {foodoraConfig.status.detail}
           </span>
         )}
         <span>
-          {t('admin.extensions.foodoraOrdersSyncedLabel')}: {foodoraOrders.length}
+          {t('admin.integrations.foodoraOrdersSyncedLabel')}: {foodoraOrders.length}
         </span>
         {foodoraConfig.status.lastOrderAt && (
           <span>
-            {t('admin.extensions.foodoraLastOrderLabel')}: {formatDateTime(new Date(foodoraConfig.status.lastOrderAt), language, clockFormat, dateFormat)}
+            {t('admin.integrations.foodoraLastOrderLabel')}: {formatDateTime(new Date(foodoraConfig.status.lastOrderAt), language, clockFormat, dateFormat)}
           </span>
         )}
-        <span className="extensions-view__hint">{t('admin.extensions.foodoraPollIntervalHint')}</span>
+        <span className="integrations-view__hint">{t('admin.integrations.foodoraPollIntervalHint')}</span>
       </div>
 
       {foodoraSyncError && <Alert variant="error">{foodoraSyncError}</Alert>}
       <Button type="button" variant="secondary" onClick={handleSyncFoodoraNow} disabled={isSyncingFoodora || !hasSavedFoodoraCredentials}>
-        {isSyncingFoodora ? t('admin.extensions.foodoraSyncingLabel') : t('admin.extensions.foodoraSyncNowButton')}
+        {isSyncingFoodora ? t('admin.integrations.foodoraSyncingLabel') : t('admin.integrations.foodoraSyncNowButton')}
       </Button>
     </AnimatedDetails>
   )
 
   return (
-    <div className="extensions-view">
-      <div className="extensions-view__header">
+    <div className="integrations-view">
+      <div className="integrations-view__header">
         <div>
-          <TranslatedText as="h1" id="admin.extensions.title" />
-          <TranslatedText as="p" id="admin.extensions.description" className="admin-page-description" />
+          <div className="integrations-view__sub-header">
+            <BackButton onClick={onBack}>{t('admin.common.back')}</BackButton>
+            <TranslatedText as="h1" id="admin.integrations.title" />
+          </div>
+          <TranslatedText as="p" id="admin.integrations.description" className="admin-page-description" />
         </div>
-        <ExtensionSearchBar value={searchQuery} onChange={handleSearchQueryChange} />
+        <IntegrationSearchBar value={searchQuery} onChange={handleSearchQueryChange} />
       </div>
 
       <SlideTransition viewKey={isSearching ? 'search' : 'main'} direction={searchDirection}>
         {isSearching ? (
-          <ExtensionSearchResults query={searchQuery} config={config} />
+          <IntegrationSearchResults query={searchQuery} config={config} />
         ) : (
-          <div className="extensions-view__main">
-            <div className="extensions-view__lookup">
+          <div className="integrations-view__main">
+            <div className="integrations-view__lookup">
               <Button variant="secondary" onClick={handleLookupAddress} disabled={isLookingUp}>
-                {isLookingUp ? t('admin.extensions.lookupButtonLoading') : t('admin.extensions.lookupButton')}
+                {isLookingUp ? t('admin.integrations.lookupButtonLoading') : t('admin.integrations.lookupButton')}
               </Button>
-              {addressLookup?.coordinates && <span className="extensions-view__coordinates">{t('admin.extensions.coordinatesLabel', { lat: addressLookup.coordinates.lat.toFixed(4), lon: addressLookup.coordinates.lon.toFixed(4) })}</span>}
+              {addressLookup?.coordinates && <span className="integrations-view__coordinates">{t('admin.integrations.coordinatesLabel', { lat: addressLookup.coordinates.lat.toFixed(4), lon: addressLookup.coordinates.lon.toFixed(4) })}</span>}
             </div>
 
             {lookupError && <Alert variant="error">{lookupError}</Alert>}
-            {!lookupError && isStale && <Alert variant="warning">{t('admin.extensions.addressChangedNotice')}</Alert>}
-            {!lookupError && !addressLookup && <Alert variant="info">{t('admin.extensions.noLookupYetHint')}</Alert>}
+            {!lookupError && isStale && <Alert variant="warning">{t('admin.integrations.addressChangedNotice')}</Alert>}
+            {!lookupError && !addressLookup && <Alert variant="info">{t('admin.integrations.noLookupYetHint')}</Alert>}
 
-            <section className="extensions-view__category">
-              <h2>{t('admin.extensions.activatedSectionTitle')}</h2>
+            <section className="integrations-view__category">
+              <h2>{t('admin.integrations.activatedSectionTitle')}</h2>
               {config.weather.enabled && weatherSubmenu}
               {config.transit.enabled && transitSubmenu}
               {config.entur.enabled && enturSubmenu}
@@ -997,12 +1008,12 @@ export function ExtensionsView() {
               {woltConfig.enabled && woltSubmenu}
               {foodoraConfig.enabled && foodoraSubmenu}
               {!config.weather.enabled && !config.transit.enabled && !config.entur.enabled && !config.news.enabled && !woltConfig.enabled && !foodoraConfig.enabled && (
-                <p className="extensions-view__hint">{t('admin.extensions.activatedEmptyHint')}</p>
+                <p className="integrations-view__hint">{t('admin.integrations.activatedEmptyHint')}</p>
               )}
             </section>
 
-            <section className="extensions-view__category">
-              <h2>{t('admin.extensions.availableSectionTitle')}</h2>
+            <section className="integrations-view__category">
+              <h2>{t('admin.integrations.availableSectionTitle')}</h2>
               {!config.weather.enabled && weatherSubmenu}
               {!config.transit.enabled && transitSubmenu}
               {!config.entur.enabled && enturSubmenu}
@@ -1010,7 +1021,7 @@ export function ExtensionsView() {
               {!woltConfig.enabled && woltSubmenu}
               {!foodoraConfig.enabled && foodoraSubmenu}
               {config.weather.enabled && config.transit.enabled && config.entur.enabled && config.news.enabled && woltConfig.enabled && foodoraConfig.enabled && (
-                <p className="extensions-view__hint">{t('admin.extensions.availableEmptyHint')}</p>
+                <p className="integrations-view__hint">{t('admin.integrations.availableEmptyHint')}</p>
               )}
             </section>
 
@@ -1019,22 +1030,22 @@ export function ExtensionsView() {
         )}
       </SlideTransition>
 
-      <Modal open={transitIconsOpen} onClose={() => setTransitIconsOpen(false)} title={t('admin.extensions.transitIconsTitle')} transparentOnSliderDrag={false}>
-        <ul className="extensions-view__mode-icons">
+      <Modal open={transitIconsOpen} onClose={() => setTransitIconsOpen(false)} title={t('admin.integrations.transitIconsTitle')} transparentOnSliderDrag={false}>
+        <ul className="integrations-view__mode-icons">
           {TRANSIT_MODES.map(({ mode, labelKey }) => (
-            <li key={mode} className="extensions-view__mode-icon-item">
-              <TransitModeIcon mode={mode} className="extensions-view__mode-icon" />
+            <li key={mode} className="integrations-view__mode-icon-item">
+              <TransitModeIcon mode={mode} className="integrations-view__mode-icon" />
               <span>{t(labelKey)}</span>
             </li>
           ))}
         </ul>
       </Modal>
 
-      <Modal open={weatherIconsOpen} onClose={() => setWeatherIconsOpen(false)} title={t('admin.extensions.weatherIconsTitle')} transparentOnSliderDrag={false}>
-        <ul className="extensions-view__mode-icons">
+      <Modal open={weatherIconsOpen} onClose={() => setWeatherIconsOpen(false)} title={t('admin.integrations.weatherIconsTitle')} transparentOnSliderDrag={false}>
+        <ul className="integrations-view__mode-icons">
           {WEATHER_SYMBOLS.map(({ code, labelKey }) => (
-            <li key={code} className="extensions-view__mode-icon-item">
-              <WeatherSymbolIcon symbolCode={code} className="extensions-view__mode-icon" />
+            <li key={code} className="integrations-view__mode-icon-item">
+              <WeatherSymbolIcon symbolCode={code} className="integrations-view__mode-icon" />
               <span>{t(labelKey)}</span>
             </li>
           ))}

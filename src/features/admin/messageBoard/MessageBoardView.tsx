@@ -1,6 +1,6 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, LayoutGroup, motion } from 'framer-motion'
 import { useState, type FormEvent } from 'react'
-import { Button, Checkbox, Input, Modal, TranslatedText } from '../../../components'
+import { Button, Checkbox, Input, Modal, PlusIcon, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useMessageBoardPosts } from '../../../hooks/useMessageBoardPosts'
 import { useMessageBoards } from '../../../hooks/useMessageBoards'
@@ -104,43 +104,62 @@ export function MessageBoardView() {
       <TranslatedText as="h1" id="admin.messageBoard.title" />
       <TranslatedText as="p" id="admin.messageBoard.description" className="admin-page-description" />
 
-      <div className="message-board-view__tabs" role="tablist">
-        {boards.map((board) => {
-          const active = selectedBoard?.id === board.id
-          return (
-            <div key={board.id} className="message-board-view__tab-wrapper">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={active}
-                className={`message-board-view__tab${active ? ' message-board-view__tab--active' : ''}`}
-                onClick={() => setSelectedBoardId(board.id)}
-              >
-                {board.name}
-              </button>
-              {isModerator && active && (
-                <div className="message-board-view__tab-manage">
-                  <button type="button" className="message-board-view__tab-manage-btn" onClick={() => openRenameBoard(board)}>
-                    {t('admin.common.edit')}
-                  </button>
-                  <button type="button" className="message-board-view__tab-manage-btn" onClick={() => handleDeleteBoard(board)}>
-                    {t('admin.common.delete')}
-                  </button>
-                </div>
-              )}
-            </div>
-          )
-        })}
-        {isModerator && (
+      {isModerator && (
+        <div className="message-board-view__tabs-header">
           <button type="button" className="message-board-view__add-board" onClick={openCreateBoard}>
+            <PlusIcon />
             {t('admin.messageBoard.addBoard')}
           </button>
-        )}
+        </div>
+      )}
+
+      <div className="message-board-view__tabs">
+        <LayoutGroup>
+          <div className="message-board-view__tab-list" role="tablist">
+            {boards.map((board) => {
+              const active = selectedBoard?.id === board.id
+              return (
+                <div key={board.id} className="message-board-view__tab-wrapper">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    className={`message-board-view__tab${active ? ' message-board-view__tab--active' : ''}`}
+                    onClick={() => setSelectedBoardId(board.id)}
+                  >
+                    {board.name}
+                    {active && (
+                      <motion.span
+                        className="message-board-view__tab-indicator"
+                        layoutId="message-board-view__tab-indicator"
+                        transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                      />
+                    )}
+                  </button>
+                  {isModerator && active && (
+                    <div className="message-board-view__tab-manage">
+                      <button type="button" className="message-board-view__tab-manage-btn" onClick={() => openRenameBoard(board)}>
+                        {t('admin.common.edit')}
+                      </button>
+                      <button type="button" className="message-board-view__tab-manage-btn" onClick={() => handleDeleteBoard(board)}>
+                        {t('admin.common.delete')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </LayoutGroup>
       </div>
 
       {selectedBoard ? (
         <>
           <div className="message-board-view__toolbar">
+            <Button className="message-board-view__add-post" onClick={() => setEditingPost(null)}>
+              <PlusIcon />
+              {t('admin.messageBoard.addPost')}
+            </Button>
             {isModerator && (
               <Checkbox
                 id="message-board-publish"
@@ -149,7 +168,6 @@ export function MessageBoardView() {
                 onChange={togglePublishToWebsite}
               />
             )}
-            <Button onClick={() => setEditingPost(null)}>{t('admin.messageBoard.addPost')}</Button>
           </div>
 
           {boardPosts.length === 0 ? (

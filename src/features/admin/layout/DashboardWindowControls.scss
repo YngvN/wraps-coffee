@@ -1,17 +1,31 @@
 @use '../../../styles/variables' as *;
 
+.dashboard-window-controls {
+  display: flex;
+  gap: calc($spacing-unit / 2);
+  transition: opacity 0.3s ease;
+}
+
 // Top-right, matching where Windows' own native title-bar controls
 // conventionally live (kiosk mode strips the native title bar entirely, so
-// this fills in for it) - z-index above everything else AdminLayout
-// renders, including the dashboard screensaver, so it's never accidentally
-// covered.
-.dashboard-window-controls {
+// this fills in for it) - z-index above everything else the page renders
+// (the dashboard screensaver, the screen editor's own pane content/toolbar),
+// so it's never accidentally covered. Omitted when embedded inline next to
+// other content that already controls its own position (e.g. the admin
+// dashboard's top navbar, right after the username).
+.dashboard-window-controls--fixed {
   position: fixed;
   top: $spacing-unit;
   right: $spacing-unit;
   z-index: 20;
-  display: flex;
-  gap: calc($spacing-unit / 2);
+}
+
+// For callers that auto-hide this after mouse/touch inactivity (see
+// `useIdleVisibility`) — fades out without unmounting, same as
+// `.screen-toolbar--hidden`.
+.dashboard-window-controls--hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .dashboard-window-controls__button {

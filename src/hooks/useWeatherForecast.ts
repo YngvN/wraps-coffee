@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchWeather } from '../lib/localServer'
-import type { WeatherHour } from '../types/extensions'
+import type { WeatherHour } from '../types/integrations'
 import { weatherLocationKey } from '../utils/weatherLocationKey'
 
 /** Weather changes slowly enough that a ~10 minute poll keeps `WeatherSlide` fresh without hammering MET's free API. */
@@ -56,7 +56,7 @@ function selectUpcoming(hourly: WeatherHour[], hours: number): WeatherHour[] {
 
 interface WeatherForecastState {
   hourly: WeatherHour[]
-  /** Today's overall low/high (see `server/extensions.ts`'s own `handleWeather` doc comment for how it's computed) — `undefined` before the first successful fetch or cache read, same as `fetchedAt`. */
+  /** Today's overall low/high (see `server/integrations.ts`'s own `handleWeather` doc comment for how it's computed) — `undefined` before the first successful fetch or cache read, same as `fetchedAt`. */
   todayLowC?: number
   todayHighC?: number
   loading: boolean
@@ -90,7 +90,7 @@ function seedFromCache(lat: number, lon: number, hours: number): { full: FullFor
 }
 
 /**
- * Polls `GET /extensions/weather` for `(lat, lon)` every ~10 minutes. The
+ * Polls `GET /integrations/weather` for `(lat, lon)` every ~10 minutes. The
  * server always returns MET's entire multi-day hourly timeseries (see
  * `handleWeather`'s own doc comment) regardless of `hours` — this hook keeps
  * that full response in `fullRef` (mirrored into `localStorage` via

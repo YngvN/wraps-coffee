@@ -1,10 +1,10 @@
 import { randomBytes, randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mirrorFile } from './backup'
 import { DEFAULT_DASHBOARD_SCREENSAVER_SETTINGS } from '../src/types/dashboardScreensaver'
-import { DEFAULT_EXTENSIONS_CONFIG } from '../src/types/extensions'
+import { DEFAULT_INTEGRATIONS_CONFIG } from '../src/types/integrations'
 import { DEFAULT_SCREEN_ADDRESS_SETTINGS, type ScreenAddressSettings } from '../src/types/screenAddress'
 import { DEFAULT_SIDEBAR_SETTINGS } from '../src/types/sidebarSettings'
 import { SYNCED_KEYS, type AdminRole, type DashboardSection, type SyncedKey } from '../src/types/sync'
@@ -54,7 +54,7 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.dashboardScreensaver': null,
   'admin.screens': 'screens.json',
   'admin.displayMachines': null,
-  'admin.extensions': null,
+  'admin.integrations': null,
   'admin.sidebarSettings': null,
   'admin.orders': null,
   'admin.messageBoards': null,
@@ -77,7 +77,7 @@ const HARDCODED_DEFAULTS: Partial<Record<SyncedKey, unknown>> = {
   // pane language" Settings card); each pane can still override it
   // individually (see `ScreenSlot.language`).
   'admin.paneLanguage': 'no',
-  'admin.extensions': DEFAULT_EXTENSIONS_CONFIG,
+  'admin.integrations': DEFAULT_INTEGRATIONS_CONFIG,
   'admin.sidebarSettings': DEFAULT_SIDEBAR_SETTINGS,
   // No bundled seed — orders only ever arrive via the Neon bridge pulling
   // real submissions down from the public website (see `neonBridge.ts`).
@@ -97,6 +97,24 @@ const HARDCODED_DEFAULTS: Partial<Record<SyncedKey, unknown>> = {
 
 function dataFilePath(key: SyncedKey): string {
   return join(DATA_DIR, `${key.replace(/\./g, '-')}.json`)
+}
+
+/**
+ * One-time rename of a synced key's on-disk data file from a retired key
+ * name to its current one — `dataFilePath` derives the filename straight
+ * from the key, so a plain rename of `'admin.extensions'` to
+ * `'admin.integrations'` in `src/types/sync.ts` would otherwise make
+ * `loadKey` treat an existing install as fresh and silently reseed it with
+ * defaults. Runs before `loadKey` on every boot; a no-op once the rename has
+ * already happened (or on a genuinely fresh install with neither file).
+ */
+function migrateLegacyDataFile(oldKeyName: string, newKey: SyncedKey) {
+  const oldPath = join(DATA_DIR, `${oldKeyName.replace(/\./g, '-')}.json`)
+  const newPath = dataFilePath(newKey)
+  if (existsSync(newPath) || !existsSync(oldPath)) return
+  renameSync(oldPath, newPath)
+  mirrorFile(oldPath)
+  mirrorFile(newPath)
 }
 
 const state = new Map<SyncedKey, StoredEntry>()
@@ -126,9 +144,16 @@ function loadUsers() {
     // to nest under the new `store` one (see `src/types/sync.ts`) — remap
     // any already-persisted `'contact'` entry so a `limited` account
     // scoped to it before this change doesn't silently lose that access.
+    // `extensions` was likewise renamed to `integrations` when the feature
+    // itself was renamed — same remap, same reason.
     for (const user of users) {
       if (!user.allowedSections) continue
-      user.allowedSections = user.allowedSections.map((section) => ((section as string) === 'contact' ? 'store' : section))
+      user.allowedSections = user.allowedSections.map((section) => {
+        const legacy = section as string
+        if (legacy === 'contact') return 'store'
+        if (legacy === 'extensions') return 'integrations'
+        return section
+      })
     }
     return
   }
@@ -146,6 +171,13 @@ let sessions = new Map<string, SessionInfo>()
 function loadSessions() {
   if (!existsSync(SESSIONS_FILE)) return
   const entries = JSON.parse(readFileSync(SESSIONS_FILE, 'utf-8')) as [string, SessionInfo][]
+  // Same `extensions` -> `integrations` remap as `loadUsers` — otherwise an
+  // already-logged-in `limited` account would lose access to the
+  // Integrations page until their session expires and they log in again.
+  for (const [, session] of entries) {
+    if (!session.allowedSections) continue
+    session.allowedSections = session.allowedSections.map((section) => ((section as string) === 'extensions' ? 'integrations' : section))
+  }
   sessions = new Map(entries)
 }
 
@@ -156,6 +188,7 @@ function persistSessions() {
 
 /** Loads (or seeds, on first boot) every synced key, the admin users file, and any still-valid sessions. Call once at server startup. */
 export function load() {
+  migrateLegacyDataFile('admin.extensions', 'admin.integrations')
   for (const key of SYNCED_KEYS) loadKey(key)
   loadUsers()
   // Persisted (not just in-memory) so a process restart — e.g. `tsx watch`

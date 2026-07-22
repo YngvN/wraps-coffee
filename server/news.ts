@@ -15,7 +15,7 @@ interface CacheEntry {
   value: NewsHeadline[]
 }
 
-/** Per-source cache, same "tiny in-memory TTL cache, no disk persistence" posture as `extensions.ts`'s own `cached()` — this is derived/external data, never user-authored. Keyed per source (not per request) so one slow/broken feed's cache doesn't get invalidated by a request for a different combination of sources. */
+/** Per-source cache, same "tiny in-memory TTL cache, no disk persistence" posture as `integrations.ts`'s own `cached()` — this is derived/external data, never user-authored. Keyed per source (not per request) so one slow/broken feed's cache doesn't get invalidated by a request for a different combination of sources. */
 const headlinesCache = new Map<string, CacheEntry>()
 
 /**

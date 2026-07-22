@@ -11,7 +11,7 @@ export interface NewsSource {
   feedUrl: string
   /** Best-effort brand color — hand-picked, not pulled from any official brand guideline. Sanity-check before relying on it looking exactly right. */
   brandColor: string
-  /** Slug `getLogoSrc`/`FetchedLogo` look up under `src/assets/images/extension-logos/<slug>.(svg|png|webp)` — used by `NewsSourceMark`'s own on-screen rendering. Only NRK, Klar Tale and Dagsavisen have a real saved file today — every other source falls back to the constructed `NewsSourceMark` below (see `markText` etc.) rather than a real logo image, since no cleanly-licensed file exists for them. Dropping a real file in under this same slug later upgrades that source too, with no code change. */
+  /** Slug `getLogoSrc`/`FetchedLogo` look up under `src/assets/images/integration-logos/<slug>.(svg|png|webp)` — used by `NewsSourceMark`'s own on-screen rendering. Only NRK, Klar Tale and Dagsavisen have a real saved file today — every other source falls back to the constructed `NewsSourceMark` below (see `markText` etc.) rather than a real logo image, since no cleanly-licensed file exists for them. Dropping a real file in under this same slug later upgrades that source too, with no code change. */
   logoSlug: string
   /** A separate logo file, under this same slug, specifically for `QrCodeSlide`'s own embedded QR-code logo — falls back to `logoSlug` when unset. Only worth setting when the on-screen logo doesn't work well shrunk into a small excavated square (e.g. too wide, too much fine detail) and a simplified/more-square variant was saved separately for that case. */
   qrLogoSlug?: string

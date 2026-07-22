@@ -1,5 +1,5 @@
 /**
- * Every logo image saved under `src/assets/images/extension-logos/`, eagerly
+ * Every logo image saved under `src/assets/images/integration-logos/`, eagerly
  * resolved to its final built asset URL at bundle time. Keyed by filename
  * (without extension) so a brand slug can be looked up without needing to
  * know ahead of time whether a given brand's fetch produced a `.svg` or a
@@ -7,7 +7,7 @@
  * `FetchedLogo.tsx` itself (rather than defined there) since a file mixing
  * component and non-component exports breaks Fast Refresh.
  */
-const logoModules = import.meta.glob('../assets/images/extension-logos/*.{svg,png,webp,jpg,jpeg}', { eager: true, import: 'default' }) as Record<string, string>
+const logoModules = import.meta.glob('../assets/images/integration-logos/*.{svg,png,webp,jpg,jpeg}', { eager: true, import: 'default' }) as Record<string, string>
 
 const logosBySlug: Record<string, string> = {}
 for (const [path, url] of Object.entries(logoModules)) {

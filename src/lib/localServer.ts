@@ -1,6 +1,6 @@
 import type { DisplayConnectionType } from '../types/displayMachine'
 import type { FoodoraCredentials, WoltCredentials } from '../types/delivery'
-import type { DepartureInfo, NearbyStop, WeatherHour } from '../types/extensions'
+import type { DepartureInfo, NearbyStop, WeatherHour } from '../types/integrations'
 import type { NewsHeadline } from '../types/news'
 import type { OrderStatus } from '../types/order'
 import type { ScreenAddressSettings } from '../types/screenAddress'
@@ -202,7 +202,7 @@ export interface UploadedMedia {
   thumbUrl: string
   sizeBytes: number
   uploadedAt: string
-  /** Derived server-side purely from extension. */
+  /** Derived server-side purely from integration. */
   kind: 'image' | 'video'
   /** Omitted for images (always synchronously ready) and for a video whose transcode already succeeded. */
   status?: 'processing' | 'failed'
@@ -228,29 +228,29 @@ export function isOwnUploadUrl(url: string): boolean {
 
 /** Geocodes `address` and finds nearby transit stops — backs the Integrations tab's "Look up address" action. No auth needed (public proxy of public data); throws a plain `Error` if the server or Entur is unreachable. */
 export async function lookupAddress(address: string): Promise<{ coordinates: { lat: number; lon: number } | null; nearbyStops: NearbyStop[] }> {
-  const response = await fetch(`${serverBaseUrl()}/extensions/lookup?address=${encodeURIComponent(address)}`)
+  const response = await fetch(`${serverBaseUrl()}/integrations/lookup?address=${encodeURIComponent(address)}`)
   if (!response.ok) throw new Error('Could not look up this address')
   return response.json() as Promise<{ coordinates: { lat: number; lon: number } | null; nearbyStops: NearbyStop[] }>
 }
 
 /** Searches stop places by name (anywhere, not just near the store's own address) — backs the Integrations tab's "Search for a stop" box. No auth needed (public proxy of public data); throws a plain `Error` if the server or Entur is unreachable. */
 export async function searchStops(query: string): Promise<NearbyStop[]> {
-  const response = await fetch(`${serverBaseUrl()}/extensions/stops/search?query=${encodeURIComponent(query)}`)
+  const response = await fetch(`${serverBaseUrl()}/integrations/stops/search?query=${encodeURIComponent(query)}`)
   if (!response.ok) throw new Error('Could not search for stops')
   const { stops } = (await response.json()) as { stops: NearbyStop[] }
   return stops
 }
 
-/** Fetches Entur's own much-larger buffer of upcoming departures for `stopId` (`count` only hints a floor — see `handleDepartures`'s `TRANSIT_FETCH_BUFFER` doc comment in `server/extensions.ts`; the response isn't trimmed to `count`), used by `TransitSlide`'s polling hook, which is what actually slices it down to `count` for display. No auth needed — public proxy, same posture as image reads. */
+/** Fetches Entur's own much-larger buffer of upcoming departures for `stopId` (`count` only hints a floor — see `handleDepartures`'s `TRANSIT_FETCH_BUFFER` doc comment in `server/integrations.ts`; the response isn't trimmed to `count`), used by `TransitSlide`'s polling hook, which is what actually slices it down to `count` for display. No auth needed — public proxy, same posture as image reads. */
 export async function fetchDepartures(stopId: string, count: number): Promise<{ stopName: string; departures: DepartureInfo[] }> {
-  const response = await fetch(`${serverBaseUrl()}/extensions/departures?stopId=${encodeURIComponent(stopId)}&count=${count}`)
+  const response = await fetch(`${serverBaseUrl()}/integrations/departures?stopId=${encodeURIComponent(stopId)}&count=${count}`)
   if (!response.ok) throw new Error('Could not fetch departures')
   return response.json() as Promise<{ stopName: string; departures: DepartureInfo[] }>
 }
 
-/** Fetches MET's entire multi-day hourly forecast for `(lat, lon)` (the response isn't trimmed to `hours` — see `handleWeather`'s own doc comment in `server/extensions.ts`), plus today's overall low/high (computed server-side from that same full timeseries) — used by `WeatherSlide`'s polling hook, which is what actually slices `hourly` down to `hours` for display. */
+/** Fetches MET's entire multi-day hourly forecast for `(lat, lon)` (the response isn't trimmed to `hours` — see `handleWeather`'s own doc comment in `server/integrations.ts`), plus today's overall low/high (computed server-side from that same full timeseries) — used by `WeatherSlide`'s polling hook, which is what actually slices `hourly` down to `hours` for display. */
 export async function fetchWeather(lat: number, lon: number, hours: number): Promise<{ hourly: WeatherHour[]; todayLowC?: number; todayHighC?: number }> {
-  const response = await fetch(`${serverBaseUrl()}/extensions/weather?lat=${lat}&lon=${lon}&hours=${hours}`)
+  const response = await fetch(`${serverBaseUrl()}/integrations/weather?lat=${lat}&lon=${lon}&hours=${hours}`)
   if (!response.ok) throw new Error('Could not fetch a forecast')
   return response.json() as Promise<{ hourly: WeatherHour[]; todayLowC?: number; todayHighC?: number }>
 }

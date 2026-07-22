@@ -47,9 +47,9 @@ interface AdminSidebarNavProps {
  * Icon rail (desktop) with a two-tier hover flyout for the sections that
  * actually have sub-structure — Products (this catalogue's categories),
  * Screens (every screen, each with its own named sub-views as a further
- * tier-3 flyout), and Settings (Store/Advanced/Backup/Developers). Every
- * other item (Overview, Messages, Events, Orders, Integrations, Message
- * board, Images, Users) stays a plain direct link, same as before.
+ * tier-3 flyout), and Settings (Store/Integrations/Advanced/Backup/
+ * Developers). Every other item (Overview, Messages, Events, Orders,
+ * Message board, Images, Users) stays a plain direct link, same as before.
  *
  * The flyouts aren't pure CSS `:hover` (unlike a typical cascading nav
  * menu), since hovering a *different* rail item while tier-2 is already
@@ -64,10 +64,13 @@ interface AdminSidebarNavProps {
  *   crossing the visual gap between the rail and the panel to reach it
  *   doesn't itself close it).
  * - **Tier-3** (a screen's own sub-views) is the one that stays open once
- *   opened — moving the mouse off it does nothing — closing only on an
- *   explicit click outside the whole cluster. It's deliberately decoupled
- *   from `activeRailItem` (see `activeScreen`'s own render condition) so it
- *   can keep showing even after tier-2 itself has already closed.
+ *   opened — moving the mouse off it onto another *in-page* element does
+ *   nothing — closing only on an explicit click outside the whole cluster
+ *   (or the cursor leaving the browser viewport entirely, see the
+ *   `document.documentElement` `mouseleave` fallback below, which exists for
+ *   both tiers). It's deliberately decoupled from `activeRailItem` (see
+ *   `activeScreen`'s own render condition) so it can keep showing even after
+ *   tier-2 itself has already closed.
  *
  * Store branding lives in `AdminTopNavbar` now, not here.
  */
@@ -140,7 +143,7 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
     setActiveSubmenuRow(null)
   }
 
-  /** Closes both tiers together on a click anywhere outside the whole rail+flyout cluster — the flyout panels render as children of this same `<nav>` (just positioned `fixed` elsewhere on screen via CSS), so one ref/listener covers both tiers. This is tier-3's *only* way to close (see the module doc comment above); tier-2 usually closes sooner, via `scheduleCloseCluster`. */
+  /** Closes both tiers together on a click anywhere outside the whole rail+flyout cluster — the flyout panels render as children of this same `<nav>` (just positioned `fixed` elsewhere on screen via CSS), so one ref/listener covers both tiers. This is tier-3's *only* other way to close (see the module doc comment above); tier-2 usually closes sooner, via `scheduleCloseCluster`. */
   useEffect(() => {
     if (variant !== 'desktop' || (!activeRailItem && !activeSubmenuRow)) return
     const handlePointerDown = (event: MouseEvent) => {
@@ -149,6 +152,27 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
     }
     document.addEventListener('mousedown', handlePointerDown)
     return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [variant, activeRailItem, activeSubmenuRow])
+
+  /**
+   * Fallback for both tiers: closes everything the moment the cursor leaves
+   * the browser viewport entirely. A `mouseleave` on an individual rail/panel
+   * element (tier-2's own close path) or a `mousedown` elsewhere in the
+   * document (tier-3's only other close path) both require the browser to
+   * actually dispatch an event — but moving the mouse out of the window fast
+   * enough can skip firing `mouseleave` on whichever element it last crossed,
+   * leaving both tiers stuck open with no click ever following to close
+   * tier-3. `mouseleave` on `document.documentElement` (not a `pointerleave`
+   * on `document`, which only fires while a pointer is *captured*) reliably
+   * fires once for "the pointer left the page," regardless of which element
+   * it last happened to be over, so it's a safety net independent of the
+   * per-element handlers above rather than a replacement for them.
+   */
+  useEffect(() => {
+    if (variant !== 'desktop' || (!activeRailItem && !activeSubmenuRow)) return
+    const handleDocumentMouseLeave = () => closeFlyouts()
+    document.documentElement.addEventListener('mouseleave', handleDocumentMouseLeave)
+    return () => document.documentElement.removeEventListener('mouseleave', handleDocumentMouseLeave)
   }, [variant, activeRailItem, activeSubmenuRow])
 
   /** Clears any still-pending close timeout on unmount, so it can't fire `setState` after this component's gone. */
@@ -209,6 +233,10 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
 
   return (
     <nav className={`admin-sidebar-nav admin-sidebar-nav--desktop${isPinned || isRailExpanded ? ' admin-sidebar-nav--expanded' : ''}`} ref={containerRef}>
+      <div
+        className={`admin-sidebar-nav__scrim${activeRailItem || activeScreen ? ' admin-sidebar-nav__scrim--visible' : ''}`}
+        onClick={closeFlyouts}
+      />
       <div className="admin-sidebar-nav__rail" onMouseEnter={openCluster} onMouseLeave={scheduleCloseCluster}>
         <div className="admin-sidebar-nav__top">
           <ul className="admin-sidebar-nav__list">
@@ -347,6 +375,9 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
             <div className="admin-sidebar-nav__flyout-header">{t('admin.nav.settings')}</div>
             <Link to="/admin/dashboard/settings?view=store" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
               {t('admin.store.title')}
+            </Link>
+            <Link to="/admin/dashboard/settings?view=integrations" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+              {t('admin.settings.integrations.title')}
             </Link>
             {session?.role !== 'limited' && (
               <Link to="/admin/dashboard/settings?view=advanced" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>

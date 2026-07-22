@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchDepartures } from '../lib/localServer'
-import type { DepartureInfo } from '../types/extensions'
+import type { DepartureInfo } from '../types/integrations'
 
-/** How often `TransitSlide` re-fetches — frequent enough to feel "live" without hammering Entur (the server itself also caches responses briefly, see `server/extensions.ts`). */
+/** How often `TransitSlide` re-fetches — frequent enough to feel "live" without hammering Entur (the server itself also caches responses briefly, see `server/integrations.ts`). */
 const POLL_INTERVAL_MS = 30_000
 
 /** How long a cached departures list is still trusted as "better than nothing" once the live feed starts failing (e.g. the local server or the internet connection itself is down). Past this age it's treated the same as no cache at all — same posture, and same duration, as `useWeatherForecast`'s own cache. */
@@ -12,7 +12,7 @@ const CACHE_KEY_PREFIX = 'transit-cache:'
 
 interface FullDepartures {
   stopName: string
-  /** The full buffer `handleDepartures` returns (up to `TRANSIT_FETCH_BUFFER`, see its own doc comment in `server/extensions.ts`) — not just however many departures are actually displayed, so there's far more than `count` to keep trimming from while offline (see `selectUpcoming`). */
+  /** The full buffer `handleDepartures` returns (up to `TRANSIT_FETCH_BUFFER`, see its own doc comment in `server/integrations.ts`) — not just however many departures are actually displayed, so there's far more than `count` to keep trimming from while offline (see `selectUpcoming`). */
   departures: DepartureInfo[]
   fetchedAt: number
 }
@@ -92,10 +92,10 @@ function seedFromCache(stopId: string, count: number): { full: FullDepartures | 
 }
 
 /**
- * Polls `GET /extensions/departures` for `stopId` every 30s. The server
+ * Polls `GET /integrations/departures` for `stopId` every 30s. The server
  * always returns a large buffer of upcoming departures (see
  * `handleDepartures`'s own `TRANSIT_FETCH_BUFFER` doc comment in
- * `server/extensions.ts`) regardless of `count` — this hook keeps that full
+ * `server/integrations.ts`) regardless of `count` — this hook keeps that full
  * buffer in `fullRef` (mirrored into `localStorage` via `writeCache`, so it
  * survives a reload) and only *displays* `count` of them, trimmed to
  * whichever haven't already departed (`asScheduled`). That split is what

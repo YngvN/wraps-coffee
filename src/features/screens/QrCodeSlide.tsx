@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useCrossfadeSlot } from '../../hooks/useCrossfadeSlot'
 import { useCurrentNewsHeadline, type NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
-import { useExtensionsConfig } from '../../hooks/useExtensionsConfig'
+import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
 import { useNewsHeadlines } from '../../hooks/useNewsHeadlines'
 import { NEWS_SOURCES } from '../../types/news'
 import { DEFAULT_QR_CODE_SIZE } from '../../types/screen'
@@ -76,7 +76,7 @@ export function QrCodeSlide({ url, size, linkMode, newsSourceMode, linkedNewsSou
   const isAutomatic = isNewsMode && (newsSourceMode ?? 'automatic') === 'automatic'
   const isSpecific = isNewsMode && newsSourceMode === 'specific' && Boolean(linkedNewsSourceId)
 
-  const [config] = useExtensionsConfig()
+  const [config] = useIntegrationsConfig()
   const automaticSlot = isAutomatic ? newsSlots[(newsSlotOrdinal ?? 1) - 1] : undefined
   const automatic = useCurrentNewsHeadline(automaticSlot, config.news.enabledSourceIds, stageTick)
 

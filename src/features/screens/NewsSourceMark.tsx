@@ -15,7 +15,7 @@ interface NewsSourceMarkProps {
  * original, hand-styled text badge (`markText`/`markOnBrandBg`/`markShowDot`,
  * in the source's own `brandFontFamily`) rather than an approximation of
  * that source's real logo artwork. A source's own real file can be dropped
- * in under `extension-logos/<slug>.(svg|png)` later with no code change,
+ * in under `integration-logos/<slug>.(svg|png)` later with no code change,
  * same as `FetchedLogo` elsewhere in this app.
  *
  * `QrCodeSlide`'s own embedded QR-code mark uses the separate
