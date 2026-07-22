@@ -1672,6 +1672,7 @@
             "light": "Lighten",
             "dark": "Darken"
           },
+          "backgroundImageBlurLabel": "Blur",
           "slotContentLabel": "Content",
           "stageTabLabel": "Step {{number}}",
           "overflowModeLabel": "Overflow",
@@ -3391,6 +3392,7 @@
             "light": "Lysne",
             "dark": "Mørkne"
           },
+          "backgroundImageBlurLabel": "Uskarphet",
           "slotContentLabel": "Innhold",
           "stageTabLabel": "Steg {{number}}",
           "overflowModeLabel": "Overflyt",

@@ -6,10 +6,12 @@ export type ImageFit = 'contain' | 'cover'
 /** How a background image is tinted, both for readability and to pick a matching text color: unmodified, lightened (paired with black text), or darkened (paired with white text). */
 export type BackgroundImageOverlay = 'none' | 'light' | 'dark'
 
-/** A background image behind a slot's (or one of its slides') own content: always scaled to cover its whole pane and blurred, with an optional tint that also decides whether the text drawn over it is forced to black or white. */
+/** A background image behind a slot's (or one of its slides') own content — always scaled to cover its whole pane, with an optional tint that also decides whether the text drawn over it is forced to black or white. */
 export interface BackgroundImage {
   imageUrl: string
   overlay: BackgroundImageOverlay
+  /** Whether the image is softened (see `.split-layout__pane-bg-image`'s own `filter: blur`) — falls back to `true` (blurred, matching this feature's original always-blurred behavior) when absent, so existing saved images stay looking the same. */
+  blur?: boolean
 }
 
 /** Shared by every `ScreenSlotContent` variant: lets one slide opt out of its slot's own `backgroundImage` and use its own instead — set, simply by providing one, no separate opt-in flag needed. */
@@ -586,7 +588,7 @@ export interface ScreenConfig {
    * saved, which is what makes the conversion (and this flag) stick.
    */
   usesPercentTextSizes?: boolean
-  /** Whether visible borders are drawn between panes. Falls back to `true` (shown) when absent. */
+  /** Whether visible borders are drawn between panes. Falls back to `false` (hidden) when absent — the divider gap's own translucent tint (see `--screen-border`) reads as an unwanted glow/shadow against a whole-screen background image, so a screen only gets visible borders once explicitly opted into. */
   showSlotBorders?: boolean
   /** Fixed border color (hex, from `SCREEN_BACKGROUND_COLORS`) between panes. Falls back to an automatic contrast-based color (`--screen-border`) when absent. Only relevant while `showSlotBorders` is on and there's more than one pane. */
   borderColor?: string

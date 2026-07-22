@@ -134,7 +134,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
   const [useStages, setUseStages] = useState(screen?.useStages ?? false)
   const [stageCount, setStageCount] = useState(screen?.stageCount ?? 1)
   const [slideDurationSeconds, setSlideDurationSeconds] = useState(screen?.slideDurationSeconds ?? 10)
-  const [showSlotBorders, setShowSlotBorders] = useState(screen?.showSlotBorders ?? true)
+  const [showSlotBorders, setShowSlotBorders] = useState(screen?.showSlotBorders ?? false)
   const [hideScrollbar, setHideScrollbar] = useState(screen?.hideScrollbar ?? false)
   const [useScreensaver, setUseScreensaver] = useState(screen?.useScreensaver ?? false)
   // Same "prefer a pending draft" seeding as `draft` above — both fields are live-pushed (see `handleTransitionStyleChange`/`handlePaneGrowthFallbackChange`), so a session that starts with Live editing off should continue from whatever was last staged, not the published value.

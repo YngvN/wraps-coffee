@@ -19,12 +19,12 @@
   }
 }
 
-// The screen's own whole-screen background image — sized to exactly cover
-// `.split-layout` itself (its own positioning context for the overscanned,
-// blurred image below), rendered first in DOM order so every pane simply
-// paints over it, no z-index needed. Same technique as `.split-layout__pane-bg`
-// below, just screen-wide instead of per-pane — see `SplitLayout.tsx`'s own
-// `screenBackgroundImage`.
+// The screen's own whole-screen background image, rendered in `.split-layout`'s
+// own empty-screen branch only (see `SplitLayout.tsx`) — there are no real
+// panes there to fall back to it individually, unlike the normal case, where
+// every real pane renders its own "window" onto the same image instead (see
+// `.split-layout__pane-bg` below and `LayoutPane.tsx`'s own `screenBackgroundWindow`),
+// since a pane's own background always has to stay opaque.
 .split-layout__bg {
   position: absolute;
   inset: 0;
@@ -155,17 +155,15 @@
   inset: 0;
 }
 
-// Overscanned past the pane's own edges and blurred — the overscan keeps the
-// blur's own soft edge from ever peeking in from outside the pane's visible
-// area, since `.split-layout__pane`'s `overflow: hidden` clips it away. The
-// heavy blurring itself is pre-baked server-side into the image (see
-// `getBlurredBackgroundUrl`/`server/uploads.ts`'s own `-blur` companion) —
-// this is deliberately just a cheap residual polish pass on top of an
-// already-soft, already-downsized image, not the full 20px blur of a
-// full-resolution one every frame. An upload saved before that variant
-// existed falls back to serving its unblurred original here, softened only
-// by this residual amount (a visible but graceful degradation, not fully
-// sharp) until it's naturally re-uploaded.
+// Overscanned past the pane's own edges — the overscan keeps this class's
+// own `filter: blur`'s soft edge from ever peeking in from outside the
+// pane's visible area, since `.split-layout__pane`'s `overflow: hidden`
+// clips it away. Whether that `filter` is actually applied (and which
+// pre-processed image variant is requested to begin with) is driven inline,
+// per element, from `BackgroundImage.blur` — see `getBackgroundImageUrl`/
+// `server/uploads.ts`'s own `-blur` companion for why an own-upload needs
+// *both* toggled together, not just this live filter. An upload saved
+// before that variant existed falls back to serving its original here.
 .split-layout__pane-bg-image {
   position: absolute;
   inset: -30px;

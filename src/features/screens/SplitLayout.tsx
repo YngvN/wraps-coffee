@@ -9,7 +9,7 @@ import { diffLeafSets, resolvePaneGrowthOrigin, type PaneGrowthOrigin } from '..
 import { backgroundImageTextStyle, borderColorStyle, getScreenColorVars } from '../../utils/screenColors'
 import { mediaResizeRatioPatch, mediaResizeScaleFromDrag, paneResizableAxes, pathKey, type NodePath, type PaneResizableAxes, type RatioPatch } from '../../utils/screenLayout'
 import { isNewsSlotContent, isResizeToFitContent, resizeToFitMediaUrl } from '../../utils/screenSlots'
-import { getBlurredBackgroundUrl } from '../../utils/responsiveImage'
+import { getBackgroundImageUrl } from '../../utils/responsiveImage'
 import { isSlotActive, resolveSlotContent, resolveStageValue, writeStageCheckpoint } from '../../utils/screenStages'
 import { ExitingPaneGhost } from './ExitingPaneGhost'
 import { LayoutTree } from './LayoutTree'
@@ -116,6 +116,8 @@ export function SplitLayout({
   const containerRef = useRef<HTMLDivElement>(null)
   const [liveRatios, setLiveRatios] = useState<RatioPatch>({})
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+  /** The whole-screen background image's own natural pixel dimensions, once loaded — see `screenBackgroundCoverRect` below. `undefined` while unset, not yet loaded, or mid-swap to a different image. */
+  const [backgroundImageNaturalSize, setBackgroundImageNaturalSize] = useState<{ width: number; height: number } | undefined>(undefined)
   const [mediaNaturalSizes, setMediaNaturalSizes] = useState<Record<string, { width: number; height: number }>>({})
   const requestedMediaRef = useRef<Set<string>>(new Set())
   const effectiveStage = forcedStage ?? stage
@@ -217,6 +219,27 @@ export function SplitLayout({
     observer.observe(node)
     return () => observer.disconnect()
   }, [])
+
+  /** Loads the whole-screen background image's own natural pixel size whenever its URL changes — same one-off `new Image()` technique as `mediaNaturalSizes` below, just for this one image instead of a set of them. Reset to `undefined` on every URL change (including to no image at all) so a stale size from a previous image can never leak into `screenBackgroundCoverRect` for a frame before the new one loads. */
+  useEffect(() => {
+    const url = screen.backgroundImage?.imageUrl
+    queueMicrotask(() => setBackgroundImageNaturalSize(undefined))
+    if (!url) return
+    const img = new Image()
+    img.onload = () => setBackgroundImageNaturalSize({ width: img.naturalWidth, height: img.naturalHeight })
+    img.src = url
+  }, [screen.backgroundImage?.imageUrl])
+
+  /** Where the whole-screen background image would actually be drawn (in the same pixel space as `containerSize`) under a plain `background-size: cover` — the standard "scale to fill, preserving aspect ratio, centered" formula, computed once here from the image's own natural size rather than per-pane, so every leaf's own window (see `LayoutTree.tsx`'s own `screenBackgroundWindow`) crops a consistent, aspect-ratio-correct fit instead of each independently stretching to its own container guess. `undefined` until both the container and the image's own natural size are known. */
+  const screenBackgroundCoverRect =
+    backgroundImageNaturalSize && containerSize.width > 0 && containerSize.height > 0
+      ? (() => {
+          const scale = Math.max(containerSize.width / backgroundImageNaturalSize.width, containerSize.height / backgroundImageNaturalSize.height)
+          const width = backgroundImageNaturalSize.width * scale
+          const height = backgroundImageNaturalSize.height * scale
+          return { left: (containerSize.width - width) / 2, top: (containerSize.height - height) / 2, width, height }
+        })()
+      : undefined
 
   const fallbackLeafId = Object.keys(screen.paneSlots)[0] ?? 'none'
   // Memoized so it's a *stable* reference across renders that don't change
@@ -413,37 +436,44 @@ export function SplitLayout({
   const layoutTree = Object.keys(liveOverridePatch).length > 0 ? applyRatioPatchPreservingDescendants(tree, liveOverridePatch, geometry) : tree
 
   /**
-   * The screen's own whole-screen background image (distinct from any one
-   * pane's own — see `.split-layout__pane-bg-image` — this one sits behind
-   * every pane, showing through only where a pane has no background color/
-   * image of its own), rendered first in DOM order so ordinary painting
-   * puts every pane on top of it, no z-index needed — same technique (and
-   * class-naming convention, just screen-wide instead of per-pane) as
-   * `LayoutPane.tsx`'s own background image. Computed once and reused by
-   * both the empty-screen branch below and the normal return, since a
-   * screen-wide background is independent of whether it has any active
-   * pane content yet. Every one of `SplitLayout`'s own callers — the real
-   * kiosk display, the admin form's inline "Layout" preview, and
-   * `ScreenCard`'s own grid thumbnail — gets this for free just by
-   * rendering `SplitLayout` at all, rather than each needing its own copy.
+   * The screen's own whole-screen background image is *not* rendered as one
+   * element sitting behind every pane here — `.split-layout__pane` always
+   * paints its own opaque background (even with nothing of its own
+   * configured, it falls back to the plain `--screen-bg` color; see that
+   * class's own comment on why it can't just be transparent), so a bg image
+   * painted only at this level would never actually be visible behind any
+   * real pane. Instead it's threaded down through `LayoutTree`/`LayoutPane`
+   * (`screenBackgroundImage`/`containerSize` below), and each pane with
+   * neither its own background color nor image renders its own "window"
+   * onto one shared screen-sized rendering of it — together reading as one
+   * continuous image rather than each independently cropped (see
+   * `LayoutPane.tsx`'s own `screenBackgroundWindow`). Only the empty-screen
+   * branch immediately below still renders it directly, as a single
+   * `.split-layout__bg` element — there are no real panes there to
+   * individually fall back to it.
    */
-  const screenBackgroundImage = screen.backgroundImage ? (
-    <div className="split-layout__bg">
-      <div className="split-layout__bg-image" style={{ backgroundImage: `url(${getBlurredBackgroundUrl(screen.backgroundImage.imageUrl)})` }} />
-      {screen.backgroundImage.overlay !== 'none' && <div className={`split-layout__bg-overlay split-layout__bg-overlay--${screen.backgroundImage.overlay}`} />}
-    </div>
-  ) : null
-
   if (!leaves.some((leaf) => screen.paneSlots[leaf.id] && isSlotActive(screen.paneSlots[leaf.id]))) {
     return (
       <div className="split-layout split-layout--empty" style={screenColorStyle}>
-        {screenBackgroundImage}
+        {screen.backgroundImage && (
+          <div className="split-layout__bg">
+            <div
+              className="split-layout__bg-image"
+              style={{
+                backgroundImage: `url(${getBackgroundImageUrl(screen.backgroundImage.imageUrl, screen.backgroundImage.blur ?? true)})`,
+                filter: (screen.backgroundImage.blur ?? true) ? 'blur(4px)' : 'none',
+              }}
+            />
+            {screen.backgroundImage.overlay !== 'none' && <div className={`split-layout__bg-overlay split-layout__bg-overlay--${screen.backgroundImage.overlay}`} />}
+          </div>
+        )}
         <p>{t('screenDisplay.emptyLabel')}</p>
       </div>
     )
   }
 
-  const borderModifier = screen.showSlotBorders === false ? ' split-layout--no-borders' : ''
+  // Borders default off (an absent `showSlotBorders` means no-borders, not shown) — see that field's own doc comment for why: the divider gap's translucent tint reads as an unwanted glow against a whole-screen background image, so a screen only gets visible borders once explicitly opted into.
+  const borderModifier = screen.showSlotBorders ? '' : ' split-layout--no-borders'
   const gridTransition = isDragging ? false : 'grid-template-columns 0.5s ease, grid-template-rows 0.5s ease, background-color 0.4s ease'
 
   const mediaResizeScaleFromPatch = (patch: RatioPatch): number | undefined => {
@@ -505,7 +535,6 @@ export function SplitLayout({
 
   return (
     <div ref={containerRef} className={`split-layout${borderModifier}`} style={screenColorStyle}>
-      {screenBackgroundImage}
       <LayoutTree
         node={layoutTree}
         path={[]}
@@ -522,6 +551,9 @@ export function SplitLayout({
         transitionDuration={CONTENT_TRANSITION_DURATION_SECONDS}
         contentPhase={contentPhase}
         reducedMotion={reducedMotion}
+        screenBackgroundImage={screen.backgroundImage}
+        containerSize={containerSize}
+        screenBackgroundCoverRect={screenBackgroundCoverRect}
         selectedLeafId={selectedLeafId}
         onLiveChange={onResizeDivider ? handleLiveChange : undefined}
         onCommit={onResizeDivider ? handleCommit : undefined}
@@ -555,6 +587,9 @@ export function SplitLayout({
           transitionStyle={screen.transitionStyle}
           resolveTextSizes={resolveTextSizes}
           defaultPaneLanguage={defaultPaneLanguage}
+          screenBackgroundImage={screen.backgroundImage}
+          containerSize={containerSize}
+          screenBackgroundCoverRect={screenBackgroundCoverRect}
           onCollapseComplete={removeGhost}
           newsSlots={newsSlots}
           stageTick={stageTick}

@@ -35,8 +35,21 @@ export function getSmallUrl(url: string): string {
   return `${url}?size=small`
 }
 
-/** The pre-blurred, downsized variant — for a pane's own blurred background layer (see `LayoutPane.tsx`), so the browser blurs a small already-soft image live (a cheap "polish" pass) instead of a full-resolution one every frame. Falls back to the original (still softened by that residual live blur) for an upload saved before this variant existed, or an external URL. */
-export function getBlurredBackgroundUrl(url: string): string {
+/**
+ * A pane's own whole-image background layer (see `LayoutPane.tsx`'s
+ * `effectiveBackgroundImage`/`BackgroundImage.blur`): with `blur` on, the
+ * pre-blurred, downsized `?size=blur` variant (server-side `sharp(...).blur(20)`,
+ * see `server/uploads.ts`) — small and already-soft, so the browser's own
+ * residual live `filter: blur` is a cheap "polish" pass on top of it rather
+ * than blurring a full-resolution image every frame. With `blur` off, the
+ * plain sharp `?size=small` variant instead (same one `getSmallUrl` returns)
+ * — using the blurred variant here regardless of the toggle would leave the
+ * image looking blurred no matter what the CSS-side `filter` is set to,
+ * since most of the softening is actually pre-baked into that file itself,
+ * not applied live. Falls back to the original for an upload saved before
+ * these variants existed, or an external URL, either way.
+ */
+export function getBackgroundImageUrl(url: string, blur: boolean): string {
   if (!url || !isOwnUploadUrl(url)) return url
-  return `${url}?size=blur`
+  return blur ? `${url}?size=blur` : `${url}?size=small`
 }

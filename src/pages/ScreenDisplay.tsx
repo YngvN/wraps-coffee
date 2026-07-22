@@ -1162,7 +1162,7 @@ export function ScreenDisplay() {
             <>
               <BackButton onClick={() => setScreenSubview(null)}>{t('admin.common.back')}</BackButton>
               <BorderSettingsEditor
-                showSlotBorders={viewScreen.showSlotBorders ?? true}
+                showSlotBorders={viewScreen.showSlotBorders ?? false}
                 onShowSlotBordersChange={handleShowSlotBordersChange}
                 borderColor={viewScreen.borderColor}
                 onBorderColorChange={handleBorderColorChange}
