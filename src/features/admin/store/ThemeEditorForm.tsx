@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Button, Input } from '../../../components'
+import { Button, FontPicker, Input } from '../../../components'
 import { useGoogleFontLoader } from '../../../hooks/useGoogleFontLoader'
 import { useLanguage } from '../../../i18n'
 import { LOCKED_APPEARANCE_COLORS, type AppearanceTheme, type AppearanceThemeFonts } from '../../../types/appearanceTheme'
@@ -17,9 +17,9 @@ const BLANK_FONTS: AppearanceThemeFonts = { body: '', heading: '', subheading: '
 
 /** One font role's own input + live preview — same 3 roles for every theme, see `AppearanceThemeFonts`'s own doc comment for what each actually renders. */
 const FONT_ROLES: { key: keyof AppearanceThemeFonts; labelKey: string; placeholderKey: string }[] = [
-  { key: 'body', labelKey: 'admin.appearance.bodyFontLabel', placeholderKey: 'admin.appearance.bodyFontPlaceholder' },
   { key: 'heading', labelKey: 'admin.appearance.headingFontLabel', placeholderKey: 'admin.appearance.headingFontPlaceholder' },
   { key: 'subheading', labelKey: 'admin.appearance.subheadingFontLabel', placeholderKey: 'admin.appearance.subheadingFontPlaceholder' },
+  { key: 'body', labelKey: 'admin.appearance.bodyFontLabel', placeholderKey: 'admin.appearance.bodyFontPlaceholder' },
 ]
 
 /** Create/edit form for a single screen-display appearance theme: name, its 3 font roles (each a free-text Google Font, with its own live preview), and its color palette (see `ThemeColorListEditor`). */
@@ -43,11 +43,11 @@ export function ThemeEditorForm({ theme, onSave, onCancel }: ThemeEditorFormProp
       <p className="theme-editor-form__hint">{t('admin.appearance.fontHint')}</p>
       {FONT_ROLES.map(({ key, labelKey, placeholderKey }) => (
         <div key={key} className="theme-editor-form__font-field">
-          <Input
+          <FontPicker
             id={`theme-font-${key}`}
             label={t(labelKey)}
             value={fonts[key]}
-            onChange={(event) => setFonts({ ...fonts, [key]: event.target.value })}
+            onChange={(value) => setFonts({ ...fonts, [key]: value })}
             placeholder={t(placeholderKey)}
             required
           />
