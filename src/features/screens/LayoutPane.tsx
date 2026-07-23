@@ -60,6 +60,8 @@ interface LayoutPaneProps {
   onToggleLock?: () => void
   /** Draws a persistent highlight ring around this pane — see `SplitLayout`'s own doc comment. */
   selected?: boolean
+  /** Dims this pane behind a translucent overlay — see `SplitLayout`'s own `dimUnselectedPanes` doc comment. The overlay is `pointer-events: none`, so a click still reaches `PaneEditButton` underneath — e.g. clicking a different, dimmed pane switches the live display's own floating panel to editing that one instead. */
+  dimmed?: boolean
   /** Whether this pane is currently checked for the toolbar's own multi-pane actions ("Delete selected"/"Group") — distinct from `selected`'s own single highlight-ring concept. Omit (along with `onToggleChecked`) to hide the checkbox entirely, e.g. while the screen is locked. */
   checked?: boolean
   /** Toggles this pane's own `checked` state. Omit (like `onEditSlide`) to disable selection entirely. */
@@ -128,6 +130,7 @@ export function LayoutPane({
   locked,
   onToggleLock,
   selected,
+  dimmed,
   checked,
   onToggleChecked,
   growEntranceFrom,
@@ -374,8 +377,9 @@ export function LayoutPane({
         instead, at the same z-index, once the pane is actually locked, since
         every other button here is omitted by the caller at that point
         anyway) < `SplitLayoutDivider` (z-index 8, always grabbable) < the
-        `editingFocus` pulse-flash below (z-index 9, `pointer-events: none`,
-        so it never blocks any of the above).
+        `editingFocus` pulse-flash (z-index 9, `pointer-events: none`, so it
+        never blocks any of the above) < the `dimmed` overlay (z-index 10,
+        also `pointer-events: none` — see its own prop doc comment).
       */}
       {onEditSlide && <PaneEditButton onClick={() => onEditSlide(leafId)} />}
       {/* A video fills its own pane edge-to-edge with no natural split point, so splitting it isn't offered at all — not even the hover highlight. */}
@@ -397,6 +401,7 @@ export function LayoutPane({
       {editingFocus && (editingFocus.tab === 'global' || editingFocus.tab === leafId) && editingFocus.pulse !== pulseAtMount && (
         <motion.div key={editingFocus.pulse} className="split-layout__pane-pulse" initial={{ opacity: 0.55 }} animate={{ opacity: 0 }} transition={{ duration: 0.6, ease: 'easeOut' }} />
       )}
+      {dimmed && <div className="split-layout__pane-dim" />}
     </motion.div>
   )
 }

@@ -3,6 +3,7 @@ import { BackButton, ChevronRightIcon, EditDeleteButtons, Modal, PlusIcon, Trans
 import { useCategoryPrices } from '../../../hooks/useCategoryPrices'
 import { useProducts } from '../../../hooks/useProducts'
 import { useLanguage } from '../../../i18n'
+import { goBack } from '../../../lib/backStack'
 import type { Catalogue, Category } from '../../../types/category'
 import { getThumbnailUrl } from '../../../utils/responsiveImage'
 import { CategoryForm } from './CategoryForm'
@@ -14,11 +15,10 @@ interface CategoriesViewProps {
   onSaveCatalogue: (catalogue: Catalogue) => void
   onOpenCategory: (categoryId: string) => void
   onOpenAllProducts: () => void
-  onBack: () => void
 }
 
-/** One catalogue's own categories: drag-reorderable, create/rename/delete (with confirm — deleting a category also drops every product inside it and its own default-price entry), click through to that category's products. A "View all products" row above the category list opens `AllProductsView` — every product in this catalogue at once, as a card grid, for a quick visual scan instead of drilling category by category. */
-export function CategoriesView({ catalogue, onSaveCatalogue, onOpenCategory, onOpenAllProducts, onBack }: CategoriesViewProps) {
+/** One catalogue's own categories: drag-reorderable, create/rename/delete (with confirm — deleting a category also drops every product inside it and its own default-price entry), click through to that category's products. A "View all products" row above the category list opens `AllProductsView` — every product in this catalogue at once, as a card grid, for a quick visual scan instead of drilling category by category. Rendered from `ProductsView` as a submenu, not a route of its own — its own Back level (returning to the catalogues list) is registered by `ProductsView` itself, not here. */
+export function CategoriesView({ catalogue, onSaveCatalogue, onOpenCategory, onOpenAllProducts }: CategoriesViewProps) {
   const { t, language } = useLanguage()
   const [products, setProducts] = useProducts()
   const [categoryPrices, setCategoryPrices] = useCategoryPrices()
@@ -45,8 +45,8 @@ export function CategoriesView({ catalogue, onSaveCatalogue, onOpenCategory, onO
 
   return (
     <div className="products-view">
-      <div className="products-view__header">
-        <BackButton onClick={onBack}>{t('admin.common.back')}</BackButton>
+      <div className="products-view__sub-header">
+        <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: t('admin.products.title') })}</BackButton>
         <h1>{catalogue.name[language]}</h1>
       </div>
       <TranslatedText as="p" id="admin.products.categoriesDescription" className="admin-page-description" />

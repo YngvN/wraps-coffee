@@ -25,6 +25,13 @@
   &--transparent {
     background: transparent;
   }
+
+  // Vertically centers `.modal--card` instead of anchoring it to the
+  // bottom edge like the default sheet — see `.modal--card` above.
+  &:has(.modal--card) {
+    justify-content: center;
+    padding: $spacing-unit * 3;
+  }
 }
 
 .modal {
@@ -60,6 +67,21 @@
   &--transparent {
     background: transparent;
     box-shadow: none;
+  }
+
+  // Applied instead of the default bottom-sheet look once the viewport
+  // matches `BIG_SCREEN_QUERY` (see Modal.tsx) — a plain centered card
+  // sized to its own content, rounded on every corner, with no drag handle
+  // (dropped from the JSX entirely on this size, see `&__header` below) and
+  // no bottom safe-area padding, since it no longer sits flush against the
+  // screen edge.
+  &--card {
+    height: auto;
+    max-height: 85vh;
+    width: 100%;
+    max-width: 560px;
+    border-radius: 20px;
+    padding: 0 ($spacing-unit * 3) ($spacing-unit * 3);
   }
 
   // The handle, title and × button together — a flex item sitting above
@@ -142,6 +164,13 @@
     padding: ($spacing-unit * 4) ($spacing-unit * 2) ($spacing-unit * 2);
     border-bottom: 1px solid $color-border;
     background: $color-grey;
+
+    // No handle bar reserving space above the title on `.modal--card` (it's
+    // never rendered for it at all, see Modal.tsx), so the extra top
+    // padding that clears it elsewhere isn't needed here.
+    .modal--card & {
+      padding-top: $spacing-unit * 3;
+    }
   }
 
   // `flex: 1` (rather than `justify-content: space-between` on the row)

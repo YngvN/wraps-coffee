@@ -6,8 +6,10 @@ import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useClockFormatPreference, type ClockFormat } from '../../../hooks/useClockFormatPreference'
 import { useDashboardScreensaverSettings } from '../../../hooks/useDashboardScreensaverSettings'
 import { useDateFormatPreference, type DateFormat } from '../../../hooks/useDateFormatPreference'
+import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { useSidebarSettings } from '../../../hooks/useSidebarSettings'
+import { goBack } from '../../../lib/backStack'
 import type { ToggleableSidebarItem } from '../../../types/sidebarSettings'
 import { IntegrationsView } from '../integrations/IntegrationsView'
 import { ADMIN_NAV_ICONS, NAV_ITEMS } from '../layout/adminNavItems'
@@ -80,16 +82,19 @@ export function SettingsView() {
     setSubView('main')
   }
 
+  /** Registers whichever sub-view is currently open as its own level of the shared browser-back stack (see `useBackLevel`), so the mouse's back button closes it exactly the way its own Back button does. */
+  useBackLevel(subView !== 'main', closeSubView)
+
   return (
     <SlideTransition viewKey={subView} direction={direction}>
       {subView === 'store' ? (
-        <StoreSettingsView onBack={closeSubView} />
+        <StoreSettingsView />
       ) : subView === 'integrations' ? (
-        <IntegrationsView onBack={closeSubView} />
+        <IntegrationsView />
       ) : subView === 'developers' ? (
         <div className="settings-view">
           <div className="settings-view__docs-header">
-            <BackButton onClick={closeSubView}>{t('admin.common.back')}</BackButton>
+            <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: t('admin.settings.title') })}</BackButton>
             <TranslatedText as="h1" id="admin.settings.developersTitle" />
           </div>
           <TranslatedText as="p" id="admin.settings.developersDescription" className="admin-page-description" />
@@ -98,7 +103,7 @@ export function SettingsView() {
       ) : subView === 'advanced' ? (
         <div className="settings-view">
           <div className="settings-view__docs-header">
-            <BackButton onClick={closeSubView}>{t('admin.common.back')}</BackButton>
+            <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: t('admin.settings.title') })}</BackButton>
             <TranslatedText as="h1" id="admin.settings.advanced.title" />
           </div>
           <TranslatedText as="p" id="admin.settings.advanced.description" className="admin-page-description" />
@@ -107,7 +112,7 @@ export function SettingsView() {
       ) : subView === 'backup' ? (
         <div className="settings-view">
           <div className="settings-view__docs-header">
-            <BackButton onClick={closeSubView}>{t('admin.common.back')}</BackButton>
+            <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: t('admin.settings.title') })}</BackButton>
             <TranslatedText as="h1" id="admin.settings.backup.title" />
           </div>
           <TranslatedText as="p" id="admin.settings.backup.description" className="admin-page-description" />
@@ -116,7 +121,7 @@ export function SettingsView() {
       ) : subView === 'testing' ? (
         <div className="settings-view">
           <div className="settings-view__docs-header">
-            <BackButton onClick={closeSubView}>{t('admin.common.back')}</BackButton>
+            <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: t('admin.settings.title') })}</BackButton>
             <TranslatedText as="h1" id="admin.settings.testing.title" />
           </div>
           <TranslatedText as="p" id="admin.settings.testing.description" className="admin-page-description" />

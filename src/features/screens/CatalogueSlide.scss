@@ -68,7 +68,7 @@
   flex: 1 1 auto;
 
   h1 {
-    font-family: $font-heading;
+    font-family: var(--screen-font-heading, $font-heading);
     font-size: var(--slide-heading-size, 8cqmin);
     margin: 0;
     overflow-wrap: normal;
@@ -177,7 +177,7 @@
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.75);
   color: #fff;
-  font-family: $font-heading;
+  font-family: var(--screen-font-heading, $font-heading);
   font-size: var(--slide-item-title-size, 5.5cqmin);
   font-weight: 700;
   text-transform: uppercase;

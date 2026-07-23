@@ -195,6 +195,9 @@ export function ScreensView() {
     setShowDisplayManager(false)
   }
 
+  /** Registers the open Display Manager sub-view as its own level of the shared browser-back stack (see `useBackLevel`), so the mouse's back button closes it exactly the way its own Back button does. */
+  useBackLevel(showDisplayManager, closeDisplayManager)
+
   /**
    * Deep-link support for the sidebar's tier-2 Screens flyout's own
    * "Display Manager"/"+ Add screen" rows — `?displayManager=1` opens
@@ -230,7 +233,7 @@ export function ScreensView() {
         {view === 'form' ? (
           <div>
             <div className="screens-view__form-header">
-              <BackButton onClick={goBack}>{t('admin.common.back')}</BackButton>
+              <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: t('admin.screens.title') })}</BackButton>
               <h1 className="screens-view__form-title">
                 {editingScreen ? t('admin.screens.editScreen') : t('admin.screens.addScreen')}
                 {formRoute && <span className="screens-view__form-route"> - {formRoute}</span>}
@@ -239,7 +242,7 @@ export function ScreensView() {
             <ScreenForm screen={editingScreen ?? null} onSave={handleSave} onCancel={closeForm} onRouteChange={setFormRoute} initialTarget={initialFormTarget} />
           </div>
         ) : view === 'displayManager' ? (
-          <DisplayManagerView onBack={closeDisplayManager} />
+          <DisplayManagerView />
         ) : (
           <div className="screens-view__list-view">
             <div className="screens-view__header">

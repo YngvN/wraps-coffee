@@ -12,6 +12,7 @@ import { useScrollToAndHighlight } from '../../../hooks/useScrollToAndHighlight'
 import { useWoltConfig } from '../../../hooks/useWoltConfig'
 import { useWoltOrders } from '../../../hooks/useWoltOrders'
 import { useLanguage } from '../../../i18n'
+import { goBack } from '../../../lib/backStack'
 import { getFoodoraCredentials, getWoltCredentials, lookupAddress, searchStops, setFoodoraCredentials, setWoltCredentials, triggerFoodoraSync, triggerWoltSync } from '../../../lib/localServer'
 import type { IntegrationsConfig, NearbyStop, WeatherLocation } from '../../../types/integrations'
 import { NEWS_SOURCES } from '../../../types/news'
@@ -114,15 +115,11 @@ function computeWeatherStatus(config: IntegrationsConfig): WeatherStatus {
  * same slide-in-from-the-right treatment `SettingsView` uses for its own
  * sub-views.
  *
- * Rendered from `SettingsView` as a submenu, hence the `onBack` prop
- * instead of a route of its own — same pattern as `StoreSettingsView`.
+ * Rendered from `SettingsView` as a submenu, not a route of its own — same
+ * pattern as `StoreSettingsView`. Its own Back level (returning to Settings)
+ * is registered by `SettingsView` itself, not here.
  */
-interface IntegrationsViewProps {
-  /** Returns to the Settings main list — this view is reached only as a Settings submenu, not its own top-level route, so it has no back button of its own. */
-  onBack: () => void
-}
-
-export function IntegrationsView({ onBack }: IntegrationsViewProps) {
+export function IntegrationsView() {
   const { t, language } = useLanguage()
   const { session } = useAdminSession()
   const [clockFormat] = useClockFormatPreference()
@@ -1079,7 +1076,7 @@ export function IntegrationsView({ onBack }: IntegrationsViewProps) {
       <div className="integrations-view__header">
         <div>
           <div className="integrations-view__sub-header">
-            <BackButton onClick={onBack}>{t('admin.common.back')}</BackButton>
+            <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: t('admin.settings.title') })}</BackButton>
             <TranslatedText as="h1" id="admin.integrations.title" />
           </div>
           <TranslatedText as="p" id="admin.integrations.description" className="admin-page-description" />

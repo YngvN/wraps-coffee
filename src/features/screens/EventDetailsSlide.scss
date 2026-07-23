@@ -26,7 +26,7 @@
     flex-wrap: wrap;
     gap: $spacing-unit;
     margin: 0;
-    font-family: $font-heading;
+    font-family: var(--screen-font-heading, $font-heading);
     font-size: var(--slide-heading-size, 8cqmin);
     overflow-wrap: normal;
     // Wraps up to 3 lines before the pane's own `useShrinkToFitScale` takes

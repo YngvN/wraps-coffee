@@ -3,6 +3,7 @@ import { Badge, BackButton, ChevronRightIcon, DiscountedPrice, EditDeleteButtons
 import { useCategoryPrices } from '../../../hooks/useCategoryPrices'
 import { useProducts } from '../../../hooks/useProducts'
 import { useLanguage } from '../../../i18n'
+import { goBack } from '../../../lib/backStack'
 import type { Category } from '../../../types/category'
 import type { Price, Product } from '../../../types/product'
 import { getEffectivePrice } from '../../../utils/price'
@@ -18,15 +19,16 @@ interface ProductListViewProps {
   catalogueCategories: Category[]
   /** The owning catalogue's own default price — the fallback beneath the category's own default, in turn beneath a product's own override. */
   cataloguePrice: Price | undefined
-  onBack: () => void
+  /** The owning catalogue's own name, shown as the destination in the "Back to {{destination}}" label — this view itself only otherwise knows about the category, not the catalogue it belongs to. */
+  catalogueName: string
   /** Set by `ProductsView` from a `?productId=` search deep link — opens that exact product's edit form on arrival instead of requiring a click. */
   initialEditProductId?: string
   /** Called once `initialEditProductId` has been consumed (the form opened), so `ProductsView` can clear it and a later remount of this view doesn't reopen the same product's form unprompted. */
   onConsumeInitialEditProduct?: () => void
 }
 
-/** One category's own products: drag-reorderable, existing create/edit/delete CRUD (clicking a row, same as its own explicit Edit button, opens its editor — marked with a trailing chevron, same affordance the catalogue/category rows use for drilling in a level), each row showing a thumbnail (if set). A price only shows on the row itself when the product has its own individual price or a discount — a plain product just inheriting the category/catalogue default already has that shown once, in the category price editor above, so repeating it on every row would be noise. A discounted product's price is struck-through + the new one shown, and the row itself gets a gold border/glow. */
-export function ProductListView({ category, catalogueCategories, cataloguePrice, onBack, initialEditProductId, onConsumeInitialEditProduct }: ProductListViewProps) {
+/** One category's own products: drag-reorderable, existing create/edit/delete CRUD (clicking a row, same as its own explicit Edit button, opens its editor — marked with a trailing chevron, same affordance the catalogue/category rows use for drilling in a level), each row showing a thumbnail (if set). A price only shows on the row itself when the product has its own individual price or a discount — a plain product just inheriting the category/catalogue default already has that shown once, in the category price editor above, so repeating it on every row would be noise. A discounted product's price is struck-through + the new one shown, and the row itself gets a gold border/glow. Rendered from `ProductsView` as a submenu, not a route of its own — its own Back level (returning to the categories view) is registered by `ProductsView` itself, not here. */
+export function ProductListView({ category, catalogueCategories, cataloguePrice, catalogueName, initialEditProductId, onConsumeInitialEditProduct }: ProductListViewProps) {
   const { t, language } = useLanguage()
   const [products, setProducts] = useProducts()
   const [categoryPrices] = useCategoryPrices()
@@ -74,8 +76,8 @@ export function ProductListView({ category, catalogueCategories, cataloguePrice,
 
   return (
     <div className="products-view">
-      <div className="products-view__header">
-        <BackButton onClick={onBack}>{t('admin.common.back')}</BackButton>
+      <div className="products-view__sub-header">
+        <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: catalogueName })}</BackButton>
         <h1>{category.name[language]}</h1>
       </div>
       <TranslatedText as="p" id="admin.products.productsDescription" className="admin-page-description" />

@@ -46,6 +46,7 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.events': 'events.json',
   'admin.contactInfo': 'contactInfo.json',
   'admin.storeSettings': 'storeSettings.json',
+  'admin.appearanceThemes': 'appearanceThemes.json',
   'admin.textSizePresets': 'textSizePresets.json',
   'admin.clockFormat': null,
   'admin.dateFormat': null,

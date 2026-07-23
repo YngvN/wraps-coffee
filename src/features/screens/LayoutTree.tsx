@@ -53,6 +53,8 @@ interface LayoutTreeProps {
   gridTransition: string | false
   /** Draws a persistent highlight ring around this one pane, if any — see `SplitLayout`'s own doc comment. */
   selectedLeafId?: PaneId
+  /** See `SplitLayout`'s own prop of the same name. */
+  dimUnselectedPanes?: boolean
   /** Hover-to-split/clear/delete affordances — see `LayoutPane`'s own props of the same name. `canDelete` (true once `root` has more than one leaf) is computed once by `SplitLayout` and threaded straight through, rather than recomputed at every leaf. */
   onSplitPane?: (leafId: PaneId, axis: SplitDirection, edge: 'start' | 'end') => void
   onSplitFour?: (leafId: PaneId) => void
@@ -125,6 +127,7 @@ export function LayoutTree({
   onBorderClick,
   gridTransition,
   selectedLeafId,
+  dimUnselectedPanes,
   onSplitPane,
   onSplitFour,
   disableSplitOnTouch,
@@ -175,6 +178,7 @@ export function LayoutTree({
         screenBackgroundImage={screenBackgroundImage}
         screenBackgroundWindow={screenBackgroundWindow}
         selected={node.id === selectedLeafId}
+        dimmed={Boolean(dimUnselectedPanes && selectedLeafId !== undefined && node.id !== selectedLeafId)}
         onSplitPane={locked ? undefined : onSplitPane}
         onSplitFour={locked ? undefined : onSplitFour}
         disableSplitOnTouch={disableSplitOnTouch}
@@ -288,6 +292,7 @@ export function LayoutTree({
         onBorderClick={onBorderClick}
         gridTransition={gridTransition}
         selectedLeafId={selectedLeafId}
+        dimUnselectedPanes={dimUnselectedPanes}
         onSplitPane={onSplitPane}
         onSplitFour={onSplitFour}
         disableSplitOnTouch={disableSplitOnTouch}
@@ -329,6 +334,7 @@ export function LayoutTree({
         onBorderClick={onBorderClick}
         gridTransition={gridTransition}
         selectedLeafId={selectedLeafId}
+        dimUnselectedPanes={dimUnselectedPanes}
         onSplitPane={onSplitPane}
         onSplitFour={onSplitFour}
         disableSplitOnTouch={disableSplitOnTouch}

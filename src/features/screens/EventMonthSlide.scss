@@ -16,7 +16,7 @@
   > h1 {
     flex-shrink: 0;
     margin: 0;
-    font-family: $font-heading;
+    font-family: var(--screen-font-heading, $font-heading);
     font-size: var(--slide-heading-size, 8cqmin);
     text-transform: capitalize;
     overflow-wrap: normal;

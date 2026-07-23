@@ -1,5 +1,5 @@
+import { useActiveAppearanceTheme } from '../../hooks/useAppearanceThemes'
 import { useLanguage } from '../../i18n'
-import { SCREEN_BACKGROUND_COLORS } from '../../types/screen'
 import './BackgroundColorPicker.scss'
 
 interface BackgroundColorPickerProps {
@@ -15,13 +15,15 @@ interface BackgroundColorPickerProps {
 }
 
 /**
- * Swatch picker for a screen's fixed background color palette
- * (`SCREEN_BACKGROUND_COLORS`) — never affected by the site's own light/dark
- * mode. Shared by the display's whole-screen "Edit appearance" panel and its
- * per-slot editor.
+ * Swatch picker for a screen's background color, drawn from the store's
+ * currently active appearance theme (see `useActiveAppearanceTheme`, managed
+ * under Settings → Store settings → Appearance) — never affected by the
+ * site's own light/dark mode. Shared by the display's whole-screen "Edit
+ * appearance" panel and its per-slot editor.
  */
 export function BackgroundColorPicker({ backgroundColor, onChange, allowTransparent, label, transparentLabel }: BackgroundColorPickerProps) {
   const { t } = useLanguage()
+  const activeTheme = useActiveAppearanceTheme()
   const resolvedTransparentLabel = transparentLabel ?? t('screenDisplay.textSizeEditor.transparentLabel')
 
   return (
@@ -37,17 +39,20 @@ export function BackgroundColorPicker({ backgroundColor, onChange, allowTranspar
             title={resolvedTransparentLabel}
           />
         )}
-        {SCREEN_BACKGROUND_COLORS.map((color) => (
-          <button
-            key={color.hex}
-            type="button"
-            className={`background-color-picker__swatch${backgroundColor === color.hex ? ' background-color-picker__swatch--active' : ''}`}
-            style={{ backgroundColor: color.hex }}
-            onClick={() => onChange(color.hex)}
-            aria-label={t(`screenDisplay.textSizeEditor.colors.${color.key}`)}
-            title={t(`screenDisplay.textSizeEditor.colors.${color.key}`)}
-          />
-        ))}
+        {activeTheme.colors.map((color) => {
+          const colorLabel = color.locked ? t(`screenDisplay.textSizeEditor.colors.${color.id}`) : color.hex
+          return (
+            <button
+              key={color.id}
+              type="button"
+              className={`background-color-picker__swatch${backgroundColor === color.hex ? ' background-color-picker__swatch--active' : ''}`}
+              style={{ backgroundColor: color.hex }}
+              onClick={() => onChange(color.hex)}
+              aria-label={colorLabel}
+              title={colorLabel}
+            />
+          )
+        })}
       </div>
     </div>
   )

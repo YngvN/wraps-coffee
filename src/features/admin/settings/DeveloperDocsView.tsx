@@ -19,6 +19,7 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.events', descKey: 'admin.settings.developerDocs.keyEvents' },
   { key: 'admin.contactInfo', descKey: 'admin.settings.developerDocs.keyContactInfo' },
   { key: 'admin.storeSettings', descKey: 'admin.settings.developerDocs.keyStoreSettings' },
+  { key: 'admin.appearanceThemes', descKey: 'admin.settings.developerDocs.keyAppearanceThemes' },
   { key: 'admin.textSizePresets', descKey: 'admin.settings.developerDocs.keyTextSizePresets' },
   { key: 'admin.clockFormat', descKey: 'admin.settings.developerDocs.keyClockFormat' },
   { key: 'admin.dateFormat', descKey: 'admin.settings.developerDocs.keyDateFormat' },

@@ -1,6 +1,11 @@
 import { AnimatePresence, motion, useDragControls } from 'framer-motion'
 import { useEffect, useState, type PointerEvent, type ReactNode } from 'react'
+import { useEscapeToClose } from '../hooks/useEscapeToClose'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import './Modal.scss'
+
+/** Viewport width from which the modal switches from an iOS-style bottom sheet to a centered card dialog. */
+const BIG_SCREEN_QUERY = '(min-width: 768px)'
 
 interface ModalProps {
   open: boolean
@@ -47,6 +52,11 @@ const CLOSE_VELOCITY_THRESHOLD = 500
  * with nothing relevant behind its own modal to peek through to (e.g. the
  * admin dashboard's screen editor, which just sits over a list of other
  * screens) passes `transparentOnSliderDrag={false}` to skip this entirely.
+ * From `BIG_SCREEN_QUERY` up, the sheet becomes a centered card dialog
+ * instead: no drag handle, no drag-to-close gesture, and it fades/scales in
+ * at its own content size rather than sliding up from the bottom edge — see
+ * `Modal.scss`'s own `min-width: 768px` block for the matching layout
+ * change.
  * The sheet itself (`.modal`) only clips to its own
  * rounded shape (`overflow: hidden`) and never scrolls directly — scrolling
  * happens on an inner wrapper (`.modal__scroll`) below the header instead,
@@ -70,17 +80,9 @@ const CLOSE_VELOCITY_THRESHOLD = 500
 export function Modal({ open, onClose, title, route, transparentOnSliderDrag = true, children }: ModalProps) {
   const [isDraggingSlider, setIsDraggingSlider] = useState(false)
   const dragControls = useDragControls()
+  const isBigScreen = useMediaQuery(BIG_SCREEN_QUERY)
 
-  useEffect(() => {
-    if (!open) return
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [open, onClose])
+  useEscapeToClose(open, onClose)
 
   useEffect(() => {
     if (!isDraggingSlider) return
@@ -112,12 +114,12 @@ export function Modal({ open, onClose, title, route, transparentOnSliderDrag = t
           transition={{ duration: 0.2, ease: 'easeOut' }}
         >
           <motion.div
-            className={`modal${isDraggingSlider ? ' modal--transparent' : ''}`}
+            className={`modal${isDraggingSlider ? ' modal--transparent' : ''}${isBigScreen ? ' modal--card' : ''}`}
             role="dialog"
             aria-modal="true"
             onClick={(event) => event.stopPropagation()}
             onPointerDown={handlePointerDown}
-            drag="y"
+            drag={isBigScreen ? false : 'y'}
             dragControls={dragControls}
             dragListener={false}
             dragConstraints={{ top: 0, bottom: 0 }}
@@ -125,15 +127,17 @@ export function Modal({ open, onClose, title, route, transparentOnSliderDrag = t
             onDragEnd={(_event, info) => {
               if (info.offset.y > CLOSE_OFFSET_THRESHOLD || info.velocity.y > CLOSE_VELOCITY_THRESHOLD) onClose()
             }}
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 40, stiffness: 400 }}
+            initial={isBigScreen ? { opacity: 0, scale: 0.95 } : { y: '100%' }}
+            animate={isBigScreen ? { opacity: 1, scale: 1 } : { y: 0 }}
+            exit={isBigScreen ? { opacity: 0, scale: 0.95 } : { y: '100%' }}
+            transition={isBigScreen ? { duration: 0.15, ease: 'easeOut' } : { type: 'spring', damping: 40, stiffness: 400 }}
           >
             <div className="modal__header">
-              <div className="modal__handle" onPointerDown={(event) => dragControls.start(event)}>
-                <span className="modal__handle-bar" />
-              </div>
+              {!isBigScreen && (
+                <div className="modal__handle" onPointerDown={(event) => dragControls.start(event)}>
+                  <span className="modal__handle-bar" />
+                </div>
+              )}
               <div className="modal__header-row">
                 {title && (
                   <h3 className="modal__title">

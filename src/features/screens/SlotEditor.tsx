@@ -29,9 +29,10 @@ interface SlotEditorProps {
   suggestedEventOrdinal: number
   /** The cafe's own Standard pane language (see `useDefaultPaneLanguage`) — what this slot's own language override (if any) is shown/edited relative to. */
   defaultLanguage: LanguageCode
-  onRouteChange?: (route: string | undefined) => void
-  onRestore: () => void
-  onDone: () => void
+  /** Forwarded straight to `PaneEditor` — see its own doc comment. */
+  onClearPane?: () => void
+  onDeletePane?: () => void
+  canDeletePane?: boolean
 }
 
 /**
@@ -63,9 +64,9 @@ export function SlotEditor({
   resizeToFitBlocked,
   suggestedEventOrdinal,
   defaultLanguage,
-  onRouteChange,
-  onRestore,
-  onDone,
+  onClearPane,
+  onDeletePane,
+  canDeletePane,
 }: SlotEditorProps) {
   const { t } = useLanguage()
   const hasMultipleStages = useStages && stageCount > 1
@@ -107,9 +108,9 @@ export function SlotEditor({
       label={hasMultipleStages ? t('screenDisplay.textSizeEditor.stageTabLabel', { number: activeStage }) : t('screenDisplay.textSizeEditor.slotContentLabel')}
       resizeToFitBlocked={resizeToFitBlocked}
       suggestedEventOrdinal={suggestedEventOrdinal}
-      onRouteChange={onRouteChange}
-      onRestore={onRestore}
-      onDone={onDone}
+      onClearPane={onClearPane}
+      onDeletePane={onDeletePane}
+      canDeletePane={canDeletePane}
     />
   )
 }

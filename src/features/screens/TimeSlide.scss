@@ -10,7 +10,7 @@
   overflow: hidden;
 
   span {
-    font-family: $font-heading;
+    font-family: var(--screen-font-heading, $font-heading);
     font-size: var(--time-slide-font-size, 19cqmin);
     font-variant-numeric: tabular-nums;
     line-height: 1;

@@ -179,15 +179,7 @@
 
 .settings-view__docs-header {
   display: flex;
-  align-items: center;
-  gap: $spacing-unit;
-
-  // `BackButton`'s own `align-self: flex-start` (needed where it sits alone
-  // above other stretched column content elsewhere) would otherwise override
-  // this row's own `align-items: center` and pin it to the top instead of
-  // centering it against the title beside it — same fix as
-  // `.screens-view__form-header`.
-  .back-button {
-    align-self: center;
-  }
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc($spacing-unit / 2);
 }

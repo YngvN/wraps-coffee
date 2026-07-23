@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Checkbox, ImageUploadField, Input, Textarea } from '../../components'
+import { Button, Checkbox, CollapsibleSection, ImageUploadField, Input, Textarea } from '../../components'
 import { useCatalogues } from '../../hooks/useCatalogues'
 import { useEvents } from '../../hooks/useEvents'
 import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
@@ -7,6 +7,7 @@ import { useMessageBoardPosts } from '../../hooks/useMessageBoardPosts'
 import { useMessageBoards } from '../../hooks/useMessageBoards'
 import { useScreens } from '../../hooks/useScreens'
 import { useLanguage } from '../../i18n'
+import type { IntegrationsConfig } from '../../types/integrations'
 import { NEWS_SOURCES } from '../../types/news'
 import {
   DEFAULT_EVENT_CALENDAR_COUNT,
@@ -34,6 +35,7 @@ import {
   type WeatherIconPack,
 } from '../../types/screen'
 import { collectAnnouncementMessages } from '../../utils/announcements'
+import { closestSelectedStopId } from '../../utils/closestTransitStop'
 import { clampMediaResizeScale, MEDIA_RESIZE_MAX_VIEWPORT_FRACTION, MAX_MEDIA_RESIZE_SCALE, MIN_MEDIA_RESIZE_SCALE } from '../../utils/screenLayout'
 import { formatOrdinal } from '../../utils/formatOrdinal'
 import { getSmallUrl, getThumbnailUrl } from '../../utils/responsiveImage'
@@ -53,24 +55,27 @@ const WEATHER_ICON_PACKS: WeatherIconPack[] = ['outline', 'system']
  * selector. A `transit:ruter`/`transit:entur` value picks which brand's own
  * stop pool this pane draws from (see `ScreenSlotContent`'s `'transit'`
  * variant) — switching between the two on an already-`'transit'` pane keeps
- * every other setting (departure count, detail toggles, etc.) and just
- * resets `stopId` (it belonged to the *other* brand's own pool), same
- * "keeps your pick where it still makes sense" posture as the `event:*`
- * handling below. An `event:*` value (composite, like the since-removed
+ * every other setting (departure count, detail toggles, etc.) and resets
+ * `stopId` (it belonged to the *other* brand's own pool) to that brand's own
+ * closest configured stop (see `closestSelectedStopId`), same "keeps your
+ * pick where it still makes sense" posture as the `event:*` handling below.
+ * An `event:*` value (composite, like the since-removed
  * `category:X` values) picks the `'event'` kind's own `displayMode` —
  * switching to `'image'`/`'details'` keeps `currentContent`'s own
  * `eventOrdinal` if it already had one (switching between the two keeps
  * your pick), else starts from `suggestedEventOrdinal` (see
  * `findSiblingEventOrdinal`).
  */
-function optionValueToContent(value: string, currentContent: ScreenSlotContent, suggestedEventOrdinal: number): ScreenSlotContent {
+function optionValueToContent(value: string, currentContent: ScreenSlotContent, suggestedEventOrdinal: number, integrationsConfig: IntegrationsConfig): ScreenSlotContent {
   if (value === 'image') return { kind: 'image', imageUrl: '' }
   if (value === 'video') return { kind: 'video', videoUrl: '' }
   if (value === 'qrcode') return { kind: 'qrcode', url: '' }
   if (value === 'transit:ruter' || value === 'transit:entur') {
     const brand = value === 'transit:entur' ? 'entur' : 'ruter'
-    if (currentContent.kind === 'transit') return { ...currentContent, brand, stopId: '' }
-    return { kind: 'transit', brand, stopId: '' }
+    const selectedStops = brand === 'entur' ? integrationsConfig.entur.selectedStops : integrationsConfig.transit.selectedStops
+    const stopId = closestSelectedStopId(selectedStops, integrationsConfig.addressLookup?.nearbyStops ?? [])
+    if (currentContent.kind === 'transit') return { ...currentContent, brand, stopId }
+    return { kind: 'transit', brand, stopId }
   }
   if (value === 'news') return { kind: 'news', sourceIds: [] }
   if (value === 'messageboard') return { kind: 'messageboard' }
@@ -510,7 +515,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
       <select
         aria-label={label}
         value={content.kind === 'event' ? `event:${content.displayMode ?? 'calendar'}` : content.kind === 'transit' ? `transit:${content.brand ?? 'ruter'}` : content.kind}
-        onChange={(event) => onChange(optionValueToContent(event.target.value, content, suggestedEventOrdinal))}
+        onChange={(event) => onChange(optionValueToContent(event.target.value, content, suggestedEventOrdinal, integrationsConfig))}
       >
         <option value="none">{t('admin.screens.slotNoneLabel')}</option>
         <option value="catalogue">{t('admin.screens.slotCatalogueLabel')}</option>
@@ -712,20 +717,18 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
                   <input type="number" min={1} value={content.newsSlotOrdinal ?? 1} onChange={(event) => setQrCodeNewsSlotOrdinal(Number(event.target.value))} />
                 </label>
               )}
-              <div className="slide-fields__categories">
-                <Checkbox
-                  id={`${id}-qrcode-source-logo`}
-                  label={t('admin.screens.qrCodeShowSourceLogoLabel')}
-                  checked={content.showSourceLogo ?? true}
-                  onChange={(event) => setQrCodeShowSourceLogo(event.target.checked)}
-                />
-                <Checkbox
-                  id={`${id}-qrcode-source-theme`}
-                  label={t('admin.screens.qrCodeUseSourceThemeLabel')}
-                  checked={content.useSourceTheme ?? true}
-                  onChange={(event) => setQrCodeUseSourceTheme(event.target.checked)}
-                />
-              </div>
+              <Checkbox
+                id={`${id}-qrcode-source-logo`}
+                label={t('admin.screens.qrCodeShowSourceLogoLabel')}
+                checked={content.showSourceLogo ?? true}
+                onChange={(event) => setQrCodeShowSourceLogo(event.target.checked)}
+              />
+              <Checkbox
+                id={`${id}-qrcode-source-theme`}
+                label={t('admin.screens.qrCodeUseSourceThemeLabel')}
+                checked={content.useSourceTheme ?? true}
+                onChange={(event) => setQrCodeUseSourceTheme(event.target.checked)}
+              />
             </>
           ) : (
             <p className="slide-fields__hint">{t('admin.screens.newsNoSourcesConfiguredLabel')}</p>
@@ -756,8 +759,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
                 </option>
               ))}
             </select>
-            <div className="slide-fields__categories">
-              <span className="slide-fields__categories-label">{t('admin.screens.catalogueCategoriesLabel')}</span>
+            <CollapsibleSection label={t('admin.screens.catalogueCategoriesLabel')}>
               {activeCatalogue.categories.map((category) => (
                 <Checkbox
                   key={category.id}
@@ -767,7 +769,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
                   onChange={(event) => toggleMenuCategory(category.id, event.target.checked)}
                 />
               ))}
-            </div>
+            </CollapsibleSection>
           </>
         ) : (
           <p className="slide-fields__hint">{t('admin.screens.catalogueNoCataloguesLabel')}</p>
@@ -801,9 +803,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
               onChange={(event) => setTransitDepartureCount(Number(event.target.value))}
             />
           </label>
-          <div className="slide-fields__categories">
-            <span className="slide-fields__categories-label">{t('admin.screens.transitDetailsLabel')}</span>
-            <p className="slide-fields__hint">{t('admin.screens.transitDetailsHint')}</p>
+          <CollapsibleSection label={t('admin.screens.transitDetailsLabel')} hint={t('admin.screens.transitDetailsHint')}>
             <Checkbox id={`${id}-transit-platform`} label={t('admin.screens.transitShowPlatformLabel')} checked={Boolean(content.showPlatform)} onChange={(event) => setTransitShowPlatform(event.target.checked)} />
             <Checkbox
               id={`${id}-transit-line-name`}
@@ -817,16 +817,14 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
               checked={Boolean(content.realtimeOnly)}
               onChange={(event) => setTransitRealtimeOnly(event.target.checked)}
             />
-          </div>
-          <div className="slide-fields__categories">
-            <span className="slide-fields__categories-label">{t('admin.screens.transitModeFilterLabel')}</span>
-            <p className="slide-fields__hint">{t('admin.screens.transitModeFilterHint')}</p>
+          </CollapsibleSection>
+          <CollapsibleSection label={t('admin.screens.transitModeFilterLabel')} hint={t('admin.screens.transitModeFilterHint')}>
             {TRANSIT_MODES.filter((entry) => entry.mode !== 'unknown').map(({ mode, labelKey }) => (
               <Checkbox key={mode} id={`${id}-transit-mode-${mode}`} label={t(labelKey)} checked={(content.modeFilter ?? []).includes(mode)} onChange={() => toggleTransitMode(mode)} />
             ))}
-          </div>
-          <div className="slide-fields__categories">
-            <span className="slide-fields__categories-label">{t('admin.screens.transitIconPackLabel')}</span>
+          </CollapsibleSection>
+          <label className="slide-fields__labeled-select">
+            <span>{t('admin.screens.transitIconPackLabel')}</span>
             <select
               aria-label={t('admin.screens.transitIconPackLabel')}
               value={content.iconPack ?? DEFAULT_TRANSIT_ICON_PACK}
@@ -838,23 +836,21 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
                 </option>
               ))}
             </select>
-          </div>
-          <div className="slide-fields__categories">
+          </label>
+          <Checkbox
+            id={`${id}-transit-brand-theme`}
+            label={t('admin.screens.transitUseBrandThemeLabel', { brand: content.brand === 'entur' ? 'Entur' : 'Ruter#' })}
+            checked={content.useBrandTheme ?? true}
+            onChange={(event) => setTransitUseBrandTheme(event.target.checked)}
+          />
+          {(content.useBrandTheme ?? true) && (
             <Checkbox
-              id={`${id}-transit-brand-theme`}
-              label={t('admin.screens.transitUseBrandThemeLabel', { brand: content.brand === 'entur' ? 'Entur' : 'Ruter#' })}
-              checked={content.useBrandTheme ?? true}
-              onChange={(event) => setTransitUseBrandTheme(event.target.checked)}
+              id={`${id}-transit-brand-logo`}
+              label={t('admin.screens.showBrandLogoLabel')}
+              checked={content.showBrandLogo ?? true}
+              onChange={(event) => setTransitShowBrandLogo(event.target.checked)}
             />
-            {(content.useBrandTheme ?? true) && (
-              <Checkbox
-                id={`${id}-transit-brand-logo`}
-                label={t('admin.screens.showBrandLogoLabel')}
-                checked={content.showBrandLogo ?? true}
-                onChange={(event) => setTransitShowBrandLogo(event.target.checked)}
-              />
-            )}
-          </div>
+          )}
         </>
       )}
 
@@ -875,9 +871,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
             <span>{t('admin.screens.weatherForecastHoursLabel')}</span>
             <input type="number" min={1} max={48} value={content.forecastHours ?? DEFAULT_WEATHER_FORECAST_HOURS} onChange={(event) => setWeatherForecastHours(Number(event.target.value))} />
           </label>
-          <div className="slide-fields__categories">
-            <span className="slide-fields__categories-label">{t('admin.screens.weatherDetailsLabel')}</span>
-            <p className="slide-fields__hint">{t('admin.screens.weatherDetailsHint')}</p>
+          <CollapsibleSection label={t('admin.screens.weatherDetailsLabel')} hint={t('admin.screens.weatherDetailsHint')}>
             <Checkbox id={`${id}-weather-wind`} label={t('admin.screens.weatherShowWindLabel')} checked={Boolean(content.showWind)} onChange={(event) => setWeatherShowWind(event.target.checked)} />
             <Checkbox
               id={`${id}-weather-humidity`}
@@ -898,9 +892,9 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
               checked={Boolean(content.showPressure)}
               onChange={(event) => setWeatherShowPressure(event.target.checked)}
             />
-          </div>
-          <div className="slide-fields__categories">
-            <span className="slide-fields__categories-label">{t('admin.screens.weatherIconPackLabel')}</span>
+          </CollapsibleSection>
+          <label className="slide-fields__labeled-select">
+            <span>{t('admin.screens.weatherIconPackLabel')}</span>
             <select
               aria-label={t('admin.screens.weatherIconPackLabel')}
               value={content.iconPack ?? DEFAULT_WEATHER_ICON_PACK}
@@ -912,32 +906,28 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
                 </option>
               ))}
             </select>
-          </div>
-          <div className="slide-fields__categories">
+          </label>
+          <Checkbox
+            id={`${id}-weather-brand-theme`}
+            label={t('admin.screens.weatherUseBrandThemeLabel')}
+            checked={content.useBrandTheme ?? true}
+            onChange={(event) => setWeatherUseBrandTheme(event.target.checked)}
+          />
+          {(content.useBrandTheme ?? true) && (
             <Checkbox
-              id={`${id}-weather-brand-theme`}
-              label={t('admin.screens.weatherUseBrandThemeLabel')}
-              checked={content.useBrandTheme ?? true}
-              onChange={(event) => setWeatherUseBrandTheme(event.target.checked)}
+              id={`${id}-weather-brand-logo`}
+              label={t('admin.screens.showBrandLogoLabel')}
+              checked={content.showBrandLogo ?? true}
+              onChange={(event) => setWeatherShowBrandLogo(event.target.checked)}
             />
-            {(content.useBrandTheme ?? true) && (
-              <Checkbox
-                id={`${id}-weather-brand-logo`}
-                label={t('admin.screens.showBrandLogoLabel')}
-                checked={content.showBrandLogo ?? true}
-                onChange={(event) => setWeatherShowBrandLogo(event.target.checked)}
-              />
-            )}
-          </div>
+          )}
         </>
       )}
 
       {content.kind === 'news' &&
         (integrationsConfig.news.enabledSourceIds.length > 0 ? (
           <>
-            <div className="slide-fields__categories">
-              <span className="slide-fields__categories-label">{t('admin.screens.newsSourcesLabel')}</span>
-              <p className="slide-fields__hint">{t('admin.screens.newsSourcesHint')}</p>
+            <CollapsibleSection label={t('admin.screens.newsSourcesLabel')} hint={t('admin.screens.newsSourcesHint')}>
               {NEWS_SOURCES.filter((source) => integrationsConfig.news.enabledSourceIds.includes(source.id)).map((source) => (
                 <Checkbox
                   key={source.id}
@@ -947,7 +937,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
                   onChange={(event) => toggleNewsSource(source.id, event.target.checked)}
                 />
               ))}
-            </div>
+            </CollapsibleSection>
             <label className="slide-fields__number-field">
               <span>{t('admin.screens.newsHeadlineCountLabel')}</span>
               <input type="number" min={1} max={30} value={content.headlineCount ?? DEFAULT_NEWS_HEADLINE_COUNT} onChange={(event) => setNewsHeadlineCount(Number(event.target.value))} />
@@ -956,22 +946,20 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
               <span>{t('admin.screens.newsRotateSecondsLabel')}</span>
               <input type="number" min={1} value={content.rotateSeconds ?? DEFAULT_NEWS_ROTATE_SECONDS} onChange={(event) => setNewsRotateSeconds(Number(event.target.value))} />
             </label>
-            <div className="slide-fields__categories">
+            <Checkbox
+              id={`${id}-news-brand-theme`}
+              label={t('admin.screens.newsUseBrandThemeLabel')}
+              checked={content.useBrandTheme ?? true}
+              onChange={(event) => setNewsUseBrandTheme(event.target.checked)}
+            />
+            {(content.useBrandTheme ?? true) && (
               <Checkbox
-                id={`${id}-news-brand-theme`}
-                label={t('admin.screens.newsUseBrandThemeLabel')}
-                checked={content.useBrandTheme ?? true}
-                onChange={(event) => setNewsUseBrandTheme(event.target.checked)}
+                id={`${id}-news-brand-logo`}
+                label={t('admin.screens.showBrandLogoLabel')}
+                checked={content.showBrandLogo ?? true}
+                onChange={(event) => setNewsShowBrandLogo(event.target.checked)}
               />
-              {(content.useBrandTheme ?? true) && (
-                <Checkbox
-                  id={`${id}-news-brand-logo`}
-                  label={t('admin.screens.showBrandLogoLabel')}
-                  checked={content.showBrandLogo ?? true}
-                  onChange={(event) => setNewsShowBrandLogo(event.target.checked)}
-                />
-              )}
-            </div>
+            )}
           </>
         ) : (
           <p className="slide-fields__hint">{t('admin.screens.newsNoSourcesConfiguredLabel')}</p>
@@ -1140,8 +1128,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
           </select>
 
           {(content.displayMode ?? 'time') === 'time' && (
-            <div className="slide-fields__categories">
-              <span className="slide-fields__categories-label">{t('admin.screens.timeUnitsLabel')}</span>
+            <CollapsibleSection label={t('admin.screens.timeUnitsLabel')}>
               <Checkbox
                 id={`${id}-time-hours`}
                 label={t('admin.screens.timeUnitHoursLabel')}
@@ -1160,7 +1147,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
                 checked={(content.units ?? DEFAULT_TIME_UNITS).includes('seconds')}
                 onChange={(event) => setTimeUnit('seconds', event.target.checked)}
               />
-            </div>
+            </CollapsibleSection>
           )}
 
           {(content.displayMode ?? 'time') === 'time' && (

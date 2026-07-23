@@ -152,39 +152,15 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
 
   /**
    * The currently-selected pane's own Split/Delete buttons + `PaneEditor` —
-   * shared by the main per-pane tab view and the "Layout" subview's own
-   * inline pane editor (clicking a pane in the live preview there selects
-   * it exactly like clicking its tab does, via the same `activeTab` state),
-   * so the two never drift out of sync with each other. `routePrefix`, if
-   * given, is prepended to the breadcrumb `onRouteChange` reports — the
-   * "Layout" subview is already its own named route, so a pane selected
-   * from within it reports e.g. "Layout - Pane 2 - Background" instead of
-   * just "Pane 2 - Background" — and also decides whether `PaneEditor`
-   * shows its own local Back button for its nested "Background"/"Edit text
-   * size" sub-views: the plain per-pane tab view sits right below the
-   * form's single outer Back button, one hop away, so hides its own
-   * (`hideBackButton`) to avoid a redundant second one; the "Layout"
-   * subview's own page is considerably longer (the live preview, ratio
-   * picker and stage tabs all sit above this), so that outer button scrolls
-   * out of easy reach — a local one right next to the fields it actually
-   * returns from is worth the (no longer truly redundant) second button
-   * there.
+   * clicking a pane in the live "Layout" preview selects it exactly like
+   * clicking its own tab does, via the same `activeTab` state, so the two
+   * never drift out of sync with each other.
    */
-  const renderActivePaneEditor = (routePrefix?: string) => {
+  const renderActivePaneEditor = () => {
     if (!activeSlot || !activeLeafId) return null
     const content = resolveSlotContent(activeSlot, clampedActiveStage)
     const backgroundImage = resolveContentBackgroundImage(content, resolveSlotBackgroundImage(activeSlot, clampedActiveStage))
     const paneIndex = leaves.findIndex((leaf) => leaf.id === activeLeafId)
-    const handlePaneRouteChange = (route: string | undefined) => {
-      if (!route) {
-        onRouteChange?.(routePrefix)
-        return
-      }
-      const paneLabel = t('admin.screens.paneLabel', { number: paneIndex + 1 })
-      const stagePart = hasMultipleStages ? ` - ${t('screenDisplay.textSizeEditor.stageTabLabel', { number: clampedActiveStage })}` : ''
-      const prefix = routePrefix ? `${routePrefix} - ` : ''
-      onRouteChange?.(`${prefix}${paneLabel}${stagePart} - ${route}`)
-    }
     return (
       <>
         <div className="screen-form__pane-structure-actions">
@@ -234,8 +210,6 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
               clampedActiveStage,
             ) ?? 1
           }
-          onRouteChange={handlePaneRouteChange}
-          hideBackButton={!routePrefix}
         />
       </>
     )

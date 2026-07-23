@@ -1,11 +1,14 @@
 @use '../../styles/variables' as *;
 
-.pane-editor,
-.pane-editor__subview {
+.pane-editor {
   display: flex;
   flex-direction: column;
   gap: $spacing-unit * 2;
-  min-width: min(420px, 80vw);
+  // No `min-width` — unlike the old wider `Modal` this used to render
+  // inside exclusively, it's now also hosted by the narrower floating
+  // "Edit pane" panel (`FloatingPanel`), whose own width should be what
+  // constrains this, not a fixed minimum forcing it wider than that panel.
+  min-width: 0;
 }
 
 // Matches `.background-color-picker`'s own label styling immediately above
@@ -15,33 +18,23 @@
   font-weight: 600;
 }
 
-// Same flat, full-width, monochrome navigation-row look as
-// `.screen-form__menu-button` — deliberately duplicated rather than shared
-// across the two files, since a submenu button here needs to look identical
-// no matter which of the two editors it's rendered inside.
-.pane-editor__menu-button.btn--secondary {
+// Always visible (not a `CollapsibleSection`, unlike every other group in
+// this editor) — Clear/Delete apply regardless of content kind, so they
+// stay in view rather than needing to be expanded first.
+.pane-editor__pane-section {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: $spacing-unit;
-  width: 100%;
-  border: none;
-  border-bottom: 1px solid $color-text;
-  border-radius: 0;
-  background: transparent;
-  color: $color-text;
-  transition: border-bottom-width 0.15s ease;
-
-  @media (hover: hover) {
-    &:hover:not(:disabled) {
-      background: transparent;
-      color: $color-text;
-      border-bottom-width: 3px;
-    }
-  }
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  padding-top: $spacing-unit;
+  border-top: 1px solid $color-border;
 }
 
-.pane-editor__actions {
+.pane-editor__pane-section-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.pane-editor__pane-section-actions {
   display: flex;
   gap: $spacing-unit;
 }

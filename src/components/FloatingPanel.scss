@@ -1,0 +1,117 @@
+@use '../styles/variables' as *;
+
+// Spans the full viewport, `pointer-events: none` so it never blocks clicks
+// to whatever's behind the panel (the pane canvas) — exists purely to give
+// framer-motion's `dragConstraints` a ref to measure against, keeping the
+// panel draggable but never off-screen.
+.floating-panel-bounds {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 900;
+}
+
+.floating-panel {
+  position: fixed;
+  top: calc(#{$spacing-unit * 8} + env(safe-area-inset-top, 0px));
+  right: calc(#{$spacing-unit * 3} + env(safe-area-inset-right, 0px));
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  width: min(380px, calc(100vw - #{$spacing-unit * 6}));
+  max-height: calc(100dvh - #{$spacing-unit * 11});
+  background: $color-grey;
+  color: $color-text;
+  border-radius: 12px;
+  box-shadow:
+    $color-shadow 0 10px 15px -3px,
+    $color-shadow 0 4px 6px -2px;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+
+  // Below the big-screen breakpoint, drop the floating-card look for a
+  // bottom-anchored sheet — dragging a small box around on a touch screen
+  // is awkward, so `FloatingPanel.tsx` disables `drag` entirely here too.
+  &--sheet {
+    top: auto;
+    bottom: 0;
+    right: 0;
+    left: 0;
+    width: 100%;
+    max-height: 70vh;
+    border-radius: 20px 20px 0 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  &__header {
+    flex-shrink: 0;
+  }
+
+  // Only draggable (see `FloatingPanel.tsx`'s own `drag={isBigScreen}`) above
+  // the big-screen breakpoint, so the grab cursor only shows there too.
+  &:not(&--sheet) &__header {
+    cursor: grab;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  &__header-row {
+    display: flex;
+    align-items: center;
+    gap: $spacing-unit;
+    padding: ($spacing-unit * 2) ($spacing-unit * 2.5);
+    border-bottom: 1px solid $color-border;
+  }
+
+  // The `MoveIcon` to the left of the title — flags the header itself (not
+  // just this icon) as the drag handle, so `pointer-events: none` lets a
+  // pointer-down on it still reach `&__header`'s own drag-start listener.
+  &__move-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: $color-text-muted;
+    pointer-events: none;
+  }
+
+  &__title {
+    flex: 1;
+    margin: 0;
+    font-size: 1rem;
+  }
+
+  &__close {
+    flex-shrink: 0;
+    border: none;
+    background: transparent;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    color: $color-text-muted;
+
+    @media (hover: hover) {
+      &:hover {
+        color: $color-text;
+      }
+    }
+  }
+
+  &__scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  &__body {
+    padding: ($spacing-unit * 1.5) ($spacing-unit * 2.5);
+  }
+
+  &__footer {
+    flex-shrink: 0;
+    display: flex;
+    gap: $spacing-unit;
+    padding: ($spacing-unit * 1.5) ($spacing-unit * 2.5);
+    border-top: 1px solid $color-border;
+  }
+}

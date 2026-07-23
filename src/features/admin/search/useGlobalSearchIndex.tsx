@@ -24,10 +24,10 @@ const FOODORA_TAGS = ['foodora', 'levering', 'delivery', 'bestilling', 'order', 
  * filters against. Each entry's `url` matches exactly what its target
  * view's own deep-link effect (see `ProductsView`, `EventsView`,
  * `IntegrationsView`, `MessageBoardView`, `UsersView`, `ScreensView`,
- * `SettingsView`) expects to read via `useSearchParams()` — building a new
- * addressable entity/view should always come with both a deep-link effect
- * *and* an entry here, kept together (see the "Deep-linkable admin views"
- * section in `CLAUDE.md`).
+ * `SettingsView`, `StoreSettingsView`) expects to read via
+ * `useSearchParams()` — building a new addressable entity/view should
+ * always come with both a deep-link effect *and* an entry here, kept
+ * together (see the "Deep-linkable admin views" section in `CLAUDE.md`).
  */
 export function useGlobalSearchIndex(): SearchResultEntry[] {
   const { t, language } = useLanguage()
@@ -220,6 +220,14 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
     const settingsTypeLabel = t('admin.search.types.settingsPage')
     const settingsPageEntries: SearchResultEntry[] = [
       { id: 'settingsPage:store', type: 'settingsPage', title: t('admin.store.title'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings?view=store' },
+      {
+        id: 'settingsPage:appearance',
+        type: 'settingsPage',
+        title: t('admin.appearance.title'),
+        subtitle: settingsTypeLabel,
+        keywords: [],
+        url: '/admin/dashboard/settings?view=store&section=appearance',
+      },
       {
         id: 'settingsPage:integrations',
         type: 'settingsPage',

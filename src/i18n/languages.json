@@ -571,7 +571,9 @@
           "faviconCardTitle": "Favicon",
           "faviconHint": "Shown in the browser tab. Falls back to the default icon if unset.",
           "contactHint": "Phone, email, address and opening hours.",
-          "contactButton": "Edit contact info"
+          "contactButton": "Edit contact info",
+          "appearanceHint": "Screen-display color themes and fonts.",
+          "appearanceButton": "Edit appearance"
         },
         "contact": {
           "title": "Contact info",
@@ -583,6 +585,27 @@
           "openLabel": "Opens",
           "closeLabel": "Closes",
           "description": "The phone number, email, address and opening hours shown on the public website."
+        },
+        "appearance": {
+          "title": "Appearance",
+          "description": "Create and manage color themes and fonts for the screen displays. Every theme starts with 3 locked colors (white, black, grey) — add as many custom colors as you like on top.",
+          "addTheme": "Add theme",
+          "editTheme": "Edit theme",
+          "activeBadge": "Active",
+          "setActive": "Set active",
+          "nameLabel": "Theme name",
+          "fontHint": "Google Font names for each role below — loaded automatically, no need to install anything. Each applies everywhere that role is used across every screen (headings, subheadings, and regular text alike).",
+          "bodyFontLabel": "Body font",
+          "bodyFontPlaceholder": "e.g. Quicksand",
+          "headingFontLabel": "Heading font",
+          "headingFontPlaceholder": "e.g. Fredericka the Great",
+          "subheadingFontLabel": "Subheading font",
+          "subheadingFontPlaceholder": "e.g. Pangolin",
+          "fontPreviewText": "The quick brown fox jumps over the lazy dog",
+          "colorsLabel": "Colors",
+          "lockedColorsHint": "White, black and grey are standard on every theme and can't be changed. Add your own colors below.",
+          "addColor": "Add color",
+          "colorHexLabel": "Color"
         },
         "orders": {
           "title": "Orders",
@@ -841,6 +864,7 @@
           "add": "Add",
           "done": "Done",
           "back": "Back",
+          "backTo": "Back to {{destination}}",
           "confirmDelete": "Are you sure you want to delete this?",
           "dragToReorder": "Drag to reorder",
           "addLanguage": "Add language",
@@ -932,6 +956,7 @@
             "keyEvents": "Store events — recurring, postponed, cancelled occurrences.",
             "keyContactInfo": "Phone, email, address, opening hours.",
             "keyStoreSettings": "Company branding — name, slogan, logos, favicon.",
+            "keyAppearanceThemes": "Screen-display appearance themes (color palettes and fonts) and which one is active.",
             "keyTextSizePresets": "Saved named text-size presets for screens.",
             "keyClockFormat": "12-hour or 24-hour clock format, used everywhere a wall-clock time is shown (weather, timestamps, the screensaver schedule's own time pickers).",
             "keyDateFormat": "Day-month-year or month-day-year date order, used everywhere a plain numeric date is shown (timestamps, uploaded-image dates, message board post dates, a time pane's own shorthand date).",
@@ -1639,6 +1664,7 @@
         "publish": "Publish",
         "editSlot": "Edit pane",
         "slotEditorTitle": "Edit pane",
+        "panelPaneSectionLabel": "Pane",
         "keepEditPrompt": {
           "title": "Apply changes?",
           "intro": "You changed:",
@@ -1660,12 +1686,8 @@
           "transparentLabel": "Transparent",
           "colors": {
             "white": "White",
-            "cream": "Cream",
             "black": "Black",
-            "mustard": "Mustard",
-            "neutralGreen": "Neutral green",
-            "burgundy": "Burgundy",
-            "lime": "Lime"
+            "grey": "Grey"
           },
           "backgroundImageOverlay": {
             "none": "None",
@@ -2291,7 +2313,9 @@
           "faviconCardTitle": "Favicon",
           "faviconHint": "Vises i nettleserfanen. Faller tilbake til standardikonet hvis ikke satt.",
           "contactHint": "Telefon, e-post, adresse og åpningstider.",
-          "contactButton": "Rediger kontaktinfo"
+          "contactButton": "Rediger kontaktinfo",
+          "appearanceHint": "Fargetemaer og skrifttyper for skjermvisningene.",
+          "appearanceButton": "Rediger utseende"
         },
         "contact": {
           "title": "Kontaktinfo",
@@ -2303,6 +2327,27 @@
           "openLabel": "Åpner",
           "closeLabel": "Stenger",
           "description": "Telefonnummer, e-post, adresse og åpningstider som vises på nettsiden."
+        },
+        "appearance": {
+          "title": "Utseende",
+          "description": "Opprett og administrer fargetemaer og skrifttyper for skjermvisningene. Hvert tema starter med 3 låste farger (hvit, svart, grå) — legg til så mange egne farger du vil i tillegg.",
+          "addTheme": "Legg til tema",
+          "editTheme": "Rediger tema",
+          "activeBadge": "Aktiv",
+          "setActive": "Sett som aktiv",
+          "nameLabel": "Temanavn",
+          "fontHint": "Google Font-navn for hver rolle under — lastes inn automatisk, ingen installasjon nødvendig. Hver av dem brukes overalt den rollen forekommer på tvers av alle skjermer (overskrifter, underoverskrifter og vanlig tekst).",
+          "bodyFontLabel": "Brødtekst-skrift",
+          "bodyFontPlaceholder": "f.eks. Quicksand",
+          "headingFontLabel": "Overskrift-skrift",
+          "headingFontPlaceholder": "f.eks. Fredericka the Great",
+          "subheadingFontLabel": "Underoverskrift-skrift",
+          "subheadingFontPlaceholder": "f.eks. Pangolin",
+          "fontPreviewText": "Den raske brune reven hopper over den late hunden",
+          "colorsLabel": "Farger",
+          "lockedColorsHint": "Hvit, svart og grå er standard på alle temaer og kan ikke endres. Legg til egne farger under.",
+          "addColor": "Legg til farge",
+          "colorHexLabel": "Farge"
         },
         "orders": {
           "title": "Bestillinger",
@@ -2561,6 +2606,7 @@
           "add": "Legg til",
           "done": "Ferdig",
           "back": "Tilbake",
+          "backTo": "Tilbake til {{destination}}",
           "confirmDelete": "Er du sikker på at du vil slette dette?",
           "dragToReorder": "Dra for å endre rekkefølge",
           "addLanguage": "Legg til språk",
@@ -2652,6 +2698,7 @@
             "keyEvents": "Butikkens arrangementer — gjentakende, utsatte, avlyste forekomster.",
             "keyContactInfo": "Telefon, e-post, adresse, åpningstider.",
             "keyStoreSettings": "Merkevarebygging — navn, slagord, logoer, favicon.",
+            "keyAppearanceThemes": "Utseendetemaer for skjermvisninger (fargepaletter og skrifttyper) og hvilket som er aktivt.",
             "keyTextSizePresets": "Lagrede, navngitte tekststørrelse-forhåndsinnstillinger for skjermer.",
             "keyClockFormat": "Klokkeformat (12- eller 24-timers), brukt overalt et klokkeslett vises (vær, tidsstempler, skjermsparerens egne tidsvelgere).",
             "keyDateFormat": "Datorekkefølge (dag-måned-år eller måned-dag-år), brukt overalt en ren tallmessig dato vises (tidsstempler, opplastede bildedatoer, oppslagstavleinnleggenes datoer, klokke-panelets egen forkortede dato).",
@@ -3359,6 +3406,7 @@
         "publish": "Publiser",
         "editSlot": "Rediger panel",
         "slotEditorTitle": "Rediger panel",
+        "panelPaneSectionLabel": "Felt",
         "keepEditPrompt": {
           "title": "Bruk endringene?",
           "intro": "Du endret:",
@@ -3380,12 +3428,8 @@
           "transparentLabel": "Gjennomsiktig",
           "colors": {
             "white": "Hvit",
-            "cream": "Krem",
             "black": "Svart",
-            "mustard": "Sennep",
-            "neutralGreen": "Nøytral grønn",
-            "burgundy": "Bordeaux",
-            "lime": "Lime"
+            "grey": "Grå"
           },
           "backgroundImageOverlay": {
             "none": "Ingen",

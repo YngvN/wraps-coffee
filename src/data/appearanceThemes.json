@@ -1,0 +1,20 @@
+{
+  "themes": [
+    {
+      "id": "default",
+      "name": "Default",
+      "fonts": { "body": "Quicksand", "heading": "Fredericka the Great", "subheading": "Pangolin" },
+      "colors": [
+        { "id": "white", "hex": "#ffffff", "locked": true },
+        { "id": "black", "hex": "#000000", "locked": true },
+        { "id": "grey", "hex": "#808080", "locked": true },
+        { "id": "cream", "hex": "#fffaf2" },
+        { "id": "mustard", "hex": "#dfa93e" },
+        { "id": "neutralGreen", "hex": "#626c66" },
+        { "id": "burgundy", "hex": "#8f250c" },
+        { "id": "lime", "hex": "#88d18a" }
+      ]
+    }
+  ],
+  "activeThemeId": "default"
+}

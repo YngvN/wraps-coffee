@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Button, ChevronRightIcon, EditDeleteButtons, Modal, SlideTransition, TranslatedText } from '../../../components'
+import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useCatalogues } from '../../../hooks/useCatalogues'
 import { useRecentlyOpened } from '../../../hooks/useRecentlyOpened'
 import { useLanguage } from '../../../i18n'
@@ -121,6 +122,17 @@ export function ProductsView() {
     setShowAllProducts(false)
   }
 
+  /**
+   * Registers each level of the catalogue → category/all-products drill-down
+   * with the shared browser-back stack (see `useBackLevel`), so the mouse's
+   * back button closes one level at a time, exactly the way each level's own
+   * Back button does. `openCategoryId`/`showAllProducts` nest one level
+   * deeper than `openCatalogueId`, matching the actual view hierarchy.
+   */
+  useBackLevel(openCatalogueId !== null, handleBackToCatalogues)
+  useBackLevel(openCategoryId !== null, handleBackToCategories)
+  useBackLevel(showAllProducts, handleBackFromAllProducts)
+
   const saveOpenCatalogue = (catalogue: Catalogue) => setCatalogues(catalogues.map((existing) => (existing.id === catalogue.id ? catalogue : existing)))
 
   const view = openCatalogue && openCategory ? 'products' : openCatalogue && showAllProducts ? 'allProducts' : openCatalogue ? 'categories' : 'catalogues'
@@ -133,19 +145,18 @@ export function ProductsView() {
             category={openCategory}
             catalogueCategories={openCatalogue.categories}
             cataloguePrice={openCatalogue.price}
-            onBack={handleBackToCategories}
+            catalogueName={openCatalogue.name[language]}
             initialEditProductId={openProductId ?? undefined}
             onConsumeInitialEditProduct={() => setOpenProductId(null)}
           />
         ) : view === 'allProducts' && openCatalogue ? (
-          <AllProductsView catalogue={openCatalogue} onBack={handleBackFromAllProducts} />
+          <AllProductsView catalogue={openCatalogue} />
         ) : view === 'categories' && openCatalogue ? (
           <CategoriesView
             catalogue={openCatalogue}
             onSaveCatalogue={saveOpenCatalogue}
             onOpenCategory={handleOpenCategory}
             onOpenAllProducts={handleOpenAllProducts}
-            onBack={handleBackToCatalogues}
           />
         ) : (
           <div className="products-view">

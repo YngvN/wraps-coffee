@@ -4,7 +4,11 @@
   display: flex;
   flex-direction: column;
   gap: $spacing-unit * 2;
-  min-width: min(420px, 80vw);
+  // No fixed `min-width` — this now renders inside `PaneEditor`'s own
+  // `CollapsibleSection`, which in turn sits inside the narrower floating
+  // "Edit pane" panel (`FloatingPanel`) as well as the wider admin form; let
+  // whichever one of those actually constrains its width.
+  min-width: 0;
 }
 
 .text-size-editor__overflow-mode {

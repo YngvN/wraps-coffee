@@ -1,6 +1,8 @@
 import { useReducedMotion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
+import { useActiveAppearanceTheme } from '../../hooks/useAppearanceThemes'
+import { useGoogleFontLoader } from '../../hooks/useGoogleFontLoader'
 import { useLanguage, type LanguageCode } from '../../i18n'
 import { DEFAULT_SCREEN_BACKGROUND_COLOR, type LayoutNode, type PaneId, type ScreenConfig, type ScreenSlotContent, type SplitDirection, type TextSizes } from '../../types/screen'
 import { applyRatioPatchPreservingDescendants, computeLayoutGeometry, FULL_BOX, type Divider, type LayoutGeometry, type Rect } from '../../utils/layoutGeometry'
@@ -41,6 +43,8 @@ interface SplitLayoutProps {
   defaultPaneLanguage: LanguageCode
   /** Draws a persistent highlight ring around this one pane, if any — distinct from `editingFocus`'s own transient pulse-flash, this stays on for as long as the caller says so (e.g. the admin form's own "Layout" preview, mirroring which pane's own editor is currently open beneath it). */
   selectedLeafId?: PaneId
+  /** While true (and `selectedLeafId` is set), every OTHER pane dims — the live display's own floating "Edit pane" panel uses this so the pane it's editing stands out against the rest of the canvas. Omit (the default) to leave every pane at full visibility regardless of `selectedLeafId`, e.g. the admin form's own "Layout" preview, which only wants the ring, not a dimmed canvas. */
+  dimUnselectedPanes?: boolean
   /** Hovering close to a pane's own middle (either axis) reveals a "Split" line/label there — see `PaneSplitZones`; clicking splits it into two, both halves starting with the original's own duplicated content. Omit (like `onEditSlide`) to disable, e.g. while the screen is locked, or with no logged-in admin session at all. */
   onSplitPane?: (leafId: PaneId, axis: SplitDirection, edge: 'start' | 'end') => void
   /** Hovering dead center instead splits this pane straight into a clean 2x2 of 4 — see `PaneSplitZones`' own doc comment. Omit (like `onSplitPane`) to disable. */
@@ -100,6 +104,7 @@ export function SplitLayout({
   onDropImage,
   defaultPaneLanguage,
   selectedLeafId,
+  dimUnselectedPanes,
   onSplitPane,
   onSplitFour,
   disableSplitOnTouch,
@@ -203,11 +208,18 @@ export function SplitLayout({
     }
   }, [contentPhase, effectiveStage, effectiveTick])
 
+  /** The store's currently active appearance theme — its 3 font roles are loaded here (once, at the shared root every render path — thumbnail, editor preview, and live kiosk display — goes through) and applied via `--screen-font-*` below; its color palette is offered by `BackgroundColorPicker` instead, since panes/screens themselves still just store a plain hex. */
+  const activeTheme = useActiveAppearanceTheme()
+  useGoogleFontLoader([activeTheme.fonts.body, activeTheme.fonts.heading, activeTheme.fonts.subheading])
+
   /** `--screen-bg`/`--screen-text`/etc, redeclared right at this wrapper so every descendant pane — including one with no background color of its own — resolves them from the *screen's* own configured appearance rather than leaking through to whatever ancestor styling happens to surround `SplitLayout` whenever it's used (e.g. the admin form's own "Layout" preview never set these at all otherwise). A pane with its own background color still overrides these locally (see `slotBackgroundColorStyle`), same as ever — this only fixes the fallback. */
   const screenColorStyle = {
     ...getScreenColorVars(screen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR),
     ...borderColorStyle(screen.borderColor),
     ...backgroundImageTextStyle(screen.backgroundImage?.overlay),
+    '--screen-font-body': `'${activeTheme.fonts.body}', sans-serif`,
+    '--screen-font-heading': `'${activeTheme.fonts.heading}', sans-serif`,
+    '--screen-font-subheading': `'${activeTheme.fonts.subheading}', sans-serif`,
   } as CSSProperties
 
   useEffect(() => {
@@ -555,6 +567,7 @@ export function SplitLayout({
         containerSize={containerSize}
         screenBackgroundCoverRect={screenBackgroundCoverRect}
         selectedLeafId={selectedLeafId}
+        dimUnselectedPanes={dimUnselectedPanes}
         onLiveChange={onResizeDivider ? handleLiveChange : undefined}
         onCommit={onResizeDivider ? handleCommit : undefined}
         onLiveChangeMulti={onResizeDivider ? handleLiveChangePatch : undefined}

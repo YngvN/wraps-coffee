@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import { Navigate, useMatch, useParams } from 'react-router-dom'
-import { BackButton, Checkbox, Modal, RedoIcon } from '../components'
+import { BackButton, Button, Checkbox, FloatingPanel, Modal, RedoIcon } from '../components'
 import { DashboardWindowControls } from '../features/admin/layout/DashboardWindowControls'
 import { BackgroundEditor } from '../features/screens/BackgroundEditor'
 import { BorderSettingsEditor } from '../features/screens/BorderSettingsEditor'
@@ -232,8 +232,6 @@ export function ScreenDisplay() {
   const [showKeepEditPrompt, setShowKeepEditPrompt] = useState(false)
   /** Which stage `KeepEditPrompt` should actually continue on to once resolved, when it's showing because of a stage-tab switch mid-edit rather than the editor closing — `null` in the latter case. See `handleActiveStageChange`/`seedDraftForStage`. */
   const [pendingStageSwitchTarget, setPendingStageSwitchTarget] = useState<number | null>(null)
-  /** `SlotEditor`'s own currently open sub-view (e.g. "Background"), reported via its `onRouteChange` — shown as the modal's own breadcrumb next to its title. Reset whenever a pane editor (re)opens. */
-  const [slotEditorRoute, setSlotEditorRoute] = useState<string | undefined>(undefined)
   /** Which stage the pane editor's own tab bar currently has selected. */
   const [activeStage, setActiveStage] = useState(1)
   /** The stage the pane editor was opened on — what "Restore previous" returns the tab bar to. */
@@ -530,7 +528,6 @@ export function ScreenDisplay() {
     setActiveStage(openStage)
     setInitialStage(openStage)
     setShowKeepEditPrompt(false)
-    setSlotEditorRoute(undefined)
     setEditingTarget({ leafId })
     setSelectedLeafIds(new Set())
     setManuallyPaused(true)
@@ -1098,14 +1095,14 @@ export function ScreenDisplay() {
         onDropImage={canEdit ? handleDropImage : undefined}
         onSplitPane={canEdit ? handleSplitPane : undefined}
         onSplitFour={canEdit ? handleSplitPaneFour : undefined}
-        onClearPane={canEdit ? handleClearPane : undefined}
-        onDeletePane={canEdit ? handleDeletePane : undefined}
         onBorderClick={canEdit ? openBorderEditor : undefined}
         onTogglePaneLock={canEdit ? handleTogglePaneLock : undefined}
         selectedLeafIds={activeSelectedLeafIds}
         onToggleChecked={canEdit ? toggleLeafChecked : undefined}
         defaultPaneLanguage={defaultPaneLanguage}
         onRequestStageAdvance={handleVideoEndedAdvance}
+        selectedLeafId={typeof editingTarget === 'object' && editingTarget !== null ? editingTarget.leafId : undefined}
+        dimUnselectedPanes={typeof editingTarget === 'object' && editingTarget !== null}
       />
 
       {screensaverActive && (
@@ -1126,67 +1123,71 @@ export function ScreenDisplay() {
       </Modal>
 
       <Modal
-        open={editingTarget !== null}
+        open={editingTarget === 'screen'}
         onClose={requestCloseEditor}
-        title={
-          editingTarget === 'screen'
-            ? t('screenDisplay.textSizeEditor.title')
-            : showKeepEditPrompt
-              ? t('screenDisplay.keepEditPrompt.title')
-              : t('screenDisplay.slotEditorTitle')
-        }
+        title={t('screenDisplay.textSizeEditor.title')}
         route={
-          editingTarget === 'screen'
-            ? screenSubview === 'background'
-              ? t('admin.screens.backgroundLabel')
-              : screenSubview === 'border'
-                ? t('admin.screens.bordersLabel')
-                : undefined
-            : typeof editingTarget === 'object' && editingTarget !== null && !showKeepEditPrompt
-              ? slotEditorRoute
-              : undefined
+          screenSubview === 'background' ? t('admin.screens.backgroundLabel') : screenSubview === 'border' ? t('admin.screens.bordersLabel') : undefined
         }
       >
-        {editingTarget === 'screen' ? (
-          screenSubview === 'background' ? (
-            <>
-              <BackButton onClick={() => setScreenSubview(null)}>{t('admin.common.back')}</BackButton>
-              <BackgroundEditor
-                backgroundColor={viewScreen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR}
-                onBackgroundColorChange={handleScreenBackgroundColorChange}
-                backgroundImage={viewScreen.backgroundImage}
-                onBackgroundImageChange={handleScreenBackgroundImageChange}
-              />
-            </>
-          ) : screenSubview === 'border' ? (
-            <>
-              <BackButton onClick={() => setScreenSubview(null)}>{t('admin.common.back')}</BackButton>
-              <BorderSettingsEditor
-                showSlotBorders={viewScreen.showSlotBorders ?? false}
-                onShowSlotBordersChange={handleShowSlotBordersChange}
-                borderColor={viewScreen.borderColor}
-                onBorderColorChange={handleBorderColorChange}
-              />
-            </>
-          ) : (
-            <GlobalTextSizeScaler
-              screen={viewScreen}
-              onChange={setScreenDraftSnapshot}
-              screensaver={
-                screensaverSchedule
-                  ? {
-                      enabled: screen.useScreensaver ?? false,
-                      onEnabledChange: handleUseScreensaverChange,
-                      testActive: screen.screensaverTestActive ?? false,
-                      onTestActiveChange: handleTestScreensaverChange,
-                    }
-                  : undefined
-              }
-              onOpenBackground={() => setScreenSubview('background')}
-              onDone={requestCloseEditor}
+        {screenSubview === 'background' ? (
+          <>
+            <BackButton onClick={() => setScreenSubview(null)}>{t('admin.common.back')}</BackButton>
+            <BackgroundEditor
+              backgroundColor={viewScreen.backgroundColor ?? DEFAULT_SCREEN_BACKGROUND_COLOR}
+              onBackgroundColorChange={handleScreenBackgroundColorChange}
+              backgroundImage={viewScreen.backgroundImage}
+              onBackgroundImageChange={handleScreenBackgroundImageChange}
             />
+          </>
+        ) : screenSubview === 'border' ? (
+          <>
+            <BackButton onClick={() => setScreenSubview(null)}>{t('admin.common.back')}</BackButton>
+            <BorderSettingsEditor
+              showSlotBorders={viewScreen.showSlotBorders ?? false}
+              onShowSlotBordersChange={handleShowSlotBordersChange}
+              borderColor={viewScreen.borderColor}
+              onBorderColorChange={handleBorderColorChange}
+            />
+          </>
+        ) : (
+          <GlobalTextSizeScaler
+            screen={viewScreen}
+            onChange={setScreenDraftSnapshot}
+            screensaver={
+              screensaverSchedule
+                ? {
+                    enabled: screen.useScreensaver ?? false,
+                    onEnabledChange: handleUseScreensaverChange,
+                    testActive: screen.screensaverTestActive ?? false,
+                    onTestActiveChange: handleTestScreensaverChange,
+                  }
+                : undefined
+            }
+            onOpenBackground={() => setScreenSubview('background')}
+            onDone={requestCloseEditor}
+          />
+        )}
+      </Modal>
+
+      <FloatingPanel
+        open={typeof editingTarget === 'object' && editingTarget !== null}
+        onClose={requestCloseEditor}
+        title={showKeepEditPrompt ? t('screenDisplay.keepEditPrompt.title') : t('screenDisplay.slotEditorTitle')}
+        footer={
+          !showKeepEditPrompt && (
+            <>
+              <Button type="button" variant="secondary" onClick={handleRestore}>
+                {t('screenDisplay.textSizeEditor.restorePrevious')}
+              </Button>
+              <Button type="button" onClick={requestCloseEditor}>
+                {t('screenDisplay.textSizeEditor.done')}
+              </Button>
+            </>
           )
-        ) : showKeepEditPrompt ? (
+        }
+      >
+        {showKeepEditPrompt ? (
           <KeepEditPrompt
             changes={detectSlotEditChanges()}
             onKeepHere={closeEditor}
@@ -1209,12 +1210,19 @@ export function ScreenDisplay() {
             resizeToFitBlocked={resizeToFitBlocked}
             suggestedEventOrdinal={suggestedEventOrdinal}
             defaultLanguage={defaultPaneLanguage}
-            onRouteChange={setSlotEditorRoute}
-            onRestore={handleRestore}
-            onDone={requestCloseEditor}
+            onClearPane={
+              typeof editingTarget === 'object' && editingTarget !== null
+                ? () => {
+                    handleClearPane(editingTarget.leafId)
+                    seedDraftForStage(emptySlot(), activeStage)
+                  }
+                : undefined
+            }
+            onDeletePane={typeof editingTarget === 'object' && editingTarget !== null ? () => handleDeletePane(editingTarget.leafId) : undefined}
+            canDeletePane={editingLeaves.length > 1}
           />
         )}
-      </Modal>
+      </FloatingPanel>
     </div>
   )
 }

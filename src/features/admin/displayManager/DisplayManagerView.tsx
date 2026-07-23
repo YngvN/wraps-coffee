@@ -2,13 +2,9 @@ import { BackButton, Card, Input, TranslatedText } from '../../../components'
 import { useDisplayMachines } from '../../../hooks/useDisplayMachines'
 import { useScreens } from '../../../hooks/useScreens'
 import { useLanguage } from '../../../i18n'
+import { goBack } from '../../../lib/backStack'
 import type { DisplayMachine } from '../../../types/displayMachine'
 import './DisplayManagerView.scss'
-
-interface DisplayManagerViewProps {
-  /** Returns to the Screens list — this view is reached only as a submenu of Screens, not its own top-level route, so it has no back button of its own. */
-  onBack: () => void
-}
 
 /**
  * Every machine (an Electron kiosk managing its own detected monitors) or
@@ -17,9 +13,10 @@ interface DisplayManagerViewProps {
  * Screen-assignment selector per monitor. A monitor with no Screen assigned
  * shows the bouncing-company-name standby screensaver instead (see
  * `DisplayStandby`) until one is picked here. Rendered from `ScreensView` as
- * a submenu, hence the `onBack` prop instead of a route of its own.
+ * a submenu, not a route of its own — its own Back level (returning to the
+ * Screens list) is registered by `ScreensView` itself, not here.
  */
-export function DisplayManagerView({ onBack }: DisplayManagerViewProps) {
+export function DisplayManagerView() {
   const { t } = useLanguage()
   const [machines, setMachines] = useDisplayMachines()
   const [screens] = useScreens()
@@ -42,7 +39,7 @@ export function DisplayManagerView({ onBack }: DisplayManagerViewProps) {
   return (
     <div className="display-manager-view">
       <div className="display-manager-view__header">
-        <BackButton onClick={onBack}>{t('admin.common.back')}</BackButton>
+        <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: t('admin.screens.title') })}</BackButton>
         <TranslatedText as="h1" id="admin.displayManager.title" />
       </div>
       <TranslatedText as="p" id="admin.displayManager.description" className="admin-page-description" />

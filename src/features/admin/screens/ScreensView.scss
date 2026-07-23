@@ -93,20 +93,13 @@
 // The "Edit screen"/"Add screen" view (replacing the list entirely, not a
 // modal on top of it — see ScreensView.tsx) — a single Back button (closing
 // whichever sub-view is currently open, one level at a time — see
-// `useBackLevel`/`goBack` — or the whole form itself once none is) lined up
-// with the title itself, on the same row.
+// `useBackLevel`/`goBack` — or the whole form itself once none is) stacked
+// above the title itself.
 .screens-view__form-header {
   display: flex;
-  align-items: center;
-  gap: $spacing-unit;
-
-  // `BackButton`'s own `align-self: flex-start` (needed where it sits alone
-  // above other stretched column content, e.g. every `__subview` panel)
-  // would otherwise override this row's own `align-items: center` and pin
-  // it to the top instead of centering it against the title beside it.
-  .back-button {
-    align-self: center;
-  }
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc($spacing-unit / 2);
 }
 
 .screens-view__form-title {

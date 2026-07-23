@@ -1,0 +1,124 @@
+@use '../../../styles/variables' as *;
+
+.theme-color-list-editor__label {
+  display: block;
+  font-weight: 600;
+}
+
+.theme-color-list-editor__hint {
+  margin: calc($spacing-unit / 4) 0 $spacing-unit;
+  color: $color-text-muted;
+  font-size: 0.8125rem;
+}
+
+.theme-color-list-editor__locked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-unit;
+  margin: 0 0 $spacing-unit;
+  padding: 0;
+  list-style: none;
+}
+
+.theme-color-list-editor__locked-item {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  color: $color-text-muted;
+  font-size: 0.8125rem;
+}
+
+.theme-color-list-editor__swatch {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid $color-border;
+}
+
+.theme-color-list-editor__custom {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  margin: 0 0 $spacing-unit;
+  padding: 0;
+  list-style: none;
+}
+
+.theme-color-list-editor__custom-item {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+}
+
+.theme-color-list-editor__color-input {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+
+.theme-color-list-editor__hex {
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 0.875rem;
+  color: $color-text-muted;
+  text-transform: uppercase;
+}
+
+.theme-color-list-editor__remove {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: $color-error;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
+.theme-color-list-editor__add-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  width: 100%;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: $color-text;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}

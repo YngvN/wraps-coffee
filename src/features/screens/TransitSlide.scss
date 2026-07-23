@@ -49,7 +49,7 @@
 .transit-slide > h1 {
   min-width: 0;
   margin: 0;
-  font-family: $font-heading;
+  font-family: var(--screen-font-heading, $font-heading);
   font-size: var(--slide-heading-size, 8cqmin);
   overflow-wrap: normal;
 

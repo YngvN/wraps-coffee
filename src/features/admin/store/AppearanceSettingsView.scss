@@ -1,0 +1,155 @@
+@use '../../../styles/variables' as *;
+
+.appearance-settings-view {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+}
+
+.appearance-settings-view__header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+// Same fixed-floor, never-stretched card-grid convention as the Screens
+// list (`ScreensView.scss`'s own `.screens-view__list`) — reads as a
+// uniform gallery regardless of how many columns fit per row.
+.appearance-settings-view__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: $spacing-unit * 2;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.appearance-settings-view__card {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  padding: $spacing-unit * 1.5;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  background: $color-bg;
+}
+
+.appearance-settings-view__card-title-row {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit * 0.75);
+}
+
+// A small round checkbox marking (and, while unchecked, setting) a card's
+// theme as the active one — same border/checkmark language as the shared
+// `Checkbox` component (`Checkbox.scss`), just circular and icon-only
+// (no text label, the card's own name sits right next to it) since exactly
+// one theme is always active, unlike an independent boolean checkbox.
+.appearance-settings-view__active-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.3em;
+  height: 1.3em;
+  padding: 0;
+  border: 0.1em solid $color-border;
+  border-radius: 50%;
+  background: none;
+  color: $color-accent-contrast;
+  cursor: pointer;
+  transition: background-color 0.25s ease, border-color 0.25s ease;
+
+  &:disabled {
+    cursor: default;
+  }
+
+  @media (hover: hover) {
+    &:not(:disabled):hover {
+      border-color: $color-accent;
+    }
+  }
+
+  &:not(:disabled):active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+
+  svg {
+    width: 0.7em;
+    height: 0.7em;
+  }
+}
+
+.appearance-settings-view__active-toggle--checked {
+  border-color: $color-accent;
+  background-color: $color-accent;
+}
+
+.appearance-settings-view__card-name {
+  font-weight: 600;
+}
+
+.appearance-settings-view__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc($spacing-unit / 3);
+}
+
+.appearance-settings-view__swatch {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid $color-border;
+}
+
+// A mini type specimen: each font role shown at the same relative size it
+// actually renders at on screen (see `.split-layout`'s own `h1`/`h2`/body
+// rules in `SplitLayout.scss`) — heading largest and boldest, subheading
+// mid-weight, body smallest — so the 3 roles read as a real preview of the
+// theme's hierarchy instead of 3 same-sized labels.
+.appearance-settings-view__font-preview {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+  padding: $spacing-unit;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.appearance-settings-view__font-preview-heading {
+  overflow: hidden;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.appearance-settings-view__font-preview-subheading {
+  overflow: hidden;
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: $color-text-muted;
+}
+
+.appearance-settings-view__font-preview-body {
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 400;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: $color-text-muted;
+}
+
+.appearance-settings-view__card-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: calc($spacing-unit / 2);
+  margin-top: auto;
+  padding-top: calc($spacing-unit / 2);
+}

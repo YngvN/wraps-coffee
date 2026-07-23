@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Badge, BackButton, Modal, TranslatedText } from '../../../components'
 import { useProducts } from '../../../hooks/useProducts'
 import { useLanguage } from '../../../i18n'
+import { goBack } from '../../../lib/backStack'
 import { ImagesIcon } from '../layout/AdminNavIcons'
 import type { Catalogue } from '../../../types/category'
 import type { Product } from '../../../types/product'
@@ -12,7 +13,6 @@ import './AllProductsView.scss'
 
 interface AllProductsViewProps {
   catalogue: Catalogue
-  onBack: () => void
 }
 
 /**
@@ -22,9 +22,12 @@ interface AllProductsViewProps {
  * `CategoriesView`, which links here, and `ProductListView`, the per-category
  * row list this doesn't replace). A product with no image shows a
  * placeholder icon in its place rather than an empty gap. Clicking a card
- * opens the same edit form every other product view already uses.
+ * opens the same edit form every other product view already uses. Rendered
+ * from `ProductsView` as a submenu, not a route of its own — its own Back
+ * level (returning to the categories view) is registered by `ProductsView`
+ * itself, not here.
  */
-export function AllProductsView({ catalogue, onBack }: AllProductsViewProps) {
+export function AllProductsView({ catalogue }: AllProductsViewProps) {
   const { t, language } = useLanguage()
   const [products, setProducts] = useProducts()
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
@@ -40,8 +43,8 @@ export function AllProductsView({ catalogue, onBack }: AllProductsViewProps) {
 
   return (
     <div className="products-view">
-      <div className="products-view__header">
-        <BackButton onClick={onBack}>{t('admin.common.back')}</BackButton>
+      <div className="products-view__sub-header">
+        <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: catalogue.name[language] })}</BackButton>
         <h1>{t('admin.products.allProductsTitle')}</h1>
       </div>
       <TranslatedText as="p" id="admin.products.allProductsDescription" className="admin-page-description" />

@@ -13,23 +13,28 @@
   gap: $spacing-unit * 2;
 
   // The title grows to fill whatever space is left — pushes a trailing
-  // "Add" button flush right, same as before, but also lets a leading
-  // `BackButton` (the categories/products drill-down views) sit ahead of it
-  // without needing a different layout rule for that case.
+  // "Add" button flush right.
   h1 {
     flex: 1 1 auto;
     min-width: 0;
     margin: 0;
     font-size: 1.25rem;
   }
+}
 
-  // `BackButton`'s own `align-self: flex-start` (needed where it sits alone
-  // above other stretched column content elsewhere) would otherwise override
-  // this row's own `align-items: center` and pin it to the top instead of
-  // centering it against the title beside it — same fix as
-  // `.screens-view__form-header`.
-  .back-button {
-    align-self: center;
+// The categories/products drill-down views' own header (a Back button
+// stacked above the title) — kept separate from `.products-view__header`
+// above, which the root catalogues list also uses for its own title + "Add"
+// button row and must stay unstacked.
+.products-view__sub-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc($spacing-unit / 2);
+
+  h1 {
+    margin: 0;
+    font-size: 1.25rem;
   }
 }
 

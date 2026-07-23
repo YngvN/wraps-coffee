@@ -7,6 +7,7 @@ export const SYNCED_KEYS = [
   'admin.events',
   'admin.contactInfo',
   'admin.storeSettings',
+  'admin.appearanceThemes',
   'admin.textSizePresets',
   'admin.clockFormat',
   'admin.dateFormat',

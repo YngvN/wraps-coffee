@@ -1,0 +1,33 @@
+@use '../../../styles/variables' as *;
+
+.theme-editor-form {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+}
+
+.theme-editor-form__hint {
+  margin: 0;
+  color: $color-text-muted;
+  font-size: 0.8125rem;
+}
+
+.theme-editor-form__font-field {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+}
+
+.theme-editor-form__font-preview {
+  margin: 0;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  font-size: 1.5rem;
+}
+
+.theme-editor-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-unit;
+}

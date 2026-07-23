@@ -17,18 +17,22 @@
   }
 }
 
-.slide-fields__categories {
+// Mirrors `.slide-fields__number-field`'s row layout — a labeled row for a
+// single `<select>` control (e.g. icon-pack pickers), not a multi-item
+// group, so it doesn't get wrapped in a `CollapsibleSection`.
+.slide-fields__labeled-select {
   display: flex;
-  flex-direction: column;
-  gap: calc($spacing-unit / 2);
-  padding: $spacing-unit;
-  border: 1px solid $color-border;
-  border-radius: 6px;
-}
-
-.slide-fields__categories-label {
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit;
   font-size: 0.875rem;
   font-weight: 600;
+
+  select {
+    width: auto;
+    flex: 1;
+    max-width: 60%;
+  }
 }
 
 .slide-fields__slider {

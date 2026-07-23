@@ -392,7 +392,7 @@ export type StageTimeline<T> = Record<number, T>
  */
 export interface ScreenSlot {
   content: StageTimeline<ScreenSlotContent>
-  /** This slot's own background color (hex, from `SCREEN_BACKGROUND_COLORS`) timeline, independent of the screen's own. An entry's value may itself be `undefined` (explicitly transparent at that stage, showing the screen's own background through) — distinct from no entry at all at that stage (inherit from an earlier one). */
+  /** This slot's own background color (hex, from the store's active appearance theme — see `AppearanceTheme`) timeline, independent of the screen's own. An entry's value may itself be `undefined` (explicitly transparent at that stage, showing the screen's own background through) — distinct from no entry at all at that stage (inherit from an earlier one). */
   backgroundColor: StageTimeline<string | undefined>
   /** This slot's own background image (blurred, scaled to cover the pane) timeline, shown behind whichever content is currently active. A slide with its own `backgroundImage` set overrides this one just for itself. */
   backgroundImage: StageTimeline<BackgroundImage | undefined>
@@ -448,23 +448,6 @@ export type PaneGrowthFallback = 'screenEdge' | 'fade'
 
 /** Which side a `'slide'`-style transition's incoming slide enters from — the outgoing one exits toward the opposite side. Only relevant when `transitionStyle` is `'slide'`; computed per pane from the arrangement itself (see `paneDefaultSlideDirection`) rather than stored on `ScreenConfig`, so a slide never has to enter/exit through a border it shares with a neighboring pane. */
 export type SlideTransitionDirection = 'left' | 'right' | 'up' | 'down'
-
-/** One selectable screen background color: a fixed hex value from the project's brand palette (not a theme variable), so it looks the same regardless of the viewer's light/dark mode. */
-export interface ScreenBackgroundColorOption {
-  key: string
-  hex: string
-}
-
-/** Fixed background color choices for screens, drawn from the site's brand palette (`src/styles/_variables.scss`) plus a couple of neutrals. Deliberately literal hex values, not theme-dependent CSS variables. */
-export const SCREEN_BACKGROUND_COLORS: ScreenBackgroundColorOption[] = [
-  { key: 'white', hex: '#ffffff' },
-  { key: 'cream', hex: '#fffaf2' },
-  { key: 'black', hex: '#000000' },
-  { key: 'mustard', hex: '#dfa93e' },
-  { key: 'neutralGreen', hex: '#626c66' },
-  { key: 'burgundy', hex: '#8f250c' },
-  { key: 'lime', hex: '#88d18a' },
-]
 
 /** Used when a screen has no `backgroundColor` of its own yet. */
 export const DEFAULT_SCREEN_BACKGROUND_COLOR = '#ffffff'
@@ -590,11 +573,11 @@ export interface ScreenConfig {
   usesPercentTextSizes?: boolean
   /** Whether visible borders are drawn between panes. Falls back to `false` (hidden) when absent — the divider gap's own translucent tint (see `--screen-border`) reads as an unwanted glow/shadow against a whole-screen background image, so a screen only gets visible borders once explicitly opted into. */
   showSlotBorders?: boolean
-  /** Fixed border color (hex, from `SCREEN_BACKGROUND_COLORS`) between panes. Falls back to an automatic contrast-based color (`--screen-border`) when absent. Only relevant while `showSlotBorders` is on and there's more than one pane. */
+  /** Border color (hex, from the store's active appearance theme — see `AppearanceTheme`) between panes. Falls back to an automatic contrast-based color (`--screen-border`) when absent. Only relevant while `showSlotBorders` is on and there's more than one pane. */
   borderColor?: string
   /** Whether a pane's own scrollbar is hidden — only relevant for a pane whose own `ScreenSlot.overflowMode` is `'scroll'` (the `'shrink'` default never scrolls at all, so has no scrollbar to hide). Content stays scrollable either way — this only hides the scrollbar UI. Falls back to `false` (shown) when absent. */
   hideScrollbar?: boolean
-  /** Fixed background color (hex) for this screen, chosen from `SCREEN_BACKGROUND_COLORS`. Falls back to `DEFAULT_SCREEN_BACKGROUND_COLOR` when absent. Not affected by the site's light/dark mode. */
+  /** Background color (hex) for this screen, chosen from the store's active appearance theme (see `AppearanceTheme`). Falls back to `DEFAULT_SCREEN_BACKGROUND_COLOR` when absent. Not affected by the site's light/dark mode. */
   backgroundColor?: string
   /** A background image for the whole screen (blurred, scaled to cover, same technique as a slot's own — see `BackgroundImage`), shown behind every pane that doesn't have its own background color/image. Falls back to none when absent. */
   backgroundImage?: BackgroundImage

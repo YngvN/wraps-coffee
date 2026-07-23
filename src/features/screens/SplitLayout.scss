@@ -4,6 +4,20 @@
   position: relative;
   width: 100%;
   height: 100%;
+  font-family: var(--screen-font-body, #{$font-sans});
+
+  // Catches any `<h1>`/`<h2>` rendered by a slide with no explicit
+  // font-family override of its own (see the many `.xxx-slide h1`/`> h1`
+  // rules in the individual slide stylesheets, each of which needs the same
+  // `var(--screen-font-heading, ...)` override applied directly since their
+  // own selector's specificity would otherwise beat this one).
+  h1 {
+    font-family: var(--screen-font-heading, #{$font-heading});
+  }
+
+  h2 {
+    font-family: var(--screen-font-subheading, #{$font-subheading});
+  }
 
   &--no-borders .layout-tree__split {
     gap: 0;
@@ -215,4 +229,19 @@
   z-index: 9;
   background: #fff;
   pointer-events: none;
+}
+
+// Every pane except the one being edited, while the live display's own
+// floating "Edit pane" panel is open (see `SplitLayout`'s own
+// `dimUnselectedPanes` doc comment) — topmost of every per-pane overlay
+// (above even the pulse-flash) but still `pointer-events: none`, so a click
+// still lands on `PaneEditButton` underneath and can switch which pane the
+// panel is editing.
+.split-layout__pane-dim {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  transition: opacity 0.15s ease;
 }
