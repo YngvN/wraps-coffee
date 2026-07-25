@@ -152,3 +152,12 @@ export function PinSidebarIcon(props: IconProps) {
     </Icon>
   )
 }
+
+/** A four-pointed sparkle — the top navbar's AI assistant shortcut (see `AssistantButton`). */
+export function AssistantSparkleIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3 L13.8 9.2 L20 11 L13.8 12.8 L12 19 L10.2 12.8 L4 11 L10.2 9.2 Z" />
+    </Icon>
+  )
+}

@@ -17,6 +17,7 @@ import type { SearchResultEntry } from './searchTypes'
 /** Search-only keywords for the two delivery-platform integrations — mirrors `WEATHER_TAGS`/`TRANSIT_TAGS`/`ENTUR_TAGS`, untranslated and never rendered. */
 const WOLT_TAGS = ['wolt', 'levering', 'delivery', 'bestilling', 'order', 'takeaway']
 const FOODORA_TAGS = ['foodora', 'levering', 'delivery', 'bestilling', 'order', 'takeaway']
+const ASSISTANT_TAGS = ['claude', 'anthropic', 'ai', 'assistant', 'assistent', 'chatbot', 'chat']
 
 /**
  * Flattens every searchable entity across the admin dashboard into one
@@ -160,6 +161,15 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
         keywords: FOODORA_TAGS,
         url: '/admin/dashboard/settings?view=integrations&integration=foodora',
         icon: <FetchedLogo slug="foodora" label={t('admin.integrations.foodoraBrandName')} />,
+      },
+      {
+        id: 'integration:anthropic',
+        type: 'integration',
+        title: 'Claude',
+        subtitle: integrationTypeLabel,
+        keywords: ASSISTANT_TAGS,
+        url: '/admin/dashboard/settings?view=integrations&integration=anthropic',
+        icon: <FetchedLogo slug="claude" label="Claude" />,
       },
     ]
 

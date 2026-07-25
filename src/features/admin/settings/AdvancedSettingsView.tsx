@@ -8,6 +8,7 @@ import { getScreenAddressSettings, getWindowLaunchSettings, setScreenAddressSett
 import type { ScreenAddressMode, ScreenAddressSettings } from '../../../types/screenAddress'
 import type { WindowLaunchMethod, WindowLaunchSettings } from '../../../types/windowLaunch'
 import { deriveMdnsName } from '../../../utils/mdnsName'
+import { AssistantProviderSection } from './AssistantProviderSection'
 import './AdvancedSettingsView.scss'
 
 const MODES: ScreenAddressMode[] = ['automatic', 'custom', 'mdns']
@@ -182,6 +183,8 @@ export function AdvancedSettingsView() {
           {launchSaved && <span className="advanced-settings__saved">{t('admin.settings.advanced.saved')}</span>}
         </div>
       )}
+
+      <AssistantProviderSection />
     </div>
   )
 }

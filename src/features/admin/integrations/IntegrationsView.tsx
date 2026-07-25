@@ -13,7 +13,18 @@ import { useWoltConfig } from '../../../hooks/useWoltConfig'
 import { useWoltOrders } from '../../../hooks/useWoltOrders'
 import { useLanguage } from '../../../i18n'
 import { goBack } from '../../../lib/backStack'
-import { getFoodoraCredentials, getWoltCredentials, lookupAddress, searchStops, setFoodoraCredentials, setWoltCredentials, triggerFoodoraSync, triggerWoltSync } from '../../../lib/localServer'
+import {
+  getAssistantCredentialStatus,
+  getFoodoraCredentials,
+  getWoltCredentials,
+  lookupAddress,
+  searchStops,
+  setAssistantCredentials,
+  setFoodoraCredentials,
+  setWoltCredentials,
+  triggerFoodoraSync,
+  triggerWoltSync,
+} from '../../../lib/localServer'
 import type { IntegrationsConfig, NearbyStop, WeatherLocation } from '../../../types/integrations'
 import { NEWS_SOURCES } from '../../../types/news'
 import { TransitModeIcon } from '../../screens/TransitModeIcon'
@@ -150,6 +161,11 @@ export function IntegrationsView() {
   const [foodoraCredentialsError, setFoodoraCredentialsError] = useState<string | null>(null)
   const [isSyncingFoodora, setIsSyncingFoodora] = useState(false)
   const [foodoraSyncError, setFoodoraSyncError] = useState<string | null>(null)
+  const [assistantSubmenuOpen, setAssistantSubmenuOpen] = useState(false)
+  const [assistantApiKeyDraft, setAssistantApiKeyDraft] = useState('')
+  const [hasSavedAssistantKey, setHasSavedAssistantKey] = useState(false)
+  const [isSavingAssistantKey, setIsSavingAssistantKey] = useState(false)
+  const [assistantKeyError, setAssistantKeyError] = useState<string | null>(null)
   const [isLookingUp, setIsLookingUp] = useState(false)
   const [lookupError, setLookupError] = useState<string | null>(null)
   const [lookingUpLocationId, setLookingUpLocationId] = useState<string | null>(null)
@@ -177,6 +193,7 @@ export function IntegrationsView() {
   const newsSubmenuRef = useRef<HTMLDivElement>(null)
   const woltSubmenuRef = useRef<HTMLDivElement>(null)
   const foodoraSubmenuRef = useRef<HTMLDivElement>(null)
+  const assistantSubmenuRef = useRef<HTMLDivElement>(null)
   const submenuSetters = {
     weather: setWeatherSubmenuOpen,
     transit: setTransitSubmenuOpen,
@@ -184,6 +201,7 @@ export function IntegrationsView() {
     news: setNewsSubmenuOpen,
     wolt: setWoltSubmenuOpen,
     foodora: setFoodoraSubmenuOpen,
+    anthropic: setAssistantSubmenuOpen,
   } as const
   const submenuRefs = {
     weather: weatherSubmenuRef,
@@ -191,6 +209,7 @@ export function IntegrationsView() {
     entur: enturSubmenuRef,
     news: newsSubmenuRef,
     wolt: woltSubmenuRef,
+    anthropic: assistantSubmenuRef,
     foodora: foodoraSubmenuRef,
   } as const
   /** Which integration's submenu (if any) still needs to be scrolled into view after a deep link just opened it — cleared the moment the scroll fires. */
@@ -296,6 +315,32 @@ export function IntegrationsView() {
     triggerWoltSync(session.token)
       .catch(() => setWoltSyncError(t('admin.integrations.woltSyncError')))
       .finally(() => setIsSyncingWolt(false))
+  }
+
+  // Loads whether a Claude API key is already saved, same posture as the Wolt
+  // credentials effect above — admin/subadmin only (a `limited` account gets
+  // a 403, silently left showing "not configured"). Never loads the raw key
+  // itself; the credential draft below is always write-only.
+  useEffect(() => {
+    if (!session) return
+    getAssistantCredentialStatus(session.token)
+      .then(({ hasKey }) => setHasSavedAssistantKey(hasKey))
+      .catch(() => {
+        // A `limited` account gets a 403 here — expected, not worth surfacing as an error.
+      })
+  }, [session])
+
+  const handleSaveAssistantApiKey = () => {
+    if (!session) return
+    setIsSavingAssistantKey(true)
+    setAssistantKeyError(null)
+    setAssistantCredentials(session.token, { apiKey: assistantApiKeyDraft.trim() || null })
+      .then(({ hasKey }) => {
+        setHasSavedAssistantKey(hasKey)
+        setAssistantApiKeyDraft('')
+      })
+      .catch(() => setAssistantKeyError(t('admin.integrations.assistantApiKeySaveError')))
+      .finally(() => setIsSavingAssistantKey(false))
   }
 
   // Loads the saved Foodora credentials once a session exists — same
@@ -953,6 +998,55 @@ export function IntegrationsView() {
     </div>
   )
 
+  // Same visual shape as Wolt/Foodora above, but simpler: no venue id, no
+  // dev-environment checkbox, no enable/disable flag or sync button —
+  // availability is purely "is a key configured" (see
+  // AssistantProviderSection in Settings for the separate Local/Claude
+  // provider choice). The status dot mirrors that same boolean.
+  const assistantSubmenu = (
+    <div ref={assistantSubmenuRef}>
+      <AnimatedDetails
+        className="integration-submenu"
+        summaryClassName="integration-submenu__summary"
+        bodyClassName="integration-submenu__body"
+        open={assistantSubmenuOpen}
+        onToggle={() => setAssistantSubmenuOpen((current) => !current)}
+        summary={
+          <>
+            <FetchedLogo slug="claude" label="Claude" className="integration-submenu__icon" />
+            <span className="integration-submenu__title">
+              <span className="integration-submenu__brand">Claude</span>
+              <span className="integration-submenu__label">{t('admin.integrations.assistantApiKeyTitle')}</span>
+            </span>
+            <span
+              className={`status-dot ${hasSavedAssistantKey ? 'status-dot--active' : 'status-dot--disabled'}`}
+              title={t(hasSavedAssistantKey ? 'admin.integrations.assistantApiKeySaved' : 'admin.integrations.assistantApiKeyMissing')}
+            />
+            <span className="integration-submenu__chevron" aria-hidden="true">
+              ▸
+            </span>
+          </>
+        }
+      >
+        <p className="integrations-view__hint">{t('admin.integrations.assistantApiKeyDescription')}</p>
+        <p>{t(hasSavedAssistantKey ? 'admin.integrations.assistantApiKeySaved' : 'admin.integrations.assistantApiKeyMissing')}</p>
+
+        <Input
+          id="integrations-assistant-api-key"
+          type="password"
+          label={t('admin.integrations.assistantApiKeyLabel')}
+          value={assistantApiKeyDraft}
+          onChange={(event) => setAssistantApiKeyDraft(event.target.value)}
+          placeholder={hasSavedAssistantKey ? '••••••••' : undefined}
+        />
+        {assistantKeyError && <Alert variant="error">{assistantKeyError}</Alert>}
+        <Button type="button" variant="secondary" onClick={handleSaveAssistantApiKey} disabled={isSavingAssistantKey || !assistantApiKeyDraft.trim()}>
+          {t('admin.common.save')}
+        </Button>
+      </AnimatedDetails>
+    </div>
+  )
+
   // Same derivation as Wolt's own status above.
   const foodoraMissingCredentials = foodoraConfig.enabled && !hasSavedFoodoraCredentials
   const foodoraEffectiveState = !foodoraConfig.enabled ? 'disabled' : foodoraMissingCredentials ? 'stale' : foodoraConfig.status.state
@@ -1108,9 +1202,14 @@ export function IntegrationsView() {
               {config.news.enabled && newsSubmenu}
               {woltConfig.enabled && woltSubmenu}
               {foodoraConfig.enabled && foodoraSubmenu}
-              {!config.weather.enabled && !config.transit.enabled && !config.entur.enabled && !config.news.enabled && !woltConfig.enabled && !foodoraConfig.enabled && (
-                <p className="integrations-view__hint">{t('admin.integrations.activatedEmptyHint')}</p>
-              )}
+              {hasSavedAssistantKey && assistantSubmenu}
+              {!config.weather.enabled &&
+                !config.transit.enabled &&
+                !config.entur.enabled &&
+                !config.news.enabled &&
+                !woltConfig.enabled &&
+                !foodoraConfig.enabled &&
+                !hasSavedAssistantKey && <p className="integrations-view__hint">{t('admin.integrations.activatedEmptyHint')}</p>}
             </section>
 
             <section className="integrations-view__category">
@@ -1121,9 +1220,14 @@ export function IntegrationsView() {
               {!config.news.enabled && newsSubmenu}
               {!woltConfig.enabled && woltSubmenu}
               {!foodoraConfig.enabled && foodoraSubmenu}
-              {config.weather.enabled && config.transit.enabled && config.entur.enabled && config.news.enabled && woltConfig.enabled && foodoraConfig.enabled && (
-                <p className="integrations-view__hint">{t('admin.integrations.availableEmptyHint')}</p>
-              )}
+              {!hasSavedAssistantKey && assistantSubmenu}
+              {config.weather.enabled &&
+                config.transit.enabled &&
+                config.entur.enabled &&
+                config.news.enabled &&
+                woltConfig.enabled &&
+                foodoraConfig.enabled &&
+                hasSavedAssistantKey && <p className="integrations-view__hint">{t('admin.integrations.availableEmptyHint')}</p>}
             </section>
 
             <ComingSoonSection />

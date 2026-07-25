@@ -8,6 +8,8 @@ import type { ScreenAddressSettings } from '../src/types/screenAddress'
 import type { WindowLaunchSettings } from '../src/types/windowLaunch'
 import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
+import * as assistantSteps from './assistant/steps'
+import { AssistantNotConfiguredError, AssistantProviderNotAvailableError, type AssistantActionName } from './assistant/types'
 import * as backup from './backup'
 import { handleDepartures, handleLookup, handleStopSearch, handleWeather } from './integrations'
 import { handleHeadlines } from './news'
@@ -591,6 +593,136 @@ const httpServer = createServer((req, res) => {
         } catch (error) {
           console.error('[foodora] status push failed:', error)
           sendJson(res, 502, { error: 'Could not push this status update to Foodora' })
+        }
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // AI assistant (Claude) — see server/assistant/*. `/assistant/credentials`
+  // is admin/subadmin only, same posture as Wolt/Foodora above (contains a
+  // real API key). The three step routes below are open to any authenticated
+  // session — each one gates per-entity internally (see
+  // server/assistant/registry.ts's sessionCanUseEntity), since which
+  // entities/actions are available varies by role/section, not a single
+  // fixed role check. None of these routes ever mutate app data (see
+  // server/assistant/types.ts's own module doc comment) — the actual write
+  // always happens from the browser's own existing save/delete path once the
+  // admin confirms in the review step.
+  if (req.method === 'GET' && url.pathname === '/assistant/credentials') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view the assistant configuration' })
+      return
+    }
+    sendJson(res, 200, { hasKey: Boolean(store.getAnthropicApiKey()), provider: store.getAssistantProvider() })
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/assistant/credentials') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can edit the assistant configuration' })
+      return
+    }
+    readJsonBody(req)
+      .then((body) => {
+        const { apiKey, provider } = body as { apiKey?: string | null; provider?: 'local' | 'claude' }
+        if (apiKey !== undefined) store.setAnthropicApiKey(typeof apiKey === 'string' && apiKey.trim() ? apiKey.trim() : null)
+        if (provider === 'local' || provider === 'claude') store.setAssistantProvider(provider)
+        console.log(`[assistant] ${session.username} updated the assistant configuration`)
+        sendJson(res, 200, { hasKey: Boolean(store.getAnthropicApiKey()), provider: store.getAssistantProvider() })
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/assistant/intent') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    readJsonBody(req)
+      .then(async (body) => {
+        const { message, uiLanguage } = body as { message?: string; uiLanguage?: 'no' | 'en' }
+        if (!message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
+          sendJson(res, 400, { error: 'Missing message or uiLanguage' })
+          return
+        }
+        try {
+          sendJson(res, 200, await assistantSteps.selectIntent(session, message, uiLanguage))
+        } catch (error) {
+          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantProviderNotAvailableError ? 409 : 400, { error: (error as Error).message })
+        }
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/assistant/select-item') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    readJsonBody(req)
+      .then(async (body) => {
+        const { entity, action, message, searchText, uiLanguage, priorItemID } = body as {
+          entity?: string
+          action?: AssistantActionName
+          message?: string
+          searchText?: string
+          uiLanguage?: 'no' | 'en'
+          priorItemID?: string
+        }
+        if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
+          sendJson(res, 400, { error: 'Missing entity, action, message, or uiLanguage' })
+          return
+        }
+        try {
+          sendJson(res, 200, await assistantSteps.selectItem(entity, action, session, message, searchText ?? '', uiLanguage, priorItemID))
+        } catch (error) {
+          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantProviderNotAvailableError ? 409 : 400, { error: (error as Error).message })
+        }
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/assistant/fill-fields') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    readJsonBody(req)
+      .then(async (body) => {
+        const { entity, action, itemID, message, uiLanguage, priorDraft, image } = body as {
+          entity?: string
+          action?: AssistantActionName
+          itemID?: string
+          message?: string
+          uiLanguage?: 'no' | 'en'
+          priorDraft?: unknown
+          image?: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string }
+        }
+        if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
+          sendJson(res, 400, { error: 'Missing entity, action, message, or uiLanguage' })
+          return
+        }
+        try {
+          sendJson(res, 200, await assistantSteps.fillFields(entity, action, session, message, uiLanguage, { itemID, image, priorDraft }))
+        } catch (error) {
+          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantProviderNotAvailableError ? 409 : 400, { error: (error as Error).message })
         }
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))

@@ -403,6 +403,33 @@ POST /foodora/status/<orderId>     (Authorization: Bearer <token>, admin/subadmi
         </pre>
       </Card>
 
+      <Card title={t('admin.settings.developerDocs.assistantTitle')}>
+        <p>{t('admin.settings.developerDocs.assistantIntro')}</p>
+        <pre>
+          <code>{`GET /assistant/credentials         (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "hasKey": boolean, "provider": "local" | "claude" }   (never the raw key)
+
+POST /assistant/credentials        (Authorization: Bearer <token>, admin/subadmin only)
+{ "apiKey"?: string | null, "provider"?: "local" | "claude" }   (either field independently updatable)
+→ 200 { "hasKey": boolean, "provider": "local" | "claude" }
+
+POST /assistant/intent             (Authorization: Bearer <token>, any authenticated session)
+{ "message": string, "uiLanguage": "no" | "en" }
+→ 200 { "entity": string, "action": "create"|"update"|"delete"|"resetPassword"|"trigger", "searchText": string | null }
+→ 400 { "error": "..." }           (couldn't confidently tell what was meant)
+→ 409 { "error": "..." }           (no API key configured, or the "local" provider isn't implemented yet)
+
+POST /assistant/select-item        (Authorization: Bearer <token>, any authenticated session)
+{ "entity": string, "action": string, "message": string, "searchText": string, "uiLanguage": "no" | "en", "priorItemID"?: string }
+→ 200 { "itemID": string | null, "candidates": [{ "id", "label" }] }
+
+POST /assistant/fill-fields        (Authorization: Bearer <token>, any authenticated session)
+{ "entity": string, "action": string, "message": string, "uiLanguage": "no" | "en", "itemID"?: string, "priorDraft"?: unknown, "image"?: { "mediaType", "base64Data" } }
+→ 200 { "draft": unknown, "issues": [{ "code", "params"? }] }
+   (none of these three routes ever write app data — they only ever propose a draft; the actual write happens from the browser's own existing save/delete path once the admin confirms in the assistant's review step, see server/assistant/types.ts)`}</code>
+        </pre>
+      </Card>
+
       <Card title={t('admin.settings.developerDocs.websiteTitle')}>
         <p>{t('admin.settings.developerDocs.websiteIntro')}</p>
         <p>{t('admin.settings.developerDocs.websiteNoTunnel')}</p>

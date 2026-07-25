@@ -406,6 +406,53 @@ export function setFoodoraCredentials(credentials: FoodoraCredentials) {
   mirrorFile(FOODORA_CREDENTIALS_FILE)
 }
 
+// --- AI assistant (Claude) credentials/settings ------------------------------
+//
+// Same "small standalone file, not a synced key" shape as Wolt/Foodora above
+// — this holds a real Anthropic API key, so it's never broadcast to every
+// LAN device the way a `SyncedKey` value is. `provider` lives in the same
+// file since it's the same small settings blob (see the assistant Settings
+// card) — `'claude'` is the only backend actually implemented today;
+// `'local'` is reserved for a future Ollama-backed build-out and is
+// rejected at call time (see `server/assistant/client.ts`).
+
+const ANTHROPIC_CREDENTIALS_FILE = join(DATA_DIR, 'anthropic-credentials.json')
+
+export type AssistantProvider = 'local' | 'claude'
+
+interface AnthropicCredentials {
+  apiKey: string | null
+  provider: AssistantProvider
+}
+
+const EMPTY_ANTHROPIC_CREDENTIALS: AnthropicCredentials = { apiKey: null, provider: 'claude' }
+
+function readAnthropicCredentials(): AnthropicCredentials {
+  if (!existsSync(ANTHROPIC_CREDENTIALS_FILE)) return EMPTY_ANTHROPIC_CREDENTIALS
+  return { ...EMPTY_ANTHROPIC_CREDENTIALS, ...(JSON.parse(readFileSync(ANTHROPIC_CREDENTIALS_FILE, 'utf-8')) as Partial<AnthropicCredentials>) }
+}
+
+function writeAnthropicCredentials(credentials: AnthropicCredentials) {
+  writeFileSync(ANTHROPIC_CREDENTIALS_FILE, JSON.stringify(credentials), 'utf-8')
+  mirrorFile(ANTHROPIC_CREDENTIALS_FILE)
+}
+
+export function getAnthropicApiKey(): string | null {
+  return readAnthropicCredentials().apiKey
+}
+
+export function setAnthropicApiKey(apiKey: string | null) {
+  writeAnthropicCredentials({ ...readAnthropicCredentials(), apiKey })
+}
+
+export function getAssistantProvider(): AssistantProvider {
+  return readAnthropicCredentials().provider
+}
+
+export function setAssistantProvider(provider: AssistantProvider) {
+  writeAnthropicCredentials({ ...readAnthropicCredentials(), provider })
+}
+
 // How a screen's own `/screens/:screenId` link should be addressed (see
 // Settings → Advanced) — same "small standalone file, not a synced key"
 // shape as the Neon database URL above, since it's a machine-level setting

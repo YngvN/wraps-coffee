@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
+import { AssistantPanel } from '../assistant/AssistantPanel'
+import { useAssistantAllowedEntities } from '../assistant/useAssistantFlow'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
 import { GlobalSearchButton } from '../search/GlobalSearchButton'
-import { OverviewIcon, SettingsIcon } from './AdminNavIcons'
+import { AssistantSparkleIcon, OverviewIcon, SettingsIcon } from './AdminNavIcons'
 import { DashboardWindowControls } from './DashboardWindowControls'
 import { MessagesDropdown } from './MessagesDropdown'
 import { NotificationsDropdown } from './NotificationsDropdown'
@@ -11,8 +13,8 @@ import { StoreBrandHeader } from './StoreBrandHeader'
 import { UploadsIndicator } from './UploadsIndicator'
 import './AdminTopNavbar.scss'
 
-/** Which of the navbar's own right-side panels (see `AdminRightPanel`) is open, if any — kept here rather than inside `NotificationsDropdown`/`MessagesDropdown`/`GlobalSearchButton` themselves so opening one always closes the others instead of stacking on top of each other. */
-type ActivePanel = 'notifications' | 'messages' | 'search' | null
+/** Which of the navbar's own right-side panels (see `AdminRightPanel`) is open, if any — kept here rather than inside `NotificationsDropdown`/`MessagesDropdown`/`GlobalSearchButton`/`AssistantPanel` themselves so opening one always closes the others instead of stacking on top of each other. */
+type ActivePanel = 'notifications' | 'messages' | 'search' | 'assistant' | null
 
 interface AdminTopNavbarProps {
   /** Whether the mobile sidebar overlay is currently open — mirrors `AdminDashboard`'s own state, since the hamburger toggle now lives here instead of as its own standalone fixed button. */
@@ -47,6 +49,7 @@ export function AdminTopNavbar({ isSidebarOpen, onToggleSidebar }: AdminTopNavba
   const { t } = useLanguage()
   const { session } = useAdminSession()
   const [activePanel, setActivePanel] = useState<ActivePanel>(null)
+  const assistantAllowedEntities = useAssistantAllowedEntities()
 
   return (
     <header className="admin-top-navbar">
@@ -96,6 +99,17 @@ export function AdminTopNavbar({ isSidebarOpen, onToggleSidebar }: AdminTopNavba
           onToggle={() => setActivePanel((current) => (current === 'messages' ? null : 'messages'))}
           onClose={() => setActivePanel(null)}
         />
+        {assistantAllowedEntities.length > 0 && (
+          <button
+            type="button"
+            className="admin-top-navbar__icon-link"
+            aria-label={t('admin.assistant.title')}
+            title={t('admin.assistant.title')}
+            onClick={() => setActivePanel((current) => (current === 'assistant' ? null : 'assistant'))}
+          >
+            <AssistantSparkleIcon />
+          </button>
+        )}
         <UploadsIndicator />
       </nav>
 
@@ -103,6 +117,8 @@ export function AdminTopNavbar({ isSidebarOpen, onToggleSidebar }: AdminTopNavba
       <div className="admin-top-navbar__window-controls">
         <DashboardWindowControls variant="inline" />
       </div>
+
+      <AssistantPanel open={activePanel === 'assistant'} onClose={() => setActivePanel(null)} />
     </header>
   )
 }

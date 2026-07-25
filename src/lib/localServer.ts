@@ -412,6 +412,116 @@ export async function pushFoodoraOrderStatus(token: string, orderId: string, sta
   }
 }
 
+// --- AI assistant (Claude) ---------------------------------------------------
+
+export interface AssistantCredentialStatus {
+  hasKey: boolean
+  provider: 'local' | 'claude'
+}
+
+/** Whether a Claude API key is configured, and which provider is selected (see Settings → AI Assistant and the Integrations page's Claude card) — never the raw key itself. `admin`/`subadmin` only. */
+export async function getAssistantCredentialStatus(token: string): Promise<AssistantCredentialStatus> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/credentials`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 403) throw new Error('Only admin/subadmin accounts can view the assistant configuration')
+  if (!response.ok) throw new Error('Could not load the assistant configuration')
+  return response.json() as Promise<AssistantCredentialStatus>
+}
+
+/** Saves the Claude API key and/or the selected provider — pass only the field(s) being changed, `undefined` leaves the other one untouched. `admin`/`subadmin` only. */
+export async function setAssistantCredentials(token: string, input: { apiKey?: string | null; provider?: 'local' | 'claude' }): Promise<AssistantCredentialStatus> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/credentials`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not save the assistant configuration')
+  }
+  return response.json() as Promise<AssistantCredentialStatus>
+}
+
+export interface AssistantIntentResult {
+  /** A real entity key, or `'chat'` for a general question/greeting that isn't a specific create/update/delete request — see `reply`. */
+  entity: string
+  /** `null` when `entity === 'chat'`. */
+  action: 'create' | 'update' | 'delete' | 'resetPassword' | 'trigger' | null
+  searchText: string | null
+  /** The conversational answer, only set when `entity === 'chat'`. */
+  reply: string | null
+}
+
+/** Step 1 of the assistant flow (see `useAssistantFlow`) — routes free text to an entity + action. Never writes anything; see `server/assistant/types.ts`'s own module doc comment. */
+export async function assistantSelectIntent(token: string, message: string, uiLanguage: 'no' | 'en'): Promise<AssistantIntentResult> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/intent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ message, uiLanguage }),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? "Couldn't figure out what you meant — try rephrasing")
+  }
+  return response.json() as Promise<AssistantIntentResult>
+}
+
+export interface AssistantSelectItemResult {
+  itemID: string | null
+  candidates: { id: string; label: string }[]
+}
+
+/** Step 2 of the assistant flow (only for actions that need an existing item) — picks a candidate `itemID` for `entity`, or `null` if none clearly match. Pass `priorItemID` when the admin said the previous pick was wrong. */
+export async function assistantSelectItem(
+  token: string,
+  input: { entity: string; action: string; message: string; searchText: string; uiLanguage: 'no' | 'en'; priorItemID?: string },
+): Promise<AssistantSelectItemResult> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/select-item`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? "Couldn't find a matching item")
+  }
+  return response.json() as Promise<AssistantSelectItemResult>
+}
+
+export interface AssistantFillFieldsResult {
+  draft: unknown
+  issues: { code: string; params?: Record<string, string> }[]
+}
+
+/** Step 3 of the assistant flow — proposes (never writes) a draft for `entity`/`action`, merged onto the current item (`itemID`) or empty defaults. `image` is the vision-extraction input (see `AssistantPanel`'s attach flow); `priorDraft` is set when this call is a correction from the review step. */
+export async function assistantFillFields(
+  token: string,
+  input: {
+    entity: string
+    action: string
+    message: string
+    uiLanguage: 'no' | 'en'
+    itemID?: string
+    image?: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string }
+    priorDraft?: unknown
+  },
+): Promise<AssistantFillFieldsResult> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/fill-fields`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not draft that change')
+  }
+  return response.json() as Promise<AssistantFillFieldsResult>
+}
+
 /** How a screen's own `/screens/:screenId` link should be addressed (see Settings → Advanced) — public, no auth needed. */
 export async function getScreenAddressSettings(): Promise<ScreenAddressSettings> {
   const response = await fetch(`${serverBaseUrl()}/screen-address`)
