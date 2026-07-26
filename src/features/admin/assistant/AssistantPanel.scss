@@ -76,6 +76,11 @@
   }
 }
 
+.assistant-panel__clarify-option--selected {
+  border-color: $color-accent;
+  background: $color-surface-hover;
+}
+
 .assistant-panel__issues {
   margin: 0;
   padding-left: 1.1rem;

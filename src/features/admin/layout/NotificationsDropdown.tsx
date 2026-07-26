@@ -3,6 +3,7 @@ import { useCatalogues } from '../../../hooks/useCatalogues'
 import { useOrders } from '../../../hooks/useOrders'
 import { useProducts } from '../../../hooks/useProducts'
 import { useLanguage } from '../../../i18n'
+import { resolveProductCatalogue } from '../../../utils/productCatalogue'
 import { isProductOutOfStock } from '../../../utils/productStock'
 import { AdminRightPanel } from './AdminRightPanel'
 import { BellIcon } from './AdminNavIcons'
@@ -21,7 +22,7 @@ interface NotificationsDropdownProps {
  * `isProductOutOfStock`), badge count = the two combined. Its content opens
  * in an `AdminRightPanel` sliding in from the right edge of the screen
  * rather than a small anchored dropdown box. Each row links straight to the
- * relevant record via the same `?orderId=`/`?catalogueId=&categoryId=`
+ * relevant record via the same `?orderId=`/`?catalogueId=&categoryId=&productId=`
  * deep-link query params `OrdersView`/`ProductsView` already read on mount
  * (see those views' own `useSearchParams` effects) — clicking one is a
  * real jump-to, not just a generic "go look at Orders/Products" link.
@@ -35,10 +36,6 @@ export function NotificationsDropdown({ open, onToggle, onClose }: Notifications
   const newOrders = orders.filter((order) => order.status === 'received')
   const outOfStockProducts = products.filter((product) => product.trackStock && isProductOutOfStock(product))
   const badgeCount = newOrders.length + outOfStockProducts.length
-
-  /** A product only carries its own category id (`Product.category`), not the catalogue it lives under — `ProductsView`'s deep link needs both, so this walks every catalogue's own category list to find the one that contains it. */
-  const catalogueIdForCategory = (categoryId: string): string | undefined =>
-    catalogues.find((catalogue) => catalogue.categories.some((category) => category.id === categoryId))?.id
 
   return (
     <div className="notifications-dropdown">
@@ -67,8 +64,9 @@ export function NotificationsDropdown({ open, onToggle, onClose }: Notifications
               </li>
             ))}
             {outOfStockProducts.map((product) => {
-              const catalogueId = catalogueIdForCategory(product.category)
-              const href = catalogueId ? `/admin/dashboard/products?catalogueId=${catalogueId}&categoryId=${product.category}` : '/admin/dashboard/products'
+              const resolved = resolveProductCatalogue(product, catalogues)
+              const categoryParam = resolved?.category ? `&categoryId=${resolved.category.id}` : ''
+              const href = resolved ? `/admin/dashboard/products?catalogueId=${resolved.catalogue.id}${categoryParam}&productId=${product.itemID}` : '/admin/dashboard/products'
               return (
                 <li key={product.itemID}>
                   <Link to={href} onClick={onClose}>

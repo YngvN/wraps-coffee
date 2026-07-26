@@ -83,7 +83,8 @@ export async function pushProducts(client: Client, products: Product[]): Promise
   await client.query('begin')
   try {
     await client.query('delete from products')
-    for (const product of products) {
+    // The public website's own `products` table has a `NOT NULL` `category` column — a product with no category at all (see `Product.catalogueId`) has nothing valid to put there. Rather than inventing a fake category id that would corrupt that separate project's own data, these are simply excluded from the push (and would fail the whole transaction below if they weren't, since every product here is inserted inside one `begin`/`commit`). Revisit once that other schema supports a category-less product.
+    for (const product of products.filter((product) => product.category)) {
       const cols = priceColumns(product.price)
       await client.query(
         `insert into products (item_id, category, name_no, name_en, description_no, description_en, price, price_takeaway, price_eat_in, allergens, available, out_of_stock)

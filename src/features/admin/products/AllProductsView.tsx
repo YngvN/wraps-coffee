@@ -11,16 +11,22 @@ import { getThumbnailUrl } from '../../../utils/responsiveImage'
 import { ProductForm } from './ProductForm'
 import './AllProductsView.scss'
 
+/** Whether `product` belongs to this catalogue at all — either via a real category, or (see `Product.catalogueId`) directly with no category. */
+function belongsToCatalogue(product: Product, catalogue: Catalogue): boolean {
+  if (product.category) return catalogue.categories.some((category) => category.id === product.category)
+  return product.catalogueId === catalogue.id
+}
+
 interface AllProductsViewProps {
   catalogue: Catalogue
 }
 
 /**
- * Every product across every category in this catalogue, as an
- * image-forward card grid — a quick visual scan across the whole catalogue
- * at once, instead of drilling into it category by category (see
- * `CategoriesView`, which links here, and `ProductListView`, the per-category
- * row list this doesn't replace). A product with no image shows a
+ * Every product across every category in this catalogue (plus any with no
+ * category at all — see `Product.catalogueId`), as an image-forward card
+ * grid — a quick visual scan across the whole catalogue at once, distinct
+ * from `CategoriesView`'s own per-category drag-and-drop board, which this
+ * doesn't replace. A product with no image shows a
  * placeholder icon in its place rather than an empty gap. Clicking a card
  * opens the same edit form every other product view already uses. Rendered
  * from `ProductsView` as a submenu, not a route of its own — its own Back
@@ -33,7 +39,7 @@ export function AllProductsView({ catalogue }: AllProductsViewProps) {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
 
   const categoryById = new Map(catalogue.categories.map((category) => [category.id, category]))
-  const items = products.filter((product) => categoryById.has(product.category))
+  const items = products.filter((product) => belongsToCatalogue(product, catalogue))
 
   const closeForm = () => setEditingProduct(null)
   const handleSave = (product: Product) => {
@@ -60,7 +66,9 @@ export function AllProductsView({ catalogue }: AllProductsViewProps) {
               </div>
               <div className="all-products-view__card-body">
                 <span className="all-products-view__card-name">{product.name[language]}</span>
-                <span className="all-products-view__card-category">{categoryById.get(product.category)?.name[language]}</span>
+                <span className="all-products-view__card-category">
+                  {product.category ? categoryById.get(product.category)?.name[language] : t('admin.products.noCategoryColumnLabel')}
+                </span>
                 <div className="all-products-view__card-badges">
                   {!product.available && <Badge variant="neutral">{t('admin.products.hiddenLabel')}</Badge>}
                   {isProductOutOfStock(product) && <Badge variant="warning">{t('admin.products.soldOutLabel')}</Badge>}
@@ -73,7 +81,14 @@ export function AllProductsView({ catalogue }: AllProductsViewProps) {
 
       <Modal open={editingProduct !== null} onClose={closeForm} title={t('admin.products.editProduct')}>
         {editingProduct && (
-          <ProductForm product={editingProduct} defaultCategoryId={editingProduct.category} catalogueCategories={catalogue.categories} onSave={handleSave} onCancel={closeForm} />
+          <ProductForm
+            product={editingProduct}
+            catalogueId={catalogue.id}
+            defaultCategoryId={editingProduct.category}
+            catalogueCategories={catalogue.categories}
+            onSave={handleSave}
+            onCancel={closeForm}
+          />
         )}
       </Modal>
     </div>

@@ -420,12 +420,16 @@ const ANTHROPIC_CREDENTIALS_FILE = join(DATA_DIR, 'anthropic-credentials.json')
 
 export type AssistantProvider = 'local' | 'claude'
 
+/** Which Claude model every assistant call uses — a cost/quality tradeoff the admin picks on the Integrations page's own Claude card (see `IntegrationsView.tsx`'s model selector for the actual pricing/quality description shown per option). Defaults to Haiku, the model this whole feature was originally validated against. */
+export type AssistantModel = 'claude-haiku-4-5' | 'claude-sonnet-4-5' | 'claude-opus-4-5'
+
 interface AnthropicCredentials {
   apiKey: string | null
   provider: AssistantProvider
+  model: AssistantModel
 }
 
-const EMPTY_ANTHROPIC_CREDENTIALS: AnthropicCredentials = { apiKey: null, provider: 'claude' }
+const EMPTY_ANTHROPIC_CREDENTIALS: AnthropicCredentials = { apiKey: null, provider: 'claude', model: 'claude-haiku-4-5' }
 
 function readAnthropicCredentials(): AnthropicCredentials {
   if (!existsSync(ANTHROPIC_CREDENTIALS_FILE)) return EMPTY_ANTHROPIC_CREDENTIALS
@@ -451,6 +455,14 @@ export function getAssistantProvider(): AssistantProvider {
 
 export function setAssistantProvider(provider: AssistantProvider) {
   writeAnthropicCredentials({ ...readAnthropicCredentials(), provider })
+}
+
+export function getAssistantModel(): AssistantModel {
+  return readAnthropicCredentials().model
+}
+
+export function setAssistantModel(model: AssistantModel) {
+  writeAnthropicCredentials({ ...readAnthropicCredentials(), model })
 }
 
 // How a screen's own `/screens/:screenId` link should be addressed (see

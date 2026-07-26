@@ -4,6 +4,8 @@ import { useCatalogues } from '../../hooks/useCatalogues'
 import { useCategoryPrices } from '../../hooks/useCategoryPrices'
 import { useProducts } from '../../hooks/useProducts'
 import { useLanguage } from '../../i18n'
+import type { CustomFieldDefinition } from '../../types/customFields'
+import type { Price, Product } from '../../types/product'
 import { formatPrice, getEffectivePrice } from '../../utils/price'
 import { allergenNames, dietaryTagNames } from '../../utils/productLabels'
 import { isProductOutOfStock } from '../../utils/productStock'
@@ -17,7 +19,7 @@ interface CatalogueSlideProps {
   categories?: string[]
 }
 
-/** Fullscreen, large-type rendering of an entire catalogue (or, via `categories`, a chosen subset of it) — every included category with at least one available item, in the same category/item layout as the public Menu page (title, description, optional image, and default price per category; each item's own name, price, and description) — for a screen display's "Catalogue" slot, tuned for TV viewing distance and made scrollable since it's usually taller than one screen. A category with no available items is skipped even if included; there's nothing useful to show for it on a display meant to be glanced at from across a room. An item's own price only shows when it has an individual override or a discount — one that's just inheriting the category/catalogue default already has that shown once, in the category's own header, so repeating it per item would be noise. */
+/** Fullscreen, large-type rendering of an entire catalogue (or, via `categories`, a chosen subset of it) — every included category with at least one available item, in the same category/item layout as the public Menu page (title, description, optional image, and default price per category; each item's own name, price, and description) — for a screen display's "Catalogue" slot, tuned for TV viewing distance and made scrollable since it's usually taller than one screen. A category with no available items is skipped even if included; there's nothing useful to show for it on a display meant to be glanced at from across a room. An item's own price only shows when it has an individual override or a discount — one that's just inheriting the category/catalogue default already has that shown once, in the category's own header, so repeating it per item would be noise. Any of the category's own custom fields (see `Category.customFields`) with a set value on the item render as one more label:value line, same style as the allergens/dietary-tags lines above them. */
 export function CatalogueSlide({ catalogueId, categories }: CatalogueSlideProps) {
   const { t, language } = useLanguage()
   const [products] = useProducts()
@@ -42,6 +44,12 @@ export function CatalogueSlide({ catalogueId, categories }: CatalogueSlideProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `categoriesKey` stands in for `categories` (see above); `catalogue`/`products` are the real object identities this should react to.
   }, [catalogue, products, categoriesKey])
 
+  // A catalogue's own products with no category at all (see `Product.catalogueId`) — rendered as one more trailing section, same item layout as a real category's, just with a generic heading and no category-level image/description/custom fields (those live on `Category`, which these products don't have).
+  const noCategoryItems = useMemo(
+    () => (catalogue ? products.filter((product) => !product.category && product.catalogueId === catalogue.id && product.available) : []),
+    [catalogue, products],
+  )
+
   return (
     <div className="catalogue-slide">
       {categoriesWithItems.map(({ category, items }) => {
@@ -57,42 +65,85 @@ export function CatalogueSlide({ catalogueId, categories }: CatalogueSlideProps)
               {defaultPrice !== undefined && <span className="catalogue-slide__category-price">{formatPrice(defaultPrice, t)}</span>}
             </div>
             <ul className="catalogue-slide__items">
-              {items.map((item) => {
-                const showPrice = item.discount !== undefined || item.price !== undefined
-                const effective = showPrice ? getEffectivePrice(item.price ?? defaultPrice, item.discount) : undefined
-                return (
-                  <li
-                    key={item.itemID}
-                    className={`catalogue-slide__item${item.discount ? ' catalogue-slide__item--discounted' : ''}${isProductOutOfStock(item) ? ' catalogue-slide__item--out-of-stock' : ''}`}
-                  >
-                    <div className="catalogue-slide__item-line">
-                      {item.image && <img className="catalogue-slide__item-image" src={getSmallUrl(item.image)} alt="" />}
-                      <h2>{item.name[language]}</h2>
-                      {effective && (
-                        <span className="catalogue-slide__item-price">
-                          <DiscountedPrice price={effective.original} discount={item.discount} t={t} />
-                        </span>
-                      )}
-                    </div>
-                    <p>{item.description[language]}</p>
-                    {item.allergens.length > 0 && (
-                      <p className="catalogue-slide__item-allergens">
-                        {t('menu.allergens.title')}: {allergenNames(item.allergens, t)}
-                      </p>
-                    )}
-                    {item.dietaryTags.length > 0 && (
-                      <p className="catalogue-slide__item-allergens">
-                        {t('menu.dietaryTags.title')}: {dietaryTagNames(item.dietaryTags, t)}
-                      </p>
-                    )}
-                    {isProductOutOfStock(item) && <span className="catalogue-slide__sold-out-label">{t('admin.products.soldOutLabel')}</span>}
-                  </li>
-                )
-              })}
+              {items.map((item) => (
+                <CatalogueSlideItem key={item.itemID} item={item} defaultPrice={defaultPrice} customFields={category.customFields ?? []} />
+              ))}
             </ul>
           </section>
         )
       })}
+
+      {noCategoryItems.length > 0 && (
+        <section className="catalogue-slide__category">
+          <div className="catalogue-slide__category-header">
+            <div className="catalogue-slide__category-heading">
+              <h1>{t('menu.otherItemsHeading')}</h1>
+            </div>
+            {catalogue?.price !== undefined && <span className="catalogue-slide__category-price">{formatPrice(catalogue.price, t)}</span>}
+          </div>
+          <ul className="catalogue-slide__items">
+            {noCategoryItems.map((item) => (
+              <CatalogueSlideItem key={item.itemID} item={item} defaultPrice={catalogue?.price} customFields={[]} />
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
+  )
+}
+
+interface CatalogueSlideItemProps {
+  item: Product
+  defaultPrice: Price | undefined
+  /** The owning category's own custom fields — empty for a no-category item, since those live on `Category` only. */
+  customFields: CustomFieldDefinition[]
+}
+
+/** One product's own line within a `CatalogueSlide` section — name, price (only when it has its own override or a discount), description, allergens/dietary tags, any set custom field values, and an out-of-stock stamp. Extracted since both a real category's own section and the trailing "no category" one render this identically. */
+function CatalogueSlideItem({ item, defaultPrice, customFields }: CatalogueSlideItemProps) {
+  const { t, language } = useLanguage()
+  const showPrice = item.discount !== undefined || item.price !== undefined
+  const effective = showPrice ? getEffectivePrice(item.price ?? defaultPrice, item.discount) : undefined
+
+  return (
+    <li className={`catalogue-slide__item${item.discount ? ' catalogue-slide__item--discounted' : ''}${isProductOutOfStock(item) ? ' catalogue-slide__item--out-of-stock' : ''}`}>
+      <div className="catalogue-slide__item-line">
+        {item.image && <img className="catalogue-slide__item-image" src={getSmallUrl(item.image)} alt="" />}
+        <h2>{item.name[language]}</h2>
+        {effective && (
+          <span className="catalogue-slide__item-price">
+            <DiscountedPrice price={effective.original} discount={item.discount} t={t} />
+          </span>
+        )}
+      </div>
+      <p>{item.description[language]}</p>
+      {item.allergens.length > 0 && (
+        <p className="catalogue-slide__item-allergens">
+          {t('menu.allergens.title')}: {allergenNames(item.allergens, t)}
+        </p>
+      )}
+      {item.dietaryTags.length > 0 && (
+        <p className="catalogue-slide__item-allergens">
+          {t('menu.dietaryTags.title')}: {dietaryTagNames(item.dietaryTags, t)}
+        </p>
+      )}
+      {customFields.map((field) => {
+        const value = item.customFieldValues?.[field.id]
+        if (value === undefined) return null
+        const displayValue =
+          field.type === 'boolean'
+            ? t(value ? 'admin.common.yes' : 'admin.common.no')
+            : field.type === 'select'
+              ? (field.options ?? []).find((option) => option.id === value)?.label[language]
+              : String(value)
+        if (displayValue === undefined) return null
+        return (
+          <p key={field.id} className="catalogue-slide__item-allergens">
+            {field.label[language]}: {displayValue}
+          </p>
+        )
+      })}
+      {isProductOutOfStock(item) && <span className="catalogue-slide__sold-out-label">{t('admin.products.soldOutLabel')}</span>}
+    </li>
   )
 }

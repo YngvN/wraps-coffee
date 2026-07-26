@@ -1,0 +1,123 @@
+@use '../../../styles/variables' as *;
+
+.custom-field-list-editor__label {
+  display: block;
+  font-weight: 600;
+}
+
+.custom-field-list-editor__hint {
+  margin: calc($spacing-unit / 4) 0 $spacing-unit;
+  color: $color-text-muted;
+  font-size: 0.8125rem;
+}
+
+.custom-field-list-editor__list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  margin: 0 0 $spacing-unit;
+  padding: 0;
+  list-style: none;
+}
+
+.custom-field-list-editor__item {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  padding: $spacing-unit;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+}
+
+.custom-field-list-editor__row {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+
+  .input-field {
+    flex: 1;
+  }
+}
+
+.custom-field-list-editor__remove {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: $color-error;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
+.custom-field-list-editor__options {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  padding-left: calc($spacing-unit * 1.5);
+  border-left: 2px solid $color-border;
+}
+
+.custom-field-list-editor__option-list {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.custom-field-list-editor__option-item {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+
+  .input-field {
+    flex: 1;
+  }
+}
+
+.custom-field-list-editor__add-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  width: 100%;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: $color-text;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+
+  &--nested {
+    padding: calc($spacing-unit / 2) $spacing-unit;
+    font-weight: 400;
+    font-size: 0.875rem;
+  }
+}

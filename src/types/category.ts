@@ -1,4 +1,5 @@
 import type { BilingualText } from './bilingual'
+import type { CustomFieldDefinition } from './customFields'
 import type { Price } from './product'
 
 /**
@@ -6,7 +7,7 @@ import type { Price } from './product'
  * — fully admin-created/renameable, unlike the old fixed `ProductCategory`
  * union it replaces. Its position within the owning `Catalogue.categories`
  * array is its own display order (drag-reorderable in the admin UI, see
- * `SortableList`).
+ * `CategoriesView`).
  */
 export interface Category {
   id: string
@@ -14,6 +15,8 @@ export interface Category {
   description?: BilingualText
   /** Optional illustration/photo, set via `ImageUploadField` — shown as a small thumbnail in the admin category list and as a header image on the kiosk "Catalogue" slide. Omitted entirely for a category with no image. */
   image?: string
+  /** Admin-defined extra fields specific to this category's own kind of product (e.g. "Bedrooms" for a "Houses" category, "Mileage" for a "Cars" one) — lets the same Product/Category system sell things beyond food. Empty/omitted for a traditional food category. See `CustomFieldDefinition`. */
+  customFields?: CustomFieldDefinition[]
 }
 
 /**

@@ -2,8 +2,6 @@ import Anthropic from '@anthropic-ai/sdk'
 import * as store from '../store'
 import { AssistantNotConfiguredError, type AssistantJsonSchema } from './types'
 
-const MODEL = 'claude-haiku-4-5'
-
 /** An image attached to a chat message, ready to hand to Claude as vision input — see the plan's "two independent roles" note (asset storage is handled entirely client-side; this is only the vision-extraction half). */
 export interface AssistantImageInput {
   mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
@@ -45,7 +43,7 @@ async function callTool<T>(input: ToolCallInput): Promise<T> {
   // strict tool use (guarantees `input` validates against `schema` exactly)
   // is only exposed on the beta messages endpoint in this SDK version.
   const response = await client.beta.messages.create({
-    model: MODEL,
+    model: store.getAssistantModel(),
     max_tokens: 1024,
     system: input.systemPrompt,
     messages: [{ role: 'user', content: userContent }],

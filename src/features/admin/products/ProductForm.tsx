@@ -3,6 +3,7 @@ import { Button, Checkbox, ImageUploadField, Input, LanguageTabs, Textarea } fro
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { availableLanguages, useLanguage, type LanguageCode } from '../../../i18n'
 import type { Category } from '../../../types/category'
+import type { CustomFieldDefinition } from '../../../types/customFields'
 import { ALLERGEN_OPTIONS, DIETARY_TAG_ORDER, type AllergenCode, type DietaryTag, type Discount, type Price, type Product } from '../../../types/product'
 import { initialActiveLanguages } from '../../../utils/bilingual'
 import './ProductForm.scss'
@@ -16,28 +17,81 @@ function priceModeOf(price: Price | undefined): PriceMode {
   return typeof price === 'number' ? 'flat' : 'dual'
 }
 
+/** Drops any value for a field the *current* category doesn't define — switching category (which can change what fields even apply) shouldn't leave a previous category's values lingering in what gets saved. */
+function relevantCustomFieldValues(values: Record<string, string | number | boolean>, defs: CustomFieldDefinition[]): Record<string, string | number | boolean> | undefined {
+  const filtered = Object.fromEntries(Object.entries(values).filter(([fieldId]) => defs.some((field) => field.id === fieldId)))
+  return Object.keys(filtered).length > 0 ? filtered : undefined
+}
+
+interface CustomFieldControlProps {
+  field: CustomFieldDefinition
+  value: string | number | boolean | undefined
+  language: LanguageCode
+  onChange: (value: string | number | boolean) => void
+}
+
+/** One input for a single product-level custom field value, shaped per the field's own declared type (see `Category.customFields`). */
+function CustomFieldControl({ field, value, language, onChange }: CustomFieldControlProps) {
+  if (field.type === 'boolean') {
+    return <Checkbox id={`product-custom-field-${field.id}`} label={field.label[language]} checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} />
+  }
+  if (field.type === 'select') {
+    return (
+      <label className="product-form__field">
+        <span>{field.label[language]}</span>
+        <select value={typeof value === 'string' ? value : ''} onChange={(event) => onChange(event.target.value)}>
+          <option value="" />
+          {(field.options ?? []).map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label[language]}
+            </option>
+          ))}
+        </select>
+      </label>
+    )
+  }
+  if (field.type === 'number') {
+    return (
+      <Input
+        id={`product-custom-field-${field.id}`}
+        type="number"
+        label={field.label[language]}
+        value={typeof value === 'number' ? value : ''}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+    )
+  }
+  return (
+    <Input id={`product-custom-field-${field.id}`} label={field.label[language]} value={typeof value === 'string' ? value : ''} onChange={(event) => onChange(event.target.value)} />
+  )
+}
+
 interface ProductFormProps {
   /** The product being edited, or `null` when creating a new one. */
   product: Product | null
-  /** Category to default to when creating a new product. */
-  defaultCategoryId: string
+  /** The catalogue this form is scoped to — every category offered belongs to it, and it's what a new product's `catalogueId` is set to when "No category" is picked. This form only ever moves a product within this one catalogue's own categories (or out to no-category within it); moving to a genuinely different catalogue is the dedicated "Move to another catalogue…" action instead (see `ProductRow.tsx`). */
+  catalogueId: string
+  /** Category to default to when creating a new product — omit for "no category" (e.g. creating directly from the catalogue's own "No category" section). */
+  defaultCategoryId?: string
   /** Every category in the same catalogue, for the recategorize `<select>`. */
   catalogueCategories: Category[]
+  /** Shows only this one language tab initially, instead of the usual cafe-default-plus-whatever-already-has-content set — used when this form is mounted for an AI assistant review (`AssistantPanel.tsx`), so the review only ever shows the language the admin was just chatting in, not every language the product happens to already have content in. The admin can still add another tab manually either way. */
+  forceLanguage?: LanguageCode
   onSave: (product: Product) => void
   onCancel: () => void
 }
 
-/** Create/edit form for a single menu product: bilingual name/description, category, image, price, discount, allergen and dietary-tag checkboxes, availability, and out-of-stock (temporarily unorderable, but still shown, unlike unavailable) — either set manually, or, once "Track stock" is on, derived automatically from a live quantity instead (see `isProductOutOfStock` in `src/utils/productStock.ts`; the manual checkbox is hidden while stock tracking owns the answer). */
-export function ProductForm({ product, defaultCategoryId, catalogueCategories, onSave, onCancel }: ProductFormProps) {
+/** Create/edit form for a single menu product: bilingual name/description, category (or none — a product can live directly in the catalogue instead), image, the selected category's own custom fields (if it defines any — see `Category.customFields`; changes as `category` changes), price, discount, allergen and dietary-tag checkboxes, availability, and out-of-stock (temporarily unorderable, but still shown, unlike unavailable) — either set manually, or, once "Track stock" is on, derived automatically from a live quantity instead (see `isProductOutOfStock` in `src/utils/productStock.ts`; the manual checkbox is hidden while stock tracking owns the answer). */
+export function ProductForm({ product, catalogueId, defaultCategoryId, catalogueCategories, forceLanguage, onSave, onCancel }: ProductFormProps) {
   const { t, language } = useLanguage()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
-  const [category, setCategory] = useState(product?.category ?? defaultCategoryId)
+  const [category, setCategory] = useState(product?.category ?? defaultCategoryId ?? '')
   const [name, setName] = useState(product?.name ?? { en: '', no: '' })
   const [description, setDescription] = useState(product?.description ?? { en: '', no: '' })
   const [activeLanguages, setActiveLanguages] = useState<LanguageCode[]>(() =>
-    initialActiveLanguages(defaultPaneLanguage, [product?.name, product?.description], availableLanguages.map((option) => option.code)),
+    forceLanguage ? [forceLanguage] : initialActiveLanguages(defaultPaneLanguage, [product?.name, product?.description], availableLanguages.map((option) => option.code)),
   )
-  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(defaultPaneLanguage)
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(forceLanguage ?? defaultPaneLanguage)
   const [image, setImage] = useState(product?.image ?? '')
   const [priceMode, setPriceMode] = useState<PriceMode>(priceModeOf(product?.price))
   const [flatPrice, setFlatPrice] = useState(typeof product?.price === 'number' ? product.price : 0)
@@ -52,6 +106,14 @@ export function ProductForm({ product, defaultCategoryId, catalogueCategories, o
   const [outOfStock, setOutOfStock] = useState(product?.outOfStock ?? false)
   const [trackStock, setTrackStock] = useState(product?.trackStock ?? false)
   const [stockQuantity, setStockQuantity] = useState(product?.stockQuantity ?? 0)
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string | number | boolean>>(product?.customFieldValues ?? {})
+
+  /** The selected category's own custom-field schema (e.g. "Bedrooms" for a "Houses" category) — changes as `category` changes, since a different category can define entirely different fields. */
+  const customFieldDefs: CustomFieldDefinition[] = catalogueCategories.find((option) => option.id === category)?.customFields ?? []
+
+  const setCustomFieldValue = (fieldId: string, value: string | number | boolean) => {
+    setCustomFieldValues((current) => ({ ...current, [fieldId]: value }))
+  }
 
   const addLanguage = (nextLanguage: LanguageCode) => {
     setActiveLanguages([...activeLanguages, nextLanguage])
@@ -72,10 +134,14 @@ export function ProductForm({ product, defaultCategoryId, catalogueCategories, o
     const price: Price | undefined = priceMode === 'inherit' ? undefined : priceMode === 'flat' ? flatPrice : { takeaway: takeawayPrice, eatIn: eatInPrice }
     const discount: Discount | undefined =
       discountMode === 'none' ? undefined : discountMode === 'percentage' ? { type: 'percentage', percentage: discountPercentage } : { type: 'amount', amount: discountAmount }
+    // This runs only inside `handleSubmit` (a form submit handler), never during render — `react-hooks/purity` appears to mis-flag it as an in-render impure call once this file's custom-field controls (further below) are also present, an apparent false positive of this still-experimental lint rule.
+    // eslint-disable-next-line react-hooks/purity
+    const itemID = product?.itemID ?? `${category || catalogueId}-${Date.now()}`
 
     onSave({
-      itemID: product?.itemID ?? `${category}-${Date.now()}`,
-      category,
+      itemID,
+      category: category || undefined,
+      catalogueId: category ? undefined : catalogueId,
       name,
       description,
       image: image || undefined,
@@ -87,6 +153,7 @@ export function ProductForm({ product, defaultCategoryId, catalogueCategories, o
       outOfStock,
       trackStock,
       stockQuantity,
+      customFieldValues: relevantCustomFieldValues(customFieldValues, customFieldDefs),
     })
   }
 
@@ -95,6 +162,7 @@ export function ProductForm({ product, defaultCategoryId, catalogueCategories, o
       <label className="product-form__field">
         <span>{t('admin.products.categoryLabel')}</span>
         <select value={category} onChange={(event) => setCategory(event.target.value)}>
+          <option value="">{t('admin.products.noCategoryOption')}</option>
           {catalogueCategories.map((option) => (
             <option key={option.id} value={option.id}>
               {option.name[language]}
@@ -109,7 +177,7 @@ export function ProductForm({ product, defaultCategoryId, catalogueCategories, o
           label={t('admin.products.nameLabel')}
           value={name[selectedLanguage]}
           onChange={(event) => setName({ ...name, [selectedLanguage]: event.target.value })}
-          required={selectedLanguage === defaultPaneLanguage}
+          required={selectedLanguage === (forceLanguage ?? defaultPaneLanguage)}
         />
 
         <Textarea
@@ -124,6 +192,15 @@ export function ProductForm({ product, defaultCategoryId, catalogueCategories, o
         <span>{t('admin.products.productImageLabel')}</span>
         <ImageUploadField id="product-image" value={image} onChange={setImage} />
       </label>
+
+      {customFieldDefs.length > 0 && (
+        <fieldset className="product-form__custom-fields">
+          <legend>{t('admin.products.customFieldsLabel')}</legend>
+          {customFieldDefs.map((field) => (
+            <CustomFieldControl key={field.id} field={field} value={customFieldValues[field.id]} language={language} onChange={(value) => setCustomFieldValue(field.id, value)} />
+          ))}
+        </fieldset>
+      )}
 
       <fieldset className="product-form__price">
         <legend>{t('admin.products.priceLabel')}</legend>

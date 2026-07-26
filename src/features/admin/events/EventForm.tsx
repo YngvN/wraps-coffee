@@ -9,6 +9,8 @@ import './EventForm.scss'
 interface EventFormProps {
   /** The event being edited, or `null` when creating a new one. */
   event: EventRecord | null
+  /** Shows only this one language tab initially, instead of the usual cafe-default-plus-whatever-already-has-content set — used when this form is mounted for an AI assistant review (`AssistantPanel.tsx`), so the review only ever shows the language the admin was just chatting in. The admin can still add another tab manually either way. */
+  forceLanguage?: LanguageCode
   onSave: (event: EventRecord) => void
   onCancel: () => void
 }
@@ -28,15 +30,15 @@ const WEEKDAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'f
  * exposed here — they're preserved unchanged on edit and default to empty on
  * create.
  */
-export function EventForm({ event, onSave, onCancel }: EventFormProps) {
+export function EventForm({ event, forceLanguage, onSave, onCancel }: EventFormProps) {
   const { t } = useLanguage()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
   const [title, setTitle] = useState(event?.title ?? { en: '', no: '' })
   const [description, setDescription] = useState(event?.description ?? { en: '', no: '' })
   const [activeLanguages, setActiveLanguages] = useState<LanguageCode[]>(() =>
-    initialActiveLanguages(defaultPaneLanguage, [event?.title, event?.description], availableLanguages.map((language) => language.code)),
+    forceLanguage ? [forceLanguage] : initialActiveLanguages(defaultPaneLanguage, [event?.title, event?.description], availableLanguages.map((language) => language.code)),
   )
-  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(defaultPaneLanguage)
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(forceLanguage ?? defaultPaneLanguage)
   const [category, setCategory] = useState(event?.category ?? '')
   const [date, setDate] = useState(event?.date ?? '')
   const [time, setTime] = useState(event?.time ?? '')
@@ -96,7 +98,7 @@ export function EventForm({ event, onSave, onCancel }: EventFormProps) {
           label={t('admin.events.titleLabel')}
           value={title[selectedLanguage]}
           onChange={(e) => setTitle({ ...title, [selectedLanguage]: e.target.value })}
-          required={selectedLanguage === defaultPaneLanguage}
+          required={selectedLanguage === (forceLanguage ?? defaultPaneLanguage)}
         />
 
         <Textarea

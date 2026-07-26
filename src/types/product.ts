@@ -34,8 +34,10 @@ export type CategoryPrices = Partial<Record<string, Price>>
 /** A single sellable menu product, editable via the admin Products view and rendered on the public Menu page. */
 export interface Product {
   itemID: string
-  /** References a `Category.id` (see `src/types/category.ts`) within some `Catalogue`. */
-  category: string
+  /** References a `Category.id` (see `src/types/category.ts`) within some `Catalogue`. Omitted for a product that lives directly in a catalogue with no category — see `catalogueId` below. Exactly one of `category`/`catalogueId` is ever set. */
+  category?: string
+  /** Set exactly when `category` is unset — this product lives directly in this `Catalogue.id`, not grouped under any of its categories (e.g. a one-off item that doesn't fit the catalogue's usual categories). Use `resolveProductCatalogue` (`src/utils/productCatalogue.ts`) rather than reading either field directly, since call sites need to handle both cases. */
+  catalogueId?: string
   name: BilingualText
   description: BilingualText
   /** Optional photo, set via `ImageUploadField` — shown as a thumbnail in the admin product list row and beside the item on the kiosk "Catalogue" slide. */
@@ -53,4 +55,6 @@ export interface Product {
   trackStock?: boolean
   /** Only meaningful when `trackStock` is on. Decremented automatically as real orders come in (see `server/index.ts`'s `reconcileStockForOrders`), restored if an order is later cancelled, and editable directly (the product form, plus a quick inline field in the product list). */
   stockQuantity?: number
+  /** Values for the owning category's own `customFields` (see `src/types/customFields.ts`), keyed by each field's `id` — e.g. `{ 'field-123': 3 }` for a 3-bedroom house. A missing entry just means "not set" for that field; an entry for a field the category no longer defines (removed, or the product was moved to a different category) is inert dead data, same posture as an orphaned `CategoryPrices` entry. */
+  customFieldValues?: Record<string, string | number | boolean>
 }

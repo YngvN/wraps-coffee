@@ -1,0 +1,46 @@
+@use '../../../styles/variables' as *;
+
+.product-column {
+  margin-bottom: $spacing-unit;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &--drag-over {
+    border-color: $color-accent;
+    background: $color-surface-hover;
+  }
+}
+
+.product-column__count {
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: $color-surface-hover;
+  color: $color-text-muted;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.product-column__chevron {
+  display: inline-flex;
+  margin-left: auto;
+  transition: transform 0.15s ease;
+  color: $color-text-muted;
+
+  &--open {
+    transform: rotate(90deg);
+  }
+}
+
+.product-column__body {
+  padding: 0 calc($spacing-unit * 1.5) $spacing-unit;
+}
+
+.product-column__list {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

@@ -1,7 +1,7 @@
 import { validateEventDraft } from '../../../src/lib/assistantValidation'
 import type { EventRecord } from '../../../src/types/event'
 import * as store from '../../store'
-import { nullable, type AssistantCandidate, type AssistantEntity, type AssistantFillContext, type AssistantJsonSchema, type AssistantSession, type AssistantValidationIssue } from '../types'
+import { nullable, type AssistantCandidate, type AssistantEntity, type AssistantFillContext, type AssistantJsonSchema, type AssistantValidationIssue } from '../types'
 
 function liveEvents(): EventRecord[] {
   return (store.get('admin.events')?.value as EventRecord[] | undefined) ?? []
@@ -75,10 +75,10 @@ export const eventEntity: AssistantEntity<EventRecord> = {
     }
   },
 
-  async listCandidates(_action, _session: AssistantSession, searchText: string): Promise<AssistantCandidate[]> {
+  async listCandidates(_action, context: AssistantFillContext, searchText: string): Promise<AssistantCandidate[]> {
     const needle = searchText.trim().toLowerCase()
     const matches = liveEvents().filter((event) => !needle || event.title.no.toLowerCase().includes(needle) || event.title.en.toLowerCase().includes(needle))
-    return matches.slice(0, 30).map((event) => ({ id: event.eventID, label: `${event.title.no} / ${event.title.en} (${event.date})` }))
+    return matches.slice(0, 30).map((event) => ({ id: event.eventID, label: `${event.title[context.uiLanguage]} (${event.date})` }))
   },
 
   async getCurrent(id: string): Promise<EventRecord | null> {

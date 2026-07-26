@@ -1,4 +1,5 @@
 export * from './Alert'
+export * from './AnimatedDetails'
 export * from './BackButton'
 export * from './Badge'
 export * from './Button'

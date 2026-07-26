@@ -10,10 +10,9 @@ import type { Catalogue } from '../../../types/category'
 import { AllProductsView } from './AllProductsView'
 import { CatalogueForm } from './CatalogueForm'
 import { CategoriesView } from './CategoriesView'
-import { ProductListView } from './ProductListView'
 import './ProductsView.scss'
 
-/** Admin view for the Products hierarchy: catalogues (e.g. "Food menu", a separate "Merch" catalogue for non-food items) → each catalogue's own categories → each category's own products. Edits show up live on the kiosk display. */
+/** Admin view for the Products hierarchy: catalogues (e.g. "Food menu", a separate "Merch" catalogue for non-food items) → each catalogue's own categories, each expandable inline to show (and drag-and-drop reorganize) its own products — see `CategoriesView`, which owns that whole board; there's no separate per-category page anymore. Edits show up live on the kiosk display. */
 export function ProductsView() {
   const { t, language } = useLanguage()
   const [catalogues, setCatalogues] = useCatalogues()
@@ -21,10 +20,11 @@ export function ProductsView() {
   const [editingCatalogue, setEditingCatalogue] = useState<Catalogue | null | undefined>(undefined)
   const [searchParams, setSearchParams] = useSearchParams()
   const [openCatalogueId, setOpenCatalogueId] = useState<string | null>(null)
-  const [openCategoryId, setOpenCategoryId] = useState<string | null>(null)
   const [showAllProducts, setShowAllProducts] = useState(false)
-  /** Set from `?productId=` (search deep link) — passed to `ProductListView` so it opens that exact product's edit form on arrival. Cleared via `onConsumeInitialEditProduct` once consumed, so navigating back to categories and into the same one again doesn't reopen it. */
-  const [openProductId, setOpenProductId] = useState<string | null>(null)
+  /** Set from `?categoryId=` (search deep link) — passed to `CategoriesView` so it expands and scrolls/flashes that category's own section on arrival. Cleared via `onConsumeInitialDeepLink` once consumed. */
+  const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null)
+  /** Set from `?productId=` (search/notification deep link) — passed to `CategoriesView` so it expands the right section and opens that exact product's edit form on arrival. */
+  const [pendingProductId, setPendingProductId] = useState<string | null>(null)
   /** `1` while drilling into a deeper view, `-1` while going back — see `SlideTransition`. */
   const [direction, setDirection] = useState<1 | -1>(1)
   /** Guards the deep-link effect below so it only ever actually opens the drill-down once — `catalogues` starts out as the bundled seed and only gets its real contents once the WS snapshot arrives a moment later, so this effect has to keep re-checking as `catalogues` updates rather than running once on mount; without this ref it would re-open the drill-down on every later `catalogues` change too, even long after the admin has since navigated elsewhere. */
@@ -32,19 +32,18 @@ export function ProductsView() {
 
   /**
    * Deep-link support: `?catalogueId=<id>&categoryId=<id>&productId=<id>`
-   * opens straight into that catalogue (and, if given, that category and
-   * product) instead of requiring clicks through the list — what the
-   * sidebar's tier-2 flyout, "recently opened" entries, and the global
-   * search results (see `useGlobalSearchIndex`) actually navigate to.
-   * Depends on
-   * `catalogues` (not just mount) since the target may not exist yet in it
-   * on the very first render (see `consumedDeepLinkRef`); once found, the
-   * state updates are deferred via `queueMicrotask` rather than called
-   * directly in the effect body, which is what this codebase's own "no
-   * synchronous setState in an effect" lint rule requires (see
-   * `useIdleTimer.ts` for the same rule hit elsewhere) — `setSearchParams`
-   * itself is exempt from that rule, so stripping the params happens
-   * directly, right here.
+   * opens straight into that catalogue (and, if given, expands that category
+   * and/or opens that product's editor) instead of requiring clicks through
+   * the list — what the sidebar's tier-2 flyout, "recently opened" entries,
+   * and the global search results (see `useGlobalSearchIndex`) actually
+   * navigate to. Depends on `catalogues` (not just mount) since the target
+   * may not exist yet in it on the very first render (see
+   * `consumedDeepLinkRef`); once found, the state updates are deferred via
+   * `queueMicrotask` rather than called directly in the effect body, which
+   * is what this codebase's own "no synchronous setState in an effect" lint
+   * rule requires (see `useIdleTimer.ts` for the same rule hit elsewhere) —
+   * `setSearchParams` itself is exempt from that rule, so stripping the
+   * params happens directly, right here.
    */
   useEffect(() => {
     if (consumedDeepLinkRef.current) return
@@ -59,12 +58,12 @@ export function ProductsView() {
     queueMicrotask(() => {
       setOpenCatalogueId(catalogue.id)
       if (category) {
-        setOpenCategoryId(category.id)
+        setPendingCategoryId(category.id)
         recordRecentlyOpened('category', category.id, category.name[language])
-        if (productId) setOpenProductId(productId)
       } else if (wantsAllProducts) {
         setShowAllProducts(true)
       }
+      if (productId) setPendingProductId(productId)
     })
     setSearchParams((current) => {
       current.delete('catalogueId')
@@ -91,7 +90,6 @@ export function ProductsView() {
   }
 
   const openCatalogue = catalogues.find((catalogue) => catalogue.id === openCatalogueId)
-  const openCategory = openCatalogue?.categories.find((category) => category.id === openCategoryId)
 
   const handleOpenCatalogue = (catalogueId: string) => {
     setDirection(1)
@@ -100,18 +98,7 @@ export function ProductsView() {
   const handleBackToCatalogues = () => {
     setDirection(-1)
     setOpenCatalogueId(null)
-    setOpenCategoryId(null)
     setShowAllProducts(false)
-  }
-  const handleOpenCategory = (categoryId: string) => {
-    setDirection(1)
-    setOpenCategoryId(categoryId)
-    const category = openCatalogue?.categories.find((candidate) => candidate.id === categoryId)
-    if (category) recordRecentlyOpened('category', category.id, category.name[language])
-  }
-  const handleBackToCategories = () => {
-    setDirection(-1)
-    setOpenCategoryId(null)
   }
   const handleOpenAllProducts = () => {
     setDirection(1)
@@ -123,40 +110,35 @@ export function ProductsView() {
   }
 
   /**
-   * Registers each level of the catalogue → category/all-products drill-down
-   * with the shared browser-back stack (see `useBackLevel`), so the mouse's
-   * back button closes one level at a time, exactly the way each level's own
-   * Back button does. `openCategoryId`/`showAllProducts` nest one level
-   * deeper than `openCatalogueId`, matching the actual view hierarchy.
+   * Registers each level of the catalogue → all-products drill-down with the
+   * shared browser-back stack (see `useBackLevel`), so the mouse's back
+   * button closes one level at a time, exactly the way each level's own Back
+   * button does. `showAllProducts` nests one level deeper than
+   * `openCatalogueId`, matching the actual view hierarchy.
    */
   useBackLevel(openCatalogueId !== null, handleBackToCatalogues)
-  useBackLevel(openCategoryId !== null, handleBackToCategories)
   useBackLevel(showAllProducts, handleBackFromAllProducts)
 
   const saveOpenCatalogue = (catalogue: Catalogue) => setCatalogues(catalogues.map((existing) => (existing.id === catalogue.id ? catalogue : existing)))
 
-  const view = openCatalogue && openCategory ? 'products' : openCatalogue && showAllProducts ? 'allProducts' : openCatalogue ? 'categories' : 'catalogues'
+  const view = openCatalogue && showAllProducts ? 'allProducts' : openCatalogue ? 'categories' : 'catalogues'
 
   return (
     <>
       <SlideTransition viewKey={view} direction={direction}>
-        {view === 'products' && openCatalogue && openCategory ? (
-          <ProductListView
-            category={openCategory}
-            catalogueCategories={openCatalogue.categories}
-            cataloguePrice={openCatalogue.price}
-            catalogueName={openCatalogue.name[language]}
-            initialEditProductId={openProductId ?? undefined}
-            onConsumeInitialEditProduct={() => setOpenProductId(null)}
-          />
-        ) : view === 'allProducts' && openCatalogue ? (
+        {view === 'allProducts' && openCatalogue ? (
           <AllProductsView catalogue={openCatalogue} />
         ) : view === 'categories' && openCatalogue ? (
           <CategoriesView
             catalogue={openCatalogue}
             onSaveCatalogue={saveOpenCatalogue}
-            onOpenCategory={handleOpenCategory}
             onOpenAllProducts={handleOpenAllProducts}
+            initialExpandCategoryId={pendingCategoryId ?? undefined}
+            initialEditProductId={pendingProductId ?? undefined}
+            onConsumeInitialDeepLink={() => {
+              setPendingCategoryId(null)
+              setPendingProductId(null)
+            }}
           />
         ) : (
           <div className="products-view">

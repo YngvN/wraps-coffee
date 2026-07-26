@@ -109,7 +109,7 @@ export async function selectItem(
   const entity = requireAccessibleEntity(entityKey, session)
   if (!entity.listCandidates) throw new Error(`"${entityKey}" has nothing to select from.`)
 
-  const candidates = await entity.listCandidates(action, session, searchText)
+  const candidates = await entity.listCandidates(action, { uiLanguage, session }, searchText)
   if (candidates.length === 0) return { itemID: null, candidates: [] }
   if (candidates.length === 1) return { itemID: candidates[0].id, candidates }
 
@@ -145,10 +145,19 @@ export async function selectItem(
   return { itemID: result.itemID, candidates }
 }
 
-export interface FillFieldsResult {
-  draft: unknown
-  issues: AssistantValidationIssue[]
+export interface FillFieldsClarification {
+  field: string
+  questionKey: string
+  options: AssistantCandidate[]
 }
+
+/**
+ * `'clarify'` — one or more fields worth stopping for (see `AssistantEntity.clarifiableFields`)
+ * came back unresolved; the caller shows a multiple-choice question per entry
+ * and re-calls `fillFields` with `resolvedFields` set before anything is
+ * merged or validated. `'ready'` — the normal staged-draft result.
+ */
+export type FillFieldsResult = { status: 'ready'; draft: unknown; issues: AssistantValidationIssue[] } | { status: 'clarify'; clarifications: FillFieldsClarification[] }
 
 /** Step 3 — generate-then-verify field extraction, merged onto the current item (update/resetPassword) or empty defaults (create), then run through the entity's own `validate()`. Never writes anything — see the plan's hard invariant; the caller only ever receives a staged draft to review. */
 export async function fillFields(
@@ -157,14 +166,15 @@ export async function fillFields(
   session: AssistantSession,
   message: string,
   uiLanguage: 'no' | 'en',
-  options: { itemID?: string; image?: AssistantImageInput; priorDraft?: unknown } = {},
+  options: { itemID?: string; image?: AssistantImageInput; priorDraft?: unknown; resolvedFields?: Record<string, string> } = {},
 ): Promise<FillFieldsResult> {
   requireImplementedProvider()
   const entity = requireAccessibleEntity(entityKey, session)
 
-  const current = options.itemID && entity.getCurrent ? await entity.getCurrent(options.itemID, session) : null
   const context: AssistantFillContext = { uiLanguage, session }
-  const schema = entity.fillFieldsSchema(action, context)
+  const current = options.itemID && entity.getCurrent ? await entity.getCurrent(options.itemID, context) : null
+  const knownDraft = current ?? options.priorDraft
+  const schema = entity.fillFieldsSchema(action, context, knownDraft ?? undefined)
 
   const userText = options.priorDraft
     ? `The admin said the previously-proposed draft was still wrong. Previous draft: ${JSON.stringify(options.priorDraft)}\n\nCorrection: ${message}`
@@ -179,7 +189,7 @@ export async function fillFields(
     .filter(Boolean)
     .join('\n\n')
 
-  const rawFields = await generateThenVerify<unknown>({
+  const rawFields = await generateThenVerify<Record<string, unknown>>({
     systemPrompt,
     userText,
     image: options.image,
@@ -188,7 +198,19 @@ export async function fillFields(
     schema,
   })
 
-  const draft = entity.mergeDraft(action, current, rawFields, context)
+  // The admin's own answers to a prior clarifying round are authoritative — they override whatever the model itself proposed (or failed to) for that same field.
+  const fields = { ...rawFields, ...options.resolvedFields }
+
+  // The entity itself decides which fields (if any) are still genuinely unresolved, given everything the model already proposed — see `clarifiableFields`'s own doc comment.
+  const unresolved = (await entity.clarifiableFields?.(action, context, fields)) ?? []
+  // Same "0/1 candidates skips the model" fast path as `selectItem` — a single real option is nothing to actually choose between, so it's applied directly rather than asked about.
+  for (const candidate of unresolved) {
+    if (candidate.options.length === 1) fields[candidate.field] = candidate.options[0].id
+  }
+  const clarifications = unresolved.filter((candidate) => candidate.options.length > 1)
+  if (clarifications.length > 0) return { status: 'clarify', clarifications }
+
+  const draft = entity.mergeDraft(action, current, fields, context)
   const issues = entity.validate(action, draft, context)
-  return { draft, issues }
+  return { status: 'ready', draft, issues }
 }

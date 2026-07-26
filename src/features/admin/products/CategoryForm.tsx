@@ -3,28 +3,34 @@ import { Button, ImageUploadField, Input, LanguageTabs, Textarea } from '../../.
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { availableLanguages, useLanguage, type LanguageCode } from '../../../i18n'
 import type { Category } from '../../../types/category'
+import type { CustomFieldDefinition } from '../../../types/customFields'
 import { initialActiveLanguages } from '../../../utils/bilingual'
 import { CategoryPriceEditor } from './CategoryPriceEditor'
+import { CustomFieldListEditor } from './CustomFieldListEditor'
 import './ProductForm.scss'
 
 interface CategoryFormProps {
   /** The category being edited, or `null` when creating a new one. */
   category: Category | null
+  /** Shows only this one language tab initially, instead of the usual cafe-default-plus-whatever-already-has-content set — used when this form is mounted for an AI assistant review (`AssistantPanel.tsx`), so the review only ever shows the language the admin was just chatting in. The admin can still add another tab manually either way. */
+  forceLanguage?: LanguageCode
   onSave: (category: Category) => void
   onCancel: () => void
 }
 
-/** Create/edit form for a category: bilingual name (required) and description (optional) — one language shown at a time, via `LanguageTabs` — an optional image, and — once it already exists — its own default price editor (a brand-new category has no id to key a price by yet; that's set from here once it's been saved and reopened). */
-export function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) {
+/** Create/edit form for a category: bilingual name (required) and description (optional) — one language shown at a time, via `LanguageTabs` — an optional image, its own custom-field schema (`CustomFieldListEditor`, e.g. "Bedrooms" for a "Houses" category — see `Category.customFields`), and — once it already exists — its own default price editor (a brand-new category has no id to key a price by yet; that's set from here once it's been saved and reopened). */
+export function CategoryForm({ category, forceLanguage, onSave, onCancel }: CategoryFormProps) {
   const { t } = useLanguage()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
+  const requiredLanguage = forceLanguage ?? defaultPaneLanguage
   const [name, setName] = useState(category?.name ?? { en: '', no: '' })
   const [description, setDescription] = useState(category?.description ?? { en: '', no: '' })
   const [image, setImage] = useState(category?.image ?? '')
+  const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>(category?.customFields ?? [])
   const [activeLanguages, setActiveLanguages] = useState<LanguageCode[]>(() =>
-    initialActiveLanguages(defaultPaneLanguage, [category?.name, category?.description], availableLanguages.map((language) => language.code)),
+    forceLanguage ? [forceLanguage] : initialActiveLanguages(defaultPaneLanguage, [category?.name, category?.description], availableLanguages.map((language) => language.code)),
   )
-  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(defaultPaneLanguage)
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(requiredLanguage)
 
   const addLanguage = (language: LanguageCode) => {
     setActiveLanguages([...activeLanguages, language])
@@ -39,6 +45,7 @@ export function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) 
       name,
       description: hasDescription ? description : undefined,
       image: image || undefined,
+      customFields: customFields.length > 0 ? customFields : undefined,
     })
   }
 
@@ -67,6 +74,8 @@ export function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) 
       </label>
 
       {category && <CategoryPriceEditor categoryId={category.id} />}
+
+      <CustomFieldListEditor fields={customFields} selectedLanguage={selectedLanguage} onChange={setCustomFields} />
 
       <div className="product-form__actions">
         <Button type="button" variant="secondary" onClick={onCancel}>

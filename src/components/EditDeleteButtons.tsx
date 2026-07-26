@@ -3,12 +3,15 @@ import { Button } from './Button'
 import { CopyIcon } from './CopyIcon'
 import { EditIcon } from './EditIcon'
 import './EditDeleteButtons.scss'
+import { MoveIcon } from './MoveIcon'
 import { TrashIcon } from './TrashIcon'
 
 interface EditDeleteButtonsProps {
   onEdit: () => void
   /** Adds a "Duplicate" button between Edit and Delete — e.g. the Screens list, whose cards need a copy action the Products/Events lists don't. Omit (as they do) for a plain Edit/Delete pair. */
   onDuplicate?: () => void
+  /** Adds a "Move" button between Edit/Duplicate and Delete — e.g. the products board's own cross-catalogue "Move to…" action (`ProductRow.tsx`), which needs a small target picker same-catalogue drag-and-drop can't reach. Omit for a plain Edit/Delete pair. */
+  onMove?: () => void
   onDelete: () => void
 }
 
@@ -22,7 +25,7 @@ interface EditDeleteButtonsProps {
  * content. The icon stays regardless, so the action is still recognizable
  * at a glance; `aria-label` keeps it announced correctly either way.
  */
-export function EditDeleteButtons({ onEdit, onDuplicate, onDelete }: EditDeleteButtonsProps) {
+export function EditDeleteButtons({ onEdit, onDuplicate, onMove, onDelete }: EditDeleteButtonsProps) {
   const { t } = useLanguage()
   return (
     <>
@@ -34,6 +37,12 @@ export function EditDeleteButtons({ onEdit, onDuplicate, onDelete }: EditDeleteB
         <Button variant="secondary" className="edit-delete-buttons__button" onClick={onDuplicate} aria-label={t('admin.common.duplicate')}>
           <CopyIcon />
           <span className="edit-delete-buttons__label">{t('admin.common.duplicate')}</span>
+        </Button>
+      )}
+      {onMove && (
+        <Button variant="secondary" className="edit-delete-buttons__button" onClick={onMove} aria-label={t('admin.products.moveToOtherCatalogue')}>
+          <MoveIcon />
+          <span className="edit-delete-buttons__label">{t('admin.products.moveToOtherCatalogue')}</span>
         </Button>
       )}
       <Button variant="secondary" className="edit-delete-buttons__button" onClick={onDelete} aria-label={t('admin.common.delete')}>

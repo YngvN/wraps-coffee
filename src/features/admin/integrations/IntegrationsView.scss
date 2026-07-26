@@ -260,6 +260,48 @@
   padding: 0 calc($spacing-unit * 1.5) calc($spacing-unit * 1.5);
 }
 
+.integrations-view__assistant-models {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  margin: 0;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: 1px solid $color-border;
+  border-radius: 8px;
+
+  legend {
+    padding: 0 calc($spacing-unit / 2);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+}
+
+.integrations-view__assistant-model-option {
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-unit;
+  cursor: pointer;
+
+  input[type='radio'] {
+    margin-top: calc($spacing-unit / 4);
+  }
+}
+
+.integrations-view__assistant-model-text {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+  font-size: 0.875rem;
+
+  strong {
+    color: $color-text;
+  }
+
+  span {
+    color: $color-text-muted;
+  }
+}
+
 .integrations-view__mode-icons {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));

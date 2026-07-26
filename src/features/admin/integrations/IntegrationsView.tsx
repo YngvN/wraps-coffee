@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Alert, BackButton, Button, Checkbox, CloseIcon, FetchedLogo, Input, Modal, PlusIcon, SlideTransition, TranslatedText, YrLogo } from '../../../components'
+import { Alert, AnimatedDetails, BackButton, Button, Checkbox, CloseIcon, FetchedLogo, Input, Modal, PlusIcon, SlideTransition, TranslatedText, YrLogo } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useClockFormatPreference } from '../../../hooks/useClockFormatPreference'
 import { useContactInfo } from '../../../hooks/useContactInfo'
@@ -24,6 +24,7 @@ import {
   setWoltCredentials,
   triggerFoodoraSync,
   triggerWoltSync,
+  type AssistantModel,
 } from '../../../lib/localServer'
 import type { IntegrationsConfig, NearbyStop, WeatherLocation } from '../../../types/integrations'
 import { NEWS_SOURCES } from '../../../types/news'
@@ -34,7 +35,6 @@ import { generateId } from '../../../utils/id'
 import { TRANSIT_MODES } from '../../../utils/transitModes'
 import { weatherLocationKey } from '../../../utils/weatherLocationKey'
 import { ActivationToggle } from './ActivationToggle'
-import { AnimatedDetails } from './AnimatedDetails'
 import { ComingSoonSection } from './ComingSoonSection'
 import { IntegrationSearchBar } from './IntegrationSearchBar'
 import { IntegrationSearchResults } from './IntegrationSearchResults'
@@ -166,6 +166,8 @@ export function IntegrationsView() {
   const [hasSavedAssistantKey, setHasSavedAssistantKey] = useState(false)
   const [isSavingAssistantKey, setIsSavingAssistantKey] = useState(false)
   const [assistantKeyError, setAssistantKeyError] = useState<string | null>(null)
+  const [assistantModel, setAssistantModelState] = useState<AssistantModel>('claude-haiku-4-5')
+  const [isSavingAssistantModel, setIsSavingAssistantModel] = useState(false)
   const [isLookingUp, setIsLookingUp] = useState(false)
   const [lookupError, setLookupError] = useState<string | null>(null)
   const [lookingUpLocationId, setLookingUpLocationId] = useState<string | null>(null)
@@ -324,7 +326,10 @@ export function IntegrationsView() {
   useEffect(() => {
     if (!session) return
     getAssistantCredentialStatus(session.token)
-      .then(({ hasKey }) => setHasSavedAssistantKey(hasKey))
+      .then(({ hasKey, model }) => {
+        setHasSavedAssistantKey(hasKey)
+        setAssistantModelState(model)
+      })
       .catch(() => {
         // A `limited` account gets a 403 here — expected, not worth surfacing as an error.
       })
@@ -341,6 +346,18 @@ export function IntegrationsView() {
       })
       .catch(() => setAssistantKeyError(t('admin.integrations.assistantApiKeySaveError')))
       .finally(() => setIsSavingAssistantKey(false))
+  }
+
+  /** Saves immediately on pick — same posture as `AssistantProviderSection`'s own Local/Claude choice, a plain enum with nothing else to fill in first. */
+  const handleSelectAssistantModel = (model: AssistantModel) => {
+    if (!session || model === assistantModel) return
+    setIsSavingAssistantModel(true)
+    setAssistantCredentials(session.token, { model })
+      .then((status) => setAssistantModelState(status.model))
+      .catch(() => {
+        // Best-effort — the radio just won't visibly move if this fails, no dedicated error UI for a same-page enum pick.
+      })
+      .finally(() => setIsSavingAssistantModel(false))
   }
 
   // Loads the saved Foodora credentials once a session exists — same
@@ -1043,6 +1060,26 @@ export function IntegrationsView() {
         <Button type="button" variant="secondary" onClick={handleSaveAssistantApiKey} disabled={isSavingAssistantKey || !assistantApiKeyDraft.trim()}>
           {t('admin.common.save')}
         </Button>
+
+        <fieldset className="integrations-view__assistant-models">
+          <legend>{t('admin.integrations.assistantModelLegend')}</legend>
+          {(['claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-opus-4-5'] as const).map((model) => (
+            <label key={model} className="integrations-view__assistant-model-option">
+              <input
+                type="radio"
+                name="assistant-model"
+                checked={assistantModel === model}
+                disabled={isSavingAssistantModel}
+                onChange={() => handleSelectAssistantModel(model)}
+              />
+              <span className="integrations-view__assistant-model-text">
+                <strong>{t(`admin.integrations.assistantModel.${model}.label`)}</strong>
+                <span>{t(`admin.integrations.assistantModel.${model}.description`)}</span>
+              </span>
+            </label>
+          ))}
+          <p className="integrations-view__hint">{t('admin.integrations.assistantModelPricingHint')}</p>
+        </fieldset>
       </AnimatedDetails>
     </div>
   )

@@ -1,7 +1,7 @@
 import { validateUserDraft } from '../../../src/lib/assistantValidation'
 import { DASHBOARD_SECTIONS, type DashboardSection } from '../../../src/types/sync'
 import * as store from '../../store'
-import { nullable, type AssistantCandidate, type AssistantEntity, type AssistantJsonSchema, type AssistantSession, type AssistantValidationIssue } from '../types'
+import { nullable, type AssistantCandidate, type AssistantEntity, type AssistantFillContext, type AssistantJsonSchema, type AssistantValidationIssue } from '../types'
 
 /**
  * What the assistant can propose for a user account. Deliberately narrower
@@ -45,12 +45,12 @@ export const userEntity: AssistantEntity<AssistantUserDraft> = {
     }
   },
 
-  async listCandidates(_action, session: AssistantSession, searchText: string): Promise<AssistantCandidate[]> {
+  async listCandidates(_action, context: AssistantFillContext, searchText: string): Promise<AssistantCandidate[]> {
     const needle = searchText.trim().toLowerCase()
     // Hard guardrail, enforced here (not just the tool schema): every admin-role
     // account, and the calling session's own account, are unconditionally
     // excluded — the model is never even offered them as choices.
-    const eligible = store.listUsers().filter((user) => user.role !== 'admin' && user.username !== session.username)
+    const eligible = store.listUsers().filter((user) => user.role !== 'admin' && user.username !== context.session.username)
     const matches = eligible.filter((user) => !needle || user.username.toLowerCase().includes(needle))
     return matches.slice(0, 30).map((user) => ({ id: user.id, label: `${user.username} (${user.role})` }))
   },

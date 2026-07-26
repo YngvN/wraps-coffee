@@ -619,7 +619,7 @@ const httpServer = createServer((req, res) => {
       sendJson(res, 403, { error: 'Only admin/subadmin accounts can view the assistant configuration' })
       return
     }
-    sendJson(res, 200, { hasKey: Boolean(store.getAnthropicApiKey()), provider: store.getAssistantProvider() })
+    sendJson(res, 200, { hasKey: Boolean(store.getAnthropicApiKey()), provider: store.getAssistantProvider(), model: store.getAssistantModel() })
     return
   }
 
@@ -635,11 +635,12 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then((body) => {
-        const { apiKey, provider } = body as { apiKey?: string | null; provider?: 'local' | 'claude' }
+        const { apiKey, provider, model } = body as { apiKey?: string | null; provider?: 'local' | 'claude'; model?: store.AssistantModel }
         if (apiKey !== undefined) store.setAnthropicApiKey(typeof apiKey === 'string' && apiKey.trim() ? apiKey.trim() : null)
         if (provider === 'local' || provider === 'claude') store.setAssistantProvider(provider)
+        if (model === 'claude-haiku-4-5' || model === 'claude-sonnet-4-5' || model === 'claude-opus-4-5') store.setAssistantModel(model)
         console.log(`[assistant] ${session.username} updated the assistant configuration`)
-        sendJson(res, 200, { hasKey: Boolean(store.getAnthropicApiKey()), provider: store.getAssistantProvider() })
+        sendJson(res, 200, { hasKey: Boolean(store.getAnthropicApiKey()), provider: store.getAssistantProvider(), model: store.getAssistantModel() })
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
     return
@@ -706,7 +707,7 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, action, itemID, message, uiLanguage, priorDraft, image } = body as {
+        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields } = body as {
           entity?: string
           action?: AssistantActionName
           itemID?: string
@@ -714,13 +715,14 @@ const httpServer = createServer((req, res) => {
           uiLanguage?: 'no' | 'en'
           priorDraft?: unknown
           image?: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string }
+          resolvedFields?: Record<string, string>
         }
         if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, action, message, or uiLanguage' })
           return
         }
         try {
-          sendJson(res, 200, await assistantSteps.fillFields(entity, action, session, message, uiLanguage, { itemID, image, priorDraft }))
+          sendJson(res, 200, await assistantSteps.fillFields(entity, action, session, message, uiLanguage, { itemID, image, priorDraft, resolvedFields }))
         } catch (error) {
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantProviderNotAvailableError ? 409 : 400, { error: (error as Error).message })
         }

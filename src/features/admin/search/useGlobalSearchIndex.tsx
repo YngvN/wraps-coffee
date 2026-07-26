@@ -10,6 +10,7 @@ import { useScreens } from '../../../hooks/useScreens'
 import { useLanguage } from '../../../i18n'
 import { listUsers, type AdminUserSummary } from '../../../lib/localServer'
 import { NEWS_SOURCES } from '../../../types/news'
+import { resolveProductCatalogue } from '../../../utils/productCatalogue'
 import { ENTUR_TAGS, TRANSIT_TAGS, WEATHER_TAGS } from '../integrations/integrationSearchTags'
 import { ADMIN_NAV_ICONS, NAV_ITEMS } from '../layout/adminNavItems'
 import type { SearchResultEntry } from './searchTypes'
@@ -76,15 +77,15 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
     )
 
     const productEntries: SearchResultEntry[] = products.map((product) => {
-      const catalogue = catalogues.find((candidate) => candidate.categories.some((category) => category.id === product.category))
-      const category = catalogue?.categories.find((candidate) => candidate.id === product.category)
+      const resolved = resolveProductCatalogue(product, catalogues)
+      const categoryParam = resolved?.category ? `&categoryId=${resolved.category.id}` : ''
       return {
         id: `product:${product.itemID}`,
         type: 'product',
         title: product.name[language],
-        subtitle: category?.name[language],
+        subtitle: resolved?.category?.name[language] ?? (resolved ? t('admin.products.noCategoryColumnLabel') : undefined),
         keywords: [],
-        url: catalogue && category ? `/admin/dashboard/products?catalogueId=${catalogue.id}&categoryId=${category.id}&productId=${product.itemID}` : '/admin/dashboard/products',
+        url: resolved ? `/admin/dashboard/products?catalogueId=${resolved.catalogue.id}${categoryParam}&productId=${product.itemID}` : '/admin/dashboard/products',
       }
     })
 

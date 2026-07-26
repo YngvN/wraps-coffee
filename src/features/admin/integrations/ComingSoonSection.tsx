@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { Badge } from '../../../components'
+import { AnimatedDetails, Badge } from '../../../components'
 import { useLanguage } from '../../../i18n'
-import { AnimatedDetails } from './AnimatedDetails'
 import { COMING_SOON_CATEGORIES, COMING_SOON_INTEGRATIONS, type ComingSoonCategoryId } from './comingSoonIntegrations'
 import './ComingSoonSection.scss'
 

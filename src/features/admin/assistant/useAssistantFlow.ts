@@ -9,7 +9,20 @@ import {
 } from '../../../lib/localServer'
 import type { DashboardSection } from '../../../types/sync'
 
-export type AssistantEntityKey = 'product' | 'event' | 'user'
+export type AssistantEntityKey =
+  | 'product'
+  | 'event'
+  | 'user'
+  | 'catalogue'
+  | 'category'
+  | 'categoryCustomField'
+  | 'messageBoard'
+  | 'messageBoardPost'
+  | 'appearanceThemeColor'
+  | 'theme'
+  | 'storeSettings'
+  | 'contactInfo'
+  | 'integrationToggle'
 export type AssistantActionName = 'create' | 'update' | 'delete' | 'resetPassword' | 'trigger'
 
 export interface AssistantValidationIssue {
@@ -20,6 +33,13 @@ export interface AssistantValidationIssue {
 export interface AssistantCandidate {
   id: string
   label: string
+}
+
+/** One unresolved required field worth asking about, rather than guessing — see `server/assistant/types.ts`'s `AssistantEntity.clarifiableFields`. */
+export interface AssistantClarification {
+  field: string
+  questionKey: string
+  options: AssistantCandidate[]
 }
 
 export interface TranscriptLine {
@@ -33,11 +53,27 @@ const ENTITY_SECTIONS: Record<AssistantEntityKey, DashboardSection | null> = {
   product: 'products',
   event: 'events',
   user: null,
+  catalogue: 'products',
+  category: 'products',
+  categoryCustomField: 'products',
+  messageBoard: 'messageboard',
+  messageBoardPost: 'messageboard',
+  // Deliberately stricter than the raw write path: `admin.appearanceThemes`
+  // has no real `DashboardSection` gate today, but these two are treated as
+  // 'store'-gated here anyway (see the plan's own note on this choice).
+  appearanceThemeColor: 'store',
+  theme: 'store',
+  storeSettings: 'store',
+  contactInfo: 'store',
+  integrationToggle: 'integrations',
 }
 
-/** Actions that need an existing item picked before fields can be filled — everything except `create`/`trigger`. */
+/** Entities with exactly one record — no `listCandidates` to pick from, so `startOperation` skips straight to `fillFields` with the fixed `itemID: 'singleton'` each singleton entity's own `getCurrent` expects (see `storeSettings.ts`/`contactInfo.ts`). */
+const SINGLETON_ENTITIES: ReadonlySet<AssistantEntityKey> = new Set(['storeSettings', 'contactInfo'])
+
+/** Actions that need an existing item picked before fields can be filled — everything except `create`. `trigger` is included because every `trigger` action registered so far (theme's own "make active") targets one specific existing item, unlike a fire-and-forget action with nothing to pick. */
 function actionNeedsItem(action: AssistantActionName): boolean {
-  return action === 'update' || action === 'delete' || action === 'resetPassword'
+  return action === 'update' || action === 'delete' || action === 'resetPassword' || action === 'trigger'
 }
 
 /** The entity set `session` can use — computed the same way both here and by `AdminTopNavbar` (to decide whether to show the assistant's own nav icon at all), so the two never disagree. Server-side, `server/assistant/registry.ts`'s `sessionCanUseEntity` is the authoritative version of this same rule. */
@@ -45,8 +81,9 @@ export function useAssistantAllowedEntities(): AssistantEntityKey[] {
   const { session } = useAdminSession()
   return useMemo(() => {
     if (!session) return []
-    if (session.role !== 'limited') return ['product', 'event', 'user']
-    return (Object.keys(ENTITY_SECTIONS) as AssistantEntityKey[]).filter((entity) => {
+    const allKeys = Object.keys(ENTITY_SECTIONS) as AssistantEntityKey[]
+    if (session.role !== 'limited') return allKeys
+    return allKeys.filter((entity) => {
       const section = ENTITY_SECTIONS[entity]
       return section !== null && session.allowedSections?.includes(section)
     })
@@ -58,6 +95,17 @@ type FlowState =
   | { status: 'busy'; phase: 'thinking' | 'verifying' }
   | { status: 'confirmItem'; entity: AssistantEntityKey; action: AssistantActionName; message: string; candidates: AssistantCandidate[]; pickedId: string; showAll: boolean }
   | { status: 'noMatch'; entity: AssistantEntityKey; action: AssistantActionName }
+  | {
+      status: 'clarifying'
+      entity: AssistantEntityKey
+      action: AssistantActionName
+      itemID?: string
+      message: string
+      /** Set only when this clarification arose while deleting (a destructible entity's own `fillFieldsSchema` on `delete` is always empty today, so this is a defensive path, not one any current entity actually reaches) — tells `answerClarification` to resume into `reviewingDestructive` rather than `reviewingForm`, and carries the label that review needs. */
+      label?: string
+      resolvedFields: Record<string, string>
+      clarifications: AssistantClarification[]
+    }
   | { status: 'reviewingForm'; entity: AssistantEntityKey; action: AssistantActionName; itemID?: string; draft: unknown; issues: AssistantValidationIssue[] }
   | {
       status: 'reviewingDestructive'
@@ -87,7 +135,7 @@ let nextLineId = 0
  */
 export function useAssistantFlow() {
   const { session } = useAdminSession()
-  const { language } = useLanguage()
+  const { language, t } = useLanguage()
   const [transcript, setTranscript] = useState<TranscriptLine[]>([])
   const [state, setState] = useState<FlowState>({ status: 'idle' })
   const abortRef = useRef<AbortController | null>(null)
@@ -112,12 +160,43 @@ export function useAssistantFlow() {
   }, [])
 
   const runFillFields = useCallback(
-    async (entity: AssistantEntityKey, action: AssistantActionName, message: string, itemID: string | undefined, image?: AttachedImage, priorDraft?: unknown) => {
+    async (
+      entity: AssistantEntityKey,
+      action: AssistantActionName,
+      message: string,
+      itemID: string | undefined,
+      image?: AttachedImage,
+      priorDraft?: unknown,
+      resolvedFields?: Record<string, string>,
+    ) => {
       if (!session) return
       setState({ status: 'busy', phase: 'thinking' })
       try {
-        const result = await assistantFillFields(session.token, { entity, action, message, uiLanguage: language, itemID, image, priorDraft })
+        const result = await assistantFillFields(session.token, { entity, action, message, uiLanguage: language, itemID, image, priorDraft, resolvedFields })
+        if (result.status === 'clarify') {
+          setState({ status: 'clarifying', entity, action, itemID, message, resolvedFields: resolvedFields ?? {}, clarifications: result.clarifications })
+          return
+        }
         setState({ status: 'reviewingForm', entity, action, itemID, draft: result.draft, issues: result.issues })
+      } catch (error) {
+        setState({ status: 'error', message: error instanceof Error ? error.message : 'Something went wrong' })
+      }
+    },
+    [session, language],
+  )
+
+  /** Delete still runs `fillFields` (an empty schema for every destructible entity — see each adapter's own `fillFieldsSchema`) purely to get a real `validate()` pass: that's the only path that surfaces a delete-time soft warning (e.g. "N products would be orphaned") or hard guard (e.g. "can't delete the active theme") before the typed-confirmation screen, rather than skipping straight to an empty-issues review. */
+  const runFillFieldsForDelete = useCallback(
+    async (entity: AssistantEntityKey, action: AssistantActionName, message: string, itemID: string, label: string, resolvedFields?: Record<string, string>) => {
+      if (!session) return
+      setState({ status: 'busy', phase: 'thinking' })
+      try {
+        const result = await assistantFillFields(session.token, { entity, action, message, uiLanguage: language, itemID, resolvedFields })
+        if (result.status === 'clarify') {
+          setState({ status: 'clarifying', entity, action, itemID, message, label, resolvedFields: resolvedFields ?? {}, clarifications: result.clarifications })
+          return
+        }
+        setState({ status: 'reviewingDestructive', entity, action, itemID, draft: result.draft, issues: result.issues, label })
       } catch (error) {
         setState({ status: 'error', message: error instanceof Error ? error.message : 'Something went wrong' })
       }
@@ -128,17 +207,21 @@ export function useAssistantFlow() {
   const proceedWithItem = useCallback(
     async (entity: AssistantEntityKey, action: AssistantActionName, itemID: string, label: string, message: string) => {
       if (action === 'delete') {
-        setState({ status: 'reviewingDestructive', entity, action, itemID, draft: { id: itemID, label }, issues: [], label })
+        await runFillFieldsForDelete(entity, action, message, itemID, label)
         return
       }
       await runFillFields(entity, action, message, itemID)
     },
-    [runFillFields],
+    [runFillFields, runFillFieldsForDelete],
   )
 
   const startOperation = useCallback(
     async (entity: AssistantEntityKey, action: AssistantActionName, message: string, searchText: string) => {
       if (!session) return
+      if (SINGLETON_ENTITIES.has(entity)) {
+        await runFillFields(entity, action, message, 'singleton')
+        return
+      }
       if (!actionNeedsItem(action)) {
         await runFillFields(entity, action, message, undefined)
         return
@@ -178,6 +261,10 @@ export function useAssistantFlow() {
         appendLine('assistant', "Type the confirmation phrase to confirm, or Cancel — a correction here would need to start over.")
         return
       }
+      if (state.status === 'clarifying') {
+        appendLine('assistant', t('admin.assistant.answerClarificationFirst'))
+        return
+      }
 
       setState({ status: 'busy', phase: 'thinking' })
       try {
@@ -203,7 +290,7 @@ export function useAssistantFlow() {
         setState({ status: 'error', message: error instanceof Error ? error.message : 'Something went wrong' })
       }
     },
-    [session, language, state, allowedEntities, appendLine, runFillFields, startOperation],
+    [session, language, t, state, allowedEntities, appendLine, runFillFields, startOperation],
   )
 
   const confirmItemMatch = useCallback(async () => {
@@ -228,6 +315,25 @@ export function useAssistantFlow() {
     setState({ ...state, showAll: true })
   }, [state])
 
+  /** Records the admin's pick for one outstanding clarifying question. Once every question in `state.clarifications` has an answer, this re-runs `fillFields` with `resolvedFields` attached — no separate "confirm" click needed, answering the last question submits. */
+  const answerClarification = useCallback(
+    async (field: string, optionId: string) => {
+      if (state.status !== 'clarifying') return
+      const resolvedFields = { ...state.resolvedFields, [field]: optionId }
+      const allAnswered = state.clarifications.every((clarification) => clarification.field in resolvedFields)
+      if (!allAnswered) {
+        setState({ ...state, resolvedFields })
+        return
+      }
+      if (state.label !== undefined && state.itemID) {
+        await runFillFieldsForDelete(state.entity, state.action, state.message, state.itemID, state.label, resolvedFields)
+      } else {
+        await runFillFields(state.entity, state.action, state.message, state.itemID, undefined, undefined, resolvedFields)
+      }
+    },
+    [state, runFillFields, runFillFieldsForDelete],
+  )
+
   /** Called by the review UI once the real, existing save/delete path has actually committed the write — the assistant itself never does (see the plan's hard invariant). */
   const onCommitted = useCallback(() => {
     appendLine('assistant', 'done')
@@ -242,6 +348,7 @@ export function useAssistantFlow() {
     confirmItemMatch,
     pickCandidate,
     showOtherCandidates,
+    answerClarification,
     cancel,
     startOver,
     onCommitted,

@@ -414,9 +414,12 @@ export async function pushFoodoraOrderStatus(token: string, orderId: string, sta
 
 // --- AI assistant (Claude) ---------------------------------------------------
 
+export type AssistantModel = 'claude-haiku-4-5' | 'claude-sonnet-4-5' | 'claude-opus-4-5'
+
 export interface AssistantCredentialStatus {
   hasKey: boolean
   provider: 'local' | 'claude'
+  model: AssistantModel
 }
 
 /** Whether a Claude API key is configured, and which provider is selected (see Settings → AI Assistant and the Integrations page's Claude card) — never the raw key itself. `admin`/`subadmin` only. */
@@ -428,8 +431,11 @@ export async function getAssistantCredentialStatus(token: string): Promise<Assis
   return response.json() as Promise<AssistantCredentialStatus>
 }
 
-/** Saves the Claude API key and/or the selected provider — pass only the field(s) being changed, `undefined` leaves the other one untouched. `admin`/`subadmin` only. */
-export async function setAssistantCredentials(token: string, input: { apiKey?: string | null; provider?: 'local' | 'claude' }): Promise<AssistantCredentialStatus> {
+/** Saves the Claude API key, selected provider, and/or selected model — pass only the field(s) being changed, `undefined` leaves the others untouched. `admin`/`subadmin` only. */
+export async function setAssistantCredentials(
+  token: string,
+  input: { apiKey?: string | null; provider?: 'local' | 'claude'; model?: AssistantModel },
+): Promise<AssistantCredentialStatus> {
   const response = await fetch(`${serverBaseUrl()}/assistant/credentials`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -491,12 +497,24 @@ export async function assistantSelectItem(
   return response.json() as Promise<AssistantSelectItemResult>
 }
 
-export interface AssistantFillFieldsResult {
-  draft: unknown
-  issues: { code: string; params?: Record<string, string> }[]
+export interface AssistantFillFieldsClarification {
+  field: string
+  questionKey: string
+  options: { id: string; label: string }[]
 }
 
-/** Step 3 of the assistant flow — proposes (never writes) a draft for `entity`/`action`, merged onto the current item (`itemID`) or empty defaults. `image` is the vision-extraction input (see `AssistantPanel`'s attach flow); `priorDraft` is set when this call is a correction from the review step. */
+/**
+ * `'clarify'` — one or more fields worth asking about (see
+ * `server/assistant/types.ts`'s `AssistantEntity.clarifiableFields`) came
+ * back unresolved; re-call `assistantFillFields` with `resolvedFields` set
+ * once the admin has answered every one shown. `'ready'` — the normal staged
+ * draft, same shape as before this was a union.
+ */
+export type AssistantFillFieldsResult =
+  | { status: 'ready'; draft: unknown; issues: { code: string; params?: Record<string, string> }[] }
+  | { status: 'clarify'; clarifications: AssistantFillFieldsClarification[] }
+
+/** Step 3 of the assistant flow — proposes (never writes) a draft for `entity`/`action`, merged onto the current item (`itemID`) or empty defaults. `image` is the vision-extraction input (see `AssistantPanel`'s attach flow); `priorDraft` is set when this call is a correction from the review step; `resolvedFields` carries the admin's own answers to a prior `'clarify'` result. */
 export async function assistantFillFields(
   token: string,
   input: {
@@ -507,6 +525,7 @@ export async function assistantFillFields(
     itemID?: string
     image?: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string }
     priorDraft?: unknown
+    resolvedFields?: Record<string, string>
   },
 ): Promise<AssistantFillFieldsResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/fill-fields`, {

@@ -76,6 +76,7 @@
         "price": "{{price}} kr",
         "priceDual": "{{takeaway}} / {{eatIn}} kr",
         "priceLegend": "Prices shown as takeaway / eat-in.",
+        "otherItemsHeading": "Other",
         "categories": {
           "salads": {
             "title": "Salads",
@@ -482,10 +483,30 @@
           "errorGeneric": "Something went wrong — try rephrasing.",
           "attachImage": "Attach image",
           "finishCurrentFirst": "Finish or cancel the current {{entity}} first.",
+          "suggestedDefaultPrice": "Suggested default price: {{price}} — set it in the price editor below if you want to apply it.",
+          "themeColorTarget": "Adding a color to \"{{name}}\"",
+          "setActiveThemeConfirm": "Make \"{{name}}\" the active theme on every screen?",
+          "categoryCustomFieldTarget": "Adding a field to \"{{name}}\"",
+          "answerClarificationFirst": "Please answer the question above, or Cancel.",
+          "clarify": {
+            "productCategory": "Which category should this product go in?",
+            "categoryCatalogue": "Which catalogue should this category belong to?",
+            "messageBoardPostBoard": "Which board should this post go on?"
+          },
           "entities": {
             "product": "product",
             "event": "event",
-            "user": "user"
+            "user": "user",
+            "catalogue": "catalogue",
+            "category": "category",
+            "categoryCustomField": "category custom field",
+            "messageBoard": "message board",
+            "messageBoardPost": "message board post",
+            "appearanceThemeColor": "theme color",
+            "theme": "theme",
+            "storeSettings": "store branding",
+            "contactInfo": "contact info",
+            "integrationToggle": "integration"
           },
           "actions": {
             "create": "create",
@@ -507,7 +528,27 @@
             "postponedMissingNewDate": "A postponed event needs a new date, or it will stop showing on screens",
             "usernameRequired": "Username is required",
             "passwordRequired": "Password is required",
-            "usernameTaken": "\"{{username}}\" is already taken"
+            "usernameTaken": "\"{{username}}\" is already taken",
+            "nameRequired": "Name is required",
+            "catalogueDeleteOrphansProducts": "Deleting this catalogue would leave {{count}} product(s) without a category",
+            "titleRequired": "Title is required",
+            "titleTooLong": "Title must be {{max}} characters or fewer",
+            "bodyTooLong": "Body must be {{max}} characters or fewer",
+            "unknownBoard": "Unknown message board",
+            "invalidHexColor": "\"{{value}}\" isn't a valid color",
+            "fontsRequired": "All three fonts are required",
+            "themeDeleteActive": "Can't delete the active theme — make another theme active first",
+            "themeDeleteLast": "Can't delete the last remaining theme",
+            "dayMissingHours": "{{day}} needs both an opening and closing time, or mark it closed",
+            "weatherNeedsAddress": "Weather needs a store address or location with a resolved position first",
+            "transitNeedsAddress": "Transit needs at least one resolved nearby stop first",
+            "newsNeedsSource": "Pick at least one news source to enable News",
+            "customFieldLabelRequired": "Every custom field needs a name",
+            "customFieldNeedsOptions": "\"{{field}}\" is a choice-list field but has no choices yet",
+            "customFieldTypeMismatch": "\"{{field}}\" has a value of the wrong type",
+            "customFieldUnknownOption": "\"{{field}}\" is set to a choice that no longer exists",
+            "unknownCatalogue": "Unknown catalogue \"{{catalogue}}\"",
+            "missingCategoryOrCatalogue": "Pick a category, or a catalogue for a product with no category"
           }
         },
         "sidebar": {
@@ -580,7 +621,25 @@
           "descriptionLabel": "Description",
           "catalogueNameLabel": "Catalogue name",
           "categoryNameLabel": "Category name",
-          "categoryDescriptionLabel": "Category description"
+          "categoryDescriptionLabel": "Category description",
+          "customFieldsLabel": "Custom fields",
+          "customFieldsHint": "Extra fields specific to what this category sells (e.g. \"Bedrooms\" for houses, \"Mileage\" for cars) — every product in it can optionally set a value for each.",
+          "customFieldLabelPlaceholder": "Field name",
+          "customFieldTypeLabel": "Field type",
+          "customFieldType": {
+            "text": "Text",
+            "number": "Number",
+            "boolean": "Yes/No",
+            "select": "Choice list"
+          },
+          "addCustomField": "Add custom field",
+          "addCustomFieldOption": "Add choice",
+          "customFieldOptionPlaceholder": "Choice name",
+          "noCategoryOption": "— No category —",
+          "noCategoryColumnLabel": "No category",
+          "catalogueLabel": "Catalogue",
+          "moveToOtherCatalogue": "Move to another catalogue…",
+          "moveConfirmButton": "Move"
         },
         "events": {
           "title": "Events",
@@ -920,7 +979,9 @@
           "addLanguage": "Add language",
           "openMenu": "Open menu",
           "closeMenu": "Close menu",
-          "close": "Close"
+          "close": "Close",
+          "yes": "Yes",
+          "no": "No"
         },
         "mediaLibrary": {
           "title": "Media library",
@@ -1605,6 +1666,22 @@
           "assistantApiKeyMissing": "No key saved yet — the assistant won't work until one is added.",
           "assistantApiKeyLabel": "Claude API key",
           "assistantApiKeySaveError": "Could not save the API key. Check the local server is running and try again.",
+          "assistantModelLegend": "Model",
+          "assistantModelPricingHint": "Pricing is approximate and can change — see anthropic.com/pricing for current rates. Most requests use very few tokens, so the real-world cost difference between models is usually small.",
+          "assistantModel": {
+            "claude-haiku-4-5": {
+              "label": "Claude Haiku 4.5 — fastest & cheapest",
+              "description": "Best for straightforward requests — quick responses at the lowest cost. Approx. $1 per million input tokens / $5 per million output tokens. The model this assistant feature was originally built and tested against."
+            },
+            "claude-sonnet-4-5": {
+              "label": "Claude Sonnet 4.5 — balanced",
+              "description": "Noticeably better at ambiguous or multi-step requests, for a moderate cost increase. Approx. $3 per million input tokens / $15 per million output tokens."
+            },
+            "claude-opus-4-5": {
+              "label": "Claude Opus 4.5 — most capable",
+              "description": "Anthropic's strongest model — best at nuanced or unusual requests, at the highest cost. Approx. $5 per million input tokens / $25 per million output tokens."
+            }
+          },
           "woltStatusSectionTitle": "Sync status",
           "woltStatusLabel": "Status",
           "woltStatusLive": "Live",
@@ -1883,6 +1960,7 @@
         "price": "{{price}} kr",
         "priceDual": "{{takeaway}} / {{eatIn}} kr",
         "priceLegend": "Priser vises som ta med / spise her.",
+        "otherItemsHeading": "Annet",
         "categories": {
           "salads": {
             "title": "Salater",
@@ -2289,10 +2367,30 @@
           "errorGeneric": "Noe gikk galt — prøv å omformulere.",
           "attachImage": "Legg ved bilde",
           "finishCurrentFirst": "Fullfør eller avbryt gjeldende {{entity}} først.",
+          "suggestedDefaultPrice": "Foreslått standardpris: {{price}} — sett den i prisredigereren under hvis du vil bruke den.",
+          "themeColorTarget": "Legger til farge i «{{name}}»",
+          "setActiveThemeConfirm": "Gjøre «{{name}}» til den aktive temaet på alle skjermer?",
+          "categoryCustomFieldTarget": "Legger til et felt i «{{name}}»",
+          "answerClarificationFirst": "Svar på spørsmålet over, eller avbryt.",
+          "clarify": {
+            "productCategory": "Hvilken kategori skal dette produktet være i?",
+            "categoryCatalogue": "Hvilken katalog skal denne kategorien tilhøre?",
+            "messageBoardPostBoard": "Hvilken oppslagstavle skal dette oppslaget publiseres på?"
+          },
           "entities": {
             "product": "produkt",
             "event": "arrangement",
-            "user": "bruker"
+            "user": "bruker",
+            "catalogue": "katalog",
+            "category": "kategori",
+            "categoryCustomField": "egendefinert felt for kategori",
+            "messageBoard": "oppslagstavle",
+            "messageBoardPost": "oppslag",
+            "appearanceThemeColor": "temafarge",
+            "theme": "tema",
+            "storeSettings": "butikkprofil",
+            "contactInfo": "kontaktinfo",
+            "integrationToggle": "integrasjon"
           },
           "actions": {
             "create": "opprette",
@@ -2314,7 +2412,27 @@
             "postponedMissingNewDate": "Et utsatt arrangement trenger en ny dato, ellers slutter det å vises på skjermer",
             "usernameRequired": "Brukernavn er påkrevd",
             "passwordRequired": "Passord er påkrevd",
-            "usernameTaken": "«{{username}}» er allerede tatt"
+            "usernameTaken": "«{{username}}» er allerede tatt",
+            "nameRequired": "Navn er påkrevd",
+            "catalogueDeleteOrphansProducts": "Å slette denne katalogen vil etterlate {{count}} produkt(er) uten kategori",
+            "titleRequired": "Tittel er påkrevd",
+            "titleTooLong": "Tittelen må være maks {{max}} tegn",
+            "bodyTooLong": "Teksten må være maks {{max}} tegn",
+            "unknownBoard": "Ukjent oppslagstavle",
+            "invalidHexColor": "«{{value}}» er ikke en gyldig farge",
+            "fontsRequired": "Alle tre fontene er påkrevd",
+            "themeDeleteActive": "Kan ikke slette det aktive temaet — gjør et annet tema aktivt først",
+            "themeDeleteLast": "Kan ikke slette det siste gjenværende temaet",
+            "dayMissingHours": "{{day}} trenger både åpnings- og stengetid, eller merk den som stengt",
+            "weatherNeedsAddress": "Vær trenger en butikkadresse eller et sted med løst posisjon først",
+            "transitNeedsAddress": "Transitt trenger minst én løst holdeplass i nærheten først",
+            "newsNeedsSource": "Velg minst én nyhetskilde for å aktivere Nyheter",
+            "customFieldLabelRequired": "Alle egendefinerte felter trenger et navn",
+            "customFieldNeedsOptions": "«{{field}}» er et valgliste-felt, men har ingen valg ennå",
+            "customFieldTypeMismatch": "«{{field}}» har en verdi av feil type",
+            "customFieldUnknownOption": "«{{field}}» er satt til et valg som ikke lenger finnes",
+            "unknownCatalogue": "Ukjent katalog «{{catalogue}}»",
+            "missingCategoryOrCatalogue": "Velg en kategori, eller en katalog for et produkt uten kategori"
           }
         },
         "sidebar": {
@@ -2387,7 +2505,25 @@
           "descriptionLabel": "Beskrivelse",
           "catalogueNameLabel": "Katalognavn",
           "categoryNameLabel": "Kategorinavn",
-          "categoryDescriptionLabel": "Kategoribeskrivelse"
+          "categoryDescriptionLabel": "Kategoribeskrivelse",
+          "customFieldsLabel": "Egendefinerte felter",
+          "customFieldsHint": "Ekstra felter spesifikke for hva denne kategorien selger (f.eks. «Soverom» for hus, «Kilometerstand» for biler) — hvert produkt i den kan valgfritt sette en verdi for hvert felt.",
+          "customFieldLabelPlaceholder": "Feltnavn",
+          "customFieldTypeLabel": "Felttype",
+          "customFieldType": {
+            "text": "Tekst",
+            "number": "Tall",
+            "boolean": "Ja/Nei",
+            "select": "Valgliste"
+          },
+          "addCustomField": "Legg til egendefinert felt",
+          "addCustomFieldOption": "Legg til valg",
+          "customFieldOptionPlaceholder": "Valgnavn",
+          "noCategoryOption": "— Ingen kategori —",
+          "noCategoryColumnLabel": "Ingen kategori",
+          "catalogueLabel": "Katalog",
+          "moveToOtherCatalogue": "Flytt til en annen katalog…",
+          "moveConfirmButton": "Flytt"
         },
         "events": {
           "title": "Arrangementer",
@@ -2727,7 +2863,9 @@
           "addLanguage": "Legg til språk",
           "openMenu": "Åpne meny",
           "closeMenu": "Lukk meny",
-          "close": "Lukk"
+          "close": "Lukk",
+          "yes": "Ja",
+          "no": "Nei"
         },
         "mediaLibrary": {
           "title": "Mediebibliotek",
@@ -3412,6 +3550,22 @@
           "assistantApiKeyMissing": "Ingen nøkkel lagret ennå — assistenten fungerer ikke før én er lagt til.",
           "assistantApiKeyLabel": "Claude API-nøkkel",
           "assistantApiKeySaveError": "Kunne ikke lagre API-nøkkelen. Sjekk at den lokale serveren kjører og prøv igjen.",
+          "assistantModelLegend": "Modell",
+          "assistantModelPricingHint": "Prisene er omtrentlige og kan endres — se anthropic.com/pricing for gjeldende priser. De fleste forespørsler bruker svært få tokens, så den reelle kostnadsforskjellen mellom modellene er som regel liten.",
+          "assistantModel": {
+            "claude-haiku-4-5": {
+              "label": "Claude Haiku 4.5 — raskest og billigst",
+              "description": "Best til enkle forespørsler — raske svar til lavest kostnad. Ca. $1 per million input-tokens / $5 per million output-tokens. Modellen denne assistentfunksjonen opprinnelig ble bygget og testet med."
+            },
+            "claude-sonnet-4-5": {
+              "label": "Claude Sonnet 4.5 — balansert",
+              "description": "Merkbart bedre på tvetydige eller flertrinns forespørsler, til en moderat kostnadsøkning. Ca. $3 per million input-tokens / $15 per million output-tokens."
+            },
+            "claude-opus-4-5": {
+              "label": "Claude Opus 4.5 — mest kapabel",
+              "description": "Anthropics sterkeste modell — best på nyanserte eller uvanlige forespørsler, til høyest kostnad. Ca. $5 per million input-tokens / $25 per million output-tokens."
+            }
+          },
           "woltStatusSectionTitle": "Synkroniseringsstatus",
           "woltStatusLabel": "Status",
           "woltStatusLive": "Live",

@@ -1,5 +1,15 @@
+import { appearanceThemeColorEntity } from './entities/appearanceThemeColor'
+import { catalogueEntity } from './entities/catalogue'
+import { categoryEntity } from './entities/category'
+import { categoryCustomFieldEntity } from './entities/categoryCustomField'
+import { contactInfoEntity } from './entities/contactInfo'
 import { eventEntity } from './entities/event'
+import { integrationToggleEntity } from './entities/integrationToggle'
+import { messageBoardEntity } from './entities/messageBoard'
+import { messageBoardPostEntity } from './entities/messageBoardPost'
 import { productEntity } from './entities/product'
+import { storeSettingsEntity } from './entities/storeSettings'
+import { themeEntity } from './entities/theme'
 import { userEntity } from './entities/user'
 import type { AssistantEntity, AssistantSession } from './types'
 
@@ -12,7 +22,21 @@ import type { AssistantEntity, AssistantSession } from './types'
  * change.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const ASSISTANT_ENTITIES: AssistantEntity<any>[] = [productEntity, eventEntity, userEntity]
+export const ASSISTANT_ENTITIES: AssistantEntity<any>[] = [
+  productEntity,
+  eventEntity,
+  userEntity,
+  catalogueEntity,
+  categoryEntity,
+  categoryCustomFieldEntity,
+  messageBoardEntity,
+  messageBoardPostEntity,
+  appearanceThemeColorEntity,
+  themeEntity,
+  storeSettingsEntity,
+  contactInfoEntity,
+  integrationToggleEntity,
+]
 
 /** Whether `session` is allowed to use `entity` at all — `section: null` entities (Users, credentials, backup, cleanup) require `role !== 'limited'`; section-scoped entities require that section in `allowedSections` when the session is `limited`. */
 export function sessionCanUseEntity(entity: AssistantEntity<unknown>, session: AssistantSession): boolean {

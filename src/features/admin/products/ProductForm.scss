@@ -33,6 +33,21 @@
   }
 }
 
+.product-form__custom-fields {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: 1px solid $color-border;
+  border-radius: 8px;
+
+  legend {
+    padding: 0 calc($spacing-unit / 2);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+}
+
 .product-form__price,
 .product-form__allergens {
   display: flex;

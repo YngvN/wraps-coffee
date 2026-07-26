@@ -11,19 +11,21 @@ import './ProductForm.scss'
 interface CatalogueFormProps {
   /** The catalogue being edited, or `null` when creating a new one. */
   catalogue: Catalogue | null
+  /** Shows only this one language tab initially, instead of the usual cafe-default-plus-whatever-already-has-content set — used when this form is mounted for an AI assistant review (`AssistantPanel.tsx`), so the review only ever shows the language the admin was just chatting in. The admin can still add another tab manually either way. */
+  forceLanguage?: LanguageCode
   onSave: (catalogue: Catalogue) => void
   onCancel: () => void
 }
 
 /** Create/edit form for a catalogue: its own bilingual name (one language shown at a time, via `LanguageTabs` — starting on the cafe's own standard pane language, plus any other already-filled-in one), an optional default price (the fallback beneath a category's own default, in turn beneath a product's own override — useful for a catalogue like "Merch" that doesn't need per-category pricing) — categories are added afterwards, from inside it. */
-export function CatalogueForm({ catalogue, onSave, onCancel }: CatalogueFormProps) {
+export function CatalogueForm({ catalogue, forceLanguage, onSave, onCancel }: CatalogueFormProps) {
   const { t } = useLanguage()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
   const [name, setName] = useState(catalogue?.name ?? { en: '', no: '' })
   const [activeLanguages, setActiveLanguages] = useState<LanguageCode[]>(() =>
-    initialActiveLanguages(defaultPaneLanguage, [catalogue?.name], availableLanguages.map((language) => language.code)),
+    forceLanguage ? [forceLanguage] : initialActiveLanguages(defaultPaneLanguage, [catalogue?.name], availableLanguages.map((language) => language.code)),
   )
-  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(defaultPaneLanguage)
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageCode>(forceLanguage ?? defaultPaneLanguage)
   const [price, setPrice] = useState<Price | undefined>(catalogue?.price)
 
   const addLanguage = (language: LanguageCode) => {
@@ -49,7 +51,7 @@ export function CatalogueForm({ catalogue, onSave, onCancel }: CatalogueFormProp
           label={t('admin.products.catalogueNameLabel')}
           value={name[selectedLanguage]}
           onChange={(event) => setName({ ...name, [selectedLanguage]: event.target.value })}
-          required={selectedLanguage === defaultPaneLanguage}
+          required={selectedLanguage === (forceLanguage ?? defaultPaneLanguage)}
         />
       </LanguageTabs>
 

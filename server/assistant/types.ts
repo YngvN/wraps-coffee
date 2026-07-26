@@ -59,10 +59,39 @@ export interface AssistantEntity<TDraft> {
   imageField?: keyof TDraft & string
   /** True for `delete` and any single-shot irreversible `trigger` action — drives the stricter typed-confirmation review UI instead of the plain "mount the real form" one. */
   destructive?: (action: AssistantActionName) => boolean
-  fillFieldsSchema(action: AssistantActionName, context: AssistantFillContext): AssistantJsonSchema
-  /** Omitted for singleton/create-only entities with nothing to pick from. */
-  listCandidates?(action: AssistantActionName, session: AssistantSession, searchText: string): Promise<AssistantCandidate[]>
-  getCurrent?(id: string, session: AssistantSession): Promise<TDraft | null>
+  /**
+   * `knownDraft` is whatever the caller already knows about the target
+   * record before this call — the live `current` record on `update`, or the
+   * previous pass's own proposed draft on a `create` correction round
+   * (`steps.ts` passes `current ?? priorDraft`). Most entities ignore it;
+   * it exists for a field whose own *shape* depends on another field's value
+   * (e.g. `product.ts`'s `customFieldValues`, which can't be built into the
+   * schema until `category` is known — impossible on a `create`'s very first
+   * pass, since that call is what picks the category in the first place, but
+   * available by the time an admin's follow-up message corrects/adds detail
+   * to that same draft).
+   */
+  fillFieldsSchema(action: AssistantActionName, context: AssistantFillContext, knownDraft?: Partial<TDraft>): AssistantJsonSchema
+  /** Omitted for singleton/create-only entities with nothing to pick from. `context.uiLanguage` is the admin's own chat language — a bilingual entity's candidate `label` should read from that one side only (e.g. `product.name[context.uiLanguage]`), never concatenate every language, so the confirmation list the admin sees only ever shows the language they're chatting in. */
+  listCandidates?(action: AssistantActionName, context: AssistantFillContext, searchText: string): Promise<AssistantCandidate[]>
+  getCurrent?(id: string, context: AssistantFillContext): Promise<TDraft | null>
+  /**
+   * Fields worth stopping and asking about, rather than silently guessing,
+   * for this action — omitted/empty for actions where nothing applies (e.g.
+   * `update`/`delete` always have a real `current` value already). Called
+   * *after* the model's own pass, with that pass's own raw proposal
+   * (`fields`) — the entity itself decides whether a field is genuinely
+   * still unresolved, since that can depend on more than just "is this one
+   * property null" (e.g. `product.ts` never asks "which category?" once the
+   * model has already set `catalogueId`, a deliberate "no category" rather
+   * than an unresolved one). Each entry's `field` name matches a property in
+   * this same entity's own `fillFieldsSchema`, and `options` reuses the
+   * exact live-data list that schema already builds that field's enum from
+   * (never a duplicate lookup). `steps.ts` auto-resolves any returned entry
+   * with exactly one option (nothing to actually choose between) and only
+   * turns the rest into real questions.
+   */
+  clarifiableFields?(action: AssistantActionName, context: AssistantFillContext, fields: Record<string, unknown>): Promise<{ field: string; questionKey: string; options: AssistantCandidate[] }[]>
   /** Merges the model's raw (schema-validated but not yet business-validated) tool `input` into a full draft — `current` is the live record for `update`/`resetPassword`, `null` for `create`. This is the one place bilingual fields land in the right language slot (only `context.uiLanguage`'s side is ever touched) and defaults get applied — steps.ts never special-cases a particular entity. */
   mergeDraft(action: AssistantActionName, current: TDraft | null, fields: unknown, context: AssistantFillContext): TDraft
   validate(action: AssistantActionName, draft: TDraft, context: AssistantFillContext): AssistantValidationIssue[]
