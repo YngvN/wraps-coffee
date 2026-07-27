@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { Button, Checkbox, Input, SlideTransition } from '../../../components'
+import { Button, Checkbox, Input, NumberInput, SlideTransition } from '../../../components'
 import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { useScreens } from '../../../hooks/useScreens'
@@ -650,23 +650,9 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
       <div className="screen-form__subview">
         <Checkbox id="screen-use-stages" label={t('admin.screens.useStagesLabel')} checked={useStages} onChange={(event) => setUseStages(event.target.checked)} />
         {useStages && (
-          <Input
-            id="screen-stage-count"
-            label={t('admin.screens.stageCountLabel')}
-            type="number"
-            min={1}
-            value={stageCount}
-            onChange={(event) => setStageCount(Number(event.target.value))}
-          />
+          <NumberInput id="screen-stage-count" label={t('admin.screens.stageCountLabel')} min={1} value={stageCount} onChange={setStageCount} />
         )}
-        <Input
-          id="screen-slide-duration"
-          label={t('admin.screens.slideDurationLabel')}
-          type="number"
-          min={1}
-          value={slideDurationSeconds}
-          onChange={(event) => setSlideDurationSeconds(Number(event.target.value))}
-        />
+        <NumberInput id="screen-slide-duration" label={t('admin.screens.slideDurationLabel')} min={1} value={slideDurationSeconds} onChange={setSlideDurationSeconds} />
       </div>
     )
   } else if (editingTarget === 'transitions' && screen) {

@@ -1,4 +1,5 @@
 import type { ClockFormat } from '../hooks/useClockFormatPreference'
+import { useNumberInputValue } from '../hooks/useNumberInputValue'
 import './TimeField.scss'
 
 interface TimeFieldProps {
@@ -64,6 +65,9 @@ export function TimeField({ id, label, value, onChange, format }: TimeFieldProps
 
   const handleMeridiemChange = (nextIsPM: boolean) => setTime(to24Hour(hour12, nextIsPM), minutes)
 
+  const hourInputProps = useNumberInputValue(format === '24h' ? hours : hour12, handleHourChange)
+  const minuteInputProps = useNumberInputValue(minutes, handleMinuteChange, { format: pad })
+
   return (
     <div className="time-field">
       <label htmlFor={`${id}-hour`}>{label}</label>
@@ -75,22 +79,12 @@ export function TimeField({ id, label, value, onChange, format }: TimeFieldProps
           inputMode="numeric"
           min={format === '24h' ? 0 : 1}
           max={format === '24h' ? 23 : 12}
-          value={format === '24h' ? hours : hour12}
-          onChange={(event) => handleHourChange(Number(event.target.value))}
+          {...hourInputProps}
         />
         <span className="time-field__colon" aria-hidden="true">
           :
         </span>
-        <input
-          id={`${id}-minute`}
-          className="time-field__number"
-          type="number"
-          inputMode="numeric"
-          min={0}
-          max={59}
-          value={pad(minutes)}
-          onChange={(event) => handleMinuteChange(Number(event.target.value))}
-        />
+        <input id={`${id}-minute`} className="time-field__number" type="number" inputMode="numeric" min={0} max={59} {...minuteInputProps} />
         {format === '12h' && (
           <div className="time-field__meridiem" role="group" aria-label="AM/PM">
             <button type="button" className={`time-field__meridiem-option${!isPM ? ' time-field__meridiem-option--active' : ''}`} onClick={() => handleMeridiemChange(false)}>

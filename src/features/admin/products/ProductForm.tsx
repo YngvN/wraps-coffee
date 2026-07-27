@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Button, Checkbox, ImageUploadField, Input, LanguageTabs, Textarea } from '../../../components'
+import { Button, Checkbox, ImageUploadField, Input, LanguageTabs, NumberInput, Textarea } from '../../../components'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { availableLanguages, useLanguage, type LanguageCode } from '../../../i18n'
 import type { Category } from '../../../types/category'
@@ -210,34 +210,13 @@ export function ProductForm({ product, catalogueId, defaultCategoryId, catalogue
         </label>
         <label>
           <input type="radio" name="priceMode" checked={priceMode === 'flat'} onChange={() => setPriceMode('flat')} />
-          <input
-            type="number"
-            min={0}
-            aria-label={t('admin.products.priceLabel')}
-            value={flatPrice}
-            disabled={priceMode !== 'flat'}
-            onChange={(event) => setFlatPrice(Number(event.target.value))}
-          />
+          <NumberInput min={0} aria-label={t('admin.products.priceLabel')} value={flatPrice} disabled={priceMode !== 'flat'} onChange={setFlatPrice} />
         </label>
         <label>
           <input type="radio" name="priceMode" checked={priceMode === 'dual'} onChange={() => setPriceMode('dual')} />
-          <input
-            type="number"
-            min={0}
-            aria-label={t('admin.products.priceTakeawayLabel')}
-            value={takeawayPrice}
-            disabled={priceMode !== 'dual'}
-            onChange={(event) => setTakeawayPrice(Number(event.target.value))}
-          />
+          <NumberInput min={0} aria-label={t('admin.products.priceTakeawayLabel')} value={takeawayPrice} disabled={priceMode !== 'dual'} onChange={setTakeawayPrice} />
           {' / '}
-          <input
-            type="number"
-            min={0}
-            aria-label={t('admin.products.priceEatInLabel')}
-            value={eatInPrice}
-            disabled={priceMode !== 'dual'}
-            onChange={(event) => setEatInPrice(Number(event.target.value))}
-          />
+          <NumberInput min={0} aria-label={t('admin.products.priceEatInLabel')} value={eatInPrice} disabled={priceMode !== 'dual'} onChange={setEatInPrice} />
         </label>
       </fieldset>
 
@@ -249,27 +228,19 @@ export function ProductForm({ product, catalogueId, defaultCategoryId, catalogue
         </label>
         <label>
           <input type="radio" name="discountMode" checked={discountMode === 'percentage'} onChange={() => setDiscountMode('percentage')} />
-          <input
-            type="number"
+          <NumberInput
             min={0}
             max={100}
             aria-label={t('admin.products.discountPercentageLabel')}
             value={discountPercentage}
             disabled={discountMode !== 'percentage'}
-            onChange={(event) => setDiscountPercentage(Number(event.target.value))}
+            onChange={setDiscountPercentage}
           />
           {t('admin.products.discountPercentageLabel')}
         </label>
         <label>
           <input type="radio" name="discountMode" checked={discountMode === 'amount'} onChange={() => setDiscountMode('amount')} />
-          <input
-            type="number"
-            min={0}
-            aria-label={t('admin.products.discountAmountLabel')}
-            value={discountAmount}
-            disabled={discountMode !== 'amount'}
-            onChange={(event) => setDiscountAmount(Number(event.target.value))}
-          />
+          <NumberInput min={0} aria-label={t('admin.products.discountAmountLabel')} value={discountAmount} disabled={discountMode !== 'amount'} onChange={setDiscountAmount} />
           {t('admin.products.discountAmountLabel')}
         </label>
       </fieldset>
@@ -298,13 +269,12 @@ export function ProductForm({ product, catalogueId, defaultCategoryId, catalogue
 
       <Checkbox id="product-track-stock" label={t('admin.products.trackStockLabel')} checked={trackStock} onChange={(event) => setTrackStock(event.target.checked)} />
       {trackStock ? (
-        <Input
+        <NumberInput
           id="product-stock-quantity"
-          type="number"
           min={0}
           label={t('admin.products.stockQuantityLabel')}
           value={stockQuantity}
-          onChange={(event) => setStockQuantity(Math.max(0, Math.round(Number(event.target.value)) || 0))}
+          onChange={(value) => setStockQuantity(Math.max(0, Math.round(value) || 0))}
         />
       ) : (
         <Checkbox id="product-out-of-stock" label={t('admin.products.outOfStockLabel')} checked={outOfStock} onChange={(event) => setOutOfStock(event.target.checked)} />

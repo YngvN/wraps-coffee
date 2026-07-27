@@ -1,19 +1,23 @@
+import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import { Alert, Button, Checkbox, ImageUploadField, Input, Spinner } from '../../../components'
+import { Alert, Badge, Button, Checkbox, ChevronLeftIcon, ClockIcon, ImageUploadField, Input, KebabIcon, NewChatIcon, Spinner } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useAppearanceThemes } from '../../../hooks/useAppearanceThemes'
 import { useCatalogues } from '../../../hooks/useCatalogues'
 import { useCategoryPrices } from '../../../hooks/useCategoryPrices'
+import { useClockFormatPreference } from '../../../hooks/useClockFormatPreference'
 import { useContactInfo } from '../../../hooks/useContactInfo'
+import { useDateFormatPreference } from '../../../hooks/useDateFormatPreference'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { useEvents } from '../../../hooks/useEvents'
 import { useIntegrationsConfig } from '../../../hooks/useIntegrationsConfig'
+import { useLocalStorage } from '../../../hooks/useLocalStorage'
 import { useMessageBoardPosts } from '../../../hooks/useMessageBoardPosts'
 import { useMessageBoards } from '../../../hooks/useMessageBoards'
 import { useProducts } from '../../../hooks/useProducts'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
 import { useLanguage } from '../../../i18n'
-import { createUser, deleteUser, resetUserPassword, SessionExpiredError } from '../../../lib/localServer'
+import { createUser, deleteUser, resetUserPassword, SessionExpiredError, type AssistantModel } from '../../../lib/localServer'
 import { dismissUpload, startUpload, useUpload } from '../../../lib/uploadManager'
 import type { AppearanceTheme, AppearanceThemeColor } from '../../../types/appearanceTheme'
 import type { Catalogue, Category } from '../../../types/category'
@@ -25,6 +29,7 @@ import { NEWS_SOURCES } from '../../../types/news'
 import type { Price, Product } from '../../../types/product'
 import type { StoreSettings } from '../../../types/storeSettings'
 import type { AdminRole, DashboardSection } from '../../../types/sync'
+import { formatDateTime } from '../../../utils/clockFormat'
 import { resolveProductCatalogue } from '../../../utils/productCatalogue'
 import { EventForm } from '../events/EventForm'
 import { AdminRightPanel } from '../layout/AdminRightPanel'
@@ -38,7 +43,22 @@ import { ThemeColorListEditor } from '../store/ThemeColorListEditor'
 import { ThemeEditorForm } from '../store/ThemeEditorForm'
 import { ResetPasswordForm } from '../users/ResetPasswordForm'
 import { UserForm } from '../users/UserForm'
+import { AssistantReviewSummary } from './AssistantReviewSummary'
 import { AssistantTypingIndicator } from './AssistantTypingIndicator'
+import {
+  buildAppearanceThemeColorChangeRows,
+  buildCatalogueChangeRows,
+  buildCategoryChangeRows,
+  buildCategoryCustomFieldChangeRows,
+  buildContactInfoChangeRows,
+  buildEventChangeRows,
+  buildIntegrationToggleChangeRows,
+  buildMessageBoardChangeRows,
+  buildMessageBoardPostChangeRows,
+  buildProductChangeRows,
+  buildStoreSettingsChangeRows,
+  buildThemeChangeRows,
+} from './reviewChangeRows'
 import { type AssistantEntityKey, useAssistantFlow } from './useAssistantFlow'
 import './AssistantPanel.scss'
 
@@ -54,6 +74,9 @@ const IMAGE_FIELD: Partial<Record<AssistantEntityKey, string>> = {
   messageBoardPost: 'imageUrl',
   storeSettings: 'favicon',
 }
+
+/** Same three models Settings → Integrations' own "Claude" model picker offers (see `IntegrationsView.tsx`) — reused here for the per-chat override menu's own option list and i18n labels (`admin.integrations.assistantModel.<model>.label`), rather than duplicating fresh copy for the same three names. */
+const MODEL_OVERRIDE_OPTIONS: AssistantModel[] = ['claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-opus-4-5']
 
 /** Delete-time validation issues that are hard guards (mirroring a real disabled Delete button in the manual UI) rather than soft warnings the admin can proceed past — the confirm button stays disabled while any of these are present. */
 const BLOCKING_DELETE_ISSUE_CODES = new Set(['themeDeleteActive', 'themeDeleteLast'])
@@ -87,7 +110,26 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   // language a product/event/etc. happens to already have content in, just the one relevant here.
   const reviewLanguage = language ?? defaultPaneLanguage ?? 'en'
   const { session } = useAdminSession()
-  const flow = useAssistantFlow()
+  // Per-device (plain `localStorage`, never synced — see `useLocalStorage`'s own posture on a
+  // key that isn't in `SYNCED_KEYS`), sticky preference: which Claude model this one browser's
+  // chat should use instead of the shared, admin-configured default (Settings → Integrations'
+  // own "Claude" model picker). `null` means "no override, use that shared default" — never
+  // written back to it, so switching models here never affects any other admin/device.
+  const [modelOverride, setModelOverride] = useLocalStorage<AssistantModel | null>('admin.assistantModelOverride', null)
+  const flow = useAssistantFlow(modelOverride ?? undefined)
+  const [clockFormat] = useClockFormatPreference()
+  const [dateFormat] = useDateFormatPreference()
+  // Slides in from the right over the chat, same as `logView` below — see the model-menu
+  // branch of the main `AnimatePresence` for why these two are mutually exclusive.
+  const [modelMenuOpen, setModelMenuOpen] = useState(false)
+  // `null` means the live chat is showing; `{ mode: 'list' }` is the conversation log's own
+  // list of past conversations, and `{ mode: 'entry', id }` is one archived conversation's
+  // read-only transcript — see `useAssistantConversationLog`'s own doc comment for why these
+  // are snapshots rather than resumable drafts.
+  const [logView, setLogView] = useState<{ mode: 'list' } | { mode: 'entry'; id: string } | null>(null)
+  // Bumped by the "New chat" button — used purely as an `AnimatePresence` key so the outgoing
+  // (old) chat content plays its own exit-slide before the fresh, empty one mounts.
+  const [chatKey, setChatKey] = useState(0)
   const [products, setProducts] = useProducts()
   const [events, setEvents] = useEvents()
   const [catalogues, setCatalogues] = useCatalogues()
@@ -95,13 +137,16 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   const [boards, setBoards] = useMessageBoards()
   const [posts, setPosts] = useMessageBoardPosts()
   const [appearanceSettings, setAppearanceSettings] = useAppearanceThemes()
-  const [, setStoreSettings] = useStoreSettings()
-  const [, setContactInfo] = useContactInfo()
+  const [storeSettings, setStoreSettings] = useStoreSettings()
+  const [contactInfo, setContactInfo] = useContactInfo()
   const [integrationsConfig, setIntegrationsConfig] = useIntegrationsConfig()
   const [message, setMessage] = useState('')
   const [uploadId, setUploadId] = useState<string | undefined>()
   const [pendingImageBase64, setPendingImageBase64] = useState<{ mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string } | undefined>()
   const [confirmPhrase, setConfirmPhrase] = useState('')
+  // Every new review (including a corrected draft from a follow-up chat message) starts back on
+  // the compact change-summary view, not stuck in the full-form edit view from a previous draft.
+  const [isEditingDraft, setIsEditingDraft] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const tracked = useUpload(uploadId)
   const transcriptEndRef = useRef<HTMLDivElement>(null)
@@ -111,7 +156,10 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   }, [flow.transcript, flow.state])
 
   useEffect(() => {
-    queueMicrotask(() => setConfirmPhrase(''))
+    queueMicrotask(() => {
+      setConfirmPhrase('')
+      setIsEditingDraft(false)
+    })
   }, [flow.state])
 
   const allCategories = catalogues.flatMap((catalogue) => catalogue.categories)
@@ -167,6 +215,25 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
 
       if (entity === 'product') {
         const productDraft = draftWithImage as Product
+        const currentProduct = itemID ? products.find((existing) => existing.itemID === itemID) ?? null : null
+        const saveProduct = (product: Product) => {
+          const exists = products.some((existing) => existing.itemID === product.itemID)
+          setProducts(exists ? products.map((existing) => (existing.itemID === product.itemID ? product : existing)) : [...products, product])
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildProductChangeRows(t, reviewLanguage, currentProduct, productDraft, allCategories, catalogues)}
+                onConfirm={() => saveProduct(productDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
         return (
           <>
             {renderIssues(issues)}
@@ -176,11 +243,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
               defaultCategoryId={productDraft.category || (allCategories[0]?.id ?? '')}
               catalogueCategories={allCategories}
               forceLanguage={reviewLanguage}
-              onSave={(product) => {
-                const exists = products.some((existing) => existing.itemID === product.itemID)
-                setProducts(exists ? products.map((existing) => (existing.itemID === product.itemID ? product : existing)) : [...products, product])
-                flow.onCommitted()
-              }}
+              onSave={saveProduct}
               onCancel={flow.cancel}
             />
           </>
@@ -189,19 +252,29 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
 
       if (entity === 'event') {
         const eventDraft = draftWithImage as EventRecord
+        const currentEvent = itemID ? events.find((existing) => existing.eventID === itemID) ?? null : null
+        const saveEvent = (event: EventRecord) => {
+          const exists = events.some((existing) => existing.eventID === event.eventID)
+          setEvents(exists ? events.map((existing) => (existing.eventID === event.eventID ? event : existing)) : [...events, event])
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildEventChangeRows(t, reviewLanguage, currentEvent, eventDraft)}
+                onConfirm={() => saveEvent(eventDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
         return (
           <>
             {renderIssues(issues)}
-            <EventForm
-              event={eventDraft}
-              forceLanguage={reviewLanguage}
-              onSave={(event) => {
-                const exists = events.some((existing) => existing.eventID === event.eventID)
-                setEvents(exists ? events.map((existing) => (existing.eventID === event.eventID ? event : existing)) : [...events, event])
-                flow.onCommitted()
-              }}
-              onCancel={flow.cancel}
-            />
+            <EventForm event={eventDraft} forceLanguage={reviewLanguage} onSave={saveEvent} onCancel={flow.cancel} />
           </>
         )
       }
@@ -256,131 +329,183 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
 
       if (entity === 'catalogue') {
         const catalogueDraft = draft as Catalogue
+        const currentCatalogue = itemID ? catalogues.find((existing) => existing.id === itemID) ?? null : null
+        const saveCatalogue = (catalogue: Catalogue) => {
+          const exists = catalogues.some((existing) => existing.id === catalogue.id)
+          setCatalogues(exists ? catalogues.map((existing) => (existing.id === catalogue.id ? catalogue : existing)) : [...catalogues, catalogue])
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildCatalogueChangeRows(t, reviewLanguage, currentCatalogue, catalogueDraft)}
+                onConfirm={() => saveCatalogue(catalogueDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
         return (
           <>
             {renderIssues(issues)}
-            <CatalogueForm
-              catalogue={catalogueDraft}
-              forceLanguage={reviewLanguage}
-              onSave={(catalogue) => {
-                const exists = catalogues.some((existing) => existing.id === catalogue.id)
-                setCatalogues(exists ? catalogues.map((existing) => (existing.id === catalogue.id ? catalogue : existing)) : [...catalogues, catalogue])
-                flow.onCommitted()
-              }}
-              onCancel={flow.cancel}
-            />
+            <CatalogueForm catalogue={catalogueDraft} forceLanguage={reviewLanguage} onSave={saveCatalogue} onCancel={flow.cancel} />
           </>
         )
       }
 
       if (entity === 'category') {
         const categoryDraft = draftWithImage as Category & { catalogueId: string; defaultPrice?: Price }
+        const currentCategory = itemID ? allCategories.find((existing) => existing.id === itemID) ?? null : null
+        const currentDefaultPrice = itemID ? categoryPrices[itemID] : undefined
+        const saveCategory = (category: Category) => {
+          setCatalogues(
+            catalogues.map((catalogue) => {
+              if (catalogue.id !== categoryDraft.catalogueId) return catalogue
+              const exists = catalogue.categories.some((existing) => existing.id === category.id)
+              return {
+                ...catalogue,
+                categories: exists
+                  ? catalogue.categories.map((existing) => (existing.id === category.id ? category : existing))
+                  : [...catalogue.categories, category],
+              }
+            }),
+          )
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildCategoryChangeRows(t, reviewLanguage, currentCategory, categoryDraft, currentDefaultPrice)}
+                onConfirm={() => saveCategory(categoryDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
         return (
           <>
             {renderIssues(issues)}
             {categoryDraft.defaultPrice !== undefined && (
               <Alert variant="info">{t('admin.assistant.suggestedDefaultPrice', { price: JSON.stringify(categoryDraft.defaultPrice) })}</Alert>
             )}
-            <CategoryForm
-              category={categoryDraft}
-              forceLanguage={reviewLanguage}
-              onSave={(category) => {
-                setCatalogues(
-                  catalogues.map((catalogue) => {
-                    if (catalogue.id !== categoryDraft.catalogueId) return catalogue
-                    const exists = catalogue.categories.some((existing) => existing.id === category.id)
-                    return {
-                      ...catalogue,
-                      categories: exists
-                        ? catalogue.categories.map((existing) => (existing.id === category.id ? category : existing))
-                        : [...catalogue.categories, category],
-                    }
-                  }),
-                )
-                flow.onCommitted()
-              }}
-              onCancel={flow.cancel}
-            />
+            <CategoryForm category={categoryDraft} forceLanguage={reviewLanguage} onSave={saveCategory} onCancel={flow.cancel} />
           </>
         )
       }
 
       if (entity === 'categoryCustomField') {
         const customFieldDraft = draft as { categoryId: string; categoryLabel: string; fields: CustomFieldDefinition[] }
-        return (
-          <CategoryCustomFieldReview
-            draft={customFieldDraft}
-            issues={issues}
-            renderIssues={renderIssues}
-            onSave={(fields) => {
-              setCatalogues(
-                catalogues.map((catalogue) => ({
-                  ...catalogue,
-                  categories: catalogue.categories.map((existing) => (existing.id === customFieldDraft.categoryId ? { ...existing, customFields: fields } : existing)),
-                })),
-              )
-              flow.onCommitted()
-            }}
-            onCancel={flow.cancel}
-          />
-        )
+        const currentFields = allCategories.find((category) => category.id === customFieldDraft.categoryId)?.customFields ?? []
+        const saveCustomFields = (fields: CustomFieldDefinition[]) => {
+          setCatalogues(
+            catalogues.map((catalogue) => ({
+              ...catalogue,
+              categories: catalogue.categories.map((existing) => (existing.id === customFieldDraft.categoryId ? { ...existing, customFields: fields } : existing)),
+            })),
+          )
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildCategoryCustomFieldChangeRows(t, reviewLanguage, currentFields, customFieldDraft)}
+                onConfirm={() => saveCustomFields(customFieldDraft.fields)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
+        return <CategoryCustomFieldReview draft={customFieldDraft} issues={issues} renderIssues={renderIssues} onSave={saveCustomFields} onCancel={flow.cancel} />
       }
 
       if (entity === 'messageBoard') {
         const boardDraft = draft as MessageBoard
-        return (
-          <MessageBoardMiniForm
-            name={boardDraft.name}
-            issues={issues}
-            renderIssues={renderIssues}
-            onSave={(name) => {
-              const board = { ...boardDraft, name }
-              const exists = boards.some((existing) => existing.id === board.id)
-              setBoards(exists ? boards.map((existing) => (existing.id === board.id ? board : existing)) : [...boards, board])
-              flow.onCommitted()
-            }}
-            onCancel={flow.cancel}
-          />
-        )
+        const currentBoard = itemID ? boards.find((existing) => existing.id === itemID) ?? null : null
+        const saveBoardName = (name: string) => {
+          const board = { ...boardDraft, name }
+          const exists = boards.some((existing) => existing.id === board.id)
+          setBoards(exists ? boards.map((existing) => (existing.id === board.id ? board : existing)) : [...boards, board])
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildMessageBoardChangeRows(t, currentBoard, boardDraft)}
+                onConfirm={() => saveBoardName(boardDraft.name)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
+        return <MessageBoardMiniForm name={boardDraft.name} issues={issues} renderIssues={renderIssues} onSave={saveBoardName} onCancel={flow.cancel} />
       }
 
       if (entity === 'messageBoardPost') {
         const postDraft = draftWithImage as MessageBoardPost
+        const currentPost = itemID ? posts.find((existing) => existing.id === itemID) ?? null : null
+        const boardName = boards.find((board) => board.id === postDraft.boardId)?.name ?? postDraft.boardId
+        const savePost = (post: MessageBoardPost) => {
+          const exists = posts.some((existing) => existing.id === post.id)
+          setPosts(exists ? posts.map((existing) => (existing.id === post.id ? post : existing)) : [post, ...posts])
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildMessageBoardPostChangeRows(t, currentPost, postDraft, boardName)}
+                onConfirm={() => savePost(postDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
         return (
           <>
             {renderIssues(issues)}
-            <MessageBoardPostForm
-              post={itemID ? postDraft : null}
-              boardId={postDraft.boardId}
-              authorUsername={postDraft.authorUsername}
-              onSave={(post) => {
-                const exists = posts.some((existing) => existing.id === post.id)
-                setPosts(exists ? posts.map((existing) => (existing.id === post.id ? post : existing)) : [post, ...posts])
-                flow.onCommitted()
-              }}
-              onCancel={flow.cancel}
-            />
+            <MessageBoardPostForm post={itemID ? postDraft : null} boardId={postDraft.boardId} authorUsername={postDraft.authorUsername} onSave={savePost} onCancel={flow.cancel} />
           </>
         )
       }
 
       if (entity === 'appearanceThemeColor') {
         const colorDraft = draft as { themeId: string; themeName: string; colors: AppearanceThemeColor[] }
-        return (
-          <AppearanceThemeColorReview
-            draft={colorDraft}
-            issues={issues}
-            renderIssues={renderIssues}
-            onSave={(colors) => {
-              setAppearanceSettings({
-                ...appearanceSettings,
-                themes: appearanceSettings.themes.map((theme) => (theme.id === colorDraft.themeId ? { ...theme, colors } : theme)),
-              })
-              flow.onCommitted()
-            }}
-            onCancel={flow.cancel}
-          />
-        )
+        const currentColors = appearanceSettings.themes.find((existing) => existing.id === colorDraft.themeId)?.colors ?? []
+        const saveColors = (colors: AppearanceThemeColor[]) => {
+          setAppearanceSettings({
+            ...appearanceSettings,
+            themes: appearanceSettings.themes.map((theme) => (theme.id === colorDraft.themeId ? { ...theme, colors } : theme)),
+          })
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildAppearanceThemeColorChangeRows(t, currentColors, colorDraft)}
+                onConfirm={() => saveColors(colorDraft.colors)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
+        return <AppearanceThemeColorReview draft={colorDraft} issues={issues} renderIssues={renderIssues} onSave={saveColors} onCancel={flow.cancel} />
       }
 
       if (entity === 'theme') {
@@ -409,78 +534,111 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
             </div>
           )
         }
+        const currentTheme = itemID ? appearanceSettings.themes.find((existing) => existing.id === itemID) ?? null : null
+        const saveTheme = (theme: AppearanceTheme) => {
+          const exists = appearanceSettings.themes.some((existing) => existing.id === theme.id)
+          setAppearanceSettings({
+            ...appearanceSettings,
+            themes: exists ? appearanceSettings.themes.map((existing) => (existing.id === theme.id ? theme : existing)) : [...appearanceSettings.themes, theme],
+          })
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildThemeChangeRows(t, currentTheme, themeDraft)}
+                onConfirm={() => saveTheme(themeDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
         return (
           <>
             {renderIssues(issues)}
-            <ThemeEditorForm
-              theme={themeDraft}
-              onSave={(theme) => {
-                const exists = appearanceSettings.themes.some((existing) => existing.id === theme.id)
-                setAppearanceSettings({
-                  ...appearanceSettings,
-                  themes: exists ? appearanceSettings.themes.map((existing) => (existing.id === theme.id ? theme : existing)) : [...appearanceSettings.themes, theme],
-                })
-                flow.onCommitted()
-              }}
-              onCancel={flow.cancel}
-            />
+            <ThemeEditorForm theme={themeDraft} onSave={saveTheme} onCancel={flow.cancel} />
           </>
         )
       }
 
       if (entity === 'storeSettings') {
         const storeSettingsDraft = draftWithImage as StoreSettings
-        return (
-          <StoreSettingsMiniForm
-            draft={storeSettingsDraft}
-            issues={issues}
-            renderIssues={renderIssues}
-            onSave={(next) => {
-              setStoreSettings(next)
-              flow.onCommitted()
-            }}
-            onCancel={flow.cancel}
-          />
-        )
+        const saveStoreSettings = (next: StoreSettings) => {
+          setStoreSettings(next)
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildStoreSettingsChangeRows(t, storeSettings, storeSettingsDraft)}
+                onConfirm={() => saveStoreSettings(storeSettingsDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
+        return <StoreSettingsMiniForm draft={storeSettingsDraft} issues={issues} renderIssues={renderIssues} onSave={saveStoreSettings} onCancel={flow.cancel} />
       }
 
       if (entity === 'contactInfo') {
         const contactInfoDraft = draft as ContactInfo
-        return (
-          <ContactInfoMiniForm
-            draft={contactInfoDraft}
-            issues={issues}
-            renderIssues={renderIssues}
-            onSave={(next) => {
-              setContactInfo(next)
-              flow.onCommitted()
-            }}
-            onCancel={flow.cancel}
-          />
-        )
+        const saveContactInfo = (next: ContactInfo) => {
+          setContactInfo(next)
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildContactInfoChangeRows(t, contactInfo, contactInfoDraft)}
+                onConfirm={() => saveContactInfo(contactInfoDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
+        return <ContactInfoMiniForm draft={contactInfoDraft} issues={issues} renderIssues={renderIssues} onSave={saveContactInfo} onCancel={flow.cancel} />
       }
 
       if (entity === 'integrationToggle') {
         const toggleDraft = draft as { integration: 'weather' | 'transit' | 'entur' | 'news'; enabled: boolean; sourceIds?: string[] }
-        return (
-          <IntegrationToggleMiniForm
-            draft={toggleDraft}
-            issues={issues}
-            renderIssues={renderIssues}
-            onSave={(next) => {
-              setIntegrationsConfig({
-                ...integrationsConfig,
-                [next.integration]: {
-                  ...integrationsConfig[next.integration],
-                  enabled: next.enabled,
-                  ...(next.integration === 'news' ? { enabledSourceIds: next.sourceIds ?? [] } : {}),
-                },
-              })
-              flow.onCommitted()
-            }}
-            onCancel={flow.cancel}
-          />
-        )
+        const currentToggle = {
+          enabled: integrationsConfig[toggleDraft.integration].enabled,
+          sourceIds: toggleDraft.integration === 'news' ? integrationsConfig.news.enabledSourceIds : undefined,
+        }
+        const saveToggle = (next: { integration: 'weather' | 'transit' | 'entur' | 'news'; enabled: boolean; sourceIds?: string[] }) => {
+          setIntegrationsConfig({
+            ...integrationsConfig,
+            [next.integration]: {
+              ...integrationsConfig[next.integration],
+              enabled: next.enabled,
+              ...(next.integration === 'news' ? { enabledSourceIds: next.sourceIds ?? [] } : {}),
+            },
+          })
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildIntegrationToggleChangeRows(t, currentToggle, toggleDraft, t(`admin.integrations.${toggleDraft.integration}Label`))}
+                onConfirm={() => saveToggle(toggleDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
+        return <IntegrationToggleMiniForm draft={toggleDraft} issues={issues} renderIssues={renderIssues} onSave={saveToggle} onCancel={flow.cancel} />
       }
     }
 
@@ -554,117 +712,286 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
     return null
   }
 
+  const selectedLogEntry = logView?.mode === 'entry' ? flow.conversationLog.entries.find((entry) => entry.id === logView.id) : undefined
+
+  const modelMenuButton = flow.allowedEntities.length > 0 && (
+    <button
+      type="button"
+      className="admin-right-panel__header-action"
+      onClick={() => {
+        setModelMenuOpen((current) => !current)
+        setLogView(null)
+      }}
+      aria-label={t('admin.assistant.modelMenuTitle')}
+      title={t('admin.assistant.modelMenuTitle')}
+    >
+      <KebabIcon />
+    </button>
+  )
+
+  const headerActions = flow.allowedEntities.length > 0 && (
+    <>
+      <button
+        type="button"
+        className="admin-right-panel__header-action"
+        onClick={() => {
+          setLogView((current) => (current ? null : { mode: 'list' }))
+          setModelMenuOpen(false)
+        }}
+        aria-label={t('admin.assistant.conversationLog')}
+        title={t('admin.assistant.conversationLog')}
+      >
+        <ClockIcon />
+      </button>
+      <button
+        type="button"
+        className="admin-right-panel__header-action"
+        onClick={() => {
+          flow.newChat()
+          setLogView(null)
+          setModelMenuOpen(false)
+          setChatKey((key) => key + 1)
+        }}
+        aria-label={t('admin.assistant.newChat')}
+        title={t('admin.assistant.newChat')}
+      >
+        <NewChatIcon />
+      </button>
+    </>
+  )
+
   return (
-    <AdminRightPanel open={open} onClose={onClose} title={t('admin.assistant.title')} width="wide">
+    <AdminRightPanel open={open} onClose={onClose} title={t('admin.assistant.title')} width="wide" headerStart={modelMenuButton} headerEnd={headerActions}>
       <div className="assistant-panel">
         {allCategories.length === 0 && null}
         {flow.allowedEntities.length === 0 ? (
           <Alert variant="info">{t('admin.assistant.noAccess')}</Alert>
         ) : (
-          <>
-            <div className="assistant-panel__transcript">
-              {flow.transcript.map((line) => (
-                <div key={line.id} className={`assistant-panel__line assistant-panel__line--${line.role}`}>
-                  {line.text}
+          <AnimatePresence mode="wait">
+            {modelMenuOpen ? (
+              // Same slide-in/out-from-the-right treatment as the log view below.
+              <motion.div
+                key="model-menu"
+                className="assistant-panel__log"
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+              >
+                <button type="button" className="assistant-panel__log-back" onClick={() => setModelMenuOpen(false)}>
+                  <ChevronLeftIcon />
+                  {t('admin.common.back')}
+                </button>
+                <div className="assistant-panel__log-entry-header">
+                  <span className="assistant-panel__log-title">{t('admin.assistant.modelMenuTitle')}</span>
                 </div>
-              ))}
-
-              {flow.state.status === 'noMatch' && <Alert variant="info">{t('admin.assistant.noMatchFound')}</Alert>}
-              {flow.state.status === 'error' && <Alert variant="error">{flow.state.message || t('admin.assistant.errorGeneric')}</Alert>}
-
-              {flow.state.status === 'confirmItem' && (
-                <div className="assistant-panel__confirm-item">
-                  <p>{t('admin.assistant.confirmMatchQuestion')}</p>
-                  <ul>
-                    {(flow.state.showAll ? flow.state.candidates : flow.state.candidates.slice(0, 1)).map((candidate) => (
-                      <li key={candidate.id}>
-                        <button type="button" onClick={() => void flow.pickCandidate(candidate.id)}>
-                          {candidate.label}
+                <ul className="assistant-panel__log-list">
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModelOverride(null)
+                        setModelMenuOpen(false)
+                      }}
+                    >
+                      <span className={`assistant-panel__log-title${modelOverride === null ? ' assistant-panel__model-menu-option--selected' : ''}`}>
+                        {t('admin.assistant.modelDefaultOption')}
+                      </span>
+                    </button>
+                  </li>
+                  {MODEL_OVERRIDE_OPTIONS.map((model) => (
+                    <li key={model}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModelOverride(model)
+                          setModelMenuOpen(false)
+                        }}
+                      >
+                        <span className={`assistant-panel__log-title${modelOverride === model ? ' assistant-panel__model-menu-option--selected' : ''}`}>
+                          {t(`admin.integrations.assistantModel.${model}.label`)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            ) : logView ? (
+              // Slides in/out from the right, like navigating into a sub-page of the panel.
+              <motion.div
+                key="log"
+                className="assistant-panel__log"
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+              >
+                {logView.mode === 'entry' ? (
+                  <>
+                    <button type="button" className="assistant-panel__log-back" onClick={() => setLogView({ mode: 'list' })}>
+                      <ChevronLeftIcon />
+                      {t('admin.common.back')}
+                    </button>
+                    <div className="assistant-panel__log-entry-header">
+                      <span className="assistant-panel__log-title">{selectedLogEntry?.title}</span>
+                      {selectedLogEntry?.hadError && <Badge variant="error">{t('admin.assistant.conversationErrorTag')}</Badge>}
+                    </div>
+                    <div className="assistant-panel__transcript assistant-panel__transcript--readonly">
+                      {selectedLogEntry?.transcript.map((line) => (
+                        <div key={line.id} className={`assistant-panel__line assistant-panel__line--${line.role}`}>
+                          {line.text}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : flow.conversationLog.entries.length === 0 ? (
+                  <Alert variant="info">{t('admin.assistant.noConversations')}</Alert>
+                ) : (
+                  <ul className="assistant-panel__log-list">
+                    {flow.conversationLog.entries.map((entry) => (
+                      <li key={entry.id}>
+                        <button type="button" onClick={() => setLogView({ mode: 'entry', id: entry.id })}>
+                          <span className="assistant-panel__log-title-row">
+                            <span className="assistant-panel__log-title">{entry.title}</span>
+                            {entry.hadError && <Badge variant="error">{t('admin.assistant.conversationErrorTag')}</Badge>}
+                          </span>
+                          <span className="assistant-panel__log-date">{formatDateTime(new Date(entry.createdAt), language, clockFormat, dateFormat)}</span>
                         </button>
                       </li>
                     ))}
                   </ul>
-                  {!flow.state.showAll && (
-                    <div className="assistant-panel__actions">
-                      <Button type="button" onClick={() => void flow.confirmItemMatch()}>
-                        {t('admin.assistant.confirmMatchYes')}
-                      </Button>
-                      <Button type="button" variant="secondary" onClick={flow.showOtherCandidates}>
-                        {t('admin.assistant.confirmMatchShowOthers')}
-                      </Button>
+                )}
+              </motion.div>
+            ) : (
+              // Keyed by `chatKey` so "New chat" (which bumps it) plays this exact exit
+              // animation for the outgoing conversation before the fresh, empty one mounts.
+              <motion.div
+                key={`chat-${chatKey}`}
+                className="assistant-panel__chat"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, x: '-100%' }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+              >
+                <div className="assistant-panel__transcript">
+                  {flow.transcript.map((line) => (
+                    <motion.div
+                      key={line.id}
+                      className={`assistant-panel__line assistant-panel__line--${line.role}`}
+                      initial={{ opacity: 0, y: 16 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeOut' }}
+                    >
+                      {line.text}
+                    </motion.div>
+                  ))}
+
+                  {flow.state.status === 'noMatch' && <Alert variant="info">{t('admin.assistant.noMatchFound')}</Alert>}
+                  {flow.state.status === 'error' && <Alert variant="error">{flow.state.message || t('admin.assistant.errorGeneric')}</Alert>}
+
+                  {flow.state.status === 'confirmItem' && (
+                    <div className="assistant-panel__confirm-item">
+                      <p>{t('admin.assistant.confirmMatchQuestion')}</p>
+                      <ul>
+                        {(flow.state.showAll ? flow.state.candidates : flow.state.candidates.slice(0, 1)).map((candidate) => (
+                          <li key={candidate.id}>
+                            <button type="button" onClick={() => void flow.pickCandidate(candidate.id)}>
+                              {candidate.label}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      {!flow.state.showAll && (
+                        <div className="assistant-panel__actions">
+                          <Button type="button" onClick={() => void flow.confirmItemMatch()}>
+                            {t('admin.assistant.confirmMatchYes')}
+                          </Button>
+                          <Button type="button" variant="secondary" onClick={flow.showOtherCandidates}>
+                            {t('admin.assistant.confirmMatchShowOthers')}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
-              )}
 
-              {flow.state.status === 'clarifying' && (
-                <div className="assistant-panel__confirm-item">
-                  {flow.state.clarifications.map((clarification) => (
-                    <div key={clarification.field}>
-                      <p>{t(clarification.questionKey)}</p>
-                      <ul>
-                        {clarification.options.map((option) => {
-                          const selected = flow.state.status === 'clarifying' && flow.state.resolvedFields[clarification.field] === option.id
-                          return (
-                            <li key={option.id}>
-                              <button
-                                type="button"
-                                className={selected ? 'assistant-panel__clarify-option--selected' : undefined}
-                                onClick={() => void flow.answerClarification(clarification.field, option.id)}
-                              >
-                                {option.label}
-                              </button>
-                            </li>
-                          )
-                        })}
-                      </ul>
+                  {flow.state.status === 'clarifying' && (
+                    <div className="assistant-panel__confirm-item">
+                      {flow.state.clarifications.map((clarification) => (
+                        <div key={clarification.field}>
+                          <p>{t(clarification.questionKey)}</p>
+                          <ul>
+                            {clarification.options.map((option) => {
+                              const selected = flow.state.status === 'clarifying' && flow.state.resolvedFields[clarification.field] === option.id
+                              return (
+                                <li key={option.id}>
+                                  <button
+                                    type="button"
+                                    className={selected ? 'assistant-panel__clarify-option--selected' : undefined}
+                                    onClick={() => void flow.answerClarification(clarification.field, option.id)}
+                                  >
+                                    {option.label}
+                                  </button>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+
+                  {(flow.state.status === 'reviewingForm' || flow.state.status === 'reviewingDestructive') && <div className="assistant-panel__review">{renderReview()}</div>}
+
+                  {isBusy && <AssistantTypingIndicator label={flow.state.status === 'busy' && flow.state.phase === 'verifying' ? t('admin.assistant.doubleChecking') : t('admin.assistant.thinking')} />}
+                  <div ref={transcriptEndRef} />
                 </div>
-              )}
 
-              {(flow.state.status === 'reviewingForm' || flow.state.status === 'reviewingDestructive') && <div className="assistant-panel__review">{renderReview()}</div>}
+                <AnimatePresence>
+                  {flow.transcript.length === 0 && (
+                    <motion.p
+                      key="composer-hint"
+                      className="assistant-panel__composer-hint"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      {t('admin.assistant.composerHint')}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
 
-              {isBusy && <AssistantTypingIndicator label={flow.state.status === 'busy' && flow.state.phase === 'verifying' ? t('admin.assistant.doubleChecking') : t('admin.assistant.thinking')} />}
-              <div ref={transcriptEndRef} />
-            </div>
-
-            <div className="assistant-panel__composer">
-              {pendingImageBase64 && (
-                <div className="assistant-panel__attachment">
-                  {tracked?.status === 'uploading' ? <Spinner /> : null}
-                  <button type="button" onClick={clearAttachedImage} aria-label={t('admin.common.cancel')}>
-                    ×
+                <div className="assistant-panel__composer">
+                  {pendingImageBase64 && (
+                    <div className="assistant-panel__attachment">
+                      {tracked?.status === 'uploading' ? <Spinner /> : null}
+                      <button type="button" onClick={clearAttachedImage} aria-label={t('admin.common.cancel')}>
+                        ×
+                      </button>
+                    </div>
+                  )}
+                  <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={(event) => void handleFileChange(event)} />
+                  <button type="button" className="assistant-panel__attach-button" onClick={handleAttachClick} title={t('admin.assistant.attachImage')}>
+                    📎
                   </button>
+                  <textarea
+                    value={message}
+                    placeholder={t('admin.assistant.composerPlaceholder')}
+                    onChange={(event) => setMessage(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault()
+                        handleSend()
+                      }
+                    }}
+                  />
+                  <Button type="button" onClick={handleSend} disabled={!message.trim()}>
+                    {t('admin.assistant.send')}
+                  </Button>
                 </div>
-              )}
-              <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={(event) => void handleFileChange(event)} />
-              <button type="button" className="assistant-panel__attach-button" onClick={handleAttachClick} title={t('admin.assistant.attachImage')}>
-                📎
-              </button>
-              <textarea
-                value={message}
-                placeholder={t('admin.assistant.composerPlaceholder')}
-                onChange={(event) => setMessage(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault()
-                    handleSend()
-                  }
-                }}
-              />
-              <Button type="button" onClick={handleSend} disabled={!message.trim()}>
-                {t('admin.assistant.send')}
-              </Button>
-            </div>
-            {flow.state.status !== 'idle' && (
-              <div className="assistant-panel__footer-actions">
-                <button type="button" onClick={flow.startOver}>
-                  {t('admin.assistant.startOver')}
-                </button>
-              </div>
+              </motion.div>
             )}
-          </>
+          </AnimatePresence>
         )}
       </div>
     </AdminRightPanel>

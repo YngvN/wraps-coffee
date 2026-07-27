@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Badge, ChevronRightIcon, DiscountedPrice, EditDeleteButtons } from '../../../components'
+import { useNumberInputValue } from '../../../hooks/useNumberInputValue'
 import { useLanguage } from '../../../i18n'
 import type { Catalogue } from '../../../types/category'
 import type { Price, Product } from '../../../types/product'
@@ -24,6 +25,7 @@ interface ProductRowProps {
 export function ProductRow({ product, defaultPrice, catalogues, onOpen, onDelete, onStockQuantityChange, onMove }: ProductRowProps) {
   const { t, language } = useLanguage()
   const [isMoving, setIsMoving] = useState(false)
+  const stockQuantityInputProps = useNumberInputValue(product.stockQuantity ?? 0, (value) => onStockQuantityChange(Math.max(0, Math.round(value) || 0)))
 
   const showPrice = product.discount !== undefined || product.price !== undefined
   const effective = showPrice ? getEffectivePrice(product.price ?? defaultPrice, product.discount) : undefined
@@ -58,9 +60,8 @@ export function ProductRow({ product, defaultPrice, catalogues, onOpen, onDelete
             className="products-view__stock-quick-edit"
             aria-label={t('admin.products.stockQuantityLabel')}
             title={t('admin.products.stockQuantityLabel')}
-            value={product.stockQuantity ?? 0}
             onClick={(event) => event.stopPropagation()}
-            onChange={(event) => onStockQuantityChange(Math.max(0, Math.round(Number(event.target.value)) || 0))}
+            {...stockQuantityInputProps}
           />
         )}
         <EditDeleteButtons onEdit={onOpen} onMove={() => setIsMoving(true)} onDelete={onDelete} />

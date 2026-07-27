@@ -38,7 +38,7 @@ export interface IntentResult {
  * is still caught by the later confirm-before-write review — a `'chat'`
  * misroute is harmless by construction, since it never proposes a write.
  */
-export async function selectIntent(session: AssistantSession, message: string, uiLanguage: 'no' | 'en'): Promise<IntentResult> {
+export async function selectIntent(session: AssistantSession, message: string, uiLanguage: 'no' | 'en', modelOverride?: store.AssistantModel): Promise<IntentResult> {
   requireImplementedProvider()
   const entities = allowedEntitiesFor(session)
   if (entities.length === 0) throw new Error('No assistant actions are available to this account.')
@@ -71,6 +71,7 @@ export async function selectIntent(session: AssistantSession, message: string, u
     toolName: 'select_intent',
     toolDescription: "Choose which entity and action the admin's message is about, or answer directly via the chat fallback.",
     schema,
+    model: modelOverride,
   })
 
   if (result.entity === 'chat') return { ...result, action: null }
@@ -104,6 +105,7 @@ export async function selectItem(
   searchText: string,
   uiLanguage: 'no' | 'en',
   priorItemID?: string,
+  modelOverride?: store.AssistantModel,
 ): Promise<SelectItemResult> {
   requireImplementedProvider()
   const entity = requireAccessibleEntity(entityKey, session)
@@ -140,6 +142,7 @@ export async function selectItem(
     toolDescription: 'Pick the itemID the admin is referring to, or null if none match.',
     schema,
     verifyContext: candidateList,
+    model: modelOverride,
   })
 
   return { itemID: result.itemID, candidates }
@@ -166,7 +169,7 @@ export async function fillFields(
   session: AssistantSession,
   message: string,
   uiLanguage: 'no' | 'en',
-  options: { itemID?: string; image?: AssistantImageInput; priorDraft?: unknown; resolvedFields?: Record<string, string> } = {},
+  options: { itemID?: string; image?: AssistantImageInput; priorDraft?: unknown; resolvedFields?: Record<string, string>; modelOverride?: store.AssistantModel } = {},
 ): Promise<FillFieldsResult> {
   requireImplementedProvider()
   const entity = requireAccessibleEntity(entityKey, session)
@@ -196,6 +199,7 @@ export async function fillFields(
     toolName: `fill_fields_${entityKey}`,
     toolDescription: `Propose field values for this "${entityKey}" ${action}.`,
     schema,
+    model: options.modelOverride,
   })
 
   // The admin's own answers to a prior clarifying round are authoritative — they override whatever the model itself proposed (or failed to) for that same field.
@@ -213,4 +217,37 @@ export async function fillFields(
   const draft = entity.mergeDraft(action, current, fields, context)
   const issues = entity.validate(action, draft, context)
   return { status: 'ready', draft, issues }
+}
+
+/**
+ * Names a just-finished conversation for the admin's own conversation log
+ * (see `useAssistantConversationLog`'s doc comment) — called once, from
+ * `useAssistantFlow`'s `newChat()`, after the chat has already been reset
+ * client-side; the client shows a plain-text fallback title in the
+ * meantime rather than waiting on this call.
+ */
+export async function generateTitle(transcriptText: string, uiLanguage: 'no' | 'en', modelOverride?: store.AssistantModel): Promise<{ title: string }> {
+  requireImplementedProvider()
+
+  const schema: AssistantJsonSchema = {
+    type: 'object',
+    properties: { title: { type: 'string', description: 'A short (3-6 word) title summarizing the conversation, with no surrounding quotes or trailing punctuation.' } },
+    required: ['title'],
+    additionalProperties: false,
+  }
+
+  const systemPrompt = [
+    languageInstruction(uiLanguage),
+    'You are naming a past conversation from the Wraps & Coffee admin dashboard\'s AI assistant, for a history list the admin browses later.',
+    'Write a short (3-6 word) title summarizing what the conversation below was actually about — specific enough to tell it apart from other conversations (e.g. name the product/event/setting involved), not a generic label like "Chat" or "Conversation".',
+  ].join('\n')
+
+  return callToolOnce<{ title: string }>({
+    systemPrompt,
+    userText: transcriptText,
+    toolName: 'generate_title',
+    toolDescription: 'Provide a short title summarizing the conversation.',
+    schema,
+    model: modelOverride,
+  })
 }

@@ -1,3 +1,4 @@
+import { NumberInput } from '../../../components'
 import { useLanguage } from '../../../i18n'
 import type { Price } from '../../../types/product'
 import './CategoryPriceEditor.scss'
@@ -46,33 +47,24 @@ export function PriceEditor({ price, onChange, legendKey, fieldId }: PriceEditor
       </label>
       <label>
         <input type="radio" name={`price-${fieldId}`} checked={mode === 'flat'} onChange={() => setMode('flat')} />
-        <input
-          type="number"
-          min={0}
-          aria-label={t('admin.products.priceLabel')}
-          value={typeof price === 'number' ? price : 0}
-          disabled={mode !== 'flat'}
-          onChange={(event) => onChange(Number(event.target.value))}
-        />
+        <NumberInput min={0} aria-label={t('admin.products.priceLabel')} value={typeof price === 'number' ? price : 0} disabled={mode !== 'flat'} onChange={onChange} />
       </label>
       <label>
         <input type="radio" name={`price-${fieldId}`} checked={mode === 'dual'} onChange={() => setMode('dual')} />
-        <input
-          type="number"
+        <NumberInput
           min={0}
           aria-label={t('admin.products.priceTakeawayLabel')}
           value={typeof price === 'object' ? price.takeaway : 0}
           disabled={mode !== 'dual'}
-          onChange={(event) => setDual({ takeaway: Number(event.target.value) })}
+          onChange={(value) => setDual({ takeaway: value })}
         />
         {' / '}
-        <input
-          type="number"
+        <NumberInput
           min={0}
           aria-label={t('admin.products.priceEatInLabel')}
           value={typeof price === 'object' ? price.eatIn : 0}
           disabled={mode !== 'dual'}
-          onChange={(event) => setDual({ eatIn: Number(event.target.value) })}
+          onChange={(value) => setDual({ eatIn: value })}
         />
       </label>
     </fieldset>

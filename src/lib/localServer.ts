@@ -459,12 +459,12 @@ export interface AssistantIntentResult {
   reply: string | null
 }
 
-/** Step 1 of the assistant flow (see `useAssistantFlow`) — routes free text to an entity + action. Never writes anything; see `server/assistant/types.ts`'s own module doc comment. */
-export async function assistantSelectIntent(token: string, message: string, uiLanguage: 'no' | 'en'): Promise<AssistantIntentResult> {
+/** Step 1 of the assistant flow (see `useAssistantFlow`) — routes free text to an entity + action. Never writes anything; see `server/assistant/types.ts`'s own module doc comment. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. */
+export async function assistantSelectIntent(token: string, message: string, uiLanguage: 'no' | 'en', model?: AssistantModel): Promise<AssistantIntentResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/intent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message, uiLanguage }),
+    body: JSON.stringify({ message, uiLanguage, model }),
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (!response.ok) {
@@ -479,10 +479,10 @@ export interface AssistantSelectItemResult {
   candidates: { id: string; label: string }[]
 }
 
-/** Step 2 of the assistant flow (only for actions that need an existing item) — picks a candidate `itemID` for `entity`, or `null` if none clearly match. Pass `priorItemID` when the admin said the previous pick was wrong. */
+/** Step 2 of the assistant flow (only for actions that need an existing item) — picks a candidate `itemID` for `entity`, or `null` if none clearly match. Pass `priorItemID` when the admin said the previous pick was wrong. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. */
 export async function assistantSelectItem(
   token: string,
-  input: { entity: string; action: string; message: string; searchText: string; uiLanguage: 'no' | 'en'; priorItemID?: string },
+  input: { entity: string; action: string; message: string; searchText: string; uiLanguage: 'no' | 'en'; priorItemID?: string; model?: AssistantModel },
 ): Promise<AssistantSelectItemResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/select-item`, {
     method: 'POST',
@@ -514,7 +514,7 @@ export type AssistantFillFieldsResult =
   | { status: 'ready'; draft: unknown; issues: { code: string; params?: Record<string, string> }[] }
   | { status: 'clarify'; clarifications: AssistantFillFieldsClarification[] }
 
-/** Step 3 of the assistant flow — proposes (never writes) a draft for `entity`/`action`, merged onto the current item (`itemID`) or empty defaults. `image` is the vision-extraction input (see `AssistantPanel`'s attach flow); `priorDraft` is set when this call is a correction from the review step; `resolvedFields` carries the admin's own answers to a prior `'clarify'` result. */
+/** Step 3 of the assistant flow — proposes (never writes) a draft for `entity`/`action`, merged onto the current item (`itemID`) or empty defaults. `image` is the vision-extraction input (see `AssistantPanel`'s attach flow); `priorDraft` is set when this call is a correction from the review step; `resolvedFields` carries the admin's own answers to a prior `'clarify'` result; `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. */
 export async function assistantFillFields(
   token: string,
   input: {
@@ -526,6 +526,7 @@ export async function assistantFillFields(
     image?: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string }
     priorDraft?: unknown
     resolvedFields?: Record<string, string>
+    model?: AssistantModel
   },
 ): Promise<AssistantFillFieldsResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/fill-fields`, {
@@ -539,6 +540,21 @@ export async function assistantFillFields(
     throw new Error(body.error ?? 'Could not draft that change')
   }
   return response.json() as Promise<AssistantFillFieldsResult>
+}
+
+/** Names a just-finished conversation for the admin's own conversation log (see `useAssistantConversationLog`) — `transcriptText` is a plain-text rendering of the chat, not structured data. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. */
+export async function assistantGenerateTitle(token: string, transcriptText: string, uiLanguage: 'no' | 'en', model?: AssistantModel): Promise<{ title: string }> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/title`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ transcriptText, uiLanguage, model }),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not generate a title for this conversation')
+  }
+  return response.json() as Promise<{ title: string }>
 }
 
 /** How a screen's own `/screens/:screenId` link should be addressed (see Settings → Advanced) — public, no auth needed. */

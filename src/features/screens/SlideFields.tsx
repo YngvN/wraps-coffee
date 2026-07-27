@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Checkbox, CollapsibleSection, ImageUploadField, Input, Textarea } from '../../components'
+import { Button, Checkbox, CollapsibleSection, ImageUploadField, Input, NumberInput, Textarea } from '../../components'
 import { useCatalogues } from '../../hooks/useCatalogues'
 import { useEvents } from '../../hooks/useEvents'
 import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
@@ -714,7 +714,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
               {(content.newsSourceMode ?? 'automatic') === 'automatic' && (
                 <label className="slide-fields__number-field">
                   <span>{t('admin.screens.qrCodeNewsSlotOrdinalLabel')}</span>
-                  <input type="number" min={1} value={content.newsSlotOrdinal ?? 1} onChange={(event) => setQrCodeNewsSlotOrdinal(Number(event.target.value))} />
+                  <NumberInput min={1} value={content.newsSlotOrdinal ?? 1} onChange={setQrCodeNewsSlotOrdinal} />
                 </label>
               )}
               <Checkbox
@@ -795,13 +795,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
         <>
           <label className="slide-fields__number-field">
             <span>{t('admin.screens.transitDepartureCountLabel')}</span>
-            <input
-              type="number"
-              min={1}
-              max={20}
-              value={content.departureCount ?? DEFAULT_TRANSIT_DEPARTURE_COUNT}
-              onChange={(event) => setTransitDepartureCount(Number(event.target.value))}
-            />
+            <NumberInput min={1} max={20} value={content.departureCount ?? DEFAULT_TRANSIT_DEPARTURE_COUNT} onChange={setTransitDepartureCount} />
           </label>
           <CollapsibleSection label={t('admin.screens.transitDetailsLabel')} hint={t('admin.screens.transitDetailsHint')}>
             <Checkbox id={`${id}-transit-platform`} label={t('admin.screens.transitShowPlatformLabel')} checked={Boolean(content.showPlatform)} onChange={(event) => setTransitShowPlatform(event.target.checked)} />
@@ -869,7 +863,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
           )}
           <label className="slide-fields__number-field">
             <span>{t('admin.screens.weatherForecastHoursLabel')}</span>
-            <input type="number" min={1} max={48} value={content.forecastHours ?? DEFAULT_WEATHER_FORECAST_HOURS} onChange={(event) => setWeatherForecastHours(Number(event.target.value))} />
+            <NumberInput min={1} max={48} value={content.forecastHours ?? DEFAULT_WEATHER_FORECAST_HOURS} onChange={setWeatherForecastHours} />
           </label>
           <CollapsibleSection label={t('admin.screens.weatherDetailsLabel')} hint={t('admin.screens.weatherDetailsHint')}>
             <Checkbox id={`${id}-weather-wind`} label={t('admin.screens.weatherShowWindLabel')} checked={Boolean(content.showWind)} onChange={(event) => setWeatherShowWind(event.target.checked)} />
@@ -940,11 +934,11 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
             </CollapsibleSection>
             <label className="slide-fields__number-field">
               <span>{t('admin.screens.newsHeadlineCountLabel')}</span>
-              <input type="number" min={1} max={30} value={content.headlineCount ?? DEFAULT_NEWS_HEADLINE_COUNT} onChange={(event) => setNewsHeadlineCount(Number(event.target.value))} />
+              <NumberInput min={1} max={30} value={content.headlineCount ?? DEFAULT_NEWS_HEADLINE_COUNT} onChange={setNewsHeadlineCount} />
             </label>
             <label className="slide-fields__number-field">
               <span>{t('admin.screens.newsRotateSecondsLabel')}</span>
-              <input type="number" min={1} value={content.rotateSeconds ?? DEFAULT_NEWS_ROTATE_SECONDS} onChange={(event) => setNewsRotateSeconds(Number(event.target.value))} />
+              <NumberInput min={1} value={content.rotateSeconds ?? DEFAULT_NEWS_ROTATE_SECONDS} onChange={setNewsRotateSeconds} />
             </label>
             <Checkbox
               id={`${id}-news-brand-theme`}
@@ -1029,19 +1023,14 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
                     {(content.displayMode ?? 'rotating') === 'rotating' && (
                       <label className="slide-fields__number-field">
                         <span>{t('admin.screens.messageBoardRotateSecondsLabel')}</span>
-                        <input
-                          type="number"
-                          min={1}
-                          value={content.rotateSeconds ?? DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS}
-                          onChange={(event) => setMessageBoardRotateSeconds(Number(event.target.value))}
-                        />
+                        <NumberInput min={1} value={content.rotateSeconds ?? DEFAULT_MESSAGE_BOARD_ROTATE_SECONDS} onChange={setMessageBoardRotateSeconds} />
                       </label>
                     )}
 
                     {((content.displayMode ?? 'rotating') === 'rotating' || content.displayMode === 'list') && (
                       <label className="slide-fields__number-field">
                         <span>{t('admin.screens.messageBoardCountLabel')}</span>
-                        <input type="number" min={1} value={content.count ?? DEFAULT_MESSAGE_BOARD_COUNT} onChange={(event) => setMessageBoardCount(Number(event.target.value))} />
+                        <NumberInput min={1} value={content.count ?? DEFAULT_MESSAGE_BOARD_COUNT} onChange={setMessageBoardCount} />
                       </label>
                     )}
                   </>
@@ -1055,7 +1044,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
       {content.kind === 'event' && (content.displayMode ?? 'calendar') === 'calendar' && (
         <label className="slide-fields__number-field">
           <span>{t('admin.screens.eventCalendarCountLabel')}</span>
-          <input type="number" min={1} value={content.count ?? DEFAULT_EVENT_CALENDAR_COUNT} onChange={(event) => setEventCalendarCount(Number(event.target.value))} />
+          <NumberInput min={1} value={content.count ?? DEFAULT_EVENT_CALENDAR_COUNT} onChange={setEventCalendarCount} />
         </label>
       )}
 

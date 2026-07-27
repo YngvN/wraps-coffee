@@ -12,6 +12,10 @@ interface AdminRightPanelProps {
   children: ReactNode
   /** `'wide'` widens the panel (see `.admin-right-panel--wide` in `AdminRightPanel.scss`) — used by the global search panel, which needs more room for result rows than Notifications/Messages do. Defaults to `'default'`. */
   width?: 'default' | 'wide'
+  /** Extra header content rendered to the right of `title` (before the × close button) — e.g. `AssistantPanel`'s conversation-log/new-chat icon buttons. Omitted entirely by every other caller. */
+  headerEnd?: ReactNode
+  /** Extra header content rendered to the left of `title` — e.g. `AssistantPanel`'s per-chat model-picker menu button. Omitted entirely by every other caller. */
+  headerStart?: ReactNode
 }
 
 /**
@@ -31,7 +35,7 @@ interface AdminRightPanelProps {
  * z-index. Portaling to `document.body` escapes that context entirely, the
  * same way the navbar's own siblings in `AdminDashboard` do.
  */
-export function AdminRightPanel({ open, onClose, title, children, width = 'default' }: AdminRightPanelProps) {
+export function AdminRightPanel({ open, onClose, title, children, width = 'default', headerEnd, headerStart }: AdminRightPanelProps) {
   const { t } = useLanguage()
 
   return createPortal(
@@ -57,7 +61,9 @@ export function AdminRightPanel({ open, onClose, title, children, width = 'defau
             transition={{ duration: 0.25, ease: 'easeOut' }}
           >
             <div className="admin-right-panel__header">
+              {headerStart}
               <span className="admin-right-panel__title">{title}</span>
+              {headerEnd}
               <button type="button" className="admin-right-panel__close" onClick={onClose} aria-label={t('admin.common.close')} title={t('admin.common.close')}>
                 <CloseIcon />
               </button>

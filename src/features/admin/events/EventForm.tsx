@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Button, Checkbox, ImageUploadField, Input, LanguageTabs, Textarea } from '../../../components'
+import { Button, Checkbox, ImageUploadField, Input, LanguageTabs, NumberInput, Textarea } from '../../../components'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { availableLanguages, useLanguage, type LanguageCode } from '../../../i18n'
 import type { EventRecord } from '../../../types/event'
@@ -126,15 +126,8 @@ export function EventForm({ event, forceLanguage, onSave, onCancel }: EventFormP
       />
 
       <div className="event-form__row">
-        <Input
-          id="event-capacity"
-          label={t('admin.events.capacityLabel')}
-          type="number"
-          min={0}
-          value={capacity}
-          onChange={(e) => setCapacity(Number(e.target.value))}
-        />
-        <Input id="event-price" label={t('admin.events.priceLabel')} type="number" min={0} value={price} onChange={(e) => setPrice(Number(e.target.value))} />
+        <NumberInput id="event-capacity" label={t('admin.events.capacityLabel')} min={0} value={capacity} onChange={setCapacity} />
+        <NumberInput id="event-price" label={t('admin.events.priceLabel')} min={0} value={price} onChange={setPrice} />
         <ImageUploadField id="event-image-url" value={imageUrl} onChange={setImageUrl} />
       </div>
 

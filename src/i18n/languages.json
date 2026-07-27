@@ -464,9 +464,15 @@
         "assistant": {
           "title": "Assistant",
           "composerPlaceholder": "Ask the assistant to create, update, or delete something…",
+          "composerHint": "For best results, keep the messages short.",
           "send": "Send",
           "cancel": "Cancel",
-          "startOver": "Start over",
+          "newChat": "New chat",
+          "conversationLog": "Conversation history",
+          "noConversations": "No past conversations yet.",
+          "conversationErrorTag": "Error",
+          "modelMenuTitle": "AI model for this chat",
+          "modelDefaultOption": "Default (from settings)",
           "cancelledLine": "Cancelled.",
           "thinking": "Thinking…",
           "doubleChecking": "Double-checking…",
@@ -488,6 +494,9 @@
           "setActiveThemeConfirm": "Make \"{{name}}\" the active theme on every screen?",
           "categoryCustomFieldTarget": "Adding a field to \"{{name}}\"",
           "answerClarificationFirst": "Please answer the question above, or Cancel.",
+          "review": {
+            "noChanges": "No changes to review."
+          },
           "clarify": {
             "productCategory": "Which category should this product go in?",
             "categoryCatalogue": "Which catalogue should this category belong to?",
@@ -635,8 +644,8 @@
           "addCustomField": "Add custom field",
           "addCustomFieldOption": "Add choice",
           "customFieldOptionPlaceholder": "Choice name",
-          "noCategoryOption": "— No category —",
-          "noCategoryColumnLabel": "No category",
+          "noCategoryOption": "— Not categorized —",
+          "noCategoryColumnLabel": "Not categorized",
           "catalogueLabel": "Catalogue",
           "moveToOtherCatalogue": "Move to another catalogue…",
           "moveConfirmButton": "Move"
@@ -2348,9 +2357,15 @@
         "assistant": {
           "title": "Assistent",
           "composerPlaceholder": "Be assistenten opprette, oppdatere eller slette noe …",
+          "composerHint": "For best resultat, hold meldingene korte.",
           "send": "Send",
           "cancel": "Avbryt",
-          "startOver": "Start på nytt",
+          "newChat": "Ny samtale",
+          "conversationLog": "Samtalelogg",
+          "noConversations": "Ingen tidligere samtaler ennå.",
+          "conversationErrorTag": "Feil",
+          "modelMenuTitle": "AI-modell for denne samtalen",
+          "modelDefaultOption": "Standard (fra innstillinger)",
           "cancelledLine": "Avbrutt.",
           "thinking": "Tenker …",
           "doubleChecking": "Dobbeltsjekker …",
@@ -2372,6 +2387,9 @@
           "setActiveThemeConfirm": "Gjøre «{{name}}» til den aktive temaet på alle skjermer?",
           "categoryCustomFieldTarget": "Legger til et felt i «{{name}}»",
           "answerClarificationFirst": "Svar på spørsmålet over, eller avbryt.",
+          "review": {
+            "noChanges": "Ingen endringer å se over."
+          },
           "clarify": {
             "productCategory": "Hvilken kategori skal dette produktet være i?",
             "categoryCatalogue": "Hvilken katalog skal denne kategorien tilhøre?",
@@ -2519,8 +2537,8 @@
           "addCustomField": "Legg til egendefinert felt",
           "addCustomFieldOption": "Legg til valg",
           "customFieldOptionPlaceholder": "Valgnavn",
-          "noCategoryOption": "— Ingen kategori —",
-          "noCategoryColumnLabel": "Ingen kategori",
+          "noCategoryOption": "— Ikke kategorisert —",
+          "noCategoryColumnLabel": "Ikke kategorisert",
           "catalogueLabel": "Katalog",
           "moveToOtherCatalogue": "Flytt til en annen katalog…",
           "moveConfirmButton": "Flytt"

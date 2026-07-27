@@ -3,11 +3,14 @@ import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
 import {
   assistantFillFields,
+  assistantGenerateTitle,
   assistantSelectIntent,
   assistantSelectItem,
   type AssistantIntentResult,
+  type AssistantModel,
 } from '../../../lib/localServer'
 import type { DashboardSection } from '../../../types/sync'
+import { useAssistantConversationLog } from './useAssistantConversationLog'
 
 export type AssistantEntityKey =
   | 'product'
@@ -46,6 +49,22 @@ export interface TranscriptLine {
   id: string
   role: 'user' | 'assistant'
   text: string
+}
+
+/** Plain-text rendering of a transcript for `generateTitle` — trimmed to the most recent lines/characters so an unusually long back-and-forth doesn't balloon that call's token usage. */
+function transcriptToText(transcript: TranscriptLine[]): string {
+  return transcript
+    .slice(-20)
+    .map((line) => `${line.role === 'user' ? 'Admin' : 'Assistant'}: ${line.text}`)
+    .join('\n')
+    .slice(-4000)
+}
+
+/** Shown in the conversation log immediately on `newChat()`, before the AI-generated title (see `assistantGenerateTitle`) resolves and replaces it — the first user message, trimmed to a reasonable label length. */
+function fallbackConversationTitle(transcript: TranscriptLine[]): string {
+  const firstUserLine = transcript.find((line) => line.role === 'user')?.text.trim() ?? ''
+  if (!firstUserLine) return 'Conversation'
+  return firstUserLine.length > 48 ? `${firstUserLine.slice(0, 45)}...` : firstUserLine
 }
 
 /** Which `DashboardSection` gates each entity for a `limited` role, or `null` if it's never available to one — mirrors `server/assistant/registry.ts`'s own `sessionCanUseEntity`, since the same rule is enforced independently on both sides (client pre-filter, server authoritative check — see the plan's two-layer gating). */
@@ -132,15 +151,30 @@ let nextLineId = 0
  * own module doc comment). Only one operation is ever active at a time; a
  * message sent while already reviewing a draft is treated as a correction
  * to that same operation, not a new one (see `sendMessage`).
+ *
+ * `modelOverride`, when set, is passed through to every one of these calls
+ * in place of the admin-configured default (`server/store.ts`'s own
+ * `getAssistantModel()`) — see `AssistantPanel`'s model-picker menu, which
+ * owns the actual per-device preference this value comes from. Never
+ * written back to that shared, admin-configured default itself.
  */
-export function useAssistantFlow() {
+export function useAssistantFlow(modelOverride?: AssistantModel) {
   const { session } = useAdminSession()
   const { language, t } = useLanguage()
   const [transcript, setTranscript] = useState<TranscriptLine[]>([])
-  const [state, setState] = useState<FlowState>({ status: 'idle' })
+  const [state, setStateRaw] = useState<FlowState>({ status: 'idle' })
   const abortRef = useRef<AbortController | null>(null)
+  // Sticky for the lifetime of the current conversation (cleared only by `newChat`) — tracks
+  // whether *any* operation within it ever hit `'error'`, even one the admin went on to resolve
+  // successfully, so the conversation log can flag the entry (see `newChat`'s own `hadError` archive param).
+  const hadErrorRef = useRef(false)
+  const setState = useCallback((next: FlowState) => {
+    if (next.status === 'error') hadErrorRef.current = true
+    setStateRaw(next)
+  }, [])
 
   const allowedEntities = useAssistantAllowedEntities()
+  const conversationLog = useAssistantConversationLog()
 
   const appendLine = useCallback((role: TranscriptLine['role'], text: string) => {
     nextLineId += 1
@@ -151,13 +185,35 @@ export function useAssistantFlow() {
     abortRef.current?.abort()
     setState({ status: 'idle' })
     appendLine('assistant', 'cancelled')
-  }, [appendLine])
+  }, [appendLine, setState])
 
-  const startOver = useCallback(() => {
+  /**
+   * Archives the current conversation into the admin's own conversation log
+   * (if it has any messages — an untouched chat isn't worth logging) and
+   * resets to a blank one — the only way to reset the chat (see
+   * `AssistantPanel`'s header button), so every reset gets a log entry, even
+   * a short or error'd one. The reset itself is instant; the AI-generated
+   * title (see `assistantGenerateTitle`) is requested in the background
+   * afterwards and swapped in once it resolves, starting from a plain-text
+   * fallback so "New chat" never blocks on that network round-trip.
+   */
+  const newChat = useCallback(() => {
+    const linesToArchive = transcript
+    const hadError = hadErrorRef.current
     abortRef.current?.abort()
     setState({ status: 'idle' })
     setTranscript([])
-  }, [])
+    hadErrorRef.current = false
+    if (linesToArchive.length === 0) return
+
+    const id = conversationLog.archive(linesToArchive, fallbackConversationTitle(linesToArchive), hadError)
+    if (!session) return
+    assistantGenerateTitle(session.token, transcriptToText(linesToArchive), language, modelOverride)
+      .then((result) => conversationLog.updateTitle(id, result.title))
+      .catch(() => {
+        // Keep the plain-text fallback title — a failed/unconfigured assistant shouldn't block browsing the log.
+      })
+  }, [transcript, session, language, conversationLog, setState, modelOverride])
 
   const runFillFields = useCallback(
     async (
@@ -172,7 +228,7 @@ export function useAssistantFlow() {
       if (!session) return
       setState({ status: 'busy', phase: 'thinking' })
       try {
-        const result = await assistantFillFields(session.token, { entity, action, message, uiLanguage: language, itemID, image, priorDraft, resolvedFields })
+        const result = await assistantFillFields(session.token, { entity, action, message, uiLanguage: language, itemID, image, priorDraft, resolvedFields, model: modelOverride })
         if (result.status === 'clarify') {
           setState({ status: 'clarifying', entity, action, itemID, message, resolvedFields: resolvedFields ?? {}, clarifications: result.clarifications })
           return
@@ -182,7 +238,7 @@ export function useAssistantFlow() {
         setState({ status: 'error', message: error instanceof Error ? error.message : 'Something went wrong' })
       }
     },
-    [session, language],
+    [session, language, setState, modelOverride],
   )
 
   /** Delete still runs `fillFields` (an empty schema for every destructible entity — see each adapter's own `fillFieldsSchema`) purely to get a real `validate()` pass: that's the only path that surfaces a delete-time soft warning (e.g. "N products would be orphaned") or hard guard (e.g. "can't delete the active theme") before the typed-confirmation screen, rather than skipping straight to an empty-issues review. */
@@ -191,7 +247,7 @@ export function useAssistantFlow() {
       if (!session) return
       setState({ status: 'busy', phase: 'thinking' })
       try {
-        const result = await assistantFillFields(session.token, { entity, action, message, uiLanguage: language, itemID, resolvedFields })
+        const result = await assistantFillFields(session.token, { entity, action, message, uiLanguage: language, itemID, resolvedFields, model: modelOverride })
         if (result.status === 'clarify') {
           setState({ status: 'clarifying', entity, action, itemID, message, label, resolvedFields: resolvedFields ?? {}, clarifications: result.clarifications })
           return
@@ -201,7 +257,7 @@ export function useAssistantFlow() {
         setState({ status: 'error', message: error instanceof Error ? error.message : 'Something went wrong' })
       }
     },
-    [session, language],
+    [session, language, setState, modelOverride],
   )
 
   const proceedWithItem = useCallback(
@@ -228,7 +284,7 @@ export function useAssistantFlow() {
       }
       setState({ status: 'busy', phase: 'thinking' })
       try {
-        const result = await assistantSelectItem(session.token, { entity, action, message, searchText, uiLanguage: language })
+        const result = await assistantSelectItem(session.token, { entity, action, message, searchText, uiLanguage: language, model: modelOverride })
         if (result.candidates.length === 0) {
           setState({ status: 'noMatch', entity, action })
           return
@@ -242,7 +298,7 @@ export function useAssistantFlow() {
         setState({ status: 'error', message: error instanceof Error ? error.message : 'Something went wrong' })
       }
     },
-    [session, language, runFillFields],
+    [session, language, runFillFields, setState, modelOverride],
   )
 
   const sendMessage = useCallback(
@@ -268,7 +324,7 @@ export function useAssistantFlow() {
 
       setState({ status: 'busy', phase: 'thinking' })
       try {
-        const result: AssistantIntentResult = await assistantSelectIntent(session.token, message, language)
+        const result: AssistantIntentResult = await assistantSelectIntent(session.token, message, language, modelOverride)
 
         // General question/greeting/etc. — answered directly, never routed
         // into a CRUD operation. See `server/assistant/steps.ts`'s own
@@ -290,7 +346,7 @@ export function useAssistantFlow() {
         setState({ status: 'error', message: error instanceof Error ? error.message : 'Something went wrong' })
       }
     },
-    [session, language, t, state, allowedEntities, appendLine, runFillFields, startOperation],
+    [session, language, t, state, allowedEntities, appendLine, runFillFields, startOperation, setState, modelOverride],
   )
 
   const confirmItemMatch = useCallback(async () => {
@@ -313,7 +369,7 @@ export function useAssistantFlow() {
   const showOtherCandidates = useCallback(() => {
     if (state.status !== 'confirmItem') return
     setState({ ...state, showAll: true })
-  }, [state])
+  }, [state, setState])
 
   /** Records the admin's pick for one outstanding clarifying question. Once every question in `state.clarifications` has an answer, this re-runs `fillFields` with `resolvedFields` attached — no separate "confirm" click needed, answering the last question submits. */
   const answerClarification = useCallback(
@@ -331,14 +387,14 @@ export function useAssistantFlow() {
         await runFillFields(state.entity, state.action, state.message, state.itemID, undefined, undefined, resolvedFields)
       }
     },
-    [state, runFillFields, runFillFieldsForDelete],
+    [state, runFillFields, runFillFieldsForDelete, setState],
   )
 
   /** Called by the review UI once the real, existing save/delete path has actually committed the write — the assistant itself never does (see the plan's hard invariant). */
   const onCommitted = useCallback(() => {
     appendLine('assistant', 'done')
     setState({ status: 'idle' })
-  }, [appendLine])
+  }, [appendLine, setState])
 
   return {
     transcript,
@@ -350,7 +406,8 @@ export function useAssistantFlow() {
     showOtherCandidates,
     answerClarification,
     cancel,
-    startOver,
+    newChat,
+    conversationLog,
     onCommitted,
   }
 }

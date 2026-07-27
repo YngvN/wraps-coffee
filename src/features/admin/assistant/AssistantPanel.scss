@@ -5,6 +5,26 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  // Clips the log/chat panels' own horizontal slide transitions (see `AssistantPanel.tsx`'s
+  // `AnimatePresence`) so they don't briefly widen the panel with a scrollbar mid-animation.
+  overflow-x: hidden;
+}
+
+// The live chat's own `AnimatePresence` branch — sized the same way `.assistant-panel__log`
+// is, since only one of the two is ever mounted at a time.
+.assistant-panel__chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+// Marks the currently-selected row in the model-menu sub-page (see `AssistantPanel.tsx`'s
+// `modelMenuOpen` branch) — applied to the same `.assistant-panel__log-title` span that view
+// reuses from the conversation log's own list styling, so only the color/weight need overriding.
+.assistant-panel__model-menu-option--selected {
+  color: $color-accent;
+  font-weight: 600;
 }
 
 .assistant-panel__transcript {
@@ -36,6 +56,94 @@
   align-self: flex-start;
   background: $color-surface-hover;
   color: $color-text;
+}
+
+.assistant-panel__log {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  min-height: 0;
+  flex: 1;
+}
+
+.assistant-panel__log-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  border: none;
+  background: none;
+  color: $color-text-muted;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+
+  @media (hover: hover) {
+    &:hover {
+      color: $color-text;
+    }
+  }
+}
+
+.assistant-panel__transcript--readonly {
+  flex: 1;
+}
+
+.assistant-panel__log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+  overflow-y: auto;
+
+  button {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+    padding: calc($spacing-unit / 2) $spacing-unit;
+    border-radius: 8px;
+    border: 1px solid $color-border;
+    background: $color-surface;
+    cursor: pointer;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $color-surface-hover;
+      }
+    }
+
+    &:active {
+      box-shadow: inset 0 2px 4px $color-shadow;
+    }
+  }
+}
+
+.assistant-panel__log-title-row {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+}
+
+.assistant-panel__log-title {
+  color: $color-text;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.assistant-panel__log-date {
+  color: $color-text-muted;
+  font-size: 0.75rem;
+}
+
+.assistant-panel__log-entry-header {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
 }
 
 .assistant-panel__confirm-item,
@@ -106,11 +214,23 @@
   gap: calc($spacing-unit / 2);
 }
 
+.assistant-panel__composer-hint {
+  margin: 0;
+  padding-top: calc($spacing-unit / 2);
+  padding-bottom: calc($spacing-unit / 2);
+  color: $color-text-muted;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
 .assistant-panel__composer {
   display: flex;
-  align-items: flex-end;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
   gap: calc($spacing-unit / 2);
   padding-top: $spacing-unit;
+  padding-bottom: $spacing-unit;
   border-top: 1px solid $color-border;
 }
 
@@ -128,6 +248,10 @@
 }
 
 .assistant-panel__attach-button {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid $color-border;
   background: $color-surface;
   border-radius: 8px;
@@ -147,6 +271,20 @@
   }
 }
 
+// Normalizes the Send button's own height to match the textarea's `min-height`
+// and the attach button's fixed size — `Button`'s own padding-driven height
+// (see `Button.scss`) is a bit shorter than 2.5rem on its own, which left it
+// (and the attach button) looking misaligned against the textarea's bottom edge.
+.assistant-panel__composer .btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 .assistant-panel__attachment {
   display: flex;
   align-items: center;
@@ -158,21 +296,6 @@
     cursor: pointer;
     color: $color-text-muted;
     font-size: 1rem;
-  }
-}
-
-.assistant-panel__footer-actions {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: calc($spacing-unit / 2);
-
-  button {
-    border: none;
-    background: none;
-    color: $color-text-muted;
-    font-size: 0.8rem;
-    cursor: pointer;
-    text-decoration: underline;
   }
 }
 
@@ -207,12 +330,14 @@
 }
 
 @keyframes assistant-typing-pulse {
+
   0%,
   80%,
   100% {
     opacity: 0.3;
     transform: scale(0.8);
   }
+
   40% {
     opacity: 1;
     transform: scale(1);

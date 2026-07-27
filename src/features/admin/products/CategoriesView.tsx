@@ -250,11 +250,18 @@ export function CategoriesView({ catalogue, onSaveCatalogue, onOpenAllProducts, 
       </div>
       <TranslatedText as="p" id="admin.products.categoriesDescription" className="admin-page-description" />
 
-      <div className="products-view__item products-view__view-all-products">
-        <button type="button" className="products-view__item-open" onClick={onOpenAllProducts}>
-          <span className="products-view__item-name">{t('admin.products.viewAllProducts')}</span>
-          <ChevronRightIcon />
+      <div className="products-view__categories-toolbar">
+        <button type="button" className="products-view__add-row" onClick={() => setEditingCategory(null)}>
+          <PlusIcon />
+          {t('admin.products.addCategory')}
         </button>
+
+        <div className="products-view__item products-view__view-all-products">
+          <button type="button" className="products-view__item-open" onClick={onOpenAllProducts}>
+            <span className="products-view__item-name">{t('admin.products.viewAllProducts')}</span>
+            <ChevronRightIcon />
+          </button>
+        </div>
       </div>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setActiveId(null)}>
@@ -319,11 +326,6 @@ export function CategoriesView({ catalogue, onSaveCatalogue, onOpenAllProducts, 
           ) : null}
         </DragOverlay>
       </DndContext>
-
-      <button type="button" className="products-view__add-row" onClick={() => setEditingCategory(null)}>
-        <PlusIcon />
-        {t('admin.products.addCategory')}
-      </button>
 
       <Modal open={isFormOpen} onClose={closeForm} title={editingCategory ? t('admin.products.editCategory') : t('admin.products.addCategory')}>
         {isFormOpen && <CategoryForm category={editingCategory ?? null} onSave={handleSaveCategory} onCancel={closeForm} />}

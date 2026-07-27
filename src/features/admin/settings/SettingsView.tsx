@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BackButton, Button, Card, Checkbox, Input, SlideTransition, TranslatedText } from '../../../components'
+import { BackButton, Button, Card, Checkbox, NumberInput, SlideTransition, TranslatedText } from '../../../components'
 import { availableLanguages, useLanguage } from '../../../i18n'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useClockFormatPreference, type ClockFormat } from '../../../hooks/useClockFormatPreference'
@@ -67,8 +67,8 @@ export function SettingsView() {
     setSidebarSettings({ ...sidebarSettings, hiddenItems })
   }
 
-  const handleScreensaverIdleMinutesChange = (value: string) => {
-    const parsed = Math.round(Number(value))
+  const handleScreensaverIdleMinutesChange = (value: number) => {
+    const parsed = Math.round(value)
     setScreensaverSettings({ ...screensaverSettings, idleMinutes: Number.isFinite(parsed) && parsed > 0 ? parsed : 1 })
   }
 
@@ -229,13 +229,12 @@ export function SettingsView() {
               onChange={(event) => setScreensaverSettings({ ...screensaverSettings, enabled: event.target.checked })}
             />
             {screensaverSettings.enabled && (
-              <Input
+              <NumberInput
                 id="dashboard-screensaver-idle-minutes"
-                type="number"
                 min={1}
                 label={t('admin.settings.dashboardScreensaver.idleMinutesLabel')}
                 value={screensaverSettings.idleMinutes}
-                onChange={(event) => handleScreensaverIdleMinutesChange(event.target.value)}
+                onChange={handleScreensaverIdleMinutesChange}
               />
             )}
           </Card>

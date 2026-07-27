@@ -50,6 +50,28 @@
   color: $color-text-muted;
 }
 
+// Houses "Add category" and "View all products" side by side, above the category
+// list (see CategoriesView) — wraps on narrow widths rather than needing its own
+// breakpoint, since neither child has a fixed width to fall back on.
+.products-view__categories-toolbar {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: $spacing-unit;
+
+  // Sized to its own label here, rather than the full-width row it is
+  // elsewhere (see `.products-view__add-row`'s own comment) — this is the
+  // one spot it shares a row with another control instead of sitting alone.
+  .products-view__add-row {
+    width: auto;
+    margin-top: 0;
+  }
+
+  .products-view__view-all-products {
+    flex: 0 0 auto;
+  }
+}
+
 // Pinned above the category list (see CategoriesView) - a plain `products-view__item`
 // row like any other, just tinted so it doesn't read as one more (deletable,
 // reorderable) category among the rest below it.

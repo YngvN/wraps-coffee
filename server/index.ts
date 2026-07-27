@@ -601,14 +601,22 @@ const httpServer = createServer((req, res) => {
 
   // AI assistant (Claude) — see server/assistant/*. `/assistant/credentials`
   // is admin/subadmin only, same posture as Wolt/Foodora above (contains a
-  // real API key). The three step routes below are open to any authenticated
+  // real API key). The four step routes below are open to any authenticated
   // session — each one gates per-entity internally (see
   // server/assistant/registry.ts's sessionCanUseEntity), since which
   // entities/actions are available varies by role/section, not a single
   // fixed role check. None of these routes ever mutate app data (see
   // server/assistant/types.ts's own module doc comment) — the actual write
   // always happens from the browser's own existing save/delete path once the
-  // admin confirms in the review step.
+  // admin confirms in the review step. Each of the four may also carry its
+  // own `model`, letting `AssistantPanel`'s model-picker menu override just
+  // that one call's model without touching `store.setAssistantModel` (the
+  // shared, admin-configured default every other caller still falls back
+  // to) — see `assistantSteps`'s own `modelOverride` params and `client.ts`'s
+  // `ToolCallInput.model`.
+  const isAssistantModel = (value: unknown): value is store.AssistantModel =>
+    value === 'claude-haiku-4-5' || value === 'claude-sonnet-4-5' || value === 'claude-opus-4-5'
+
   if (req.method === 'GET' && url.pathname === '/assistant/credentials') {
     const session = store.getSession(bearerToken(req) ?? '')
     if (!session) {
@@ -638,7 +646,7 @@ const httpServer = createServer((req, res) => {
         const { apiKey, provider, model } = body as { apiKey?: string | null; provider?: 'local' | 'claude'; model?: store.AssistantModel }
         if (apiKey !== undefined) store.setAnthropicApiKey(typeof apiKey === 'string' && apiKey.trim() ? apiKey.trim() : null)
         if (provider === 'local' || provider === 'claude') store.setAssistantProvider(provider)
-        if (model === 'claude-haiku-4-5' || model === 'claude-sonnet-4-5' || model === 'claude-opus-4-5') store.setAssistantModel(model)
+        if (isAssistantModel(model)) store.setAssistantModel(model)
         console.log(`[assistant] ${session.username} updated the assistant configuration`)
         sendJson(res, 200, { hasKey: Boolean(store.getAnthropicApiKey()), provider: store.getAssistantProvider(), model: store.getAssistantModel() })
       })
@@ -654,13 +662,13 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { message, uiLanguage } = body as { message?: string; uiLanguage?: 'no' | 'en' }
+        const { message, uiLanguage, model } = body as { message?: string; uiLanguage?: 'no' | 'en'; model?: store.AssistantModel }
         if (!message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing message or uiLanguage' })
           return
         }
         try {
-          sendJson(res, 200, await assistantSteps.selectIntent(session, message, uiLanguage))
+          sendJson(res, 200, await assistantSteps.selectIntent(session, message, uiLanguage, isAssistantModel(model) ? model : undefined))
         } catch (error) {
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantProviderNotAvailableError ? 409 : 400, { error: (error as Error).message })
         }
@@ -677,20 +685,44 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, action, message, searchText, uiLanguage, priorItemID } = body as {
+        const { entity, action, message, searchText, uiLanguage, priorItemID, model } = body as {
           entity?: string
           action?: AssistantActionName
           message?: string
           searchText?: string
           uiLanguage?: 'no' | 'en'
           priorItemID?: string
+          model?: store.AssistantModel
         }
         if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, action, message, or uiLanguage' })
           return
         }
         try {
-          sendJson(res, 200, await assistantSteps.selectItem(entity, action, session, message, searchText ?? '', uiLanguage, priorItemID))
+          sendJson(res, 200, await assistantSteps.selectItem(entity, action, session, message, searchText ?? '', uiLanguage, priorItemID, isAssistantModel(model) ? model : undefined))
+        } catch (error) {
+          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantProviderNotAvailableError ? 409 : 400, { error: (error as Error).message })
+        }
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/assistant/title') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    readJsonBody(req)
+      .then(async (body) => {
+        const { transcriptText, uiLanguage, model } = body as { transcriptText?: string; uiLanguage?: 'no' | 'en'; model?: store.AssistantModel }
+        if (!transcriptText || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
+          sendJson(res, 400, { error: 'Missing transcriptText or uiLanguage' })
+          return
+        }
+        try {
+          sendJson(res, 200, await assistantSteps.generateTitle(transcriptText, uiLanguage, isAssistantModel(model) ? model : undefined))
         } catch (error) {
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantProviderNotAvailableError ? 409 : 400, { error: (error as Error).message })
         }
@@ -707,7 +739,7 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields } = body as {
+        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields, model } = body as {
           entity?: string
           action?: AssistantActionName
           itemID?: string
@@ -716,13 +748,24 @@ const httpServer = createServer((req, res) => {
           priorDraft?: unknown
           image?: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string }
           resolvedFields?: Record<string, string>
+          model?: store.AssistantModel
         }
         if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, action, message, or uiLanguage' })
           return
         }
         try {
-          sendJson(res, 200, await assistantSteps.fillFields(entity, action, session, message, uiLanguage, { itemID, image, priorDraft, resolvedFields }))
+          sendJson(
+            res,
+            200,
+            await assistantSteps.fillFields(entity, action, session, message, uiLanguage, {
+              itemID,
+              image,
+              priorDraft,
+              resolvedFields,
+              modelOverride: isAssistantModel(model) ? model : undefined,
+            }),
+          )
         } catch (error) {
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantProviderNotAvailableError ? 409 : 400, { error: (error as Error).message })
         }

@@ -16,6 +16,8 @@ interface ToolCallInput {
   toolName: string
   toolDescription: string
   schema: AssistantJsonSchema
+  /** Per-chat override of which Claude model answers this one call — see `AssistantPanel`'s model-picker menu. Never persisted; falls back to `store.getAssistantModel()` (the shared, admin-configured default) when omitted. */
+  model?: store.AssistantModel
 }
 
 function buildClient(): Anthropic {
@@ -43,7 +45,7 @@ async function callTool<T>(input: ToolCallInput): Promise<T> {
   // strict tool use (guarantees `input` validates against `schema` exactly)
   // is only exposed on the beta messages endpoint in this SDK version.
   const response = await client.beta.messages.create({
-    model: store.getAssistantModel(),
+    model: input.model ?? store.getAssistantModel(),
     max_tokens: 1024,
     system: input.systemPrompt,
     messages: [{ role: 'user', content: userContent }],
@@ -73,6 +75,8 @@ export async function generateThenVerify<T>(input: {
   schema: AssistantJsonSchema
   /** Extra grounding shown only on the verify pass — e.g. the chosen candidate's full current record. */
   verifyContext?: string
+  /** See `ToolCallInput.model` — applied to both the draft and verify pass. */
+  model?: store.AssistantModel
 }): Promise<T> {
   const draft = await callTool<T>({
     systemPrompt: input.systemPrompt,
@@ -81,6 +85,7 @@ export async function generateThenVerify<T>(input: {
     toolName: input.toolName,
     toolDescription: input.toolDescription,
     schema: input.schema,
+    model: input.model,
   })
 
   const verifyText = [
@@ -100,6 +105,7 @@ export async function generateThenVerify<T>(input: {
     toolName: input.toolName,
     toolDescription: input.toolDescription,
     schema: input.schema,
+    model: input.model,
   })
 }
 

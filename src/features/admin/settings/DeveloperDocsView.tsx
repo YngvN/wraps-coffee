@@ -414,19 +414,24 @@ POST /assistant/credentials        (Authorization: Bearer <token>, admin/subadmi
 → 200 { "hasKey": boolean, "provider": "local" | "claude" }
 
 POST /assistant/intent             (Authorization: Bearer <token>, any authenticated session)
-{ "message": string, "uiLanguage": "no" | "en" }
+{ "message": string, "uiLanguage": "no" | "en", "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5" }
 → 200 { "entity": string, "action": "create"|"update"|"delete"|"resetPassword"|"trigger", "searchText": string | null }
 → 400 { "error": "..." }           (couldn't confidently tell what was meant)
 → 409 { "error": "..." }           (no API key configured, or the "local" provider isn't implemented yet)
 
 POST /assistant/select-item        (Authorization: Bearer <token>, any authenticated session)
-{ "entity": string, "action": string, "message": string, "searchText": string, "uiLanguage": "no" | "en", "priorItemID"?: string }
+{ "entity": string, "action": string, "message": string, "searchText": string, "uiLanguage": "no" | "en", "priorItemID"?: string, "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5" }
 → 200 { "itemID": string | null, "candidates": [{ "id", "label" }] }
 
 POST /assistant/fill-fields        (Authorization: Bearer <token>, any authenticated session)
-{ "entity": string, "action": string, "message": string, "uiLanguage": "no" | "en", "itemID"?: string, "priorDraft"?: unknown, "image"?: { "mediaType", "base64Data" } }
+{ "entity": string, "action": string, "message": string, "uiLanguage": "no" | "en", "itemID"?: string, "priorDraft"?: unknown, "image"?: { "mediaType", "base64Data" }, "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5" }
 → 200 { "draft": unknown, "issues": [{ "code", "params"? }] }
-   (none of these three routes ever write app data — they only ever propose a draft; the actual write happens from the browser's own existing save/delete path once the admin confirms in the assistant's review step, see server/assistant/types.ts)`}</code>
+
+POST /assistant/title              (Authorization: Bearer <token>, any authenticated session)
+{ "transcriptText": string, "uiLanguage": "no" | "en", "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5" }
+→ 200 { "title": string }         (names a just-finished conversation for the admin's own, per-device conversation log — see useAssistantConversationLog)
+   (none of these four routes ever write app data — they only ever propose a draft or a title; the actual write happens from the browser's own existing save/delete path once the admin confirms in the assistant's review step, see server/assistant/types.ts)
+   ("model" on any of the four overrides the admin-configured default from /assistant/credentials for that one call only — see AssistantPanel's own per-chat model-picker menu; an invalid value is silently ignored, falling back to that default)`}</code>
         </pre>
       </Card>
 
