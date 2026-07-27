@@ -104,4 +104,8 @@ export const contactInfoEntity: AssistantEntity<ContactInfo> = {
   reviewComponent() {
     return 'existingForm'
   },
+
+  async listAll(): Promise<ContactInfo> {
+    return liveContactInfo()
+  },
 }

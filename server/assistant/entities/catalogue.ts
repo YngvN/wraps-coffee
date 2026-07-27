@@ -72,4 +72,8 @@ export const catalogueEntity: AssistantEntity<Catalogue> = {
   reviewComponent(action) {
     return action === 'delete' ? 'destructiveSummary' : 'existingForm'
   },
+
+  async listAll(): Promise<Catalogue[]> {
+    return liveCatalogues()
+  },
 }

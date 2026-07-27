@@ -271,4 +271,9 @@ export const productEntity: AssistantEntity<Product> = {
   reviewComponent(action) {
     return action === 'delete' ? 'destructiveSummary' : 'existingForm'
   },
+
+  /** Enriches each product with its resolved category/catalogue name (via the same `productLocationLabel` helper `listCandidates` already uses) — a raw product only carries `category`/`catalogueId` as opaque ids, useless for a lookup question like "what products are in the Drinks category" without this. */
+  async listAll(context: AssistantFillContext): Promise<(Product & { locationLabel: string })[]> {
+    return liveProducts().map((product) => ({ ...product, locationLabel: productLocationLabel(product, context.uiLanguage) }))
+  },
 }

@@ -85,4 +85,8 @@ export const integrationToggleEntity: AssistantEntity<AssistantIntegrationToggle
   reviewComponent() {
     return 'existingForm'
   },
+
+  async listAll(): Promise<IntegrationsConfig> {
+    return liveIntegrationsConfig()
+  },
 }

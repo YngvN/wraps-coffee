@@ -86,4 +86,12 @@ export const userEntity: AssistantEntity<AssistantUserDraft> = {
   reviewComponent(action) {
     return action === 'delete' ? 'destructiveSummary' : 'existingForm'
   },
+
+  // Read-only Q&A, not a target list for a mutating action — unlike `listCandidates` above,
+  // this deliberately does NOT exclude admin-role accounts or the calling session's own
+  // account. Must go through `store.listUsers()` specifically (which already excludes
+  // `password`) — never swap this for a lower-level accessor.
+  async listAll() {
+    return store.listUsers()
+  },
 }

@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import { Alert, Badge, Button, Checkbox, ChevronLeftIcon, ClockIcon, ImageUploadField, Input, KebabIcon, NewChatIcon, Spinner } from '../../../components'
+import { Alert, Badge, Button, Checkbox, ChevronLeftIcon, ClockIcon, ImageUploadField, Input, KebabIcon, NewChatIcon, NumberInput, Spinner } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useAppearanceThemes } from '../../../hooks/useAppearanceThemes'
 import { useCatalogues } from '../../../hooks/useCatalogues'
@@ -17,7 +17,7 @@ import { useMessageBoards } from '../../../hooks/useMessageBoards'
 import { useProducts } from '../../../hooks/useProducts'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
 import { useLanguage } from '../../../i18n'
-import { createUser, deleteUser, resetUserPassword, SessionExpiredError, type AssistantModel } from '../../../lib/localServer'
+import { createUser, deleteUser, resetUserPassword, SessionExpiredError, type AssistantModel, type ChunkSizePreference } from '../../../lib/localServer'
 import { dismissUpload, startUpload, useUpload } from '../../../lib/uploadManager'
 import type { AppearanceTheme, AppearanceThemeColor } from '../../../types/appearanceTheme'
 import type { Catalogue, Category } from '../../../types/category'
@@ -44,7 +44,7 @@ import { ThemeEditorForm } from '../store/ThemeEditorForm'
 import { ResetPasswordForm } from '../users/ResetPasswordForm'
 import { UserForm } from '../users/UserForm'
 import { AssistantReviewSummary } from './AssistantReviewSummary'
-import { AssistantTypingIndicator } from './AssistantTypingIndicator'
+import { AssistantThoughtTrace } from './AssistantThoughtTrace'
 import {
   buildAppearanceThemeColorChangeRows,
   buildCatalogueChangeRows,
@@ -77,6 +77,11 @@ const IMAGE_FIELD: Partial<Record<AssistantEntityKey, string>> = {
 
 /** Same three models Settings → Integrations' own "Claude" model picker offers (see `IntegrationsView.tsx`) — reused here for the per-chat override menu's own option list and i18n labels (`admin.integrations.assistantModel.<model>.label`), rather than duplicating fresh copy for the same three names. */
 const MODEL_OVERRIDE_OPTIONS: AssistantModel[] = ['claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-opus-4-5']
+
+const CHUNK_SIZE_OPTIONS: ChunkSizePreference[] = ['auto', 'small', 'medium', 'large', 'custom']
+
+/** Shown in the "Custom" numeric field before the admin has ever set a value of their own — a reasonable starting point, not a hidden default the server falls back to (that's `server/assistant/steps.ts`'s own per-model capability profile). */
+const DEFAULT_CUSTOM_CHUNK_RECORD_COUNT = 25
 
 /** Delete-time validation issues that are hard guards (mirroring a real disabled Delete button in the manual UI) rather than soft warnings the admin can proceed past — the confirm button stays disabled while any of these are present. */
 const BLOCKING_DELETE_ISSUE_CODES = new Set(['themeDeleteActive', 'themeDeleteLast'])
@@ -116,7 +121,14 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   // own "Claude" model picker). `null` means "no override, use that shared default" — never
   // written back to it, so switching models here never affects any other admin/device.
   const [modelOverride, setModelOverride] = useLocalStorage<AssistantModel | null>('admin.assistantModelOverride', null)
-  const flow = useAssistantFlow(modelOverride ?? undefined)
+  // Same per-device, never-synced posture as `modelOverride` above — controls how much data a
+  // lookup answer (e.g. "how many products are over 100kr?") processes per call at once. `'auto'`
+  // just means "use the active model/provider's own default"; `customChunkRecordCount` is only
+  // read when the preference is `'custom'`, letting an admin on unusually capable (or unusually
+  // constrained) hardware set an exact records-per-batch value the fixed presets don't cover.
+  const [chunkSizePreference, setChunkSizePreference] = useLocalStorage<ChunkSizePreference>('admin.assistantChunkSizePreference', 'auto')
+  const [customChunkRecordCount, setCustomChunkRecordCount] = useLocalStorage<number | null>('admin.assistantChunkSizeCustomValue', null)
+  const flow = useAssistantFlow(modelOverride ?? undefined, chunkSizePreference, customChunkRecordCount ?? undefined)
   const [clockFormat] = useClockFormatPreference()
   const [dateFormat] = useDateFormatPreference()
   // Slides in from the right over the chat, same as `logView` below — see the model-menu
@@ -815,6 +827,39 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                     </li>
                   ))}
                 </ul>
+
+                <div className="assistant-panel__log-entry-header">
+                  <span className="assistant-panel__log-title">{t('admin.assistant.chunkSizeMenuTitle')}</span>
+                </div>
+                <p className="assistant-panel__model-menu-description">{t('admin.assistant.chunkSizeDescription')}</p>
+                <ul className="assistant-panel__log-list">
+                  {CHUNK_SIZE_OPTIONS.map((option) => (
+                    <li key={option}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChunkSizePreference(option)
+                          // "Custom" needs the menu to stay open so the numeric field below is reachable — every other option closes it, same as the model list above.
+                          if (option !== 'custom') setModelMenuOpen(false)
+                        }}
+                      >
+                        <span className={`assistant-panel__log-title${chunkSizePreference === option ? ' assistant-panel__model-menu-option--selected' : ''}`}>
+                          {t(`admin.assistant.chunkSizeOption.${option}`)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                {chunkSizePreference === 'custom' && (
+                  <NumberInput
+                    id="assistant-chunk-size-custom"
+                    label={t('admin.assistant.chunkSizeCustomLabel')}
+                    value={customChunkRecordCount ?? DEFAULT_CUSTOM_CHUNK_RECORD_COUNT}
+                    onChange={setCustomChunkRecordCount}
+                    min={1}
+                    max={1000}
+                  />
+                )}
               </motion.div>
             ) : logView ? (
               // Slides in/out from the right, like navigating into a sub-page of the panel.
@@ -837,11 +882,15 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                       {selectedLogEntry?.hadError && <Badge variant="error">{t('admin.assistant.conversationErrorTag')}</Badge>}
                     </div>
                     <div className="assistant-panel__transcript assistant-panel__transcript--readonly">
-                      {selectedLogEntry?.transcript.map((line) => (
-                        <div key={line.id} className={`assistant-panel__line assistant-panel__line--${line.role}`}>
-                          {line.text}
-                        </div>
-                      ))}
+                      {selectedLogEntry?.transcript.map((line) =>
+                        line.role === 'thought' ? (
+                          <AssistantThoughtTrace key={line.id} trace={line.trace} durationMs={line.durationMs} />
+                        ) : (
+                          <div key={line.id} className={`assistant-panel__line assistant-panel__line--${line.role}${line.variant ? ` assistant-panel__line--${line.variant}` : ''}`}>
+                            {line.text}
+                          </div>
+                        ),
+                      )}
                     </div>
                   </>
                 ) : flow.conversationLog.entries.length === 0 ? (
@@ -874,20 +923,23 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                 transition={{ duration: 0.25, ease: 'easeOut' }}
               >
                 <div className="assistant-panel__transcript">
-                  {flow.transcript.map((line) => (
-                    <motion.div
-                      key={line.id}
-                      className={`assistant-panel__line assistant-panel__line--${line.role}`}
-                      initial={{ opacity: 0, y: 16 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.2, ease: 'easeOut' }}
-                    >
-                      {line.text}
-                    </motion.div>
-                  ))}
-
-                  {flow.state.status === 'noMatch' && <Alert variant="info">{t('admin.assistant.noMatchFound')}</Alert>}
-                  {flow.state.status === 'error' && <Alert variant="error">{flow.state.message || t('admin.assistant.errorGeneric')}</Alert>}
+                  {flow.transcript.map((line) =>
+                    line.role === 'thought' ? (
+                      <motion.div key={line.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
+                        <AssistantThoughtTrace trace={line.trace} durationMs={line.durationMs} />
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key={line.id}
+                        className={`assistant-panel__line assistant-panel__line--${line.role}${line.variant ? ` assistant-panel__line--${line.variant}` : ''}`}
+                        initial={{ opacity: 0, y: 16 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.2, ease: 'easeOut' }}
+                      >
+                        {line.text}
+                      </motion.div>
+                    ),
+                  )}
 
                   {flow.state.status === 'confirmItem' && (
                     <div className="assistant-panel__confirm-item">
@@ -942,7 +994,13 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
 
                   {(flow.state.status === 'reviewingForm' || flow.state.status === 'reviewingDestructive') && <div className="assistant-panel__review">{renderReview()}</div>}
 
-                  {isBusy && <AssistantTypingIndicator label={flow.state.status === 'busy' && flow.state.phase === 'verifying' ? t('admin.assistant.doubleChecking') : t('admin.assistant.thinking')} />}
+                  {isBusy && (
+                    <AssistantThoughtTrace
+                      live
+                      trace={flow.currentTrace}
+                      typingLabel={flow.state.status === 'busy' && flow.state.phase === 'verifying' ? t('admin.assistant.doubleChecking') : t('admin.assistant.thinking')}
+                    />
+                  )}
                   <div ref={transcriptEndRef} />
                 </div>
 

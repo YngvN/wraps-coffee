@@ -27,6 +27,14 @@
   font-weight: 600;
 }
 
+.assistant-panel__model-menu-description {
+  margin: 0;
+  padding: 0 calc($spacing-unit / 4);
+  color: $color-text-muted;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
 .assistant-panel__transcript {
   flex: 1;
   min-height: 0;
@@ -56,6 +64,14 @@
   align-self: flex-start;
   background: $color-surface-hover;
   color: $color-text;
+}
+
+// A persisted failure (`reportError` — see `useAssistantFlow.ts`) — still an assistant bubble,
+// just flagged so it reads as an error rather than a normal reply.
+.assistant-panel__line--error {
+  background: $color-error-bg;
+  color: $color-error;
+  border: 1px solid $color-error-border;
 }
 
 .assistant-panel__log {

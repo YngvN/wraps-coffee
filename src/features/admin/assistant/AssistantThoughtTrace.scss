@@ -1,0 +1,124 @@
+@use '../../../styles/variables' as *;
+
+.assistant-thought-trace {
+  align-self: flex-start;
+  max-width: 85%;
+
+  &__summary {
+    display: inline-flex;
+    cursor: pointer;
+  }
+
+  &__summary-label {
+    display: inline-flex;
+    align-items: center;
+    gap: calc($spacing-unit / 4);
+    padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
+    border-radius: 999px;
+    background: $color-surface-hover;
+    color: $color-text-muted;
+    font-size: 0.8rem;
+
+    svg {
+      width: 12px;
+      height: 12px;
+      transition: transform 0.15s ease;
+    }
+  }
+
+  &[data-open='true'] &__summary-label svg {
+    transform: rotate(90deg);
+  }
+
+  &__summary-usage {
+    color: $color-text-muted;
+    opacity: 0.75;
+  }
+
+  &__body {
+    padding: calc($spacing-unit / 2) 0 0 calc($spacing-unit / 2);
+  }
+
+  &__empty {
+    margin: 0;
+    color: $color-text-muted;
+    font-size: 0.8rem;
+  }
+
+  &__steps {
+    display: flex;
+    flex-direction: column;
+    gap: calc($spacing-unit / 4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-left: 2px solid $color-border;
+    padding-left: $spacing-unit;
+  }
+
+  &__step-summary {
+    display: inline-flex;
+    cursor: pointer;
+  }
+
+  &__step-summary-label {
+    display: inline-flex;
+    align-items: center;
+    gap: calc($spacing-unit / 4);
+    color: $color-text;
+    font-size: 0.8rem;
+
+    svg {
+      width: 10px;
+      height: 10px;
+      color: $color-text-muted;
+      transition: transform 0.15s ease;
+    }
+  }
+
+  &__step-details[data-open='true'] &__step-summary-label svg {
+    transform: rotate(90deg);
+  }
+
+  &__step-pass {
+    color: $color-text-muted;
+    font-size: 0.75rem;
+  }
+
+  &__step-usage {
+    color: $color-text-muted;
+    font-size: 0.7rem;
+    opacity: 0.75;
+  }
+
+  &__step-body {
+    padding: calc($spacing-unit / 4) 0 calc($spacing-unit / 2);
+  }
+
+  &__step-raw {
+    display: flex;
+    flex-direction: column;
+    gap: calc($spacing-unit / 4);
+    padding: calc($spacing-unit / 2);
+    border-radius: 8px;
+    background: $color-surface;
+    border: 1px solid $color-border;
+    font-size: 0.7rem;
+
+    > div {
+      display: flex;
+      justify-content: space-between;
+      color: $color-text-muted;
+      font-family: monospace;
+    }
+
+    pre {
+      margin: 0;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: monospace;
+      color: $color-text;
+    }
+  }
+}

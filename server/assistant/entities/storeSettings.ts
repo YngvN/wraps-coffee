@@ -63,4 +63,8 @@ export const storeSettingsEntity: AssistantEntity<StoreSettings> = {
   reviewComponent() {
     return 'existingForm'
   },
+
+  async listAll(): Promise<StoreSettings> {
+    return liveStoreSettings()
+  },
 }

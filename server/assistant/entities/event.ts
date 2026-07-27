@@ -143,4 +143,8 @@ export const eventEntity: AssistantEntity<EventRecord> = {
   reviewComponent(action) {
     return action === 'delete' ? 'destructiveSummary' : 'existingForm'
   },
+
+  async listAll(): Promise<EventRecord[]> {
+    return liveEvents()
+  },
 }

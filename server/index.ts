@@ -601,14 +601,14 @@ const httpServer = createServer((req, res) => {
 
   // AI assistant (Claude) — see server/assistant/*. `/assistant/credentials`
   // is admin/subadmin only, same posture as Wolt/Foodora above (contains a
-  // real API key). The four step routes below are open to any authenticated
+  // real API key). The five step routes below are open to any authenticated
   // session — each one gates per-entity internally (see
   // server/assistant/registry.ts's sessionCanUseEntity), since which
   // entities/actions are available varies by role/section, not a single
   // fixed role check. None of these routes ever mutate app data (see
   // server/assistant/types.ts's own module doc comment) — the actual write
   // always happens from the browser's own existing save/delete path once the
-  // admin confirms in the review step. Each of the four may also carry its
+  // admin confirms in the review step. Each of the five may also carry its
   // own `model`, letting `AssistantPanel`'s model-picker menu override just
   // that one call's model without touching `store.setAssistantModel` (the
   // shared, admin-configured default every other caller still falls back
@@ -723,6 +723,40 @@ const httpServer = createServer((req, res) => {
         }
         try {
           sendJson(res, 200, await assistantSteps.generateTitle(transcriptText, uiLanguage, isAssistantModel(model) ? model : undefined))
+        } catch (error) {
+          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantProviderNotAvailableError ? 409 : 400, { error: (error as Error).message })
+        }
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/assistant/lookup') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    readJsonBody(req)
+      .then(async (body) => {
+        const { message, uiLanguage, entities, model, chunkSizePreference, customChunkRecordCount } = body as {
+          message?: string
+          uiLanguage?: 'no' | 'en'
+          entities?: string[]
+          model?: store.AssistantModel
+          chunkSizePreference?: assistantSteps.ChunkSizePreference
+          customChunkRecordCount?: number
+        }
+        if (!message || (uiLanguage !== 'no' && uiLanguage !== 'en') || !Array.isArray(entities)) {
+          sendJson(res, 400, { error: 'Missing message, uiLanguage, or entities' })
+          return
+        }
+        try {
+          sendJson(
+            res,
+            200,
+            await assistantSteps.answerLookup(session, message, uiLanguage, entities, isAssistantModel(model) ? model : undefined, chunkSizePreference, customChunkRecordCount),
+          )
         } catch (error) {
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantProviderNotAvailableError ? 409 : 400, { error: (error as Error).message })
         }

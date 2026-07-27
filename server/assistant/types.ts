@@ -97,6 +97,18 @@ export interface AssistantEntity<TDraft> {
   validate(action: AssistantActionName, draft: TDraft, context: AssistantFillContext): AssistantValidationIssue[]
   /** Which review UI `AssistantPanel` mounts for a given action — `'existingForm'` reuses the entity's own real admin form component; `'destructiveSummary'` is the typed-confirmation read-only card. */
   reviewComponent(action: AssistantActionName): 'existingForm' | 'destructiveSummary'
+  /**
+   * Returns this entity's full current live data — an array for an ordinary
+   * collection, the single record for a singleton — for `answerLookup`'s own
+   * informational Q&A only (see `steps.ts`); never consulted by the CRUD
+   * flow above. `unknown` on purpose: every caller only ever `JSON.stringify`s
+   * this into a prompt, so there's no shared shape worth typing precisely.
+   * Omit this entirely for a sub-resource with no identity of its own outside
+   * its parent entity (e.g. `categoryCustomField`/`appearanceThemeColor`,
+   * whose data already lives inside `category`/`theme`'s own `listAll`)
+   * rather than duplicating that same data confusingly.
+   */
+  listAll?(context: AssistantFillContext): Promise<unknown>
 }
 
 /** A `SyncedKey`-backed entity's own commit descriptor — informational only; the actual write still goes through the normal WS `write` path from the browser (see the plan's "hard invariant" — this server module never writes app data itself). */

@@ -50,4 +50,8 @@ export const messageBoardEntity: AssistantEntity<MessageBoard> = {
   reviewComponent(action) {
     return action === 'delete' ? 'destructiveSummary' : 'existingForm'
   },
+
+  async listAll(): Promise<MessageBoard[]> {
+    return liveBoards()
+  },
 }

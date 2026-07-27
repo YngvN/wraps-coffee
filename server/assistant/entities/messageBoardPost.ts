@@ -97,4 +97,8 @@ export const messageBoardPostEntity: AssistantEntity<MessageBoardPost> = {
   reviewComponent(action) {
     return action === 'delete' ? 'destructiveSummary' : 'existingForm'
   },
+
+  async listAll(): Promise<MessageBoardPost[]> {
+    return livePosts()
+  },
 }

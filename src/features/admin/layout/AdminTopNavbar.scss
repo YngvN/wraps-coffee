@@ -64,6 +64,23 @@
     background: $color-surface-hover;
   }
 
+  // Kept leftmost of the shortcuts (see AdminTopNavbar.tsx) and given a filled
+  // accent background rather than the plain muted-icon look every other
+  // shortcut has, so the AI assistant stands out as its own distinct action
+  // instead of blending in with Notifications/Messages/Search.
+  &--assistant {
+    background: $color-accent;
+    color: $color-accent-contrast;
+
+    @media (hover: hover) {
+      &:hover {
+        background: $color-accent;
+        color: $color-accent-contrast;
+        opacity: 0.85;
+      }
+    }
+  }
+
   svg {
     width: 20px;
     height: 20px;

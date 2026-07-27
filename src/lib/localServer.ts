@@ -416,6 +416,16 @@ export async function pushFoodoraOrderStatus(token: string, orderId: string, sta
 
 export type AssistantModel = 'claude-haiku-4-5' | 'claude-sonnet-4-5' | 'claude-opus-4-5'
 
+/** One real Claude API call's own record — see `server/assistant/client.ts`'s own `AssistantTraceEntry` (this is its client-side mirror). Powers the assistant chat's "thought process" trace disclosure (see `AssistantThoughtTrace`), never anything functional. */
+export interface AssistantTraceEntry {
+  toolName: string
+  pass?: 'draft' | 'verify'
+  durationMs: number
+  input: string
+  output: string
+  usage?: { inputTokens: number; outputTokens: number; estimatedCostUsd?: number }
+}
+
 export interface AssistantCredentialStatus {
   hasKey: boolean
   provider: 'local' | 'claude'
@@ -450,13 +460,17 @@ export async function setAssistantCredentials(
 }
 
 export interface AssistantIntentResult {
-  /** A real entity key, or `'chat'` for a general question/greeting that isn't a specific create/update/delete request — see `reply`. */
+  /** A real entity key, or `'chat'` for a general question/greeting that isn't a specific create/update/delete request — see `reply`/`lookupEntities`. */
   entity: string
   /** `null` when `entity === 'chat'`. */
   action: 'create' | 'update' | 'delete' | 'resetPassword' | 'trigger' | null
   searchText: string | null
-  /** The conversational answer, only set when `entity === 'chat'`. */
+  /** The conversational answer, only set when `entity === 'chat'` and `lookupEntities` is empty. */
   reply: string | null
+  /** Only set when `entity === 'chat'` and the message was a factual question about the cafe's own current data — which entity keys to fetch via `assistantAnswerLookup`. Mutually exclusive with `reply` (the server normalizes this). */
+  lookupEntities: string[] | null
+  /** See `AssistantTraceEntry` — always exactly one entry (this step is single-pass). */
+  trace: AssistantTraceEntry[]
 }
 
 /** Step 1 of the assistant flow (see `useAssistantFlow`) — routes free text to an entity + action. Never writes anything; see `server/assistant/types.ts`'s own module doc comment. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. */
@@ -477,6 +491,8 @@ export async function assistantSelectIntent(token: string, message: string, uiLa
 export interface AssistantSelectItemResult {
   itemID: string | null
   candidates: { id: string; label: string }[]
+  /** See `AssistantTraceEntry` — empty when a fast path (0 or 1 candidates) skipped the model entirely. */
+  trace: AssistantTraceEntry[]
 }
 
 /** Step 2 of the assistant flow (only for actions that need an existing item) — picks a candidate `itemID` for `entity`, or `null` if none clearly match. Pass `priorItemID` when the admin said the previous pick was wrong. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. */
@@ -511,8 +527,8 @@ export interface AssistantFillFieldsClarification {
  * draft, same shape as before this was a union.
  */
 export type AssistantFillFieldsResult =
-  | { status: 'ready'; draft: unknown; issues: { code: string; params?: Record<string, string> }[] }
-  | { status: 'clarify'; clarifications: AssistantFillFieldsClarification[] }
+  | { status: 'ready'; draft: unknown; issues: { code: string; params?: Record<string, string> }[]; trace: AssistantTraceEntry[] }
+  | { status: 'clarify'; clarifications: AssistantFillFieldsClarification[]; trace: AssistantTraceEntry[] }
 
 /** Step 3 of the assistant flow — proposes (never writes) a draft for `entity`/`action`, merged onto the current item (`itemID`) or empty defaults. `image` is the vision-extraction input (see `AssistantPanel`'s attach flow); `priorDraft` is set when this call is a correction from the review step; `resolvedFields` carries the admin's own answers to a prior `'clarify'` result; `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. */
 export async function assistantFillFields(
@@ -555,6 +571,27 @@ export async function assistantGenerateTitle(token: string, transcriptText: stri
     throw new Error(body.error ?? 'Could not generate a title for this conversation')
   }
   return response.json() as Promise<{ title: string }>
+}
+
+/** The admin's own override of how much data a lookup answer processes per call at once — see `AssistantPanel`'s kebab-menu chunk-size setting. `'auto'` means "use the active model/provider's own default." */
+export type ChunkSizePreference = 'auto' | 'small' | 'medium' | 'large' | 'custom'
+
+/** Answers a factual question about the cafe's own current dashboard data — called when `assistantSelectIntent` returns a non-empty `lookupEntities` instead of a plain `reply`. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only; `chunkSizePreference`/`customChunkRecordCount` override how much data is processed per call at once — see `AssistantPanel`'s kebab menu for both. */
+export async function assistantAnswerLookup(
+  token: string,
+  input: { message: string; uiLanguage: 'no' | 'en'; entities: string[]; model?: AssistantModel; chunkSizePreference?: ChunkSizePreference; customChunkRecordCount?: number },
+): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/lookup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? "Couldn't look that up")
+  }
+  return response.json() as Promise<{ reply: string; trace: AssistantTraceEntry[] }>
 }
 
 /** How a screen's own `/screens/:screenId` link should be addressed (see Settings → Advanced) — public, no auth needed. */

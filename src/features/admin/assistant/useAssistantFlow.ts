@@ -2,12 +2,15 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
 import {
+  assistantAnswerLookup,
   assistantFillFields,
   assistantGenerateTitle,
   assistantSelectIntent,
   assistantSelectItem,
   type AssistantIntentResult,
   type AssistantModel,
+  type AssistantTraceEntry,
+  type ChunkSizePreference,
 } from '../../../lib/localServer'
 import type { DashboardSection } from '../../../types/sync'
 import { useAssistantConversationLog } from './useAssistantConversationLog'
@@ -45,15 +48,27 @@ export interface AssistantClarification {
   options: AssistantCandidate[]
 }
 
-export interface TranscriptLine {
-  id: string
-  role: 'user' | 'assistant'
-  text: string
+/**
+ * A plain chat bubble (`'user'`/`'assistant'`, optionally flagged `variant:
+ * 'error'` for a persisted failure — see `reportError`/`reportNoMatch`), or a
+ * `'thought'` line: the assistant's own internal trace for the operation
+ * that led to whatever comes right after it (see `finalizeThought`) —
+ * collapsed by default behind a "Thought for Xs" toggle in the UI
+ * (`AssistantThoughtTrace`), never itself a stand-in for a real reply.
+ */
+export type TranscriptLine =
+  | { id: string; role: 'user' | 'assistant'; text: string; variant?: 'error' }
+  | { id: string; role: 'thought'; trace: AssistantTraceEntry[]; durationMs: number }
+
+/** Narrows away `'thought'` lines (no `.text` of their own) wherever a plain chat transcript is needed — `Array.prototype.find`/`filter` only narrow their return type given an explicit type predicate like this one. */
+function isTextLine(line: TranscriptLine): line is Extract<TranscriptLine, { text: string }> {
+  return 'text' in line
 }
 
-/** Plain-text rendering of a transcript for `generateTitle` — trimmed to the most recent lines/characters so an unusually long back-and-forth doesn't balloon that call's token usage. */
+/** Plain-text rendering of a transcript for `generateTitle` — trimmed to the most recent lines/characters so an unusually long back-and-forth doesn't balloon that call's token usage. `'thought'` lines are excluded entirely: trace JSON has no place in a conversation-title prompt. */
 function transcriptToText(transcript: TranscriptLine[]): string {
   return transcript
+    .filter(isTextLine)
     .slice(-20)
     .map((line) => `${line.role === 'user' ? 'Admin' : 'Assistant'}: ${line.text}`)
     .join('\n')
@@ -62,7 +77,7 @@ function transcriptToText(transcript: TranscriptLine[]): string {
 
 /** Shown in the conversation log immediately on `newChat()`, before the AI-generated title (see `assistantGenerateTitle`) resolves and replaces it — the first user message, trimmed to a reasonable label length. */
 function fallbackConversationTitle(transcript: TranscriptLine[]): string {
-  const firstUserLine = transcript.find((line) => line.role === 'user')?.text.trim() ?? ''
+  const firstUserLine = transcript.filter(isTextLine).find((line) => line.role === 'user')?.text.trim() ?? ''
   if (!firstUserLine) return 'Conversation'
   return firstUserLine.length > 48 ? `${firstUserLine.slice(0, 45)}...` : firstUserLine
 }
@@ -113,7 +128,6 @@ type FlowState =
   | { status: 'idle' }
   | { status: 'busy'; phase: 'thinking' | 'verifying' }
   | { status: 'confirmItem'; entity: AssistantEntityKey; action: AssistantActionName; message: string; candidates: AssistantCandidate[]; pickedId: string; showAll: boolean }
-  | { status: 'noMatch'; entity: AssistantEntityKey; action: AssistantActionName }
   | {
       status: 'clarifying'
       entity: AssistantEntityKey
@@ -135,7 +149,6 @@ type FlowState =
       issues: AssistantValidationIssue[]
       label: string
     }
-  | { status: 'error'; message: string }
 
 export interface AttachedImage {
   mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
@@ -157,35 +170,100 @@ let nextLineId = 0
  * `getAssistantModel()`) — see `AssistantPanel`'s model-picker menu, which
  * owns the actual per-device preference this value comes from. Never
  * written back to that shared, admin-configured default itself.
+ * `chunkSizePreference`/`customChunkRecordCount` are the same kind of
+ * per-device override, threaded only into the lookup call (see
+ * `sendMessage`'s own `lookupEntities` branch) — see `AssistantPanel`'s
+ * kebab-menu chunk-size setting.
  */
-export function useAssistantFlow(modelOverride?: AssistantModel) {
+export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePreference?: ChunkSizePreference, customChunkRecordCount?: number) {
   const { session } = useAdminSession()
   const { language, t } = useLanguage()
   const [transcript, setTranscript] = useState<TranscriptLine[]>([])
-  const [state, setStateRaw] = useState<FlowState>({ status: 'idle' })
+  const [state, setState] = useState<FlowState>({ status: 'idle' })
   const abortRef = useRef<AbortController | null>(null)
   // Sticky for the lifetime of the current conversation (cleared only by `newChat`) — tracks
-  // whether *any* operation within it ever hit `'error'`, even one the admin went on to resolve
+  // whether *any* operation within it ever hit an error, even one the admin went on to resolve
   // successfully, so the conversation log can flag the entry (see `newChat`'s own `hadError` archive param).
   const hadErrorRef = useRef(false)
-  const setState = useCallback((next: FlowState) => {
-    if (next.status === 'error') hadErrorRef.current = true
-    setStateRaw(next)
-  }, [])
+
+  // Accumulates the current operation's own trace (see `AssistantTraceEntry`) across however many
+  // sequential network calls it takes (`selectIntent` → `selectItem` → `fillFields`, etc.) — a ref
+  // is the authoritative copy (read synchronously, later in the same async function, with no
+  // stale-closure risk the way re-reading `useState` would have), mirrored into `currentTrace`
+  // purely to force a re-render for the *live* "expand while thinking" view. `busyStartRef` marks
+  // when the *first* call of the current operation started, so a multi-call operation reports one
+  // cumulative duration rather than just its last leg's own.
+  const traceRef = useRef<AssistantTraceEntry[]>([])
+  const busyStartRef = useRef<number | null>(null)
+  const [currentTrace, setCurrentTrace] = useState<AssistantTraceEntry[]>([])
 
   const allowedEntities = useAssistantAllowedEntities()
   const conversationLog = useAssistantConversationLog()
 
-  const appendLine = useCallback((role: TranscriptLine['role'], text: string) => {
-    nextLineId += 1
-    setTranscript((current) => [...current, { id: `${nextLineId}`, role, text }])
+  /** Replaces every raw `setState({status:'busy', phase})` call — marks the operation's own start time once, on its first busy transition. */
+  const beginBusy = useCallback((phase: 'thinking' | 'verifying') => {
+    if (busyStartRef.current === null) busyStartRef.current = Date.now()
+    setState({ status: 'busy', phase })
   }, [])
+
+  /** Call immediately after every awaited step-function call resolves, with that call's own `result.trace`. */
+  const recordTrace = useCallback((entries: AssistantTraceEntry[]) => {
+    if (entries.length === 0) return
+    traceRef.current.push(...entries)
+    setCurrentTrace([...traceRef.current])
+  }, [])
+
+  /**
+   * Collapses the current operation's accumulated trace into a permanent
+   * `'thought'` transcript line, positioned wherever this is called relative
+   * to the branch's own `appendLine` — always call this *first*, before that
+   * branch's own line(s), so "Thought for Xs" lands before the reply/form it
+   * led to rather than after it (ordering here is guaranteed by call order,
+   * not by re-reading React state). A no-op if nothing was ever recorded
+   * (e.g. a fast path that skipped the model entirely).
+   */
+  const finalizeThought = useCallback(() => {
+    const entries = traceRef.current
+    const durationMs = busyStartRef.current ? Date.now() - busyStartRef.current : 0
+    traceRef.current = []
+    busyStartRef.current = null
+    setCurrentTrace([])
+    if (entries.length === 0) return
+    nextLineId += 1
+    setTranscript((current) => [...current, { id: `${nextLineId}`, role: 'thought', trace: entries, durationMs }])
+  }, [])
+
+  const appendLine = useCallback((role: 'user' | 'assistant', text: string, variant?: 'error') => {
+    nextLineId += 1
+    setTranscript((current) => [...current, { id: `${nextLineId}`, role, text, variant }])
+  }, [])
+
+  /** Persists a real failure as a normal (if visually flagged) transcript line instead of transient `flow.state` — see the plan behind this: an error used to vanish the instant the next message was sent, since it was never part of the permanent transcript. */
+  const reportError = useCallback(
+    (message: string) => {
+      hadErrorRef.current = true
+      finalizeThought()
+      appendLine('assistant', message, 'error')
+      setState({ status: 'idle' })
+    },
+    [finalizeThought, appendLine],
+  )
+
+  /** Same "persist it" fix as `reportError`, for the plain "nothing matched" case — not flagged as an error, just a normal reply. */
+  const reportNoMatch = useCallback(() => {
+    finalizeThought()
+    appendLine('assistant', t('admin.assistant.noMatchFound'))
+    setState({ status: 'idle' })
+  }, [finalizeThought, appendLine, t])
 
   const cancel = useCallback(() => {
     abortRef.current?.abort()
+    // Unlike `newChat` (which wipes the whole transcript anyway), a cancel mid-operation shouldn't
+    // silently drop whatever trace already accumulated from calls that resolved before the abort.
+    finalizeThought()
     setState({ status: 'idle' })
     appendLine('assistant', 'cancelled')
-  }, [appendLine, setState])
+  }, [appendLine, finalizeThought])
 
   /**
    * Archives the current conversation into the admin's own conversation log
@@ -204,6 +282,10 @@ export function useAssistantFlow(modelOverride?: AssistantModel) {
     setState({ status: 'idle' })
     setTranscript([])
     hadErrorRef.current = false
+    // Nothing to finalize into — the whole transcript is gone regardless.
+    traceRef.current = []
+    busyStartRef.current = null
+    setCurrentTrace([])
     if (linesToArchive.length === 0) return
 
     const id = conversationLog.archive(linesToArchive, fallbackConversationTitle(linesToArchive), hadError)
@@ -226,38 +308,44 @@ export function useAssistantFlow(modelOverride?: AssistantModel) {
       resolvedFields?: Record<string, string>,
     ) => {
       if (!session) return
-      setState({ status: 'busy', phase: 'thinking' })
+      beginBusy('thinking')
       try {
         const result = await assistantFillFields(session.token, { entity, action, message, uiLanguage: language, itemID, image, priorDraft, resolvedFields, model: modelOverride })
+        recordTrace(result.trace)
         if (result.status === 'clarify') {
+          finalizeThought()
           setState({ status: 'clarifying', entity, action, itemID, message, resolvedFields: resolvedFields ?? {}, clarifications: result.clarifications })
           return
         }
+        finalizeThought()
         setState({ status: 'reviewingForm', entity, action, itemID, draft: result.draft, issues: result.issues })
       } catch (error) {
-        setState({ status: 'error', message: error instanceof Error ? error.message : 'Something went wrong' })
+        reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, setState, modelOverride],
+    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride],
   )
 
   /** Delete still runs `fillFields` (an empty schema for every destructible entity — see each adapter's own `fillFieldsSchema`) purely to get a real `validate()` pass: that's the only path that surfaces a delete-time soft warning (e.g. "N products would be orphaned") or hard guard (e.g. "can't delete the active theme") before the typed-confirmation screen, rather than skipping straight to an empty-issues review. */
   const runFillFieldsForDelete = useCallback(
     async (entity: AssistantEntityKey, action: AssistantActionName, message: string, itemID: string, label: string, resolvedFields?: Record<string, string>) => {
       if (!session) return
-      setState({ status: 'busy', phase: 'thinking' })
+      beginBusy('thinking')
       try {
         const result = await assistantFillFields(session.token, { entity, action, message, uiLanguage: language, itemID, resolvedFields, model: modelOverride })
+        recordTrace(result.trace)
         if (result.status === 'clarify') {
+          finalizeThought()
           setState({ status: 'clarifying', entity, action, itemID, message, label, resolvedFields: resolvedFields ?? {}, clarifications: result.clarifications })
           return
         }
+        finalizeThought()
         setState({ status: 'reviewingDestructive', entity, action, itemID, draft: result.draft, issues: result.issues, label })
       } catch (error) {
-        setState({ status: 'error', message: error instanceof Error ? error.message : 'Something went wrong' })
+        reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, setState, modelOverride],
+    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride],
   )
 
   const proceedWithItem = useCallback(
@@ -282,23 +370,25 @@ export function useAssistantFlow(modelOverride?: AssistantModel) {
         await runFillFields(entity, action, message, undefined)
         return
       }
-      setState({ status: 'busy', phase: 'thinking' })
+      beginBusy('thinking')
       try {
         const result = await assistantSelectItem(session.token, { entity, action, message, searchText, uiLanguage: language, model: modelOverride })
+        recordTrace(result.trace)
         if (result.candidates.length === 0) {
-          setState({ status: 'noMatch', entity, action })
+          reportNoMatch()
           return
         }
+        finalizeThought()
         if (!result.itemID) {
           setState({ status: 'confirmItem', entity, action, message, candidates: result.candidates, pickedId: result.candidates[0].id, showAll: true })
           return
         }
         setState({ status: 'confirmItem', entity, action, message, candidates: result.candidates, pickedId: result.itemID, showAll: false })
       } catch (error) {
-        setState({ status: 'error', message: error instanceof Error ? error.message : 'Something went wrong' })
+        reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, runFillFields, setState, modelOverride],
+    [session, language, runFillFields, beginBusy, recordTrace, finalizeThought, reportNoMatch, reportError, modelOverride],
   )
 
   const sendMessage = useCallback(
@@ -322,31 +412,49 @@ export function useAssistantFlow(modelOverride?: AssistantModel) {
         return
       }
 
-      setState({ status: 'busy', phase: 'thinking' })
+      beginBusy('thinking')
       try {
         const result: AssistantIntentResult = await assistantSelectIntent(session.token, message, language, modelOverride)
+        recordTrace(result.trace)
 
         // General question/greeting/etc. — answered directly, never routed
         // into a CRUD operation. See `server/assistant/steps.ts`'s own
         // `selectIntent` doc comment for why this is always safe: a
         // misroute here never proposes a write.
         if (result.entity === 'chat' || !result.action) {
-          appendLine('assistant', result.reply ?? "I'm not sure how to help with that — try describing what you'd like to create, update, or delete.")
+          if (result.lookupEntities && result.lookupEntities.length > 0) {
+            // A factual question about the cafe's own current data — hand off to `answerLookup`
+            // instead of a plain conversational reply (see `selectIntent`'s own doc comment).
+            const lookup = await assistantAnswerLookup(session.token, {
+              message,
+              uiLanguage: language,
+              entities: result.lookupEntities,
+              model: modelOverride,
+              chunkSizePreference,
+              customChunkRecordCount,
+            })
+            recordTrace(lookup.trace)
+            finalizeThought()
+            appendLine('assistant', lookup.reply)
+          } else {
+            finalizeThought()
+            appendLine('assistant', result.reply ?? "I'm not sure how to help with that — try describing what you'd like to create, update, or delete.")
+          }
           setState({ status: 'idle' })
           return
         }
 
         const entity = result.entity as AssistantEntityKey
         if (!allowedEntities.includes(entity)) {
-          setState({ status: 'error', message: 'This action is not available to your account.' })
+          reportError('This action is not available to your account.')
           return
         }
         await startOperation(entity, result.action, message, result.searchText ?? '')
       } catch (error) {
-        setState({ status: 'error', message: error instanceof Error ? error.message : 'Something went wrong' })
+        reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, t, state, allowedEntities, appendLine, runFillFields, startOperation, setState, modelOverride],
+    [session, language, t, state, allowedEntities, appendLine, runFillFields, startOperation, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, chunkSizePreference, customChunkRecordCount],
   )
 
   const confirmItemMatch = useCallback(async () => {
@@ -399,6 +507,7 @@ export function useAssistantFlow(modelOverride?: AssistantModel) {
   return {
     transcript,
     state,
+    currentTrace,
     allowedEntities,
     sendMessage,
     confirmItemMatch,

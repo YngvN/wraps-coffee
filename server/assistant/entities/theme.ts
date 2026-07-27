@@ -84,4 +84,8 @@ export const themeEntity: AssistantEntity<AppearanceTheme> = {
   reviewComponent(action) {
     return action === 'delete' ? 'destructiveSummary' : 'existingForm'
   },
+
+  async listAll(): Promise<AppearanceSettings> {
+    return liveAppearanceSettings()
+  },
 }

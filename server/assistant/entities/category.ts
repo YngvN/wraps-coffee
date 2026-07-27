@@ -182,4 +182,9 @@ export const categoryEntity: AssistantEntity<AssistantCategoryDraft> = {
   reviewComponent(action) {
     return action === 'delete' ? 'destructiveSummary' : 'existingForm'
   },
+
+  /** Categories have no top-level array of their own (see the module doc comment above) — flattened here from every catalogue's own `categories[]`, with the parent catalogue's id/name attached so a lookup answer can actually say which catalogue a category belongs to. */
+  async listAll(): Promise<(Category & { catalogueId: string; catalogueName: Catalogue['name'] })[]> {
+    return liveCatalogues().flatMap((catalogue) => catalogue.categories.map((category) => ({ ...category, catalogueId: catalogue.id, catalogueName: catalogue.name })))
+  },
 }

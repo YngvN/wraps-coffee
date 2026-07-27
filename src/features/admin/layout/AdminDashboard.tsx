@@ -5,7 +5,7 @@ import { ErrorToast } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useSidebarPinned } from '../../../hooks/useSidebarPinned'
 import { AdminSidebarNav } from './AdminSidebarNav'
-import { AdminTopNavbar } from './AdminTopNavbar'
+import { AdminTopNavbar, type ActivePanel } from './AdminTopNavbar'
 import './AdminDashboard.scss'
 
 /**
@@ -29,19 +29,31 @@ export function AdminDashboard() {
   const outlet = useOutlet()
   const [isSidebarOpen, setSidebarOpen] = useState(false)
   const { isPinned, togglePinned } = useSidebarPinned()
+  // Owned here (not `AdminTopNavbar`) so the sidebar rail's own "AI Assistant"/"Search" entries
+  // (see `AdminSidebarNav`) can toggle the very same two right-side panels the navbar's own
+  // buttons do — see `ActivePanel`'s own doc comment in `AdminTopNavbar.tsx`.
+  const [activePanel, setActivePanel] = useState<ActivePanel>(null)
+  const handleTogglePanel = (panel: NonNullable<ActivePanel>) => setActivePanel((current) => (current === panel ? null : panel))
+  const handleClosePanel = () => setActivePanel(null)
 
   if (!session) return <Navigate to="/admin/login" replace />
 
   return (
     <div className="admin-dashboard">
       <ErrorToast />
-      <AdminTopNavbar isSidebarOpen={isSidebarOpen} onToggleSidebar={() => setSidebarOpen((open) => !open)} />
+      <AdminTopNavbar
+        isSidebarOpen={isSidebarOpen}
+        onToggleSidebar={() => setSidebarOpen((open) => !open)}
+        activePanel={activePanel}
+        onTogglePanel={handleTogglePanel}
+        onClosePanel={handleClosePanel}
+      />
 
       <div className="admin-dashboard__body">
         <aside
           className={`admin-dashboard__sidebar admin-dashboard__sidebar--desktop${isPinned ? ' admin-dashboard__sidebar--pinned' : ''}`}
         >
-          <AdminSidebarNav variant="desktop" isPinned={isPinned} onTogglePinned={togglePinned} />
+          <AdminSidebarNav variant="desktop" isPinned={isPinned} onTogglePinned={togglePinned} onTogglePanel={handleTogglePanel} />
         </aside>
 
         <AnimatePresence>
@@ -62,7 +74,7 @@ export function AdminDashboard() {
                 exit={{ x: '-100%' }}
                 transition={{ duration: 0.25, ease: 'easeOut' }}
               >
-                <AdminSidebarNav variant="mobile" onNavigate={() => setSidebarOpen(false)} />
+                <AdminSidebarNav variant="mobile" onNavigate={() => setSidebarOpen(false)} onTogglePanel={handleTogglePanel} />
               </motion.aside>
             </>
           )}

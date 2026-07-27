@@ -20,6 +20,15 @@ import type { AssistantEntity, AssistantSession } from './types'
  * change. Per this repo's CLAUDE.md: whenever new interactive dashboard
  * functionality is added, add/update the matching entry here in the same
  * change.
+ *
+ * Beyond the CRUD contract (`fillFieldsSchema`/`mergeDraft`/`validate`/etc.),
+ * an entity can also opt into `listAll` — its full current live data, used
+ * only by `steps.ts`'s `answerLookup` to answer informational Q&A ("what
+ * message boards exist?") grounded in real data, entirely separate from the
+ * create/update/delete flow above. Not every entity implements it — a
+ * sub-resource with no identity of its own outside its parent (e.g.
+ * `categoryCustomField`/`appearanceThemeColor`) omits it rather than
+ * duplicate its parent's own `listAll` data.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const ASSISTANT_ENTITIES: AssistantEntity<any>[] = [

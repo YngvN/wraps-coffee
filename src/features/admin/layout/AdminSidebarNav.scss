@@ -101,6 +101,10 @@
 // there is now only one thing animating at all — the rail's own `width` —
 // and the icon's position is a fixed offset from the left edge regardless
 // of it.
+// Also used, unchanged, on the rail's own "AI Assistant"/"Search" action
+// `<button>`s (see AdminSidebarNav.tsx) alongside every other item's real
+// `NavLink` — the reset properties below only matter for those two (a
+// `<button>` has native browser chrome an `<a>` never did to begin with).
 .admin-sidebar-nav__link {
   display: flex;
   align-items: center;
@@ -109,11 +113,16 @@
   width: 100%;
   height: 44px;
   padding: 0 0 0 calc($spacing-unit * 1.5);
+  border: none;
   border-radius: 10px;
+  background: none;
   color: $color-text-muted;
+  font: inherit;
   text-decoration: none;
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
+  cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease, border-radius 180ms ease;
 
   @media (hover: hover) {

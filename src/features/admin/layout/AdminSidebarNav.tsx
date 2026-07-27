@@ -8,8 +8,9 @@ import { useScreens } from '../../../hooks/useScreens'
 import { useSidebarSettings } from '../../../hooks/useSidebarSettings'
 import { useLanguage } from '../../../i18n'
 import type { ToggleableSidebarItem } from '../../../types/sidebarSettings'
+import { useAssistantAllowedEntities } from '../assistant/useAssistantFlow'
 import { ADMIN_NAV_ICONS, NAV_ITEMS } from './adminNavItems'
-import { PinSidebarIcon } from './AdminNavIcons'
+import { AssistantSparkleIcon, PinSidebarIcon, SearchIcon } from './AdminNavIcons'
 import './AdminSidebarNav.scss'
 
 /** Rail items with a real tier-2 flyout (see `AdminSidebarNav`'s own module doc comment) — every other item is a plain direct link, same as before this redesign. */
@@ -41,6 +42,8 @@ interface AdminSidebarNavProps {
   /** Whether the desktop rail is pinned permanently open (see the pin-toggle button above the footer) — ignored for the mobile variant, which has no such concept. */
   isPinned?: boolean
   onTogglePinned?: () => void
+  /** Toggles one of `AdminTopNavbar`'s own right-side panels — backs this rail's own "AI Assistant" (above Overview) and "Search" (right below it) entries, which open the exact same `AssistantPanel`/`GlobalSearchButton` panel the navbar's own shortcuts do rather than navigating anywhere. Owned by `AdminDashboard` — see `ActivePanel`'s own doc comment in `AdminTopNavbar.tsx`. */
+  onTogglePanel?: (panel: 'assistant' | 'search') => void
 }
 
 /**
@@ -50,6 +53,14 @@ interface AdminSidebarNavProps {
  * tier-3 flyout), and Settings (Store/Integrations/Advanced/Backup/
  * Developers). Every other item (Overview, Messages, Events, Orders,
  * Message board, Images, Users) stays a plain direct link, same as before.
+ * Two more rows bookend Overview but aren't `NAV_ITEMS`/routes at all —
+ * "AI Assistant" right above it and "Search" right below it are plain
+ * `<button>`s (styled identically to the `NavLink`s via the same
+ * `.admin-sidebar-nav__link` class) that call `onTogglePanel` instead of
+ * navigating, opening the exact same `AssistantPanel`/`GlobalSearchButton`
+ * panel `AdminTopNavbar`'s own shortcuts do — see `ActivePanel`'s own doc
+ * comment in `AdminTopNavbar.tsx` for why that state lives in `AdminDashboard`
+ * rather than either component owning it.
  *
  * The flyouts aren't pure CSS `:hover` (unlike a typical cascading nav
  * menu), since hovering a *different* rail item while tier-2 is already
@@ -74,13 +85,14 @@ interface AdminSidebarNavProps {
  *
  * Store branding lives in `AdminTopNavbar` now, not here.
  */
-export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = false, onTogglePinned }: AdminSidebarNavProps) {
+export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = false, onTogglePinned, onTogglePanel }: AdminSidebarNavProps) {
   const { t, language } = useLanguage()
   const { session, clearSession } = useAdminSession()
   const [sidebarSettings] = useSidebarSettings()
   const [catalogues] = useCatalogues()
   const [screens] = useScreens()
   const { entries: recentlyOpened } = useRecentlyOpened()
+  const assistantAllowedEntities = useAssistantAllowedEntities()
   const navigate = useNavigate()
   const containerRef = useRef<HTMLElement>(null)
 
@@ -204,9 +216,24 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
       <nav className="admin-sidebar-nav admin-sidebar-nav--mobile">
         <div className="admin-sidebar-nav__top">
           <ul className="admin-sidebar-nav__list admin-sidebar-nav__list--mobile">
-            {visibleItems.map((item) => {
+            {assistantAllowedEntities.length > 0 && (
+              <li>
+                <button
+                  type="button"
+                  className="admin-sidebar-nav__link admin-sidebar-nav__link--mobile"
+                  onClick={() => {
+                    onTogglePanel?.('assistant')
+                    onNavigate?.()
+                  }}
+                >
+                  <AssistantSparkleIcon className="admin-sidebar-nav__icon" />
+                  {t('admin.assistant.title')}
+                </button>
+              </li>
+            )}
+            {visibleItems.flatMap((item) => {
               const NavIcon = ADMIN_NAV_ICONS[item.to]
-              return (
+              const navLi = (
                 <li key={item.to}>
                   <NavLink
                     to={item.to}
@@ -218,6 +245,23 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
                   </NavLink>
                 </li>
               )
+              if (item.to !== 'overview') return [navLi]
+              return [
+                navLi,
+                <li key="search-action">
+                  <button
+                    type="button"
+                    className="admin-sidebar-nav__link admin-sidebar-nav__link--mobile"
+                    onClick={() => {
+                      onTogglePanel?.('search')
+                      onNavigate?.()
+                    }}
+                  >
+                    <SearchIcon className="admin-sidebar-nav__icon" />
+                    {t('admin.search.title')}
+                  </button>
+                </li>,
+              ]
             })}
           </ul>
         </div>
@@ -240,10 +284,28 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
       <div className="admin-sidebar-nav__rail" onMouseEnter={openCluster} onMouseLeave={scheduleCloseCluster}>
         <div className="admin-sidebar-nav__top">
           <ul className="admin-sidebar-nav__list">
-            {visibleItems.map((item) => {
+            {assistantAllowedEntities.length > 0 && (
+              <li>
+                <button
+                  type="button"
+                  className="admin-sidebar-nav__link"
+                  onClick={() => {
+                    onTogglePanel?.('assistant')
+                    closeFlyouts()
+                    onNavigate?.()
+                  }}
+                  title={t('admin.assistant.title')}
+                  aria-label={t('admin.assistant.title')}
+                >
+                  <AssistantSparkleIcon className="admin-sidebar-nav__icon" />
+                  <span className="admin-sidebar-nav__link-label">{t('admin.assistant.title')}</span>
+                </button>
+              </li>
+            )}
+            {visibleItems.flatMap((item) => {
               const NavIcon = ADMIN_NAV_ICONS[item.to]
               const hasFlyout = FLYOUT_RAIL_ITEMS.has(item.to)
-              return (
+              const navLi = (
                 <li
                   key={item.to}
                   onMouseEnter={
@@ -276,6 +338,26 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
                   </NavLink>
                 </li>
               )
+              if (item.to !== 'overview') return [navLi]
+              return [
+                navLi,
+                <li key="search-action">
+                  <button
+                    type="button"
+                    className="admin-sidebar-nav__link"
+                    onClick={() => {
+                      onTogglePanel?.('search')
+                      closeFlyouts()
+                      onNavigate?.()
+                    }}
+                    title={t('admin.search.title')}
+                    aria-label={t('admin.search.title')}
+                  >
+                    <SearchIcon className="admin-sidebar-nav__icon" />
+                    <span className="admin-sidebar-nav__link-label">{t('admin.search.title')}</span>
+                  </button>
+                </li>,
+              ]
             })}
           </ul>
         </div>
