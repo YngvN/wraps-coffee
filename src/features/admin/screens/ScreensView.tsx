@@ -255,17 +255,19 @@ export function ScreensView() {
             </div>
             <TranslatedText as="p" id="admin.screens.description" className="admin-page-description" />
 
-            <div className="screens-view__display-manager-row">
-              <button type="button" className="screens-view__display-manager-open" onClick={openDisplayManager}>
-                <span className="screens-view__display-manager-name">{t('admin.displayManager.title')}</span>
-                <ChevronRightIcon />
+            <div className="screens-view__toolbar">
+              <button type="button" className="screens-view__add-row" onClick={() => openForm(null)}>
+                <PlusIcon />
+                {t('admin.screens.addScreen')}
               </button>
-            </div>
 
-            <button type="button" className="screens-view__add-row" onClick={() => openForm(null)}>
-              <PlusIcon />
-              {t('admin.screens.addScreen')}
-            </button>
+              <div className="screens-view__display-manager-row">
+                <button type="button" className="screens-view__display-manager-open" onClick={openDisplayManager}>
+                  <span className="screens-view__display-manager-name">{t('admin.displayManager.title')}</span>
+                  <ChevronRightIcon />
+                </button>
+              </div>
+            </div>
 
             {screens.length === 0 ? (
               <p className="screens-view__empty">{t('admin.screens.noScreens')}</p>

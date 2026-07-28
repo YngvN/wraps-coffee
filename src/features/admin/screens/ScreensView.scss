@@ -29,10 +29,33 @@
   gap: $spacing-unit;
 }
 
-// Pinned above the screen list, opening `DisplayManagerView` — matches
-// `.products-view__view-all-products`'s own row/tint treatment (a plain
-// bordered row like `.products-view__item`, just tinted so it doesn't read
-// as one more, deletable/reorderable, screen among the rest below it).
+// Houses "+ Add screen" and the "Display Manager" row side by side, above
+// the screen list — matches `.products-view__categories-toolbar` (Products'
+// own "Add category"/"View all products" pairing) exactly: wraps on narrow
+// widths rather than needing its own breakpoint, since neither child has a
+// fixed width to fall back on.
+.screens-view__toolbar {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: $spacing-unit;
+
+  // Sized to its own label here, rather than the full-width row it'd be on
+  // its own (see `.screens-view__add-row`'s own comment) — this is the one
+  // spot it shares a row with another control instead of sitting alone.
+  .screens-view__add-row {
+    width: auto;
+  }
+
+  .screens-view__display-manager-row {
+    flex: 0 0 auto;
+  }
+}
+
+// Opens `DisplayManagerView` — matches `.products-view__view-all-products`'s
+// own row/tint treatment (a plain bordered row like `.products-view__item`,
+// just tinted so it doesn't read as one more, deletable/reorderable, screen
+// among the rest below it).
 .screens-view__display-manager-row {
   display: flex;
   align-items: center;
@@ -62,8 +85,10 @@
 }
 
 // Matches `.products-view__add-row` (Products' own "Add category"/"Add
-// product" affordance) — a full-width, left-aligned ghost button below the
-// list rather than a filled `Button` in the header.
+// product" affordance) — a left-aligned ghost button rather than a filled
+// `Button` in the header. Full-width by default; sized to its own label
+// instead inside `.screens-view__toolbar` above, which sits it next to the
+// Display Manager row instead of alone.
 .screens-view__add-row {
   display: flex;
   align-items: center;
