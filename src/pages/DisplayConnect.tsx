@@ -1,24 +1,12 @@
-import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { FullscreenToggle } from '../features/screens/FullscreenToggle'
 import { ScreenToolbar } from '../features/screens/ScreenToolbar'
-import { useDisplayMachines } from '../hooks/useDisplayMachines'
-import { registerDisplayHeartbeat } from '../lib/localServer'
-import { generateId } from '../utils/id'
+import { useDisplayMachineRegistration } from '../hooks/useDisplayMachineRegistration'
 import { DisplayStandby } from './DisplayStandby'
 
 const DEVICE_ID_STORAGE_KEY = 'wrapsCoffeeDisplayDeviceId'
-const HEARTBEAT_INTERVAL_MS = 20_000
 /** A `url`-connection machine only ever has itself to report — this browser tab — so it always reports exactly one synthetic "monitor" under this fixed id. */
 const MONITOR_ID = 'browser-tab'
-
-function readOrCreateDeviceId(): string {
-  const existing = window.localStorage.getItem(DEVICE_ID_STORAGE_KEY)
-  if (existing) return existing
-  const created = generateId()
-  window.localStorage.setItem(DEVICE_ID_STORAGE_KEY, created)
-  return created
-}
 
 /**
  * "Add a display via URL" — lets a plain browser tab (a smart TV's browser,
@@ -32,23 +20,14 @@ function readOrCreateDeviceId(): string {
  * until a Screen is assigned, then hands off to `ScreenDisplay` itself.
  */
 export function DisplayConnect() {
-  const [deviceId] = useState(readOrCreateDeviceId)
-  const [machines] = useDisplayMachines()
-
-  useEffect(() => {
-    const heartbeat = () =>
-      void registerDisplayHeartbeat({
-        machineID: deviceId,
-        label: `Browser (${window.navigator.userAgent.split(' ')[0]})`,
-        connectionType: 'url',
-        monitors: [{ id: MONITOR_ID, label: 'Browser tab' }],
-      })
-    heartbeat()
-    const interval = setInterval(heartbeat, HEARTBEAT_INTERVAL_MS)
-    return () => clearInterval(interval)
-  }, [deviceId])
-
-  const assignedScreenID = machines.find((machine) => machine.machineID === deviceId)?.monitors.find((monitor) => monitor.id === MONITOR_ID)?.assignedScreenID
+  const { assignedScreenID } = useDisplayMachineRegistration({
+    idStorage: 'localStorage',
+    idStorageKey: DEVICE_ID_STORAGE_KEY,
+    connectionType: 'url',
+    label: `Browser (${window.navigator.userAgent.split(' ')[0]})`,
+    monitorId: MONITOR_ID,
+    monitorLabel: 'Browser tab',
+  })
 
   if (assignedScreenID) {
     return <Navigate to={`/screens/${assignedScreenID}?unattended=1&showFullscreenButton=1`} replace />

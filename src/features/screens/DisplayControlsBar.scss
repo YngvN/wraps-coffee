@@ -1,0 +1,46 @@
+@use '../../styles/variables' as *;
+
+// Same top-right placement/z-index as `.dashboard-window-controls--fixed` -
+// this bar is the thing actually pinned to the corner; the window controls
+// it contains render inline (`variant="inline"`) instead of fixing
+// themselves a second time.
+.display-controls-bar {
+  position: fixed;
+  top: $spacing-unit;
+  right: $spacing-unit;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  transition: opacity 0.3s ease;
+
+  &--hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+// Same pill treatment as `.screen-toolbar__label` - a plain, non-interactive
+// name tag rather than a button, so it reads as informational.
+.display-controls-bar__label {
+  padding: calc($spacing-unit / 2) calc($spacing-unit * 1.5);
+  border: 1px solid $color-border;
+  border-radius: 999px;
+  background: $color-surface;
+  color: $color-text;
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.display-controls-bar__select {
+  padding: calc($spacing-unit / 4) $spacing-unit;
+  border: 1px solid $color-border;
+  border-radius: 999px;
+  background: $color-surface;
+  color: $color-text;
+  font-size: 0.8125rem;
+  font-family: inherit;
+  cursor: pointer;
+}

@@ -194,6 +194,30 @@ function instrumentWindow(window) {
   }
 }
 
+/**
+ * Attaches `preload.cjs` (and thus `window.electronAPI` — real minimize/kiosk
+ * fullscreen/close, see `useElectronWindowControls.ts`) to a Display window
+ * opened from Display Manager's own "+ Add Display" button
+ * (`DisplayManagerView.tsx` → `/display-window`), matched by pathname only —
+ * safe because that button always opens a relative URL, so it's necessarily
+ * on this same window's own origin. Every OTHER `window.open()` call from
+ * the dashboard (the existing "Open"/"Editor" screen-deploy buttons) falls
+ * through to the default `{ action: 'allow' }`, preserving their current
+ * plain-`BrowserWindow`, no-preload behavior exactly as before this existed.
+ */
+function attachDisplayWindowPreload(window) {
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    let pathname
+    try {
+      pathname = new URL(url).pathname
+    } catch {
+      return { action: 'allow' }
+    }
+    if (pathname !== '/display-window') return { action: 'allow' }
+    return { action: 'allow', overrideBrowserWindowOptions: { autoHideMenuBar: true, webPreferences: { preload: path.join(__dirname, 'preload.cjs') } } }
+  })
+}
+
 /** Starts the heartbeat loop + live sync subscription that keeps this machine's own managed monitors (every monitor except `excludeDisplayId`, if given) in line with admin-made Screen assignments — shared by both roles below. */
 function startDisplayManagement(baseUrl, wsUrl, role, excludeDisplayId) {
   const heartbeat = () => sendHeartbeat(baseUrl, role.machineID, role.label, displayManager.detectMonitors(excludeDisplayId))
@@ -236,6 +260,7 @@ async function startServerRole(role) {
     webPreferences: { preload: path.join(__dirname, 'preload.cjs') },
   })
   instrumentWindow(kioskWindow)
+  attachDisplayWindowPreload(kioskWindow)
   kioskWindow.loadURL(appUrl)
   kioskWindow.once('ready-to-show', () => {
     loadingWindow.close()
@@ -262,12 +287,14 @@ async function main() {
   // Removes the native File/Edit/View/Window/Help menu bar app-wide -
   // without this, only the windows this file explicitly sets
   // `autoHideMenuBar: true` on (the main kiosk window, managed monitor
-  // windows) avoid it; any *other* window Electron creates on its own
-  // behalf - e.g. the admin dashboard's "Open" button doing a plain
-  // `window.open()`, which Electron turns into a brand-new default
-  // BrowserWindow unless told otherwise - would still show it. A kiosk app
-  // has no use for that menu on any window, ever, so this is app-wide
-  // rather than something to repeat per window.
+  // windows, and - via `attachDisplayWindowPreload`'s own
+  // `overrideBrowserWindowOptions` - a Display window opened from
+  // Display Manager's "+ Add Display" button) avoid it; any *other* window
+  // Electron creates on its own behalf - e.g. the admin dashboard's "Open"
+  // button doing a plain `window.open()`, which Electron turns into a
+  // brand-new default BrowserWindow unless told otherwise - would still
+  // show it. A kiosk app has no use for that menu on any window, ever, so
+  // this is app-wide rather than something to repeat per window.
   Menu.setApplicationMenu(null)
 
   registerWindowControlHandlers()

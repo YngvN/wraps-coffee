@@ -991,7 +991,8 @@
           "viaUrlBadge": "Via URL",
           "electronBadge": "Kiosk machine",
           "lastSeen": "Last seen {{date}}",
-          "unassignedOption": "— Unassigned (shows the screensaver) —"
+          "unassignedOption": "— Unassigned (shows the screensaver) —",
+          "addDisplayButton": "Add display"
         },
         "common": {
           "save": "Save",
@@ -1105,6 +1106,7 @@
             "keyDashboardScreensaver": "The admin dashboard/login screensaver's own on/off and idle-timeout-minutes settings.",
             "keyScreens": "Every configured kiosk screen — layout, panes, content.",
             "keyDisplayMachines": "Every machine/browser tab that's registered as a display, its monitors, and which Screen (if any) each shows.",
+            "keyDisplayMachineCloseRequests": "machineIDs an admin has asked Display Manager to close remotely — pruned by each window once it acts on its own request.",
             "keyIntegrations": "Ruter#/Entur/Yr integration setup — chosen stops, weather locations.",
             "keySidebarSettings": "Which admin sidebar items are shown.",
             "keyOrders": "Online orders placed on the public website, pulled down live.",
@@ -1889,6 +1891,9 @@
           "slotLabel": "Pane {{number}}"
         },
         "videoTapForSound": "Tap for sound"
+      },
+      "displayWindow": {
+        "showScreensLabel": "Show available screens"
       },
       "imageUpload": {
         "uploadButton": "Upload image",
@@ -2904,7 +2909,8 @@
           "viaUrlBadge": "Via URL",
           "electronBadge": "Kioskmaskin",
           "lastSeen": "Sist sett {{date}}",
-          "unassignedOption": "— Ikke tildelt (viser skjermspareren) —"
+          "unassignedOption": "— Ikke tildelt (viser skjermspareren) —",
+          "addDisplayButton": "Legg til skjerm"
         },
         "common": {
           "save": "Lagre",
@@ -3018,6 +3024,7 @@
             "keyDashboardScreensaver": "Admin-dashbordets/innloggingens egen skjermsparer — på/av og minutter uten aktivitet.",
             "keyScreens": "Hver konfigurerte kioskskjerm — oppsett, paneler, innhold.",
             "keyDisplayMachines": "Hver maskin/nettleserfane som er registrert som en skjerm, dens monitorer, og hvilken Skjerm (hvis noen) hver av dem viser.",
+            "keyDisplayMachineCloseRequests": "MachineID-er en admin har bedt Skjermbehandling om å lukke eksternt — fjernes av hvert vindu selv når det handler på sin egen forespørsel.",
             "keyIntegrations": "Oppsett for Ruter#/Entur/Yr-integrasjonen — valgte stopp, værsteder.",
             "keySidebarSettings": "Hvilke elementer som vises i sidemenyen.",
             "keyOrders": "Nettbestillinger fra den offentlige nettsiden, hentet ned live.",
@@ -3802,6 +3809,9 @@
           "slotLabel": "Panel {{number}}"
         },
         "videoTapForSound": "Trykk for lyd"
+      },
+      "displayWindow": {
+        "showScreensLabel": "Vis tilgjengelige skjermer"
       },
       "imageUpload": {
         "uploadButton": "Last opp bilde",

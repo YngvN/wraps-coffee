@@ -41,6 +41,7 @@ const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
   'admin.textSizePresets': 'screens',
   'admin.screensaverSchedule': 'screens',
   'admin.displayMachines': 'displaymanager',
+  'admin.displayMachineCloseRequests': 'displaymanager',
   'admin.integrations': 'integrations',
   'admin.orders': 'orders',
   'admin.messageBoards': 'messageboard',
@@ -74,14 +75,16 @@ function currentStoreName(): string {
 /**
  * Upserts one machine's heartbeat into the stored `admin.displayMachines`
  * array, preserving each existing monitor's own `assignedScreenID` (matched
- * by monitor `id`) rather than wiping admin-made assignments on every
- * heartbeat. Deliberately synchronous end-to-end (reads current state,
- * computes the merged array, and the caller writes it back all within one
- * `readJsonBody(req).then(...)` callback with no further `await` in between)
- * — two heartbeats arriving close together can't race each other as long as
- * that invariant holds, since a JS callback always runs to completion before
- * the next one starts. Don't introduce an `await` between reading and
- * writing here without re-checking that reasoning.
+ * by monitor `id`) and the machine's own admin-set `customLabel` (see
+ * `DisplayMachine`'s own doc comment) rather than wiping admin-made
+ * assignments/renames on every heartbeat. Deliberately synchronous
+ * end-to-end (reads current state, computes the merged array, and the
+ * caller writes it back all within one `readJsonBody(req).then(...)`
+ * callback with no further `await` in between) — two heartbeats arriving
+ * close together can't race each other as long as that invariant holds,
+ * since a JS callback always runs to completion before the next one
+ * starts. Don't introduce an `await` between reading and writing here
+ * without re-checking that reasoning.
  */
 function mergeDisplayMachineHeartbeat(
   current: DisplayMachine[],
@@ -96,6 +99,7 @@ function mergeDisplayMachineHeartbeat(
   const updated: DisplayMachine = {
     machineID: heartbeat.machineID,
     label: heartbeat.label,
+    customLabel: existing?.customLabel ?? null,
     connectionType: heartbeat.connectionType,
     monitors,
     lastSeenAt: new Date().toISOString(),

@@ -1,9 +1,12 @@
 // CommonJS, same reasoning as main.cjs (package.json's "type": "module" would
-// otherwise load a plain .js file here as ESM). Only attached to the admin
-// dashboard's own kiosk window (see main.cjs) - the managed monitor/signage
-// windows (displayManager.cjs) never get this, so `window.electronAPI` is
-// exactly how the renderer tells "I'm the dashboard, running in Electron"
-// apart from a plain browser tab or a signage window.
+// otherwise load a plain .js file here as ESM). Attached to the admin
+// dashboard's own kiosk window, and (via `main.cjs`'s own
+// `attachDisplayWindowPreload`) to a Display window opened from
+// Display Manager's "+ Add Display" button - the managed monitor/signage
+// windows `displayManager.cjs` opens on its own never get this, so
+// `window.electronAPI` is how a renderer tells "I'm running in Electron,
+// with real window chrome to control" apart from a plain browser tab or one
+// of those signage windows.
 const { contextBridge, ipcRenderer } = require('electron')
 
 // Exposed instead of the raw ipcRenderer so the renderer never gets a direct

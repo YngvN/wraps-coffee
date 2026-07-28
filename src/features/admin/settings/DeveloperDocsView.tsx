@@ -28,6 +28,7 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.dashboardScreensaver', descKey: 'admin.settings.developerDocs.keyDashboardScreensaver' },
   { key: 'admin.screens', descKey: 'admin.settings.developerDocs.keyScreens' },
   { key: 'admin.displayMachines', descKey: 'admin.settings.developerDocs.keyDisplayMachines' },
+  { key: 'admin.displayMachineCloseRequests', descKey: 'admin.settings.developerDocs.keyDisplayMachineCloseRequests' },
   { key: 'admin.integrations', descKey: 'admin.settings.developerDocs.keyIntegrations' },
   { key: 'admin.sidebarSettings', descKey: 'admin.settings.developerDocs.keySidebarSettings' },
   { key: 'admin.orders', descKey: 'admin.settings.developerDocs.keyOrders' },
@@ -272,9 +273,19 @@ DELETE /uploads/<filename>        (Authorization: Bearer <token>)
 → 400 { "error": "..." }   (malformed body)
 
 Upserts by machineID into admin.displayMachines (a regular synced key, see Live data above) —
-preserves each existing monitor's own assignedScreenID (matched by monitor id) rather than
-overwriting it. Actually assigning a Screen to a monitor is a normal authenticated write to that
-same key from the Display Manager page, not this route.`}</code>
+preserves each existing monitor's own assignedScreenID (matched by monitor id) and the machine's
+own customLabel (an admin's rename, set via Display Manager) rather than overwriting them — every
+heartbeat's own "label" is that machine's self-reported name (e.g. "Display 3"), always
+overwritten as-is, so an admin-typed rename has to live in this separate field to actually stick.
+Actually assigning a Screen or renaming a machine is a normal authenticated write to that same key
+from the Display Manager page, not this route.
+
+Remote-close: Display Manager's own "X" button appends a machineID to
+admin.displayMachineCloseRequests (also a regular synced key) instead of calling any route of its
+own. Every live /display-connect or Display window watches that list for its own machineID; on a
+match it stops its own heartbeat, removes its own admin.displayMachines entry, prunes its own id
+back out of the close-request list, then calls window.close() (only effective on a script-opened
+window, e.g. a Display window — a no-op on a plain browser tab a user navigated to directly).`}</code>
         </pre>
       </Card>
 

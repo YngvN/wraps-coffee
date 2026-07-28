@@ -20,6 +20,7 @@ import { UsersView } from './features/admin/users/UsersView'
 import { LanguageProvider } from './i18n'
 import { DisplayConnect } from './pages/DisplayConnect'
 import { DisplayStandby } from './pages/DisplayStandby'
+import { DisplayWindow } from './pages/DisplayWindow'
 import { ScreenDisplay } from './pages/ScreenDisplay'
 import './styles/global.scss'
 
@@ -57,6 +58,7 @@ const router = createBrowserRouter([
   { path: '/screens/editor/:screenId', element: <ScreenDisplay /> },
   { path: '/display-standby', element: <DisplayStandby /> },
   { path: '/display-connect', element: <DisplayConnect /> },
+  { path: '/display-window', element: <DisplayWindow /> },
   { path: '*', element: <NotFoundRedirect /> },
 ])
 

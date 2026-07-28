@@ -16,6 +16,7 @@ export const SYNCED_KEYS = [
   'admin.dashboardScreensaver',
   'admin.screens',
   'admin.displayMachines',
+  'admin.displayMachineCloseRequests',
   'admin.integrations',
   'admin.sidebarSettings',
   'admin.orders',

@@ -12,6 +12,35 @@
   font-size: 0.875rem;
 }
 
+// Matches `.screens-view__add-row`/`.products-view__add-row`'s own
+// full-width ghost-button convention for a "+ Add X" affordance below a
+// page's own intro text.
+.display-manager-view__add-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  width: 100%;
+  padding: $spacing-unit calc($spacing-unit * 1.5);
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: $color-text;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
 .display-manager-view__machines {
   display: flex;
   flex-direction: column;
@@ -46,6 +75,19 @@
     background: $color-border;
     color: $color-text;
   }
+}
+
+// Icon-only, same sizing convention as `.integrations-view__icon-button` -
+// the surrounding `.btn--secondary` variant already supplies the
+// border/hover/active states this design system wants everywhere.
+.display-manager-view__remove-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
 }
 
 .display-manager-view__last-seen {

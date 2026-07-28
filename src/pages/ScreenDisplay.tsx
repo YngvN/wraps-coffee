@@ -1,10 +1,11 @@
 import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
-import { Navigate, useMatch, useParams } from 'react-router-dom'
+import { Navigate, useMatch, useNavigate, useParams } from 'react-router-dom'
 import { BackButton, Button, Checkbox, FloatingPanel, Modal, RedoIcon } from '../components'
 import { DashboardWindowControls } from '../features/admin/layout/DashboardWindowControls'
 import { BackgroundEditor } from '../features/screens/BackgroundEditor'
 import { BorderSettingsEditor } from '../features/screens/BorderSettingsEditor'
+import { DisplayControlsBar } from '../features/screens/DisplayControlsBar'
 import { FullscreenToggle } from '../features/screens/FullscreenToggle'
 import { GlobalTextSizeScaler, type SizeSnapshot } from '../features/screens/GlobalTextSizeScaler'
 import { KeepEditPrompt, type SlotEditChanges } from '../features/screens/KeepEditPrompt'
@@ -18,6 +19,7 @@ import { useAdminSession } from '../hooks/useAdminSession'
 import { evictUnusedVideoCache, prewarmVideoCache } from '../hooks/useCachedVideoSrc'
 import { useConnectionStatus } from '../hooks/useConnectionStatus'
 import { useDefaultPaneLanguage } from '../hooks/useDefaultPaneLanguage'
+import { useDisplayMachines } from '../hooks/useDisplayMachines'
 import { useScreens } from '../hooks/useScreens'
 import { useScreensaverSchedule } from '../hooks/useScreensaverSchedule'
 import { useLanguage } from '../i18n'
@@ -205,6 +207,44 @@ export function ScreenDisplay() {
   const { session, clearSession } = useAdminSession()
   const [screens, setScreens] = useScreens()
   const connected = useConnectionStatus()
+  const navigate = useNavigate()
+  const [displayMachines] = useDisplayMachines()
+  /** Present when this tab is a Display window that just navigated here after being assigned a Screen (see `DisplayWindow.tsx`) — identifies which `DisplayMachine`/monitor `DisplayControlsBar`'s own screen-selector below should read/write, and which live assignment the effect right below keeps following. */
+  const displayMachineId = new URLSearchParams(window.location.search).get('displayMachineId')
+  const monitorId = new URLSearchParams(window.location.search).get('monitorId')
+  /**
+   * This display's *own* live assignment, or `undefined` when this tab isn't
+   * a Display window at all — deliberately narrowed down to a single
+   * scalar (not the whole `displayMachines` array) before the effect below
+   * ever sees it. An earlier version depended on the full array directly:
+   * since that array covers *every* machine, any unrelated device's own
+   * heartbeat (fired every ~20s, from any kiosk/tab/Display window) changed
+   * its reference and re-ran the effect even though nothing about *this*
+   * display had changed — if this tab happened to be mid-transition at that
+   * moment, it would call `navigate()` again for the same target on every
+   * one of those unrelated heartbeats, a real loop (confirmed when deleting
+   * a still-active entry in Display Manager while other test entries kept
+   * heartbeating alongside it). Deriving just this one value first means
+   * React's own dependency comparison only sees a change - and only re-runs
+   * the effect - when *this* display's assignment actually does.
+   */
+  const liveAssignedScreenID = displayMachineId
+    ? (displayMachines.find((machine) => machine.machineID === displayMachineId)?.monitors.find((candidate) => candidate.id === monitorId)?.assignedScreenID ?? null)
+    : undefined
+  /**
+   * Keeps a Display window following its own live assignment: reassigned to
+   * a different Screen from Display Manager (or from this same window's own
+   * `DisplayControlsBar` selector) → navigates there; unassigned entirely →
+   * back to `/display-window`'s waiting state.
+   */
+  useEffect(() => {
+    if (liveAssignedScreenID === undefined || liveAssignedScreenID === screenId) return
+    if (liveAssignedScreenID) {
+      navigate(`/screens/${liveAssignedScreenID}?unattended=1&displayMachineId=${displayMachineId}&monitorId=${monitorId}`, { replace: true })
+    } else {
+      navigate('/display-window', { replace: true })
+    }
+  }, [liveAssignedScreenID, screenId, displayMachineId, monitorId, navigate])
   const [screensaverSchedule] = useScreensaverSchedule()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
   /** Drives the editor's own top-right window-chrome buttons (see `DashboardWindowControls` below) fading out after mouse/touch inactivity, same idle window as `ScreenToolbar`'s own — a separate call rather than sharing its state, since the two fade independently and neither needs to know about the other. */
@@ -274,11 +314,18 @@ export function ScreenDisplay() {
    * explicitly presses Play, rather than immediately cycling through
    * content unattended — *unless* this load carries the dashboard's own
    * `launch` marker (see `ScreensView.handleOpenScreen`), which treats
-   * "open" as "deploy it" and should autoplay immediately. Checked directly
-   * in this lazy initializer (rather than an effect calling `setManuallyPaused`
-   * after mount) so the very first render already reflects it.
+   * "open" as "deploy it" and should autoplay immediately, or the
+   * `unattended` marker (`DisplayConnect.tsx`, `DisplayWindow.tsx`,
+   * `electron/displayManager.cjs`'s own managed kiosk windows) — a real
+   * unattended display has nobody there to ever press Play, so it needs to
+   * start cycling on its own too. Checked directly in this lazy initializer
+   * (rather than an effect calling `setManuallyPaused` after mount) so the
+   * very first render already reflects it.
    */
-  const [manuallyPaused, setManuallyPaused] = useState(() => !new URLSearchParams(window.location.search).has('launch'))
+  const [manuallyPaused, setManuallyPaused] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    return !params.has('launch') && !params.has('unattended')
+  })
   /** The toolbar's own fast-forward toggle — while on, stages advance every 2 seconds instead of the screen's own configured `slideDurationSeconds`. */
   const [fastForward, setFastForward] = useState(false)
 
@@ -1018,6 +1065,7 @@ export function ScreenDisplay() {
         </div>
       )}
       {canEdit && <DashboardWindowControls hidden={!windowControlsVisible} />}
+      {!canEdit && displayMachineId && <DisplayControlsBar machineID={displayMachineId} monitorId={monitorId ?? ''} hidden={!windowControlsVisible} />}
       <ScreenToolbar>
         {canEdit && (
           <>
@@ -1080,7 +1128,7 @@ export function ScreenDisplay() {
             )}
           </>
         )}
-        {!canEdit && showFullscreenButton && <FullscreenToggle />}
+        {!canEdit && !displayMachineId && showFullscreenButton && <FullscreenToggle />}
       </ScreenToolbar>
       <SplitLayout
         key={screen.screenID}
