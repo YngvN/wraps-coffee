@@ -16,12 +16,16 @@ import { goBack } from '../../../lib/backStack'
 import {
   getAssistantCredentialStatus,
   getFoodoraCredentials,
+  getOllamaConfig,
   getWoltCredentials,
   lookupAddress,
+  pullOllamaModel,
   searchStops,
   setAssistantCredentials,
   setFoodoraCredentials,
+  setOllamaConfig,
   setWoltCredentials,
+  testOllamaConnection,
   triggerFoodoraSync,
   triggerWoltSync,
   type AssistantModel,
@@ -85,6 +89,30 @@ function computeWeatherStatus(config: IntegrationsConfig): WeatherStatus {
   if (reportedStates.some((state) => state === 'stale')) return 'stale'
   return 'live'
 }
+
+/**
+ * Curated preset tags for the Ollama card's vision/thinking model pickers —
+ * a convenience layer over `OllamaConfig`'s two plain free-text fields, never
+ * a hard restriction (see the "Custom" option rendered alongside these in
+ * the JSX below). "Small" is the pre-selected default for both roles, sized
+ * to run on a Raspberry Pi (8GB RAM) alongside the Node server and a kiosk
+ * display process on the same machine; "Medium"/"Large" are for admins
+ * running this on a more powerful, non-Pi server. Ollama only ever keeps one
+ * model resident at a time (it swaps per request), so picking a bigger tier
+ * for one role never adds to the other role's own RAM cost.
+ */
+const OLLAMA_VISION_TIERS: { tag: string; labelKey: string }[] = [
+  { tag: 'qwen2.5vl:3b', labelKey: 'admin.integrations.ollamaTierSmall' },
+  { tag: 'qwen2.5vl:7b', labelKey: 'admin.integrations.ollamaTierMedium' },
+  { tag: 'qwen2.5vl:32b', labelKey: 'admin.integrations.ollamaTierLarge' },
+]
+const OLLAMA_THINKING_TIERS: { tag: string; labelKey: string }[] = [
+  { tag: 'qwen2.5:3b-instruct', labelKey: 'admin.integrations.ollamaTierSmall' },
+  { tag: 'qwen2.5:7b-instruct', labelKey: 'admin.integrations.ollamaTierMedium' },
+  { tag: 'deepseek-r1:32b', labelKey: 'admin.integrations.ollamaTierLarge' },
+]
+/** The tier `<select>`'s own sentinel value for "not one of the curated presets" — a real Ollama tag never contains a space, so this can't collide with one. */
+const OLLAMA_CUSTOM_TIER_VALUE = '__custom__'
 
 /**
  * Admin view for the two live-data screen-slot kinds: real-time transit
@@ -164,10 +192,22 @@ export function IntegrationsView() {
   const [assistantSubmenuOpen, setAssistantSubmenuOpen] = useState(false)
   const [assistantApiKeyDraft, setAssistantApiKeyDraft] = useState('')
   const [hasSavedAssistantKey, setHasSavedAssistantKey] = useState(false)
+  /** Which provider is actually active (see AssistantProviderSection in Settings) — used only to decide whether the Ollama card below counts as "Activated" or "Available", same derivation as `hasSavedAssistantKey` does for the Claude card. */
+  const [assistantProvider, setAssistantProvider] = useState<'local' | 'claude'>('claude')
   const [isSavingAssistantKey, setIsSavingAssistantKey] = useState(false)
   const [assistantKeyError, setAssistantKeyError] = useState<string | null>(null)
   const [assistantModel, setAssistantModelState] = useState<AssistantModel>('claude-haiku-4-5')
   const [isSavingAssistantModel, setIsSavingAssistantModel] = useState(false)
+  const [ollamaSubmenuOpen, setOllamaSubmenuOpen] = useState(false)
+  const [ollamaBaseUrlDraft, setOllamaBaseUrlDraft] = useState('')
+  const [ollamaVisionModelDraft, setOllamaVisionModelDraft] = useState('')
+  const [ollamaThinkingModelDraft, setOllamaThinkingModelDraft] = useState('')
+  const [isSavingOllamaConfig, setIsSavingOllamaConfig] = useState(false)
+  const [ollamaConfigError, setOllamaConfigError] = useState<string | null>(null)
+  const [isTestingOllama, setIsTestingOllama] = useState(false)
+  const [ollamaTestResult, setOllamaTestResult] = useState<Awaited<ReturnType<typeof testOllamaConnection>> | null>(null)
+  const [downloadingOllamaTag, setDownloadingOllamaTag] = useState<string | null>(null)
+  const [ollamaDownloadError, setOllamaDownloadError] = useState<string | null>(null)
   const [isLookingUp, setIsLookingUp] = useState(false)
   const [lookupError, setLookupError] = useState<string | null>(null)
   const [lookingUpLocationId, setLookingUpLocationId] = useState<string | null>(null)
@@ -196,6 +236,7 @@ export function IntegrationsView() {
   const woltSubmenuRef = useRef<HTMLDivElement>(null)
   const foodoraSubmenuRef = useRef<HTMLDivElement>(null)
   const assistantSubmenuRef = useRef<HTMLDivElement>(null)
+  const ollamaSubmenuRef = useRef<HTMLDivElement>(null)
   const submenuSetters = {
     weather: setWeatherSubmenuOpen,
     transit: setTransitSubmenuOpen,
@@ -204,6 +245,7 @@ export function IntegrationsView() {
     wolt: setWoltSubmenuOpen,
     foodora: setFoodoraSubmenuOpen,
     anthropic: setAssistantSubmenuOpen,
+    ollama: setOllamaSubmenuOpen,
   } as const
   const submenuRefs = {
     weather: weatherSubmenuRef,
@@ -213,6 +255,7 @@ export function IntegrationsView() {
     wolt: woltSubmenuRef,
     anthropic: assistantSubmenuRef,
     foodora: foodoraSubmenuRef,
+    ollama: ollamaSubmenuRef,
   } as const
   /** Which integration's submenu (if any) still needs to be scrolled into view after a deep link just opened it — cleared the moment the scroll fires. */
   const [scrollToIntegrationKey, setScrollToIntegrationKey] = useState<keyof typeof submenuRefs | null>(null)
@@ -326,9 +369,10 @@ export function IntegrationsView() {
   useEffect(() => {
     if (!session) return
     getAssistantCredentialStatus(session.token)
-      .then(({ hasKey, model }) => {
+      .then(({ hasKey, model, provider }) => {
         setHasSavedAssistantKey(hasKey)
         setAssistantModelState(model)
+        setAssistantProvider(provider)
       })
       .catch(() => {
         // A `limited` account gets a 403 here — expected, not worth surfacing as an error.
@@ -358,6 +402,65 @@ export function IntegrationsView() {
         // Best-effort — the radio just won't visibly move if this fails, no dedicated error UI for a same-page enum pick.
       })
       .finally(() => setIsSavingAssistantModel(false))
+  }
+
+  // Loads the saved Ollama config once a session exists, same posture as the
+  // Claude effect above — nothing here is secret, but it's still gated the
+  // same way since it configures the same feature (see server/store.ts's
+  // getOllamaConfig).
+  useEffect(() => {
+    if (!session) return
+    getOllamaConfig(session.token)
+      .then((config) => {
+        setOllamaBaseUrlDraft(config.baseUrl)
+        setOllamaVisionModelDraft(config.visionModel)
+        setOllamaThinkingModelDraft(config.thinkingModel)
+      })
+      .catch(() => {
+        // A `limited` account gets a 403 here — expected, not worth surfacing as an error.
+      })
+  }, [session])
+
+  const handleSaveOllamaConfig = () => {
+    if (!session) return
+    setIsSavingOllamaConfig(true)
+    setOllamaConfigError(null)
+    setOllamaTestResult(null)
+    setOllamaConfig(session.token, { baseUrl: ollamaBaseUrlDraft.trim(), visionModel: ollamaVisionModelDraft.trim(), thinkingModel: ollamaThinkingModelDraft.trim() })
+      .then((config) => {
+        setOllamaBaseUrlDraft(config.baseUrl)
+        setOllamaVisionModelDraft(config.visionModel)
+        setOllamaThinkingModelDraft(config.thinkingModel)
+      })
+      .catch(() => setOllamaConfigError(t('admin.integrations.ollamaConfigSaveError')))
+      .finally(() => setIsSavingOllamaConfig(false))
+  }
+
+  const handleTestOllamaConnection = () => {
+    if (!session) return
+    setIsTestingOllama(true)
+    setOllamaTestResult(null)
+    testOllamaConnection(session.token, { baseUrl: ollamaBaseUrlDraft.trim(), visionModel: ollamaVisionModelDraft.trim(), thinkingModel: ollamaThinkingModelDraft.trim() })
+      .then(setOllamaTestResult)
+      .catch(() => setOllamaTestResult({ ok: false, error: t('admin.integrations.ollamaTestUnreachableError') }))
+      .finally(() => setIsTestingOllama(false))
+  }
+
+  const handleDownloadOllamaModel = (tag: string) => {
+    if (!session) return
+    setDownloadingOllamaTag(tag)
+    setOllamaDownloadError(null)
+    pullOllamaModel(session.token, tag)
+      .then((result) => {
+        if (!result.ok) {
+          setOllamaDownloadError(result.error ?? t('admin.integrations.ollamaDownloadError'))
+          return
+        }
+        // Re-test so the "missing model" state clears once the pull actually lands.
+        return testOllamaConnection(session.token, { baseUrl: ollamaBaseUrlDraft.trim(), visionModel: ollamaVisionModelDraft.trim(), thinkingModel: ollamaThinkingModelDraft.trim() }).then(setOllamaTestResult)
+      })
+      .catch(() => setOllamaDownloadError(t('admin.integrations.ollamaDownloadError')))
+      .finally(() => setDownloadingOllamaTag(null))
   }
 
   // Loads the saved Foodora credentials once a session exists — same
@@ -1084,6 +1187,121 @@ export function IntegrationsView() {
     </div>
   )
 
+  // Parallel to the Claude card above, but for the assistant's local/offline
+  // Ollama provider (see AssistantProviderSection in Settings for the
+  // Local/Claude choice itself) — a host URL plus a curated tier picker per
+  // role (see OLLAMA_VISION_TIERS/OLLAMA_THINKING_TIERS), each with a
+  // "Custom" escape hatch to any other pulled tag. Nothing here is secret
+  // (unlike the Claude card's API key), so this card is always considered
+  // "configured" — its own status dot instead reflects the last connection
+  // test's result.
+  const ollamaVisionTierMatch = OLLAMA_VISION_TIERS.find((tier) => tier.tag === ollamaVisionModelDraft)
+  const ollamaVisionSelectValue = ollamaVisionTierMatch ? ollamaVisionTierMatch.tag : OLLAMA_CUSTOM_TIER_VALUE
+  const ollamaThinkingTierMatch = OLLAMA_THINKING_TIERS.find((tier) => tier.tag === ollamaThinkingModelDraft)
+  const ollamaThinkingSelectValue = ollamaThinkingTierMatch ? ollamaThinkingTierMatch.tag : OLLAMA_CUSTOM_TIER_VALUE
+
+  const handleOllamaVisionTierChange = (value: string) => {
+    if (value === OLLAMA_CUSTOM_TIER_VALUE) {
+      if (ollamaVisionTierMatch) setOllamaVisionModelDraft('')
+      return
+    }
+    setOllamaVisionModelDraft(value)
+  }
+  const handleOllamaThinkingTierChange = (value: string) => {
+    if (value === OLLAMA_CUSTOM_TIER_VALUE) {
+      if (ollamaThinkingTierMatch) setOllamaThinkingModelDraft('')
+      return
+    }
+    setOllamaThinkingModelDraft(value)
+  }
+
+  const ollamaSubmenu = (
+    <div ref={ollamaSubmenuRef}>
+      <AnimatedDetails
+        className="integration-submenu"
+        summaryClassName="integration-submenu__summary"
+        bodyClassName="integration-submenu__body"
+        open={ollamaSubmenuOpen}
+        onToggle={() => setOllamaSubmenuOpen((current) => !current)}
+        summary={
+          <>
+            <FetchedLogo slug="ollama" label="Ollama" className="integration-submenu__icon" />
+            <span className="integration-submenu__title">
+              <span className="integration-submenu__brand">Ollama</span>
+              <span className="integration-submenu__label">{t('admin.integrations.ollamaTitle')}</span>
+            </span>
+            <span
+              className={`status-dot ${ollamaTestResult ? (ollamaTestResult.ok ? 'status-dot--active' : 'status-dot--inactive') : 'status-dot--disabled'}`}
+              title={t(ollamaTestResult ? (ollamaTestResult.ok ? 'admin.integrations.ollamaTestSuccessLabel' : 'admin.integrations.ollamaTestUnreachableError') : 'admin.integrations.statusDisabled')}
+            />
+            <span className="integration-submenu__chevron" aria-hidden="true">
+              ▸
+            </span>
+          </>
+        }
+      >
+        <p className="integrations-view__hint">{t('admin.integrations.ollamaDescription')}</p>
+
+        <Input id="integrations-ollama-base-url" label={t('admin.integrations.ollamaBaseUrlLabel')} value={ollamaBaseUrlDraft} onChange={(event) => setOllamaBaseUrlDraft(event.target.value)} placeholder="http://localhost:11434" />
+
+        <div className="integrations-view__ollama-field">
+          <label htmlFor="integrations-ollama-vision-tier">{t('admin.integrations.ollamaVisionModelLabel')}</label>
+          <select id="integrations-ollama-vision-tier" value={ollamaVisionSelectValue} onChange={(event) => handleOllamaVisionTierChange(event.target.value)}>
+            {OLLAMA_VISION_TIERS.map((tier) => (
+              <option key={tier.tag} value={tier.tag}>
+                {t(tier.labelKey)} — {tier.tag}
+              </option>
+            ))}
+            <option value={OLLAMA_CUSTOM_TIER_VALUE}>{t('admin.integrations.ollamaCustomTierOption')}</option>
+          </select>
+          {ollamaVisionSelectValue === OLLAMA_CUSTOM_TIER_VALUE && (
+            <Input id="integrations-ollama-vision-custom" value={ollamaVisionModelDraft} onChange={(event) => setOllamaVisionModelDraft(event.target.value)} placeholder="qwen2.5vl:3b" />
+          )}
+          <p className="integrations-view__hint">{t('admin.integrations.ollamaVisionModelHint')}</p>
+          {ollamaTestResult?.ok && ollamaTestResult.visionModelInstalled === false && (
+            <Button type="button" variant="secondary" onClick={() => handleDownloadOllamaModel(ollamaVisionModelDraft)} disabled={downloadingOllamaTag !== null}>
+              {downloadingOllamaTag === ollamaVisionModelDraft ? t('admin.integrations.ollamaDownloadingButton') : t('admin.integrations.ollamaDownloadButton')}
+            </Button>
+          )}
+        </div>
+
+        <div className="integrations-view__ollama-field">
+          <label htmlFor="integrations-ollama-thinking-tier">{t('admin.integrations.ollamaThinkingModelLabel')}</label>
+          <select id="integrations-ollama-thinking-tier" value={ollamaThinkingSelectValue} onChange={(event) => handleOllamaThinkingTierChange(event.target.value)}>
+            {OLLAMA_THINKING_TIERS.map((tier) => (
+              <option key={tier.tag} value={tier.tag}>
+                {t(tier.labelKey)} — {tier.tag}
+              </option>
+            ))}
+            <option value={OLLAMA_CUSTOM_TIER_VALUE}>{t('admin.integrations.ollamaCustomTierOption')}</option>
+          </select>
+          {ollamaThinkingSelectValue === OLLAMA_CUSTOM_TIER_VALUE && (
+            <Input id="integrations-ollama-thinking-custom" value={ollamaThinkingModelDraft} onChange={(event) => setOllamaThinkingModelDraft(event.target.value)} placeholder="qwen2.5:3b-instruct" />
+          )}
+          <p className="integrations-view__hint">{t('admin.integrations.ollamaThinkingModelHint')}</p>
+          {ollamaTestResult?.ok && ollamaTestResult.thinkingModelInstalled === false && (
+            <Button type="button" variant="secondary" onClick={() => handleDownloadOllamaModel(ollamaThinkingModelDraft)} disabled={downloadingOllamaTag !== null}>
+              {downloadingOllamaTag === ollamaThinkingModelDraft ? t('admin.integrations.ollamaDownloadingButton') : t('admin.integrations.ollamaDownloadButton')}
+            </Button>
+          )}
+        </div>
+
+        {ollamaConfigError && <Alert variant="error">{ollamaConfigError}</Alert>}
+        {ollamaDownloadError && <Alert variant="error">{ollamaDownloadError}</Alert>}
+        {ollamaTestResult && <Alert variant={ollamaTestResult.ok ? 'success' : 'error'}>{ollamaTestResult.ok ? t('admin.integrations.ollamaTestSuccessLabel') : (ollamaTestResult.error ?? t('admin.integrations.ollamaTestUnreachableError'))}</Alert>}
+
+        <div className="integrations-view__ollama-actions">
+          <Button type="button" variant="secondary" onClick={handleSaveOllamaConfig} disabled={isSavingOllamaConfig}>
+            {t('admin.common.save')}
+          </Button>
+          <Button type="button" variant="secondary" onClick={handleTestOllamaConnection} disabled={isTestingOllama}>
+            {isTestingOllama ? t('admin.integrations.ollamaTestingButton') : t('admin.integrations.ollamaTestConnectionButton')}
+          </Button>
+        </div>
+      </AnimatedDetails>
+    </div>
+  )
+
   // Same derivation as Wolt's own status above.
   const foodoraMissingCredentials = foodoraConfig.enabled && !hasSavedFoodoraCredentials
   const foodoraEffectiveState = !foodoraConfig.enabled ? 'disabled' : foodoraMissingCredentials ? 'stale' : foodoraConfig.status.state
@@ -1240,13 +1458,15 @@ export function IntegrationsView() {
               {woltConfig.enabled && woltSubmenu}
               {foodoraConfig.enabled && foodoraSubmenu}
               {hasSavedAssistantKey && assistantSubmenu}
+              {assistantProvider === 'local' && ollamaSubmenu}
               {!config.weather.enabled &&
                 !config.transit.enabled &&
                 !config.entur.enabled &&
                 !config.news.enabled &&
                 !woltConfig.enabled &&
                 !foodoraConfig.enabled &&
-                !hasSavedAssistantKey && <p className="integrations-view__hint">{t('admin.integrations.activatedEmptyHint')}</p>}
+                !hasSavedAssistantKey &&
+                assistantProvider !== 'local' && <p className="integrations-view__hint">{t('admin.integrations.activatedEmptyHint')}</p>}
             </section>
 
             <section className="integrations-view__category">
@@ -1258,13 +1478,15 @@ export function IntegrationsView() {
               {!woltConfig.enabled && woltSubmenu}
               {!foodoraConfig.enabled && foodoraSubmenu}
               {!hasSavedAssistantKey && assistantSubmenu}
+              {assistantProvider !== 'local' && ollamaSubmenu}
               {config.weather.enabled &&
                 config.transit.enabled &&
                 config.entur.enabled &&
                 config.news.enabled &&
                 woltConfig.enabled &&
                 foodoraConfig.enabled &&
-                hasSavedAssistantKey && <p className="integrations-view__hint">{t('admin.integrations.availableEmptyHint')}</p>}
+                hasSavedAssistantKey &&
+                assistantProvider === 'local' && <p className="integrations-view__hint">{t('admin.integrations.availableEmptyHint')}</p>}
             </section>
 
             <ComingSoonSection />

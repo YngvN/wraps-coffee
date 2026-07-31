@@ -1,4 +1,4 @@
-import type { LanguageCode } from '../i18n'
+import type { LanguageCode } from '../i18n/translate'
 import type { EventRecord, UpcomingEvent } from '../types/event'
 
 /** Locale used to format event dates for each supported language. */

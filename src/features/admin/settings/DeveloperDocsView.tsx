@@ -425,32 +425,58 @@ POST /assistant/credentials        (Authorization: Bearer <token>, admin/subadmi
 → 200 { "hasKey": boolean, "provider": "local" | "claude" }
 
 POST /assistant/intent             (Authorization: Bearer <token>, any authenticated session)
-{ "message": string, "uiLanguage": "no" | "en", "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5" }
-→ 200 { "entity": string, "action": "create"|"update"|"delete"|"resetPassword"|"trigger", "searchText": string | null, "reply": string | null, "lookupEntities": string[] | null }
+{ "message": string, "uiLanguage": "no" | "en", "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5", "history"?: string }
+→ 200 { "entity": string, "action": "create"|"update"|"delete"|"resetPassword"|"trigger", "searchText": string | null, "reply": string | null, "lookupEntities": string[] | null, "historyContext": string | null }
 → 400 { "error": "..." }           (couldn't confidently tell what was meant)
-→ 409 { "error": "..." }           (no API key configured, or the "local" provider isn't implemented yet)
+→ 409 { "error": "..." }           (Claude: no API key configured; Local: the Ollama host/models aren't configured yet, or a local model's reply still wasn't usable after retrying — see /assistant/ollama-config below)
    ("lookupEntities" set (never alongside "reply") means the message was a factual data question — call /assistant/lookup with those entity keys instead of showing "reply" directly)
+   ("history" is raw recent-transcript text, only ever sent on the first call of a turn; the response's "historyContext" is that turn's already-resolved conversation context — for a strong model it's the raw text passed straight through, for a weaker/local one it's condensed via one extra summarization call — and gets threaded straight into whichever of /assistant/select-item, /assistant/fill-fields, or /assistant/lookup comes next in the same turn, never re-resolved)
 
 POST /assistant/select-item        (Authorization: Bearer <token>, any authenticated session)
-{ "entity": string, "action": string, "message": string, "searchText": string, "uiLanguage": "no" | "en", "priorItemID"?: string, "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5" }
+{ "entity": string, "action": string, "message": string, "searchText": string, "uiLanguage": "no" | "en", "priorItemID"?: string, "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5", "historyContext"?: string }
 → 200 { "itemID": string | null, "candidates": [{ "id", "label" }] }
 
 POST /assistant/fill-fields        (Authorization: Bearer <token>, any authenticated session)
-{ "entity": string, "action": string, "message": string, "uiLanguage": "no" | "en", "itemID"?: string, "priorDraft"?: unknown, "image"?: { "mediaType", "base64Data" }, "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5" }
+{ "entity": string, "action": string, "message": string, "uiLanguage": "no" | "en", "itemID"?: string, "priorDraft"?: unknown, "image"?: { "mediaType", "base64Data" }, "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5", "history"?: string, "historyContext"?: string }
 → 200 { "draft": unknown, "issues": [{ "code", "params"? }] }
+   ("history"/"historyContext" are mutually exclusive — see /assistant/intent's own note; "history" is only ever sent here for the one call path that bypasses /assistant/intent entirely, a correction typed while reviewing a proposed draft)
 
 POST /assistant/lookup             (Authorization: Bearer <token>, any authenticated session)
-{ "message": string, "uiLanguage": "no" | "en", "entities": string[], "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5", "chunkSizePreference"?: "auto"|"small"|"medium"|"large"|"custom", "customChunkRecordCount"?: number }
+{ "message": string, "uiLanguage": "no" | "en", "entities": string[], "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5", "chunkSizePreference"?: "auto"|"small"|"medium"|"large"|"custom", "customChunkRecordCount"?: number, "historyContext"?: string }
 → 200 { "reply": string }         (answers a factual question about the cafe's own current data, grounded only in that entity's real live records — never outside knowledge; re-filters "entities" through the session's own access the same way every other route does)
 → 400 { "error": "..." }           (missing message, uiLanguage, or entities)
-→ 409 { "error": "..." }           (no API key configured, or the "local" provider isn't implemented yet)
+→ 409 { "error": "..." }           (Claude: no API key configured; Local: the Ollama host/models aren't configured yet, or a local model's reply still wasn't usable after retrying)
    (large datasets are automatically split into batches and summarized rather than truncated — "chunkSizePreference"/"customChunkRecordCount" override how much data is processed per call at once; both come from AssistantPanel's own kebab-menu chunk-size setting, and an out-of-range "customChunkRecordCount" is clamped server-side, never trusted as-is)
+   ("historyContext" is only ever prior conversation, never authoritative — if it conflicts with this call's own live data, the live data always wins)
 
 POST /assistant/title              (Authorization: Bearer <token>, any authenticated session)
 { "transcriptText": string, "uiLanguage": "no" | "en", "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5" }
 → 200 { "title": string }         (names a just-finished conversation for the admin's own, per-device conversation log — see useAssistantConversationLog)
    (none of these five routes ever write app data — they only ever propose a draft, a title, or a lookup answer; the actual write happens from the browser's own existing save/delete path once the admin confirms in the assistant's review step, see server/assistant/types.ts)
-   ("model" on any of the five overrides the admin-configured default from /assistant/credentials for that one call only — see AssistantPanel's own per-chat model-picker menu; an invalid value is silently ignored, falling back to that default)`}</code>
+   ("model" on any of the five overrides the admin-configured default from /assistant/credentials for that one call only, and only has any effect when "provider" is "claude" — see AssistantPanel's own per-chat model-picker menu (hidden for the local provider); an invalid value is silently ignored, falling back to that default. The local/Ollama provider ignores "model" entirely and instead routes deterministically by call shape — any call carrying an "image" uses the configured vision model, everything else uses the thinking model, see /assistant/ollama-config below)
+
+GET /assistant/ollama-config       (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "baseUrl": string, "visionModel": string, "thinkingModel": string }   (nothing secret in here, unlike the Claude key above, but still admin/subadmin-gated since it configures the same feature)
+
+POST /assistant/ollama-config      (Authorization: Bearer <token>, admin/subadmin only)
+{ "baseUrl"?: string, "visionModel"?: string, "thinkingModel"?: string }   (any field independently updatable; defaults to "http://localhost:11434" / "qwen2.5vl:3b" / "qwen2.5:3b-instruct" until changed)
+→ 200 { "baseUrl": string, "visionModel": string, "thinkingModel": string }
+
+POST /assistant/ollama-test        (Authorization: Bearer <token>, admin/subadmin only)
+{ "baseUrl"?: string, "visionModel"?: string, "thinkingModel"?: string }   (an unsaved draft to test — omitted fields fall back to the saved config)
+→ 200 { "ok": true, "installedModels": string[], "visionModelInstalled": boolean, "thinkingModelInstalled": boolean } | { "ok": false, "error": string }
+   (hits the Ollama host's own /api/tags — never throws on an unreachable host, always resolves 200 with "ok": false instead, so the Integrations page's "Test connection" button always gets a clean result to show)
+
+POST /assistant/ollama-pull        (Authorization: Bearer <token>, admin/subadmin only)
+{ "tag": string }
+→ 200 { "ok": true }
+→ 502 { "ok": false, "error": string }   (pulls a model tag onto the configured Ollama host via its own /api/pull endpoint — backs the Integrations page's "Download missing model" button; first pulls are a one-time few-GB download and can take several minutes)
+
+POST /assistant/transcribe         (Authorization: Bearer <token>, any authenticated session)
+{ "message": string, "uiLanguage": "no" | "en", "image": { "mediaType", "base64Data" }, "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5" }
+→ 200 { "text": string }          (the generic "just read this photo" mode — reads any photographed document, not limited to this dashboard's own data, e.g. a menu, a price list, a house listing; never writes anything or proposes a draft, same posture as the five routes above)
+→ 400 { "error": "..." }           (missing uiLanguage or image)
+→ 409 { "error": "..." }           (same as /assistant/intent above)`}</code>
         </pre>
       </Card>
 

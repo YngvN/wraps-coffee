@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import { Alert, Badge, Button, Checkbox, ChevronLeftIcon, ClockIcon, ImageUploadField, Input, KebabIcon, NewChatIcon, NumberInput, Spinner } from '../../../components'
+import { Alert, Badge, Button, Checkbox, ChevronLeftIcon, ClockIcon, CopyIcon, ImageUploadField, Input, KebabIcon, NewChatIcon, NumberInput, Spinner } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useAppearanceThemes } from '../../../hooks/useAppearanceThemes'
 import { useCatalogues } from '../../../hooks/useCatalogues'
@@ -17,7 +17,7 @@ import { useMessageBoards } from '../../../hooks/useMessageBoards'
 import { useProducts } from '../../../hooks/useProducts'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
 import { useLanguage } from '../../../i18n'
-import { createUser, deleteUser, resetUserPassword, SessionExpiredError, type AssistantModel, type ChunkSizePreference } from '../../../lib/localServer'
+import { createUser, deleteUser, getAssistantCredentialStatus, resetUserPassword, SessionExpiredError, type AssistantModel, type ChunkSizePreference } from '../../../lib/localServer'
 import { dismissUpload, startUpload, useUpload } from '../../../lib/uploadManager'
 import type { AppearanceTheme, AppearanceThemeColor } from '../../../types/appearanceTheme'
 import type { Catalogue, Category } from '../../../types/category'
@@ -45,6 +45,7 @@ import { ResetPasswordForm } from '../users/ResetPasswordForm'
 import { UserForm } from '../users/UserForm'
 import { AssistantReviewSummary } from './AssistantReviewSummary'
 import { AssistantThoughtTrace } from './AssistantThoughtTrace'
+import { formatCostUsd, formatThoughtDuration, sumUsage, traceStepLabel } from './assistantTraceFormat'
 import {
   buildAppearanceThemeColorChangeRows,
   buildCatalogueChangeRows,
@@ -59,7 +60,7 @@ import {
   buildStoreSettingsChangeRows,
   buildThemeChangeRows,
 } from './reviewChangeRows'
-import { type AssistantEntityKey, useAssistantFlow } from './useAssistantFlow'
+import { type AssistantEntityKey, type AssistantImageMode, type TranscriptLine, useAssistantFlow } from './useAssistantFlow'
 import './AssistantPanel.scss'
 
 interface AssistantPanelProps {
@@ -94,6 +95,47 @@ function readFileAsBase64(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error)
     reader.readAsDataURL(file)
   })
+}
+
+/**
+ * Plain-text export of the entire current conversation — every message plus
+ * every "thought" step's own raw tool call (not just the friendly label; the
+ * truncated input/output JSON and token/cost usage too) and the model that
+ * answered it, for a true admin to paste elsewhere when troubleshooting or
+ * reporting a bad response (see the header kebab menu's own "Copy
+ * conversation" button, `admin`-role only). Reuses `AssistantThoughtTrace`'s
+ * own formatting helpers so this plain-text version reads consistently with
+ * what's already shown expanded in the chat itself.
+ */
+function buildConversationClipboardText(transcript: TranscriptLine[], modelLabel: string | null, t: (key: string, vars?: Record<string, string | number>) => string): string {
+  const header = ['Wraps & Coffee — AI assistant conversation export', modelLabel ? `Model: ${modelLabel}` : null].filter(Boolean).join('\n')
+
+  const body = transcript
+    .map((line) => {
+      if (line.role === 'thought') {
+        const usage = sumUsage(line.trace)
+        const usageSuffix =
+          usage.inputTokens > 0 || usage.outputTokens > 0
+            ? ` (${usage.inputTokens} in / ${usage.outputTokens} out${usage.costUsd !== undefined ? ` · ${formatCostUsd(usage.costUsd)}` : ''})`
+            : ''
+        const summary = `Thought for ${formatThoughtDuration(line.durationMs)}${usageSuffix}:`
+        const steps = line.trace.map((entry, index) => {
+          const entryUsage = entry.usage
+          const entryUsageSuffix = entryUsage ? ` — ${entryUsage.inputTokens} in / ${entryUsage.outputTokens} out${entryUsage.estimatedCostUsd !== undefined ? ` · ${formatCostUsd(entryUsage.estimatedCostUsd)}` : ''}` : ''
+          return [
+            `  ${index + 1}. ${traceStepLabel(entry, t)}${entry.pass ? ` (${entry.pass})` : ''} [${entry.toolName}, ${formatThoughtDuration(entry.durationMs)}]${entryUsageSuffix}`,
+            `     Input: ${entry.input}`,
+            `     Output: ${entry.output}`,
+          ].join('\n')
+        })
+        return [summary, ...steps].join('\n')
+      }
+      const speaker = line.role === 'user' ? 'Admin' : 'Assistant'
+      return `${speaker}${line.variant === 'error' ? ' (error)' : ''}: ${line.text}`
+    })
+    .join('\n\n')
+
+  return [header, body].filter(Boolean).join('\n\n')
 }
 
 /**
@@ -134,11 +176,36 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   // Slides in from the right over the chat, same as `logView` below — see the model-menu
   // branch of the main `AnimatePresence` for why these two are mutually exclusive.
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
+  // The shared, admin-configured default model (Settings → Integrations' own "Claude" model
+  // picker) — only needed to label the header subtitle when this device has no `modelOverride`
+  // of its own. Admin/subadmin only; a `limited` account gets a 403 here (same posture as
+  // `IntegrationsView`'s own identical fetch) and the subtitle just falls back to showing
+  // nothing rather than a guessed model name.
+  const [defaultModel, setDefaultModel] = useState<AssistantModel | null>(null)
+  // Which provider is actually active (see `AssistantProviderSection` in Settings) — used only to
+  // hide the model-menu's "which Claude model" section below when it's `'local'`: there's nothing
+  // to override there, since the Ollama path routes deterministically by call shape instead of a
+  // per-message model choice (see `server/assistant/ollamaClient.ts`).
+  const [assistantProvider, setAssistantProviderState] = useState<'local' | 'claude'>('claude')
+  useEffect(() => {
+    if (!session) return
+    getAssistantCredentialStatus(session.token)
+      .then(({ model, provider }) => {
+        setDefaultModel(model)
+        setAssistantProviderState(provider)
+      })
+      .catch(() => {
+        // Expected for a `limited` account — leave the subtitle without a specific model name.
+      })
+  }, [session])
   // `null` means the live chat is showing; `{ mode: 'list' }` is the conversation log's own
   // list of past conversations, and `{ mode: 'entry', id }` is one archived conversation's
   // read-only transcript — see `useAssistantConversationLog`'s own doc comment for why these
   // are snapshots rather than resumable drafts.
   const [logView, setLogView] = useState<{ mode: 'list' } | { mode: 'entry'; id: string } | null>(null)
+  // Transient "Copied!" feedback for the model menu's own admin-only "Copy conversation" button
+  // — same 2s-timeout pattern as `ScreensView`'s own URL-copy feedback.
+  const [conversationCopied, setConversationCopied] = useState(false)
   // Bumped by the "New chat" button — used purely as an `AnimatePresence` key so the outgoing
   // (old) chat content plays its own exit-slide before the fresh, empty one mounts.
   const [chatKey, setChatKey] = useState(0)
@@ -155,6 +222,8 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   const [message, setMessage] = useState('')
   const [uploadId, setUploadId] = useState<string | undefined>()
   const [pendingImageBase64, setPendingImageBase64] = useState<{ mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string } | undefined>()
+  /** The admin's own choice of what to do with the attached photo (see `AssistantImageMode`) — only ever shown/meaningful while `pendingImageBase64` is set, reset back to the default whenever the attachment is cleared or a message is sent. */
+  const [imageMode, setImageMode] = useState<AssistantImageMode>('fillForm')
   const [confirmPhrase, setConfirmPhrase] = useState('')
   // Every new review (including a corrected draft from a follow-up chat message) starts back on
   // the compact change-summary view, not stuck in the full-form edit view from a previous draft.
@@ -192,11 +261,12 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
     if (tracked && tracked.status !== 'uploading' && tracked.status !== 'processing') dismissUpload(tracked.id)
     setUploadId(undefined)
     setPendingImageBase64(undefined)
+    setImageMode('fillForm')
   }
 
   const handleSend = () => {
     if (!message.trim()) return
-    void flow.sendMessage(message, pendingImageBase64)
+    void flow.sendMessage(message, pendingImageBase64, imageMode)
     setMessage('')
     clearAttachedImage()
   }
@@ -726,6 +796,26 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
 
   const selectedLogEntry = logView?.mode === 'entry' ? flow.conversationLog.entries.find((entry) => entry.id === logView.id) : undefined
 
+  // The model actually answering this chat right now: this device's own override if it has one,
+  // otherwise the shared default fetched above (`null` for a `limited` account, which can't read
+  // that endpoint — the subtitle below just omits a model name in that case rather than guessing).
+  // Reuses `MODEL_OVERRIDE_OPTIONS`' own translated label rather than a separate short-name key —
+  // every one of those labels is "<name> — <descriptor>", so the name alone is everything before it.
+  const activeModel = modelOverride ?? defaultModel
+  // `activeModel` is a Claude-only concept (see `MODEL_OVERRIDE_OPTIONS`) — suppressed when the
+  // active provider is `'local'`, same reasoning as hiding the model-menu section above: there's no
+  // real per-message model to name on the Ollama path.
+  const modelSubtitle = assistantProvider !== 'local' && flow.allowedEntities.length > 0 && activeModel ? t(`admin.integrations.assistantModel.${activeModel}.label`).split(' — ')[0] : undefined
+
+  /** Copies the whole current conversation (every message, every thought step's raw trace, and the model that answered it) as plain text — see `buildConversationClipboardText`. */
+  const handleCopyConversation = () => {
+    const modelLabel = assistantProvider !== 'local' && activeModel ? t(`admin.integrations.assistantModel.${activeModel}.label`) : null
+    navigator.clipboard.writeText(buildConversationClipboardText(flow.transcript, modelLabel, t)).then(() => {
+      setConversationCopied(true)
+      setTimeout(() => setConversationCopied(false), 2000)
+    })
+  }
+
   const modelMenuButton = flow.allowedEntities.length > 0 && (
     <button
       type="button"
@@ -773,7 +863,15 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   )
 
   return (
-    <AdminRightPanel open={open} onClose={onClose} title={t('admin.assistant.title')} width="wide" headerStart={modelMenuButton} headerEnd={headerActions}>
+    <AdminRightPanel
+      open={open}
+      onClose={onClose}
+      title={t('admin.assistant.title')}
+      subtitle={modelSubtitle}
+      width="wide"
+      headerStart={modelMenuButton}
+      headerEnd={headerActions}
+    >
       <div className="assistant-panel">
         {allCategories.length === 0 && null}
         {flow.allowedEntities.length === 0 ? (
@@ -794,39 +892,43 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                   <ChevronLeftIcon />
                   {t('admin.common.back')}
                 </button>
-                <div className="assistant-panel__log-entry-header">
-                  <span className="assistant-panel__log-title">{t('admin.assistant.modelMenuTitle')}</span>
-                </div>
-                <ul className="assistant-panel__log-list">
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setModelOverride(null)
-                        setModelMenuOpen(false)
-                      }}
-                    >
-                      <span className={`assistant-panel__log-title${modelOverride === null ? ' assistant-panel__model-menu-option--selected' : ''}`}>
-                        {t('admin.assistant.modelDefaultOption')}
-                      </span>
-                    </button>
-                  </li>
-                  {MODEL_OVERRIDE_OPTIONS.map((model) => (
-                    <li key={model}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setModelOverride(model)
-                          setModelMenuOpen(false)
-                        }}
-                      >
-                        <span className={`assistant-panel__log-title${modelOverride === model ? ' assistant-panel__model-menu-option--selected' : ''}`}>
-                          {t(`admin.integrations.assistantModel.${model}.label`)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                {assistantProvider !== 'local' && (
+                  <>
+                    <div className="assistant-panel__log-entry-header">
+                      <span className="assistant-panel__log-title">{t('admin.assistant.modelMenuTitle')}</span>
+                    </div>
+                    <ul className="assistant-panel__log-list">
+                      <li>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setModelOverride(null)
+                            setModelMenuOpen(false)
+                          }}
+                        >
+                          <span className={`assistant-panel__log-title${modelOverride === null ? ' assistant-panel__model-menu-option--selected' : ''}`}>
+                            {t('admin.assistant.modelDefaultOption')}
+                          </span>
+                        </button>
+                      </li>
+                      {MODEL_OVERRIDE_OPTIONS.map((model) => (
+                        <li key={model}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModelOverride(model)
+                              setModelMenuOpen(false)
+                            }}
+                          >
+                            <span className={`assistant-panel__log-title${modelOverride === model ? ' assistant-panel__model-menu-option--selected' : ''}`}>
+                              {t(`admin.integrations.assistantModel.${model}.label`)}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
 
                 <div className="assistant-panel__log-entry-header">
                   <span className="assistant-panel__log-title">{t('admin.assistant.chunkSizeMenuTitle')}</span>
@@ -859,6 +961,25 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                     min={1}
                     max={1000}
                   />
+                )}
+                {session?.role === 'admin' && (
+                  <>
+                    <div className="assistant-panel__log-entry-header">
+                      <span className="assistant-panel__log-title">{t('admin.assistant.copyConversationSectionTitle')}</span>
+                    </div>
+                    <ul className="assistant-panel__log-list">
+                      <li>
+                        <button type="button" onClick={handleCopyConversation} disabled={flow.transcript.length === 0}>
+                          <span className="assistant-panel__log-title-row">
+                            <CopyIcon />
+                            <span className="assistant-panel__log-title">
+                              {conversationCopied ? t('admin.assistant.copyConversationCopied') : t('admin.assistant.copyConversation')}
+                            </span>
+                          </span>
+                        </button>
+                      </li>
+                    </ul>
+                  </>
                 )}
               </motion.div>
             ) : logView ? (
@@ -1023,6 +1144,14 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                   {pendingImageBase64 && (
                     <div className="assistant-panel__attachment">
                       {tracked?.status === 'uploading' ? <Spinner /> : null}
+                      <div className="assistant-panel__image-mode-toggle" role="radiogroup" aria-label={t('admin.assistant.imageModeFillForm')}>
+                        <button type="button" className={imageMode === 'fillForm' ? 'is-active' : ''} aria-pressed={imageMode === 'fillForm'} onClick={() => setImageMode('fillForm')}>
+                          {t('admin.assistant.imageModeFillForm')}
+                        </button>
+                        <button type="button" className={imageMode === 'transcribeOnly' ? 'is-active' : ''} aria-pressed={imageMode === 'transcribeOnly'} onClick={() => setImageMode('transcribeOnly')}>
+                          {t('admin.assistant.imageModeTranscribeOnly')}
+                        </button>
+                      </div>
                       <button type="button" onClick={clearAttachedImage} aria-label={t('admin.common.cancel')}>
                         ×
                       </button>

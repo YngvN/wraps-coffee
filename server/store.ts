@@ -414,9 +414,9 @@ export function setFoodoraCredentials(credentials: FoodoraCredentials) {
 // — this holds a real Anthropic API key, so it's never broadcast to every
 // LAN device the way a `SyncedKey` value is. `provider` lives in the same
 // file since it's the same small settings blob (see the assistant Settings
-// card) — `'claude'` is the only backend actually implemented today;
-// `'local'` is reserved for a future Ollama-backed build-out and is
-// rejected at call time (see `server/assistant/client.ts`).
+// card) — picks between `'claude'` (this file) and `'local'` (the separate
+// Ollama config below); see `server/assistant/client.ts` for how the choice
+// is dispatched.
 
 const ANTHROPIC_CREDENTIALS_FILE = join(DATA_DIR, 'anthropic-credentials.json')
 
@@ -465,6 +465,42 @@ export function getAssistantModel(): AssistantModel {
 
 export function setAssistantModel(model: AssistantModel) {
   writeAnthropicCredentials({ ...readAnthropicCredentials(), model })
+}
+
+// --- AI assistant (Ollama/local) settings ------------------------------------
+//
+// Separate small file from the Anthropic one above — unlike an API key, none
+// of this is secret, but it's still config specific to the assistant feature
+// (see `AssistantProviderSection.tsx`'s "Local" radio and the Integrations
+// page's own Ollama card), not a `SyncedKey`. `visionModel`/`thinkingModel`
+// are plain free text (not an enum) so any tag an admin has pulled works —
+// the Integrations UI's tier picker is just a convenience layer on top of
+// these two strings, never a hard restriction. See `server/assistant/
+// ollamaClient.ts` for how `hasImage` at call time picks between the two.
+
+const OLLAMA_CONFIG_FILE = join(DATA_DIR, 'ollama-config.json')
+
+export interface OllamaConfig {
+  baseUrl: string
+  visionModel: string
+  thinkingModel: string
+}
+
+const DEFAULT_OLLAMA_CONFIG: OllamaConfig = {
+  baseUrl: 'http://localhost:11434',
+  visionModel: 'qwen2.5vl:3b',
+  thinkingModel: 'qwen2.5:3b-instruct',
+}
+
+export function getOllamaConfig(): OllamaConfig {
+  if (!existsSync(OLLAMA_CONFIG_FILE)) return DEFAULT_OLLAMA_CONFIG
+  return { ...DEFAULT_OLLAMA_CONFIG, ...(JSON.parse(readFileSync(OLLAMA_CONFIG_FILE, 'utf-8')) as Partial<OllamaConfig>) }
+}
+
+export function setOllamaConfig(config: Partial<OllamaConfig>) {
+  const merged = { ...getOllamaConfig(), ...config }
+  writeFileSync(OLLAMA_CONFIG_FILE, JSON.stringify(merged), 'utf-8')
+  mirrorFile(OLLAMA_CONFIG_FILE)
 }
 
 // How a screen's own `/screens/:screenId` link should be addressed (see

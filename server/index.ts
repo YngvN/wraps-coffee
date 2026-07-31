@@ -9,7 +9,8 @@ import type { WindowLaunchSettings } from '../src/types/windowLaunch'
 import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
 import * as assistantSteps from './assistant/steps'
-import { AssistantNotConfiguredError, AssistantProviderNotAvailableError, type AssistantActionName } from './assistant/types'
+import { pullOllamaModel, testOllamaConnection } from './assistant/ollamaClient'
+import { AssistantLocalProviderError, AssistantNotConfiguredError, type AssistantActionName } from './assistant/types'
 import * as backup from './backup'
 import { handleDepartures, handleLookup, handleStopSearch, handleWeather } from './integrations'
 import { handleHeadlines } from './news'
@@ -603,21 +604,23 @@ const httpServer = createServer((req, res) => {
     return
   }
 
-  // AI assistant (Claude) — see server/assistant/*. `/assistant/credentials`
-  // is admin/subadmin only, same posture as Wolt/Foodora above (contains a
-  // real API key). The five step routes below are open to any authenticated
-  // session — each one gates per-entity internally (see
-  // server/assistant/registry.ts's sessionCanUseEntity), since which
-  // entities/actions are available varies by role/section, not a single
-  // fixed role check. None of these routes ever mutate app data (see
-  // server/assistant/types.ts's own module doc comment) — the actual write
-  // always happens from the browser's own existing save/delete path once the
-  // admin confirms in the review step. Each of the five may also carry its
-  // own `model`, letting `AssistantPanel`'s model-picker menu override just
-  // that one call's model without touching `store.setAssistantModel` (the
-  // shared, admin-configured default every other caller still falls back
-  // to) — see `assistantSteps`'s own `modelOverride` params and `client.ts`'s
-  // `ToolCallInput.model`.
+  // AI assistant (Claude or local/Ollama, see store.AssistantProvider) — see
+  // server/assistant/*. `/assistant/credentials` is admin/subadmin only,
+  // same posture as Wolt/Foodora above (contains a real API key). The step
+  // routes below are open to any authenticated session — each one gates
+  // per-entity internally (see server/assistant/registry.ts's
+  // sessionCanUseEntity), since which entities/actions are available varies
+  // by role/section, not a single fixed role check. None of these routes
+  // ever mutate app data (see server/assistant/types.ts's own module doc
+  // comment) — the actual write always happens from the browser's own
+  // existing save/delete path once the admin confirms in the review step.
+  // Most may also carry their own `model`, letting `AssistantPanel`'s
+  // model-picker menu override just that one call's Claude model without
+  // touching `store.setAssistantModel` (the shared, admin-configured default
+  // every other caller still falls back to) — see `assistantSteps`'s own
+  // `modelOverride` params and `client.ts`'s `ToolCallInput.model`; this
+  // override is Claude-only, since the Ollama path routes deterministically
+  // by call shape instead (see `ollamaClient.ts`).
   const isAssistantModel = (value: unknown): value is store.AssistantModel =>
     value === 'claude-haiku-4-5' || value === 'claude-sonnet-4-5' || value === 'claude-opus-4-5'
 
@@ -666,15 +669,15 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { message, uiLanguage, model } = body as { message?: string; uiLanguage?: 'no' | 'en'; model?: store.AssistantModel }
+        const { message, uiLanguage, model, history } = body as { message?: string; uiLanguage?: 'no' | 'en'; model?: store.AssistantModel; history?: string }
         if (!message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing message or uiLanguage' })
           return
         }
         try {
-          sendJson(res, 200, await assistantSteps.selectIntent(session, message, uiLanguage, isAssistantModel(model) ? model : undefined))
+          sendJson(res, 200, await assistantSteps.selectIntent(session, message, uiLanguage, isAssistantModel(model) ? model : undefined, typeof history === 'string' ? history : undefined))
         } catch (error) {
-          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantProviderNotAvailableError ? 409 : 400, { error: (error as Error).message })
+          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
         }
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
@@ -689,7 +692,7 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, action, message, searchText, uiLanguage, priorItemID, model } = body as {
+        const { entity, action, message, searchText, uiLanguage, priorItemID, model, historyContext } = body as {
           entity?: string
           action?: AssistantActionName
           message?: string
@@ -697,15 +700,30 @@ const httpServer = createServer((req, res) => {
           uiLanguage?: 'no' | 'en'
           priorItemID?: string
           model?: store.AssistantModel
+          historyContext?: string
         }
         if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, action, message, or uiLanguage' })
           return
         }
         try {
-          sendJson(res, 200, await assistantSteps.selectItem(entity, action, session, message, searchText ?? '', uiLanguage, priorItemID, isAssistantModel(model) ? model : undefined))
+          sendJson(
+            res,
+            200,
+            await assistantSteps.selectItem(
+              entity,
+              action,
+              session,
+              message,
+              searchText ?? '',
+              uiLanguage,
+              priorItemID,
+              isAssistantModel(model) ? model : undefined,
+              typeof historyContext === 'string' ? historyContext : undefined,
+            ),
+          )
         } catch (error) {
-          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantProviderNotAvailableError ? 409 : 400, { error: (error as Error).message })
+          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
         }
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
@@ -728,7 +746,7 @@ const httpServer = createServer((req, res) => {
         try {
           sendJson(res, 200, await assistantSteps.generateTitle(transcriptText, uiLanguage, isAssistantModel(model) ? model : undefined))
         } catch (error) {
-          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantProviderNotAvailableError ? 409 : 400, { error: (error as Error).message })
+          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
         }
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
@@ -743,13 +761,14 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { message, uiLanguage, entities, model, chunkSizePreference, customChunkRecordCount } = body as {
+        const { message, uiLanguage, entities, model, chunkSizePreference, customChunkRecordCount, historyContext } = body as {
           message?: string
           uiLanguage?: 'no' | 'en'
           entities?: string[]
           model?: store.AssistantModel
           chunkSizePreference?: assistantSteps.ChunkSizePreference
           customChunkRecordCount?: number
+          historyContext?: string
         }
         if (!message || (uiLanguage !== 'no' && uiLanguage !== 'en') || !Array.isArray(entities)) {
           sendJson(res, 400, { error: 'Missing message, uiLanguage, or entities' })
@@ -759,10 +778,19 @@ const httpServer = createServer((req, res) => {
           sendJson(
             res,
             200,
-            await assistantSteps.answerLookup(session, message, uiLanguage, entities, isAssistantModel(model) ? model : undefined, chunkSizePreference, customChunkRecordCount),
+            await assistantSteps.answerLookup(
+              session,
+              message,
+              uiLanguage,
+              entities,
+              isAssistantModel(model) ? model : undefined,
+              chunkSizePreference,
+              customChunkRecordCount,
+              typeof historyContext === 'string' ? historyContext : undefined,
+            ),
           )
         } catch (error) {
-          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantProviderNotAvailableError ? 409 : 400, { error: (error as Error).message })
+          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
         }
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
@@ -777,7 +805,7 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields, model } = body as {
+        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields, model, history, historyContext } = body as {
           entity?: string
           action?: AssistantActionName
           itemID?: string
@@ -787,6 +815,8 @@ const httpServer = createServer((req, res) => {
           image?: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string }
           resolvedFields?: Record<string, string>
           model?: store.AssistantModel
+          history?: string
+          historyContext?: string
         }
         if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, action, message, or uiLanguage' })
@@ -802,10 +832,143 @@ const httpServer = createServer((req, res) => {
               priorDraft,
               resolvedFields,
               modelOverride: isAssistantModel(model) ? model : undefined,
+              history: typeof history === 'string' ? history : undefined,
+              historyContext: typeof historyContext === 'string' ? historyContext : undefined,
             }),
           )
         } catch (error) {
-          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantProviderNotAvailableError ? 409 : 400, { error: (error as Error).message })
+          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
+        }
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // Ollama (local assistant provider) config — same admin/subadmin-only
+  // posture as /assistant/credentials above, since it's the same kind of
+  // settings blob (see server/store.ts's getOllamaConfig/setOllamaConfig).
+  // Nothing here is secret (unlike the Claude API key), but it's still
+  // gated the same way since it configures the same feature.
+  if (req.method === 'GET' && url.pathname === '/assistant/ollama-config') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view the assistant configuration' })
+      return
+    }
+    sendJson(res, 200, store.getOllamaConfig())
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/assistant/ollama-config') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can edit the assistant configuration' })
+      return
+    }
+    readJsonBody(req)
+      .then((body) => {
+        const { baseUrl, visionModel, thinkingModel } = body as Partial<store.OllamaConfig>
+        store.setOllamaConfig({
+          baseUrl: typeof baseUrl === 'string' && baseUrl.trim() ? baseUrl.trim() : undefined,
+          visionModel: typeof visionModel === 'string' && visionModel.trim() ? visionModel.trim() : undefined,
+          thinkingModel: typeof thinkingModel === 'string' && thinkingModel.trim() ? thinkingModel.trim() : undefined,
+        })
+        console.log(`[assistant] ${session.username} updated the Ollama configuration`)
+        sendJson(res, 200, store.getOllamaConfig())
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // Reachability/model-presence check for the Integrations page's Ollama
+  // card — `body` may carry not-yet-saved draft values so an admin can test
+  // an edit before saving it.
+  if (req.method === 'POST' && url.pathname === '/assistant/ollama-test') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can test the assistant configuration' })
+      return
+    }
+    readJsonBody(req)
+      .then(async (body) => {
+        const { baseUrl, visionModel, thinkingModel } = body as Partial<store.OllamaConfig>
+        sendJson(res, 200, await testOllamaConnection({ baseUrl, visionModel, thinkingModel }))
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // Pulls a model tag onto the configured Ollama host — backs the
+  // Integrations page's "Download missing model" button. Unlike the config
+  // routes above, this doesn't touch any secret and only ever downloads a
+  // model, never runs arbitrary input — but still admin/subadmin-gated,
+  // same posture as the rest of this feature's settings.
+  if (req.method === 'POST' && url.pathname === '/assistant/ollama-pull') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can download assistant models' })
+      return
+    }
+    readJsonBody(req)
+      .then(async (body) => {
+        const { tag } = body as { tag?: string }
+        if (!tag) {
+          sendJson(res, 400, { error: 'Missing tag' })
+          return
+        }
+        console.log(`[assistant] ${session.username} started downloading Ollama model "${tag}"`)
+        const result = await pullOllamaModel(tag)
+        sendJson(res, result.ok ? 200 : 502, result)
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // Generic "just read this photo" mode — see assistant/steps.ts's
+  // transcribeAttachment doc comment. Open to any authenticated session,
+  // same posture as the five step routes above; never writes app data.
+  if (req.method === 'POST' && url.pathname === '/assistant/transcribe') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    readJsonBody(req)
+      .then(async (body) => {
+        const { message, uiLanguage, image, model } = body as {
+          message?: string
+          uiLanguage?: 'no' | 'en'
+          image?: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string }
+          model?: store.AssistantModel
+        }
+        if (uiLanguage !== 'no' && uiLanguage !== 'en') {
+          sendJson(res, 400, { error: 'Missing uiLanguage' })
+          return
+        }
+        if (!image) {
+          sendJson(res, 400, { error: 'Missing image' })
+          return
+        }
+        try {
+          sendJson(res, 200, await assistantSteps.transcribeAttachment(message ?? '', uiLanguage, image, isAssistantModel(model) ? model : undefined))
+        } catch (error) {
+          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
         }
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))

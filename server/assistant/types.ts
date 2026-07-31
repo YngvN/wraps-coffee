@@ -109,6 +109,39 @@ export interface AssistantEntity<TDraft> {
    * rather than duplicating that same data confusingly.
    */
   listAll?(context: AssistantFillContext): Promise<unknown>
+  /**
+   * Extra domain-specific instruction spliced into both `answerLookup`'s own
+   * compose prompt and every per-batch `lookup_batch` prompt (`steps.ts`) —
+   * for when this entity's real field semantics aren't obvious from the raw
+   * JSON alone, so a lookup question phrased in ordinary language doesn't map
+   * cleanly onto a literal field check. Two concrete cases that motivated
+   * this: a product's `discount` field is the *only* real signal for
+   * "on sale"/"discounted" — a weaker model asked "how many products are on
+   * sale" has no other cue and can otherwise guess wildly; an event's
+   * `status`/`postponedDetails` change what its own `date` field actually
+   * means for "has this happened yet" (a `'cancelled'` event never happened
+   * regardless of `date`; a `'postponed'` one didn't happen on its original
+   * `date`, and only really has a resolved future date once
+   * `postponedDetails.newDate` is set). Omit entirely for an entity with no
+   * such non-obvious mapping — most don't need this.
+   */
+  lookupGuidance?: string
+  /**
+   * A plain, deterministically-computed fact about this entity's *entire*
+   * current dataset — not filtered by whatever the admin's specific question
+   * was — always appended to this entity's own data block in `answerLookup`,
+   * regardless of chunking. For a whole-dataset aggregate that's cheap and
+   * exact to compute directly in code (e.g. counting how many records have a
+   * given boolean flag set), this is deliberately *not* left to the
+   * `lookup_batch` map-reduce the way an admin's own filtering question is —
+   * that path already showed real inconsistency on a weaker model even for a
+   * literal field check repeated across several batches (see
+   * `event.ts`'s own `hasOccurred`/`recurring` handling for the motivating
+   * case: "there are 17 events, and 3 of them repeat weekly"). Omit entirely
+   * for an entity with no such distinguishing whole-dataset fact worth
+   * surfacing.
+   */
+  datasetSummary?(context: AssistantFillContext): Promise<string>
 }
 
 /** A `SyncedKey`-backed entity's own commit descriptor — informational only; the actual write still goes through the normal WS `write` path from the browser (see the plan's "hard invariant" — this server module never writes app data itself). */
@@ -125,19 +158,19 @@ export interface RestCommit {
 
 export type AssistantCommit = SyncedCommit | RestCommit
 
-/** Thrown by `client.ts` when no Anthropic API key is stored yet. */
+/** Thrown by `anthropicClient.ts`/`ollamaClient.ts` when the active provider isn't configured yet (no Claude API key, or no reachable Ollama host/models) — routes map this to a clean 409 rather than a raw 500. */
 export class AssistantNotConfiguredError extends Error {
-  constructor() {
-    super('No Claude API key has been configured yet.')
+  constructor(message = 'No Claude API key has been configured yet.') {
+    super(message)
     this.name = 'AssistantNotConfiguredError'
   }
 }
 
-/** Thrown by `steps.ts` when the configured provider (`server/store.ts`'s `getAssistantProvider()`) isn't actually implemented — today, only `'local'`. */
-export class AssistantProviderNotAvailableError extends Error {
-  constructor(provider: string) {
-    super(`The "${provider}" assistant provider isn't available yet.`)
-    this.name = 'AssistantProviderNotAvailableError'
+/** Thrown by `ollamaClient.ts` when a local model's reply still isn't usable after the parse/repair/retry pipeline has exhausted its attempts — see the plan's "structured JSON output from small local models" section. */
+export class AssistantLocalProviderError extends Error {
+  constructor(toolName: string) {
+    super(`The local model didn't return a usable answer for "${toolName}" after retrying.`)
+    this.name = 'AssistantLocalProviderError'
   }
 }
 

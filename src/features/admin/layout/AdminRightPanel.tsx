@@ -16,6 +16,8 @@ interface AdminRightPanelProps {
   headerEnd?: ReactNode
   /** Extra header content rendered to the left of `title` — e.g. `AssistantPanel`'s per-chat model-picker menu button. Omitted entirely by every other caller. */
   headerStart?: ReactNode
+  /** Small, muted line rendered directly under `title` (see `.admin-right-panel__subtitle`) — e.g. `AssistantPanel`'s currently-active model name. Omitted entirely by every other caller. */
+  subtitle?: ReactNode
 }
 
 /**
@@ -35,7 +37,7 @@ interface AdminRightPanelProps {
  * z-index. Portaling to `document.body` escapes that context entirely, the
  * same way the navbar's own siblings in `AdminDashboard` do.
  */
-export function AdminRightPanel({ open, onClose, title, children, width = 'default', headerEnd, headerStart }: AdminRightPanelProps) {
+export function AdminRightPanel({ open, onClose, title, children, width = 'default', headerEnd, headerStart, subtitle }: AdminRightPanelProps) {
   const { t } = useLanguage()
 
   return createPortal(
@@ -62,7 +64,10 @@ export function AdminRightPanel({ open, onClose, title, children, width = 'defau
           >
             <div className="admin-right-panel__header">
               {headerStart}
-              <span className="admin-right-panel__title">{title}</span>
+              <div className="admin-right-panel__titles">
+                <span className="admin-right-panel__title">{title}</span>
+                {subtitle && <span className="admin-right-panel__subtitle">{subtitle}</span>}
+              </div>
               {headerEnd}
               <button type="button" className="admin-right-panel__close" onClick={onClose} aria-label={t('admin.common.close')} title={t('admin.common.close')}>
                 <CloseIcon />

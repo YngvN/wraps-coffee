@@ -8,13 +8,12 @@ import { getAssistantCredentialStatus, setAssistantCredentials } from '../../../
 type AssistantProvider = 'local' | 'claude'
 
 /**
- * The assistant chatbox's model provider — "Local (free)" (shown disabled,
- * "coming soon": this app doesn't implement a local/Ollama backend yet, the
- * longer-term goal this whole feature is building toward) vs "Claude API"
- * (the only backend that actually works today). The credential itself lives
- * on the Integrations page's own Claude card, not here — this is purely the
- * provider *choice*, same split as Wolt/Foodora's own enable-toggle vs
- * credentials-card split.
+ * The assistant chatbox's model provider — "Claude API" (cloud, needs an
+ * API key) vs "Local (free)" (a self-hosted Ollama instance, fully offline —
+ * see the Integrations page's Ollama card for its host/model config). The
+ * credential/config itself lives on the Integrations page, not here — this
+ * is purely the provider *choice*, same split as Wolt/Foodora's own
+ * enable-toggle vs credentials-card split.
  */
 export function AssistantProviderSection() {
   const { t } = useLanguage()
@@ -44,6 +43,14 @@ export function AssistantProviderSection() {
       .finally(() => setIsSaving(false))
   }
 
+  const handleSelectLocal = () => {
+    if (provider === 'local') return
+    setIsSaving(true)
+    setAssistantCredentials(session.token, { provider: 'local' })
+      .then((status) => setProvider(status.provider))
+      .finally(() => setIsSaving(false))
+  }
+
   return (
     <div className="advanced-settings__section">
       <fieldset className="advanced-settings__modes">
@@ -56,11 +63,9 @@ export function AssistantProviderSection() {
           </span>
         </label>
         <label className="advanced-settings__mode">
-          <input type="radio" name="assistant-provider" checked={false} disabled />
+          <input type="radio" name="assistant-provider" checked={provider === 'local'} disabled={isSaving} onChange={handleSelectLocal} />
           <span className="advanced-settings__mode-text">
-            <strong>
-              {t('admin.settings.advanced.assistantProviderLocalLabel')} — {t('admin.settings.advanced.assistantProviderComingSoon')}
-            </strong>
+            <strong>{t('admin.settings.advanced.assistantProviderLocalLabel')}</strong>
             <span>{t('admin.settings.advanced.assistantProviderLocalDescription')}</span>
           </span>
         </label>

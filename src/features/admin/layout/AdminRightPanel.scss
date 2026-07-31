@@ -51,10 +51,22 @@
   border-bottom: 1px solid $color-border;
 }
 
-.admin-right-panel__title {
+.admin-right-panel__titles {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-right-panel__title {
   font-weight: 700;
   color: $color-text;
+}
+
+.admin-right-panel__subtitle {
+  font-size: 0.75rem;
+  font-weight: 300;
+  color: $color-text-muted;
 }
 
 .admin-right-panel__close,

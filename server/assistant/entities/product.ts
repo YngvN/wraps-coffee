@@ -276,4 +276,7 @@ export const productEntity: AssistantEntity<Product> = {
   async listAll(context: AssistantFillContext): Promise<(Product & { locationLabel: string })[]> {
     return liveProducts().map((product) => ({ ...product, locationLabel: productLocationLabel(product, context.uiLanguage) }))
   },
+
+  lookupGuidance:
+    'A product is "on sale"/"discounted"/"på tilbud"/"på salg" if and only if its own `discount` field is present (non-null) — never infer this from a product being available, in stock, or simply a real currently-listed item. A product with no `discount` field is not on sale, regardless of anything else about it.',
 }

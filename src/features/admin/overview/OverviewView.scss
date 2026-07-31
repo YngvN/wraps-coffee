@@ -12,17 +12,8 @@
   gap: $spacing-unit * 2;
 }
 
-.overview-view__top-items ol {
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-unit;
+.overview-view__no-data {
+  color: $color-text-muted;
+  font-style: italic;
   margin: 0;
-  padding: 0;
-  list-style: decimal inside;
-
-  li {
-    display: flex;
-    justify-content: space-between;
-    gap: $spacing-unit;
-  }
 }

@@ -1,18 +1,13 @@
-- Theme selector, colors and font
 - Full menu with filter allergens function
-- Slower color transition on screen, text most iportant
-- Better transit icons, premade
 - Fetuered pane, where discounted items
 - Remove wraps-coffee naming
 - "Main pane" with a box shadow, 2 max
 - Each step can change pane amount. Need to slice borders in two
 - Order pane for employees with touch for when order is done
-- Global background image not working
 - "Edit global text size"
 - "1. En "Webhook"-modul (Hvis du vil pushe data ut)
 - Things reload when using fade transition instead of just staying visible and changing color
 - Vipps integrations
-- Rotate screen
 - Take picture of menu, send to AI for transcribing, get back answer to paste in the correct format
 - Notification that a screen is out of fullscreen in the overview. Also in the top left corner. Disappears when fullscreen again. To make sure customers are not messing with the screen, like using an ipad for menu.
 - "Easy reader" mode for the same ipad menu
@@ -26,11 +21,10 @@
 1. 
 - License tracker
 - Backup, physical and cloud
-- Search
 - Routines
 - Telix Amundo
-- RSS
 - Vipps
+Step slider in editor
 
 
 

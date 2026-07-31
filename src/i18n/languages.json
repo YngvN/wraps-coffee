@@ -486,6 +486,9 @@
             "custom": "Custom"
           },
           "chunkSizeCustomLabel": "Records per batch",
+          "copyConversationSectionTitle": "Export",
+          "copyConversation": "Copy conversation to clipboard",
+          "copyConversationCopied": "Copied!",
           "cancelledLine": "Cancelled.",
           "thinking": "Thinking…",
           "doubleChecking": "Double-checking…",
@@ -497,7 +500,8 @@
             "selectItem": "Finding the right item",
             "lookupBatch": "Scanning a batch of records",
             "answerLookup": "Composing the answer",
-            "fillFields": "Filling in the {{entity}} details"
+            "fillFields": "Filling in the {{entity}} details",
+            "compactHistory": "Summarizing recent conversation"
           },
           "noAccess": "No assistant actions are available to your account.",
           "notConfigured": "The Claude API key hasn't been configured yet.",
@@ -511,6 +515,8 @@
           "confirmButton": "Confirm",
           "errorGeneric": "Something went wrong — try rephrasing.",
           "attachImage": "Attach image",
+          "imageModeFillForm": "Fill a form",
+          "imageModeTranscribeOnly": "Just read this photo",
           "finishCurrentFirst": "Finish or cancel the current {{entity}} first.",
           "suggestedDefaultPrice": "Suggested default price: {{price}} — set it in the price editor below if you want to apply it.",
           "themeColorTarget": "Adding a color to \"{{name}}\"",
@@ -593,7 +599,9 @@
           "ordersToday": "Orders today",
           "topItems": "Top sellers this week",
           "weeklyCustomers": "Customers this week",
-          "description": "A quick look at how the store is doing — revenue, orders, and top-selling items."
+          "description": "A quick look at how the store is doing — revenue, orders, and top-selling items.",
+          "noDataYet": "No data yet",
+          "noSalesData": "No sales data yet — top sellers will show up here once real orders start coming in."
         },
         "notFound": {
           "title": "Page not found",
@@ -1136,8 +1144,8 @@
             "woltIntro": "Credentials and a background sync loop for Wolt's own POS Integration API (see the Integrations page's Wolt card) — admin/subadmin only, since the credentials are a real secret.",
             "foodoraTitle": "Foodora delivery orders",
             "foodoraIntro": "Same shape as the Wolt routes above (see the Integrations page's Foodora card) — admin/subadmin only. No base URL is confirmed yet, so real order syncing isn't possible until Foodora partner access exists.",
-            "assistantTitle": "AI assistant (Claude)",
-            "assistantIntro": "The chatbox's three-step intent → item-selection → fill-fields flow (see the sparkle icon in the top navbar) plus its credentials — the credentials route is admin/subadmin only, the three step routes are open to any authenticated session (each one gates per-entity internally).",
+            "assistantTitle": "AI assistant (Claude or local/Ollama)",
+            "assistantIntro": "The chatbox's three-step intent → item-selection → fill-fields flow (see the sparkle icon in the top navbar), its credentials, and the local/Ollama provider's own config — the credentials/config routes are admin/subadmin only, the step routes are open to any authenticated session (each one gates per-entity internally). Which provider answers is chosen in Settings → AI Assistant; the Ollama routes configure the local provider's host and its two models (vision, used whenever a call carries an image, and thinking, used for everything else).",
             "websiteTitle": "Website integration",
             "websiteIntro": "This server can optionally bridge to a separate public website's own database (Neon Postgres), pushing menu/price/event/contact-info edits made here up to it, and pulling contact messages and online orders placed there back down into this dashboard's own Messages/Orders tabs. Configure it below, or via the NEON_DATABASE_URL environment variable — see the README.",
             "websiteNoTunnel": "No tunnel or port-forwarding is needed for this: the connection only ever goes outbound, from this server to the website's database, the same direction any ordinary browser request already goes. Nothing on the internet ever needs to reach into this network — the only requirement is that outbound traffic on Postgres's own port (5432) is allowed, true of virtually every normal internet connection.",
@@ -1200,8 +1208,7 @@
             "assistantProviderClaudeLabel": "Claude API",
             "assistantProviderClaudeDescription": "Uses the Claude API — needs an API key, saved on the Integrations page.",
             "assistantProviderLocalLabel": "Local (free)",
-            "assistantProviderComingSoon": "Coming soon",
-            "assistantProviderLocalDescription": "A future local model running on this machine, with no API cost — not available yet.",
+            "assistantProviderLocalDescription": "Runs a local Ollama model on this device — free, fully offline, no API key. Configure the host and models on the Integrations page.",
             "assistantProviderNoKey": "No Claude API key has been saved yet — the assistant won't work until one is added."
           },
           "backup": {
@@ -1717,6 +1724,25 @@
               "description": "Anthropic's strongest model — best at nuanced or unusual requests, at the highest cost. Approx. $5 per million input tokens / $25 per million output tokens."
             }
           },
+          "ollamaTitle": "Local AI (Ollama)",
+          "ollamaDescription": "Runs the assistant chatbox fully offline on a self-hosted Ollama instance instead of Claude — free, no API key, works without internet. Choose Local on the Settings → AI Assistant page to actually use it once configured here.",
+          "ollamaBaseUrlLabel": "Ollama host",
+          "ollamaVisionModelLabel": "Vision model",
+          "ollamaVisionModelHint": "Used whenever a photo is attached (e.g. reading a menu or product card). \"Small\" (qwen2.5vl:3b, ~3GB) is sized to run on a Raspberry Pi (8GB RAM); pick a bigger tier if this is running on a more powerful machine.",
+          "ollamaThinkingModelLabel": "Thinking model",
+          "ollamaThinkingModelHint": "Used for every other request (understanding what you're asking for, filling in fields, answering questions). \"Small\" (qwen2.5:3b-instruct, ~2GB) is sized to run on a Raspberry Pi (8GB RAM); pick a bigger tier if this is running on a more powerful machine.",
+          "ollamaTierSmall": "Small — recommended for Raspberry Pi",
+          "ollamaTierMedium": "Medium — for a more powerful machine",
+          "ollamaTierLarge": "Large — for a dedicated/powerful server",
+          "ollamaCustomTierOption": "Custom…",
+          "ollamaConfigSaveError": "Could not save the Ollama configuration. Check the local server is running and try again.",
+          "ollamaTestConnectionButton": "Test connection",
+          "ollamaTestingButton": "Testing...",
+          "ollamaTestSuccessLabel": "Connected",
+          "ollamaTestUnreachableError": "Couldn't reach this Ollama host. Check it's running and the host address is correct.",
+          "ollamaDownloadButton": "Download missing model",
+          "ollamaDownloadingButton": "Downloading… this can take a while the first time",
+          "ollamaDownloadError": "Could not download that model. Check the local server can reach the Ollama host and try again.",
           "woltStatusSectionTitle": "Sync status",
           "woltStatusLabel": "Status",
           "woltStatusLive": "Live",
@@ -2416,6 +2442,9 @@
             "custom": "Egendefinert"
           },
           "chunkSizeCustomLabel": "Poster per porsjon",
+          "copyConversationSectionTitle": "Eksporter",
+          "copyConversation": "Kopier samtalen til utklippstavlen",
+          "copyConversationCopied": "Kopiert!",
           "cancelledLine": "Avbrutt.",
           "thinking": "Tenker …",
           "doubleChecking": "Dobbeltsjekker …",
@@ -2427,7 +2456,8 @@
             "selectItem": "Fant riktig element",
             "lookupBatch": "Går gjennom en gruppe med data",
             "answerLookup": "Setter sammen svaret",
-            "fillFields": "Fyller ut detaljer for {{entity}}"
+            "fillFields": "Fyller ut detaljer for {{entity}}",
+            "compactHistory": "Oppsummerer nylig samtale"
           },
           "noAccess": "Ingen assistent-handlinger er tilgjengelige for kontoen din.",
           "notConfigured": "Claude API-nøkkelen er ikke satt opp ennå.",
@@ -2441,6 +2471,8 @@
           "confirmButton": "Bekreft",
           "errorGeneric": "Noe gikk galt — prøv å omformulere.",
           "attachImage": "Legg ved bilde",
+          "imageModeFillForm": "Fyll ut et skjema",
+          "imageModeTranscribeOnly": "Bare les dette bildet",
           "finishCurrentFirst": "Fullfør eller avbryt gjeldende {{entity}} først.",
           "suggestedDefaultPrice": "Foreslått standardpris: {{price}} — sett den i prisredigereren under hvis du vil bruke den.",
           "themeColorTarget": "Legger til farge i «{{name}}»",
@@ -2523,7 +2555,9 @@
           "ordersToday": "Bestillinger i dag",
           "topItems": "Mest solgt denne uken",
           "weeklyCustomers": "Kunder denne uken",
-          "description": "Et raskt overblikk over hvordan butikken går — omsetning, bestillinger og mest solgte varer."
+          "description": "Et raskt overblikk over hvordan butikken går — omsetning, bestillinger og mest solgte varer.",
+          "noDataYet": "Ingen data ennå",
+          "noSalesData": "Ingen salgsdata ennå — mest solgte varer vises her når ekte bestillinger begynner å komme inn."
         },
         "notFound": {
           "title": "Fant ikke siden",
@@ -3066,8 +3100,8 @@
             "woltIntro": "Tilgangsopplysninger og en synkroniseringsløkke i bakgrunnen for Wolts eget POS Integration API (se Wolt-kortet på Integrasjoner-siden) — kun admin/underadmin, siden tilgangsopplysningene er en reell hemmelighet.",
             "foodoraTitle": "Foodora-leveringsbestillinger",
             "foodoraIntro": "Samme oppsett som Wolt-rutene over (se Foodora-kortet på Integrasjoner-siden) — kun admin/underadmin. Ingen base-URL er bekreftet ennå, så reell bestillingssynkronisering er ikke mulig før Foodora-partnertilgang finnes.",
-            "assistantTitle": "AI-assistent (Claude)",
-            "assistantIntro": "Chatboksens tre-stegs flyt intent → valg av element → utfylling av felter (se stjerne-ikonet i toppmenyen), pluss tilgangsopplysningene — tilgangsopplysnings-ruten er kun admin/underadmin, de tre steg-rutene er åpne for enhver innlogget økt (hver av dem sjekker tilgang per entitet internt).",
+            "assistantTitle": "AI-assistent (Claude eller lokal/Ollama)",
+            "assistantIntro": "Chatboksens tre-stegs flyt intent → valg av element → utfylling av felter (se stjerne-ikonet i toppmenyen), tilgangsopplysningene, og den lokale Ollama-leverandørens eget oppsett — tilgangsopplysnings-/oppsett-rutene er kun admin/underadmin, steg-rutene er åpne for enhver innlogget økt (hver av dem sjekker tilgang per entitet internt). Hvilken leverandør som svarer velges under Innstillinger → AI-assistent; Ollama-rutene setter opp den lokale leverandørens vert og dens to modeller (bilde, brukt når et kall har et bilde vedlagt, og tanke, brukt til alt annet).",
             "websiteTitle": "Integrasjon med nettsiden",
             "websiteIntro": "Denne serveren kan valgfritt kobles til en separat offentlig nettsides egen database (Neon Postgres) — den pusher meny-/pris-/arrangement-/kontaktinfo-endringer gjort her opp dit, og henter kontaktmeldinger og nettbestillinger derfra ned igjen til dette dashbordets egne Meldinger-/Bestillinger-faner. Sett den opp nedenfor, eller via miljøvariabelen NEON_DATABASE_URL — se README.",
             "websiteNoTunnel": "Ingen tunnel eller portviderekobling trengs for dette: forbindelsen går bare utover, fra denne serveren til nettsidens database, samme retning som en vanlig nettleserforespørsel allerede går. Ingenting på internett trenger noensinne å nå inn i dette nettverket — det eneste kravet er at utgående trafikk på Postgres sin egen port (5432) er tillatt, noe som gjelder for så godt som enhver vanlig internettforbindelse.",
@@ -3130,8 +3164,7 @@
             "assistantProviderClaudeLabel": "Claude API",
             "assistantProviderClaudeDescription": "Bruker Claude API-et — krever en API-nøkkel, lagret på Integrasjoner-siden.",
             "assistantProviderLocalLabel": "Lokal (gratis)",
-            "assistantProviderComingSoon": "Kommer snart",
-            "assistantProviderLocalDescription": "En fremtidig lokal modell som kjører på denne maskinen, uten API-kostnad — ikke tilgjengelig ennå.",
+            "assistantProviderLocalDescription": "Kjører en lokal Ollama-modell på denne enheten — gratis, helt frakoblet, ingen API-nøkkel. Sett opp vert og modeller på Integrasjoner-siden.",
             "assistantProviderNoKey": "Ingen Claude API-nøkkel er lagret ennå — assistenten fungerer ikke før én er lagt til."
           },
           "backup": {
@@ -3647,6 +3680,25 @@
               "description": "Anthropics sterkeste modell — best på nyanserte eller uvanlige forespørsler, til høyest kostnad. Ca. $5 per million input-tokens / $25 per million output-tokens."
             }
           },
+          "ollamaTitle": "Lokal AI (Ollama)",
+          "ollamaDescription": "Kjører AI-assistenten helt frakoblet på en selvhostet Ollama-instans i stedet for Claude — gratis, ingen API-nøkkel, fungerer uten internett. Velg Lokal på Innstillinger → AI-assistent-siden for å faktisk ta den i bruk når den er satt opp her.",
+          "ollamaBaseUrlLabel": "Ollama-vert",
+          "ollamaVisionModelLabel": "Bildemodell",
+          "ollamaVisionModelHint": "Brukes når et bilde er lagt ved (f.eks. lesing av en meny eller et produktkort). \"Liten\" (qwen2.5vl:3b, ~3GB) er tilpasset en Raspberry Pi (8GB RAM) — velg et større nivå hvis dette kjører på en kraftigere maskin.",
+          "ollamaThinkingModelLabel": "Tankemodell",
+          "ollamaThinkingModelHint": "Brukes til alle andre forespørsler (forstå hva du spør om, fylle ut felter, svare på spørsmål). \"Liten\" (qwen2.5:3b-instruct, ~2GB) er tilpasset en Raspberry Pi (8GB RAM) — velg et større nivå hvis dette kjører på en kraftigere maskin.",
+          "ollamaTierSmall": "Liten — anbefalt for Raspberry Pi",
+          "ollamaTierMedium": "Middels — for en kraftigere maskin",
+          "ollamaTierLarge": "Stor — for en dedikert/kraftig server",
+          "ollamaCustomTierOption": "Egendefinert…",
+          "ollamaConfigSaveError": "Kunne ikke lagre Ollama-oppsettet. Sjekk at den lokale serveren kjører og prøv igjen.",
+          "ollamaTestConnectionButton": "Test tilkobling",
+          "ollamaTestingButton": "Tester...",
+          "ollamaTestSuccessLabel": "Tilkoblet",
+          "ollamaTestUnreachableError": "Fikk ikke kontakt med denne Ollama-verten. Sjekk at den kjører og at vertsadressen er riktig.",
+          "ollamaDownloadButton": "Last ned manglende modell",
+          "ollamaDownloadingButton": "Laster ned … dette kan ta litt tid første gang",
+          "ollamaDownloadError": "Kunne ikke laste ned modellen. Sjekk at den lokale serveren når Ollama-verten og prøv igjen.",
           "woltStatusSectionTitle": "Synkroniseringsstatus",
           "woltStatusLabel": "Status",
           "woltStatusLive": "Live",

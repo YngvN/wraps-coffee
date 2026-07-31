@@ -46,3 +46,9 @@
 .stat-tile__sparkline-dot {
   fill: $color-accent;
 }
+
+.stat-tile__no-data {
+  color: $color-text-muted;
+  font-size: 0.875rem;
+  font-style: italic;
+}

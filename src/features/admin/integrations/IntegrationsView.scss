@@ -302,6 +302,33 @@
   }
 }
 
+.integrations-view__ollama-field {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+
+  label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: $color-text;
+  }
+
+  select {
+    padding: calc($spacing-unit / 2) $spacing-unit;
+    border: 1px solid $color-border;
+    border-radius: 6px;
+    background: $color-surface;
+    color: $color-text;
+    font-size: 0.9rem;
+  }
+}
+
+.integrations-view__ollama-actions {
+  display: flex;
+  gap: $spacing-unit;
+  flex-wrap: wrap;
+}
+
 .integrations-view__mode-icons {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));

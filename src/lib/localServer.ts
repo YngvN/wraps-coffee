@@ -469,16 +469,18 @@ export interface AssistantIntentResult {
   reply: string | null
   /** Only set when `entity === 'chat'` and the message was a factual question about the cafe's own current data — which entity keys to fetch via `assistantAnswerLookup`. Mutually exclusive with `reply` (the server normalizes this). */
   lookupEntities: string[] | null
-  /** See `AssistantTraceEntry` — always exactly one entry (this step is single-pass). */
+  /** This turn's resolved conversation context (see `server/assistant/steps.ts`'s `resolveHistoryContext`), or `null` if there was none yet — pass this straight through to `assistantSelectItem`/`assistantFillFields`/`assistantAnswerLookup` for the rest of this same turn, never re-resolving it client-side. */
+  historyContext: string | null
+  /** See `AssistantTraceEntry` — always exactly one entry (this step is single-pass), plus one more if history had to be summarized. */
   trace: AssistantTraceEntry[]
 }
 
-/** Step 1 of the assistant flow (see `useAssistantFlow`) — routes free text to an entity + action. Never writes anything; see `server/assistant/types.ts`'s own module doc comment. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. */
-export async function assistantSelectIntent(token: string, message: string, uiLanguage: 'no' | 'en', model?: AssistantModel): Promise<AssistantIntentResult> {
+/** Step 1 of the assistant flow (see `useAssistantFlow`) — routes free text to an entity + action. Never writes anything; see `server/assistant/types.ts`'s own module doc comment. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. `history` is raw recent-transcript text, only sent when this call is the first of its turn (see `useAssistantFlow`'s own `transcriptToText`). */
+export async function assistantSelectIntent(token: string, message: string, uiLanguage: 'no' | 'en', model?: AssistantModel, history?: string): Promise<AssistantIntentResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/intent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message, uiLanguage, model }),
+    body: JSON.stringify({ message, uiLanguage, model, history }),
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (!response.ok) {
@@ -495,10 +497,10 @@ export interface AssistantSelectItemResult {
   trace: AssistantTraceEntry[]
 }
 
-/** Step 2 of the assistant flow (only for actions that need an existing item) — picks a candidate `itemID` for `entity`, or `null` if none clearly match. Pass `priorItemID` when the admin said the previous pick was wrong. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. */
+/** Step 2 of the assistant flow (only for actions that need an existing item) — picks a candidate `itemID` for `entity`, or `null` if none clearly match. Pass `priorItemID` when the admin said the previous pick was wrong. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. `historyContext` is this turn's already-resolved conversation context (from `assistantSelectIntent`'s own result), spliced straight in — never resolved again here. */
 export async function assistantSelectItem(
   token: string,
-  input: { entity: string; action: string; message: string; searchText: string; uiLanguage: 'no' | 'en'; priorItemID?: string; model?: AssistantModel },
+  input: { entity: string; action: string; message: string; searchText: string; uiLanguage: 'no' | 'en'; priorItemID?: string; model?: AssistantModel; historyContext?: string },
 ): Promise<AssistantSelectItemResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/select-item`, {
     method: 'POST',
@@ -528,9 +530,9 @@ export interface AssistantFillFieldsClarification {
  */
 export type AssistantFillFieldsResult =
   | { status: 'ready'; draft: unknown; issues: { code: string; params?: Record<string, string> }[]; trace: AssistantTraceEntry[] }
-  | { status: 'clarify'; clarifications: AssistantFillFieldsClarification[]; trace: AssistantTraceEntry[] }
+  | { status: 'clarify'; clarifications: AssistantFillFieldsClarification[]; trace: AssistantTraceEntry[]; historyContext: string | null }
 
-/** Step 3 of the assistant flow — proposes (never writes) a draft for `entity`/`action`, merged onto the current item (`itemID`) or empty defaults. `image` is the vision-extraction input (see `AssistantPanel`'s attach flow); `priorDraft` is set when this call is a correction from the review step; `resolvedFields` carries the admin's own answers to a prior `'clarify'` result; `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. */
+/** Step 3 of the assistant flow — proposes (never writes) a draft for `entity`/`action`, merged onto the current item (`itemID`) or empty defaults. `image` is the vision-extraction input (see `AssistantPanel`'s attach flow); `priorDraft` is set when this call is a correction from the review step; `resolvedFields` carries the admin's own answers to a prior `'clarify'` result; `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. `history` (raw recent-transcript text) is only sent when this call is itself the first of its turn/continuation (the `reviewingForm`-correction path, which bypasses `assistantSelectIntent`); `historyContext` is an already-resolved value from an earlier call in the same turn. Mutually exclusive. */
 export async function assistantFillFields(
   token: string,
   input: {
@@ -543,6 +545,8 @@ export async function assistantFillFields(
     priorDraft?: unknown
     resolvedFields?: Record<string, string>
     model?: AssistantModel
+    history?: string
+    historyContext?: string
   },
 ): Promise<AssistantFillFieldsResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/fill-fields`, {
@@ -576,10 +580,18 @@ export async function assistantGenerateTitle(token: string, transcriptText: stri
 /** The admin's own override of how much data a lookup answer processes per call at once — see `AssistantPanel`'s kebab-menu chunk-size setting. `'auto'` means "use the active model/provider's own default." */
 export type ChunkSizePreference = 'auto' | 'small' | 'medium' | 'large' | 'custom'
 
-/** Answers a factual question about the cafe's own current dashboard data — called when `assistantSelectIntent` returns a non-empty `lookupEntities` instead of a plain `reply`. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only; `chunkSizePreference`/`customChunkRecordCount` override how much data is processed per call at once — see `AssistantPanel`'s kebab menu for both. */
+/** Answers a factual question about the cafe's own current dashboard data — called when `assistantSelectIntent` returns a non-empty `lookupEntities` instead of a plain `reply`. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only; `chunkSizePreference`/`customChunkRecordCount` override how much data is processed per call at once — see `AssistantPanel`'s kebab menu for both. `historyContext` is this turn's already-resolved conversation context (from `assistantSelectIntent`'s own result). */
 export async function assistantAnswerLookup(
   token: string,
-  input: { message: string; uiLanguage: 'no' | 'en'; entities: string[]; model?: AssistantModel; chunkSizePreference?: ChunkSizePreference; customChunkRecordCount?: number },
+  input: {
+    message: string
+    uiLanguage: 'no' | 'en'
+    entities: string[]
+    model?: AssistantModel
+    chunkSizePreference?: ChunkSizePreference
+    customChunkRecordCount?: number
+    historyContext?: string
+  },
 ): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
   const response = await fetch(`${serverBaseUrl()}/assistant/lookup`, {
     method: 'POST',
@@ -592,6 +604,89 @@ export async function assistantAnswerLookup(
     throw new Error(body.error ?? "Couldn't look that up")
   }
   return response.json() as Promise<{ reply: string; trace: AssistantTraceEntry[] }>
+}
+
+export interface OllamaConfig {
+  baseUrl: string
+  visionModel: string
+  thinkingModel: string
+}
+
+/** The assistant's local/offline provider config (see Settings → Advanced's "Local" option and the Integrations page's Ollama card) — never secret, unlike the Claude API key, but still `admin`/`subadmin` only since it configures the same feature. */
+export async function getOllamaConfig(token: string): Promise<OllamaConfig> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/ollama-config`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 403) throw new Error('Only admin/subadmin accounts can view the assistant configuration')
+  if (!response.ok) throw new Error('Could not load the Ollama configuration')
+  return response.json() as Promise<OllamaConfig>
+}
+
+/** Saves the Ollama host/model config — pass only the field(s) being changed, `undefined` leaves the others untouched. `admin`/`subadmin` only. */
+export async function setOllamaConfig(token: string, input: Partial<OllamaConfig>): Promise<OllamaConfig> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/ollama-config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not save the Ollama configuration')
+  }
+  return response.json() as Promise<OllamaConfig>
+}
+
+export interface OllamaConnectionTestResult {
+  ok: boolean
+  error?: string
+  installedModels?: string[]
+  visionModelInstalled?: boolean
+  thinkingModelInstalled?: boolean
+}
+
+/** Checks whether the configured (or a not-yet-saved `draft`) Ollama host is reachable, and which of its two model tags are actually pulled — backs the Integrations page's "Test connection" button. `admin`/`subadmin` only. */
+export async function testOllamaConnection(token: string, draft?: Partial<OllamaConfig>): Promise<OllamaConnectionTestResult> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/ollama-test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(draft ?? {}),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) throw new Error('Could not test the Ollama connection')
+  return response.json() as Promise<OllamaConnectionTestResult>
+}
+
+/** Pulls a model tag onto the configured Ollama host — backs the Integrations page's "Download missing model" button. First pulls are a one-time few-GB download, so this can take several minutes. `admin`/`subadmin` only. */
+export async function pullOllamaModel(token: string, tag: string): Promise<{ ok: boolean; error?: string }> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/ollama-pull`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ tag }),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? `Could not download "${tag}"`)
+  }
+  return response.json() as Promise<{ ok: boolean; error?: string }>
+}
+
+/** The generic "just read this photo" mode (see `AssistantPanel`'s image-mode toggle) — reads any photographed document (not just this cafe's own data) and returns a transcription, with no draft/review step at all. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only (Claude path only — the Ollama path routes deterministically by call shape). */
+export async function assistantTranscribeAttachment(
+  token: string,
+  input: { message: string; uiLanguage: 'no' | 'en'; image: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string }; model?: AssistantModel },
+): Promise<{ text: string; trace: AssistantTraceEntry[] }> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/transcribe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? "Couldn't read that photo")
+  }
+  return response.json() as Promise<{ text: string; trace: AssistantTraceEntry[] }>
 }
 
 /** How a screen's own `/screens/:screenId` link should be addressed (see Settings → Advanced) — public, no auth needed. */

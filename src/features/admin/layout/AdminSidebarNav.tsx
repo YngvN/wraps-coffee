@@ -403,6 +403,19 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
           {activeRailItem === 'products' && catalogue && (
             <>
               <div className="admin-sidebar-nav__flyout-header">{catalogue.name[language]}</div>
+              <Link to={`/admin/dashboard/products?catalogueId=${catalogue.id}&allProducts=1`} className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                {t('admin.products.viewAllProducts')}
+              </Link>
+              {catalogue.categories.map((category) => (
+                <Link
+                  key={category.id}
+                  to={`/admin/dashboard/products?catalogueId=${catalogue.id}&categoryId=${category.id}`}
+                  className="admin-sidebar-nav__flyout-row"
+                  onClick={handleRowActivate}
+                >
+                  {category.name[language]}
+                </Link>
+              ))}
               {recentCategories.length > 0 && (
                 <>
                   <div className="admin-sidebar-nav__flyout-section">{t('admin.nav.recentlyOpened')}</div>
@@ -418,35 +431,12 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
                   ))}
                 </>
               )}
-              <Link to={`/admin/dashboard/products?catalogueId=${catalogue.id}&allProducts=1`} className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
-                {t('admin.products.viewAllProducts')}
-              </Link>
-              {catalogue.categories.map((category) => (
-                <Link
-                  key={category.id}
-                  to={`/admin/dashboard/products?catalogueId=${catalogue.id}&categoryId=${category.id}`}
-                  className="admin-sidebar-nav__flyout-row"
-                  onClick={handleRowActivate}
-                >
-                  {category.name[language]}
-                </Link>
-              ))}
             </>
           )}
 
           {activeRailItem === 'screens' && (
             <>
               <div className="admin-sidebar-nav__flyout-header">{t('admin.nav.screens')}</div>
-              {recentScreens.length > 0 && (
-                <>
-                  <div className="admin-sidebar-nav__flyout-section">{t('admin.nav.recentlyOpened')}</div>
-                  {recentScreens.map((entry) => (
-                    <Link key={`recent-${entry.id}`} to={`/admin/dashboard/screens?screenId=${entry.id}`} className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
-                      {entry.label}
-                    </Link>
-                  ))}
-                </>
-              )}
               <Link to="/admin/dashboard/screens?displayManager=1" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
                 {t('admin.displayManager.title')}
               </Link>
@@ -465,6 +455,16 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
               <Link to="/admin/dashboard/screens?new=1" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
                 {t('admin.screens.addScreen')}
               </Link>
+              {recentScreens.length > 0 && (
+                <>
+                  <div className="admin-sidebar-nav__flyout-section">{t('admin.nav.recentlyOpened')}</div>
+                  {recentScreens.map((entry) => (
+                    <Link key={`recent-${entry.id}`} to={`/admin/dashboard/screens?screenId=${entry.id}`} className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                      {entry.label}
+                    </Link>
+                  ))}
+                </>
+              )}
             </>
           )}
 
