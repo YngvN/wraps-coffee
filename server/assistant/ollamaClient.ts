@@ -118,6 +118,7 @@ export async function ollamaCallTool<T>(input: ToolCallInput): Promise<T> {
       input: JSON.stringify({ userText: input.userText }).slice(0, 500),
       output: JSON.stringify(parsed).slice(0, 500),
       usage,
+      model,
     })
   }
 

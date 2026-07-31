@@ -1,7 +1,8 @@
 import { validateProductDraft } from '../../../src/lib/assistantValidation'
 import type { Catalogue, Category } from '../../../src/types/category'
 import type { CustomFieldDefinition } from '../../../src/types/customFields'
-import { ALLERGEN_OPTIONS, DIETARY_TAG_ORDER, type AllergenCode, type DietaryTag, type Discount, type Price, type Product } from '../../../src/types/product'
+import { ALLERGEN_OPTIONS, DIETARY_TAG_ORDER, type AllergenCode, type CategoryPrices, type DietaryTag, type Discount, type Price, type Product } from '../../../src/types/product'
+import { getEffectivePrice, type EffectivePrice } from '../../../src/utils/price'
 import * as store from '../../store'
 import { nullable, type AssistantCandidate, type AssistantEntity, type AssistantFillContext, type AssistantJsonSchema, type AssistantValidationIssue } from '../types'
 
@@ -15,6 +16,27 @@ function liveCatalogues(): Catalogue[] {
 
 function liveCategories(): Category[] {
   return liveCatalogues().flatMap((catalogue) => catalogue.categories)
+}
+
+function liveCategoryPrices(): CategoryPrices {
+  return (store.get('admin.categoryPrices')?.value as CategoryPrices | undefined) ?? {}
+}
+
+/**
+ * A product's real, already-computed current price — reusing the exact same
+ * `getEffectivePrice`/`applyDiscount` logic (`src/utils/price.ts`) the actual
+ * kiosk display uses, rather than leaving price/discount arithmetic to the
+ * assistant model itself. Real testing showed even a simple percentage
+ * discount gets miscalculated (a model confidently answered "60 kr" for a
+ * product whose real price was 149/159 kr with no discount at all) — since
+ * this exact computation already exists and is already correct/trusted
+ * elsewhere in the app, there's no reason to ask a model to redo it, only to
+ * report the result. `undefined` when the product has no price of its own
+ * and no category default either (nothing to show).
+ */
+function resolveProductEffectivePrice(product: Product): EffectivePrice | undefined {
+  const price = product.price ?? (product.category ? liveCategoryPrices()[product.category] : undefined)
+  return getEffectivePrice(price, product.discount)
 }
 
 /** The category (or, for a no-category product, the catalogue) a product's own candidate label names alongside it — several products can easily share the same name (e.g. "Chicken" appearing near-identically across many categories), so this is what actually lets the admin tell candidates apart in a "which one did you mean?" list. Reads only the admin's own chat language's side, not every language at once. */
@@ -187,10 +209,41 @@ export const productEntity: AssistantEntity<Product> = {
 
   async listCandidates(_action, context: AssistantFillContext, searchText: string): Promise<AssistantCandidate[]> {
     const needle = searchText.trim().toLowerCase()
-    const matches = liveProducts().filter((product) => !needle || product.name.no.toLowerCase().includes(needle) || product.name.en.toLowerCase().includes(needle))
-    return matches
-      .slice(0, 30)
-      .map((product) => ({ id: product.itemID, label: `${product.name[context.uiLanguage]} - ${productLocationLabel(product, context.uiLanguage)}` }))
+    const nameLength = (product: Product) => Math.max(product.name.no.length, product.name.en.length)
+
+    let matches: Product[]
+    if (!needle) {
+      matches = liveProducts()
+    } else {
+      // Forward direction first (the original, most common case: a short admin-typed phrase
+      // contained within a longer real product name) — left completely unaffected by the fallback
+      // below, so an ordinary search still behaves exactly as before.
+      const forwardMatches = liveProducts().filter((product) => product.name.no.toLowerCase().includes(needle) || product.name.en.toLowerCase().includes(needle))
+      if (forwardMatches.length > 0) {
+        matches = forwardMatches
+      } else {
+        // No product name contains the search text as a fragment — it's likely a *longer*,
+        // already-disambiguated string instead (e.g. "Kylling Fajitas (Wraps)", the same label
+        // `answerLookup`'s batch scan reports for a single match, or resolved from conversation
+        // history — see LOOKUP_BATCH_SCHEMA). Check the reverse direction, but keep only the most
+        // specific (longest) name match: without this, a short, unrelated product name that
+        // happens to be a prefix of a longer one (e.g. "Kylling" inside "Kylling Fajitas (Wraps)")
+        // would slip back in as a spurious candidate, reintroducing exactly the ambiguity this
+        // disambiguated string was meant to resolve.
+        const reverseMatches = liveProducts().filter((product) => needle.includes(product.name.no.toLowerCase()) || needle.includes(product.name.en.toLowerCase()))
+        const longestNameLength = reverseMatches.length > 0 ? Math.max(...reverseMatches.map(nameLength)) : 0
+        matches = reverseMatches.filter((product) => nameLength(product) === longestNameLength)
+      }
+    }
+
+    // Two real products can still share the exact same (longest) name across different categories
+    // (e.g. a "Kylling Fajitas" wrap and a "Kylling Fajitas" nachos) — if the search text also
+    // carries a distinguishing location/category and it actually narrows the match down further,
+    // prefer that; otherwise fall back to the name match unchanged.
+    const byLocation = matches.length > 1 ? matches.filter((product) => needle.includes(productLocationLabel(product, context.uiLanguage).toLowerCase())) : []
+    const resolved = byLocation.length > 0 ? byLocation : matches
+
+    return resolved.slice(0, 30).map((product) => ({ id: product.itemID, label: `${product.name[context.uiLanguage]} - ${productLocationLabel(product, context.uiLanguage)}` }))
   },
 
   /** A brand-new product has no sane default category (unlike `update`, which always has `current.category` already) — worth a clarifying question rather than silently landing in whichever category happens to be first. Never asked once the model has already set `location` to a catalogue directly — that's a deliberate "no category", not an unresolved one. */
@@ -207,8 +260,10 @@ export const productEntity: AssistantEntity<Product> = {
     ]
   },
 
-  async getCurrent(id: string): Promise<Product | null> {
-    return liveProducts().find((product) => product.itemID === id) ?? null
+  async getCurrent(id: string): Promise<(Product & { effectivePrice: EffectivePrice | null }) | null> {
+    const product = liveProducts().find((candidate) => candidate.itemID === id)
+    if (!product) return null
+    return { ...product, effectivePrice: resolveProductEffectivePrice(product) ?? null }
   },
 
   mergeDraft(_action, current, rawFields, context: AssistantFillContext): Product {
@@ -272,11 +327,11 @@ export const productEntity: AssistantEntity<Product> = {
     return action === 'delete' ? 'destructiveSummary' : 'existingForm'
   },
 
-  /** Enriches each product with its resolved category/catalogue name (via the same `productLocationLabel` helper `listCandidates` already uses) — a raw product only carries `category`/`catalogueId` as opaque ids, useless for a lookup question like "what products are in the Drinks category" without this. */
-  async listAll(context: AssistantFillContext): Promise<(Product & { locationLabel: string })[]> {
-    return liveProducts().map((product) => ({ ...product, locationLabel: productLocationLabel(product, context.uiLanguage) }))
+  /** Enriches each product with its resolved category/catalogue name (via the same `productLocationLabel` helper `listCandidates` already uses) — a raw product only carries `category`/`catalogueId` as opaque ids, useless for a lookup question like "what products are in the Drinks category" without this — and its already-computed `effectivePrice` (see `resolveProductEffectivePrice`), so a price/discount question never requires the model to do its own arithmetic. */
+  async listAll(context: AssistantFillContext): Promise<(Product & { locationLabel: string; effectivePrice: EffectivePrice | null })[]> {
+    return liveProducts().map((product) => ({ ...product, locationLabel: productLocationLabel(product, context.uiLanguage), effectivePrice: resolveProductEffectivePrice(product) ?? null }))
   },
 
   lookupGuidance:
-    'A product is "on sale"/"discounted"/"på tilbud"/"på salg" if and only if its own `discount` field is present (non-null) — never infer this from a product being available, in stock, or simply a real currently-listed item. A product with no `discount` field is not on sale, regardless of anything else about it.',
+    'A product is "on sale"/"discounted"/"på tilbud"/"på salg" if and only if its own `discount` field is present (non-null) — never infer this from a product being available, in stock, or simply a real currently-listed item. A product with no `discount` field is not on sale, regardless of anything else about it. For any price/cost question, always read the answer straight from the record\'s own `effectivePrice` field (`original` = price before any discount, `discounted` = the real current price if a discount applies, otherwise `null`) — this is already fully computed; never calculate a discounted price yourself from `price`/`discount`, and never report `price` alone as "the price" once a discount is set.',
 }

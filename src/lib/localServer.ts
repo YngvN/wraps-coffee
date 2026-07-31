@@ -416,6 +416,9 @@ export async function pushFoodoraOrderStatus(token: string, orderId: string, sta
 
 export type AssistantModel = 'claude-haiku-4-5' | 'claude-sonnet-4-5' | 'claude-opus-4-5'
 
+/** Which backend answers assistant calls — see `AssistantProviderSection` (the shared, admin-configured default) and `AssistantPanel`'s own kebab-menu override, which lets one device pin itself to a specific provider regardless of that shared default (see each assistant function's own `provider` param below). */
+export type AssistantProvider = 'local' | 'claude'
+
 /** One real Claude API call's own record — see `server/assistant/client.ts`'s own `AssistantTraceEntry` (this is its client-side mirror). Powers the assistant chat's "thought process" trace disclosure (see `AssistantThoughtTrace`), never anything functional. */
 export interface AssistantTraceEntry {
   toolName: string
@@ -424,11 +427,13 @@ export interface AssistantTraceEntry {
   input: string
   output: string
   usage?: { inputTokens: number; outputTokens: number; estimatedCostUsd?: number }
+  /** The literal model that actually answered this one call (a Claude model id or an Ollama tag) — read from the real request itself, not a separately-fetched config value. See `server/assistant/client.ts`'s own `AssistantTraceEntry` doc comment. */
+  model?: string
 }
 
 export interface AssistantCredentialStatus {
   hasKey: boolean
-  provider: 'local' | 'claude'
+  provider: AssistantProvider
   model: AssistantModel
 }
 
@@ -444,7 +449,7 @@ export async function getAssistantCredentialStatus(token: string): Promise<Assis
 /** Saves the Claude API key, selected provider, and/or selected model — pass only the field(s) being changed, `undefined` leaves the others untouched. `admin`/`subadmin` only. */
 export async function setAssistantCredentials(
   token: string,
-  input: { apiKey?: string | null; provider?: 'local' | 'claude'; model?: AssistantModel },
+  input: { apiKey?: string | null; provider?: AssistantProvider; model?: AssistantModel },
 ): Promise<AssistantCredentialStatus> {
   const response = await fetch(`${serverBaseUrl()}/assistant/credentials`, {
     method: 'POST',
@@ -464,6 +469,7 @@ export interface AssistantIntentResult {
   entity: string
   /** `null` when `entity === 'chat'`. */
   action: 'create' | 'update' | 'delete' | 'resetPassword' | 'trigger' | null
+  /** Meaningful for a real entity action, or for a `'chat'`+`lookupEntities` question about one specific, already-named item (e.g. "how much does X cost?") — pass it as `assistantAnswerLookup`'s own `itemSearchText` in that case, so it can answer directly from that one record instead of scanning the whole dataset. `null` for a filter/count/list question with no one named item. */
   searchText: string | null
   /** The conversational answer, only set when `entity === 'chat'` and `lookupEntities` is empty. */
   reply: string | null
@@ -475,12 +481,19 @@ export interface AssistantIntentResult {
   trace: AssistantTraceEntry[]
 }
 
-/** Step 1 of the assistant flow (see `useAssistantFlow`) — routes free text to an entity + action. Never writes anything; see `server/assistant/types.ts`'s own module doc comment. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. `history` is raw recent-transcript text, only sent when this call is the first of its turn (see `useAssistantFlow`'s own `transcriptToText`). */
-export async function assistantSelectIntent(token: string, message: string, uiLanguage: 'no' | 'en', model?: AssistantModel, history?: string): Promise<AssistantIntentResult> {
+/** Step 1 of the assistant flow (see `useAssistantFlow`) — routes free text to an entity + action. Never writes anything; see `server/assistant/types.ts`'s own module doc comment. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. `history` is raw recent-transcript text, only sent when this call is the first of its turn (see `useAssistantFlow`'s own `transcriptToText`). `provider` pins this one call (and, via `useAssistantFlow`, this whole device's chat) to a specific backend regardless of the shared, admin-configured default — same kebab-menu override as `model`, but selectable independently of it (picking "Local (Ollama)" makes `model` a no-op, since that provider routes by call shape instead). */
+export async function assistantSelectIntent(
+  token: string,
+  message: string,
+  uiLanguage: 'no' | 'en',
+  model?: AssistantModel,
+  history?: string,
+  provider?: AssistantProvider,
+): Promise<AssistantIntentResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/intent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message, uiLanguage, model, history }),
+    body: JSON.stringify({ message, uiLanguage, model, history, provider }),
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (!response.ok) {
@@ -500,7 +513,17 @@ export interface AssistantSelectItemResult {
 /** Step 2 of the assistant flow (only for actions that need an existing item) — picks a candidate `itemID` for `entity`, or `null` if none clearly match. Pass `priorItemID` when the admin said the previous pick was wrong. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. `historyContext` is this turn's already-resolved conversation context (from `assistantSelectIntent`'s own result), spliced straight in — never resolved again here. */
 export async function assistantSelectItem(
   token: string,
-  input: { entity: string; action: string; message: string; searchText: string; uiLanguage: 'no' | 'en'; priorItemID?: string; model?: AssistantModel; historyContext?: string },
+  input: {
+    entity: string
+    action: string
+    message: string
+    searchText: string
+    uiLanguage: 'no' | 'en'
+    priorItemID?: string
+    model?: AssistantModel
+    historyContext?: string
+    provider?: AssistantProvider
+  },
 ): Promise<AssistantSelectItemResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/select-item`, {
     method: 'POST',
@@ -547,6 +570,7 @@ export async function assistantFillFields(
     model?: AssistantModel
     history?: string
     historyContext?: string
+    provider?: AssistantProvider
   },
 ): Promise<AssistantFillFieldsResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/fill-fields`, {
@@ -563,11 +587,17 @@ export async function assistantFillFields(
 }
 
 /** Names a just-finished conversation for the admin's own conversation log (see `useAssistantConversationLog`) — `transcriptText` is a plain-text rendering of the chat, not structured data. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. */
-export async function assistantGenerateTitle(token: string, transcriptText: string, uiLanguage: 'no' | 'en', model?: AssistantModel): Promise<{ title: string }> {
+export async function assistantGenerateTitle(
+  token: string,
+  transcriptText: string,
+  uiLanguage: 'no' | 'en',
+  model?: AssistantModel,
+  provider?: AssistantProvider,
+): Promise<{ title: string }> {
   const response = await fetch(`${serverBaseUrl()}/assistant/title`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ transcriptText, uiLanguage, model }),
+    body: JSON.stringify({ transcriptText, uiLanguage, model, provider }),
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (!response.ok) {
@@ -580,7 +610,20 @@ export async function assistantGenerateTitle(token: string, transcriptText: stri
 /** The admin's own override of how much data a lookup answer processes per call at once — see `AssistantPanel`'s kebab-menu chunk-size setting. `'auto'` means "use the active model/provider's own default." */
 export type ChunkSizePreference = 'auto' | 'small' | 'medium' | 'large' | 'custom'
 
-/** Answers a factual question about the cafe's own current dashboard data — called when `assistantSelectIntent` returns a non-empty `lookupEntities` instead of a plain `reply`. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only; `chunkSizePreference`/`customChunkRecordCount` override how much data is processed per call at once — see `AssistantPanel`'s kebab menu for both. `historyContext` is this turn's already-resolved conversation context (from `assistantSelectIntent`'s own result). */
+/**
+ * `'ready'` — a complete answer. `'clarifyItem'` — the question named one
+ * specific item, but 2+ real candidates matched and nothing confidently
+ * narrowed it down further (e.g. two products sharing the exact same name
+ * across categories) — show `candidates` as a plain pick-one list (same
+ * shape as `AssistantSelectItemResult.candidates`) and re-answer via
+ * `assistantAnswerLookupForItem` once the admin picks one, rather than
+ * silently guessing.
+ */
+export type AssistantLookupResult =
+  | { status: 'ready'; reply: string; trace: AssistantTraceEntry[] }
+  | { status: 'clarifyItem'; entityKey: string; candidates: { id: string; label: string }[]; trace: AssistantTraceEntry[] }
+
+/** Answers a factual question about the cafe's own current dashboard data — called when `assistantSelectIntent` returns a non-empty `lookupEntities` instead of a plain `reply`. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only; `chunkSizePreference`/`customChunkRecordCount` override how much data is processed per call at once — see `AssistantPanel`'s kebab menu for both. `historyContext` is this turn's already-resolved conversation context (from `assistantSelectIntent`'s own result). `itemSearchText` (`assistantSelectIntent`'s own `searchText`) engages the server's single-item fast path when the question named one specific item, skipping the batch scan entirely for it — see `AssistantLookupResult`'s own doc comment for what happens when that's still ambiguous. */
 export async function assistantAnswerLookup(
   token: string,
   input: {
@@ -591,9 +634,29 @@ export async function assistantAnswerLookup(
     chunkSizePreference?: ChunkSizePreference
     customChunkRecordCount?: number
     historyContext?: string
+    provider?: AssistantProvider
+    itemSearchText?: string
   },
-): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
+): Promise<AssistantLookupResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/lookup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? "Couldn't look that up")
+  }
+  return response.json() as Promise<AssistantLookupResult>
+}
+
+/** The continuation call once the admin has picked one specific candidate off an `assistantAnswerLookup` `'clarifyItem'` result — answers directly from that one, now-unambiguous record. Never searches or picks anything itself. */
+export async function assistantAnswerLookupForItem(
+  token: string,
+  input: { entity: string; itemID: string; message: string; uiLanguage: 'no' | 'en'; historyContext?: string; model?: AssistantModel; provider?: AssistantProvider },
+): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/lookup-item`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(input),
@@ -674,7 +737,13 @@ export async function pullOllamaModel(token: string, tag: string): Promise<{ ok:
 /** The generic "just read this photo" mode (see `AssistantPanel`'s image-mode toggle) — reads any photographed document (not just this cafe's own data) and returns a transcription, with no draft/review step at all. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only (Claude path only — the Ollama path routes deterministically by call shape). */
 export async function assistantTranscribeAttachment(
   token: string,
-  input: { message: string; uiLanguage: 'no' | 'en'; image: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string }; model?: AssistantModel },
+  input: {
+    message: string
+    uiLanguage: 'no' | 'en'
+    image: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string }
+    model?: AssistantModel
+    provider?: AssistantProvider
+  },
 ): Promise<{ text: string; trace: AssistantTraceEntry[] }> {
   const response = await fetch(`${serverBaseUrl()}/assistant/transcribe`, {
     method: 'POST',

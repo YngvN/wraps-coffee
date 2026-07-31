@@ -476,6 +476,8 @@
           "conversationErrorTag": "Error",
           "modelMenuTitle": "AI model for this chat",
           "modelDefaultOption": "Default (from settings)",
+          "modelLocalOption": "Local (Ollama) — offline, no API cost",
+          "modelLocalWithNameOption": "Local ({{model}})",
           "chunkSizeMenuTitle": "Lookup chunk size",
           "chunkSizeDescription": "Controls how much data the assistant processes at once when looking up information, like counting or listing many products. Smaller is more accurate for very large lists but slower; larger is faster but can be less reliable on very large datasets or slower devices. Auto picks a sensible size for whichever AI model is currently active.",
           "chunkSizeOption": {
@@ -510,6 +512,7 @@
           "confirmMatchQuestion": "Is this the right one?",
           "confirmMatchYes": "Yes",
           "confirmMatchShowOthers": "No, show others",
+          "clarifyLookupItemQuestion": "There's more than one match — which one did you mean?",
           "noMatchFound": "No matching item found.",
           "typeToConfirmLabel": "Type \"{{phrase}}\" to confirm",
           "confirmButton": "Confirm",
@@ -2432,6 +2435,8 @@
           "conversationErrorTag": "Feil",
           "modelMenuTitle": "AI-modell for denne samtalen",
           "modelDefaultOption": "Standard (fra innstillinger)",
+          "modelLocalOption": "Lokal (Ollama) — frakoblet, ingen API-kostnad",
+          "modelLocalWithNameOption": "Lokal ({{model}})",
           "chunkSizeMenuTitle": "Oppslag – porsjonsstørrelse",
           "chunkSizeDescription": "Styrer hvor mye data assistenten behandler om gangen ved oppslag, som å telle eller liste opp mange produkter. Mindre er mer nøyaktig for svært store lister, men tregere; større er raskere, men kan være mindre pålitelig for svært store datamengder eller trege enheter. Auto velger en fornuftig størrelse for den AI-modellen som er i bruk.",
           "chunkSizeOption": {
@@ -2466,6 +2471,7 @@
           "confirmMatchQuestion": "Er dette den riktige?",
           "confirmMatchYes": "Ja",
           "confirmMatchShowOthers": "Nei, vis andre",
+          "clarifyLookupItemQuestion": "Det er mer enn én match — hvilken mente du?",
           "noMatchFound": "Fant ingen match.",
           "typeToConfirmLabel": "Skriv «{{phrase}}» for å bekrefte",
           "confirmButton": "Bekreft",

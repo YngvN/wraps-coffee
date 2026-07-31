@@ -17,7 +17,7 @@ import { useMessageBoards } from '../../../hooks/useMessageBoards'
 import { useProducts } from '../../../hooks/useProducts'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
 import { useLanguage } from '../../../i18n'
-import { createUser, deleteUser, getAssistantCredentialStatus, resetUserPassword, SessionExpiredError, type AssistantModel, type ChunkSizePreference } from '../../../lib/localServer'
+import { createUser, deleteUser, getAssistantCredentialStatus, getOllamaConfig, resetUserPassword, SessionExpiredError, type AssistantModel, type AssistantProvider, type ChunkSizePreference } from '../../../lib/localServer'
 import { dismissUpload, startUpload, useUpload } from '../../../lib/uploadManager'
 import type { AppearanceTheme, AppearanceThemeColor } from '../../../types/appearanceTheme'
 import type { Catalogue, Category } from '../../../types/category'
@@ -123,7 +123,7 @@ function buildConversationClipboardText(transcript: TranscriptLine[], modelLabel
           const entryUsage = entry.usage
           const entryUsageSuffix = entryUsage ? ` — ${entryUsage.inputTokens} in / ${entryUsage.outputTokens} out${entryUsage.estimatedCostUsd !== undefined ? ` · ${formatCostUsd(entryUsage.estimatedCostUsd)}` : ''}` : ''
           return [
-            `  ${index + 1}. ${traceStepLabel(entry, t)}${entry.pass ? ` (${entry.pass})` : ''} [${entry.toolName}, ${formatThoughtDuration(entry.durationMs)}]${entryUsageSuffix}`,
+            `  ${index + 1}. ${traceStepLabel(entry, t)}${entry.pass ? ` (${entry.pass})` : ''} [${entry.toolName}${entry.model ? `, ${entry.model}` : ''}, ${formatThoughtDuration(entry.durationMs)}]${entryUsageSuffix}`,
             `     Input: ${entry.input}`,
             `     Output: ${entry.output}`,
           ].join('\n')
@@ -163,6 +163,14 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   // own "Claude" model picker). `null` means "no override, use that shared default" — never
   // written back to it, so switching models here never affects any other admin/device.
   const [modelOverride, setModelOverride] = useLocalStorage<AssistantModel | null>('admin.assistantModelOverride', null)
+  // Same per-device, never-synced posture as `modelOverride` above, but for which *backend*
+  // answers (Claude vs. Local/Ollama) rather than which Claude model — independently selectable
+  // from `modelOverride` in the same kebab menu (picking "Local (Ollama)" sets this without
+  // touching `modelOverride`; picking a specific Claude model sets both at once). `null` means "no
+  // override, use the shared, admin-configured default" (see `AssistantProviderSection` in
+  // Settings) — never written back to it, so switching providers here never affects any other
+  // admin/device.
+  const [providerOverride, setProviderOverride] = useLocalStorage<AssistantProvider | null>('admin.assistantProviderOverride', null)
   // Same per-device, never-synced posture as `modelOverride` above — controls how much data a
   // lookup answer (e.g. "how many products are over 100kr?") processes per call at once. `'auto'`
   // just means "use the active model/provider's own default"; `customChunkRecordCount` is only
@@ -170,7 +178,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   // constrained) hardware set an exact records-per-batch value the fixed presets don't cover.
   const [chunkSizePreference, setChunkSizePreference] = useLocalStorage<ChunkSizePreference>('admin.assistantChunkSizePreference', 'auto')
   const [customChunkRecordCount, setCustomChunkRecordCount] = useLocalStorage<number | null>('admin.assistantChunkSizeCustomValue', null)
-  const flow = useAssistantFlow(modelOverride ?? undefined, chunkSizePreference, customChunkRecordCount ?? undefined)
+  const flow = useAssistantFlow(modelOverride ?? undefined, chunkSizePreference, customChunkRecordCount ?? undefined, providerOverride ?? undefined)
   const [clockFormat] = useClockFormatPreference()
   const [dateFormat] = useDateFormatPreference()
   // Slides in from the right over the chat, same as `logView` below — see the model-menu
@@ -182,11 +190,10 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   // `IntegrationsView`'s own identical fetch) and the subtitle just falls back to showing
   // nothing rather than a guessed model name.
   const [defaultModel, setDefaultModel] = useState<AssistantModel | null>(null)
-  // Which provider is actually active (see `AssistantProviderSection` in Settings) — used only to
-  // hide the model-menu's "which Claude model" section below when it's `'local'`: there's nothing
-  // to override there, since the Ollama path routes deterministically by call shape instead of a
-  // per-message model choice (see `server/assistant/ollamaClient.ts`).
-  const [assistantProvider, setAssistantProviderState] = useState<'local' | 'claude'>('claude')
+  // The shared, admin-configured default *provider* (see `AssistantProviderSection` in Settings) —
+  // only needed as the fallback for `effectiveProvider` below when this device has no
+  // `providerOverride` of its own.
+  const [assistantProvider, setAssistantProviderState] = useState<AssistantProvider>('claude')
   useEffect(() => {
     if (!session) return
     getAssistantCredentialStatus(session.token)
@@ -196,6 +203,21 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
       })
       .catch(() => {
         // Expected for a `limited` account — leave the subtitle without a specific model name.
+      })
+  }, [session])
+  // The Ollama config's own configured *thinking* model tag (e.g. "qwen2.5:7b-instruct") — shown
+  // in the header subtitle/model menu in place of the generic "Local (Ollama)" label whenever the
+  // effective provider is `'local'`, so the subtitle actually names which local model is answering
+  // (the thinking one, since that's what answers every ordinary text message — the vision model
+  // only ever comes into play for an attached image, see `ollamaClient.ts`'s own routing). Same
+  // admin/subadmin-only, 403-for-`limited` posture as the fetch above.
+  const [ollamaThinkingModel, setOllamaThinkingModel] = useState<string | null>(null)
+  useEffect(() => {
+    if (!session) return
+    getOllamaConfig(session.token)
+      .then((config) => setOllamaThinkingModel(config.thinkingModel))
+      .catch(() => {
+        // Expected for a `limited` account — leave the local-provider label at its generic fallback.
       })
   }, [session])
   // `null` means the live chat is showing; `{ mode: 'list' }` is the conversation log's own
@@ -264,14 +286,27 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
     setImageMode('fillForm')
   }
 
+  const isBusy = flow.state.status === 'busy'
+
+  /**
+   * Guarded against `isBusy` — without this, a message sent while a previous
+   * one is still in flight starts a second, concurrent `sendMessage` call
+   * that stomps on the same shared `flow` state (`state`, `traceRef`,
+   * `busyStartRef` are not per-operation-scoped), corrupting both operations'
+   * trace/transcript into one another. This rarely surfaced against Claude's
+   * fast responses, but a local Ollama call taking many seconds to tens of
+   * seconds made it easy to trigger by accident (e.g. retyping a message to
+   * fix a typo before the first attempt had replied) — see the plan behind
+   * Ollama support. The Send button doubles as a Cancel button while busy
+   * (see its own render below) so blocking this doesn't strand the admin
+   * with no way out of a slow response.
+   */
   const handleSend = () => {
-    if (!message.trim()) return
+    if (isBusy || !message.trim()) return
     void flow.sendMessage(message, pendingImageBase64, imageMode)
     setMessage('')
     clearAttachedImage()
   }
-
-  const isBusy = flow.state.status === 'busy'
 
   const roleLabelFor = (entity: AssistantEntityKey) => t(`admin.assistant.entities.${entity}`)
 
@@ -796,20 +831,29 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
 
   const selectedLogEntry = logView?.mode === 'entry' ? flow.conversationLog.entries.find((entry) => entry.id === logView.id) : undefined
 
+  // The provider actually answering this chat right now: this device's own override if it has one
+  // (see the kebab menu's "Local (Ollama)" option below), otherwise the shared, admin-configured
+  // default fetched above.
+  const effectiveProvider = providerOverride ?? assistantProvider
   // The model actually answering this chat right now: this device's own override if it has one,
   // otherwise the shared default fetched above (`null` for a `limited` account, which can't read
   // that endpoint — the subtitle below just omits a model name in that case rather than guessing).
+  // Only meaningful when `effectiveProvider` is `'claude'` — the Ollama path routes deterministically
+  // by call shape instead of a picked model (see `server/assistant/ollamaClient.ts`).
   // Reuses `MODEL_OVERRIDE_OPTIONS`' own translated label rather than a separate short-name key —
   // every one of those labels is "<name> — <descriptor>", so the name alone is everything before it.
   const activeModel = modelOverride ?? defaultModel
-  // `activeModel` is a Claude-only concept (see `MODEL_OVERRIDE_OPTIONS`) — suppressed when the
-  // active provider is `'local'`, same reasoning as hiding the model-menu section above: there's no
-  // real per-message model to name on the Ollama path.
-  const modelSubtitle = assistantProvider !== 'local' && flow.allowedEntities.length > 0 && activeModel ? t(`admin.integrations.assistantModel.${activeModel}.label`).split(' — ')[0] : undefined
+  // "Local (<the actual configured thinking model tag>)" once it's loaded (see the fetch above),
+  // falling back to the generic "Local (Ollama)" label for the brief window before it resolves —
+  // named the same way `activeModel`'s own label names a specific Claude model, rather than the
+  // provider name alone.
+  const localModelLabel = ollamaThinkingModel ? t('admin.assistant.modelLocalWithNameOption', { model: ollamaThinkingModel }) : t('admin.assistant.modelLocalOption').split(' — ')[0]
+  const modelSubtitle =
+    flow.allowedEntities.length > 0 ? (effectiveProvider === 'local' ? localModelLabel : activeModel ? t(`admin.integrations.assistantModel.${activeModel}.label`).split(' — ')[0] : undefined) : undefined
 
   /** Copies the whole current conversation (every message, every thought step's raw trace, and the model that answered it) as plain text — see `buildConversationClipboardText`. */
   const handleCopyConversation = () => {
-    const modelLabel = assistantProvider !== 'local' && activeModel ? t(`admin.integrations.assistantModel.${activeModel}.label`) : null
+    const modelLabel = effectiveProvider === 'local' ? localModelLabel : activeModel ? t(`admin.integrations.assistantModel.${activeModel}.label`) : null
     navigator.clipboard.writeText(buildConversationClipboardText(flow.transcript, modelLabel, t)).then(() => {
       setConversationCopied(true)
       setTimeout(() => setConversationCopied(false), 2000)
@@ -892,43 +936,52 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                   <ChevronLeftIcon />
                   {t('admin.common.back')}
                 </button>
-                {assistantProvider !== 'local' && (
-                  <>
-                    <div className="assistant-panel__log-entry-header">
-                      <span className="assistant-panel__log-title">{t('admin.assistant.modelMenuTitle')}</span>
-                    </div>
-                    <ul className="assistant-panel__log-list">
-                      <li>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setModelOverride(null)
-                            setModelMenuOpen(false)
-                          }}
-                        >
-                          <span className={`assistant-panel__log-title${modelOverride === null ? ' assistant-panel__model-menu-option--selected' : ''}`}>
-                            {t('admin.assistant.modelDefaultOption')}
-                          </span>
-                        </button>
-                      </li>
-                      {MODEL_OVERRIDE_OPTIONS.map((model) => (
-                        <li key={model}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setModelOverride(model)
-                              setModelMenuOpen(false)
-                            }}
-                          >
-                            <span className={`assistant-panel__log-title${modelOverride === model ? ' assistant-panel__model-menu-option--selected' : ''}`}>
-                              {t(`admin.integrations.assistantModel.${model}.label`)}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
+                <div className="assistant-panel__log-entry-header">
+                  <span className="assistant-panel__log-title">{t('admin.assistant.modelMenuTitle')}</span>
+                </div>
+                <ul className="assistant-panel__log-list">
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModelOverride(null)
+                        setProviderOverride(null)
+                        setModelMenuOpen(false)
+                      }}
+                    >
+                      <span className={`assistant-panel__log-title${modelOverride === null && providerOverride === null ? ' assistant-panel__model-menu-option--selected' : ''}`}>
+                        {t('admin.assistant.modelDefaultOption')}
+                      </span>
+                    </button>
+                  </li>
+                  {MODEL_OVERRIDE_OPTIONS.map((model) => (
+                    <li key={model}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModelOverride(model)
+                          setProviderOverride('claude')
+                          setModelMenuOpen(false)
+                        }}
+                      >
+                        <span className={`assistant-panel__log-title${modelOverride === model && effectiveProvider === 'claude' ? ' assistant-panel__model-menu-option--selected' : ''}`}>
+                          {t(`admin.integrations.assistantModel.${model}.label`)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProviderOverride('local')
+                        setModelMenuOpen(false)
+                      }}
+                    >
+                      <span className={`assistant-panel__log-title${effectiveProvider === 'local' ? ' assistant-panel__model-menu-option--selected' : ''}`}>{t('admin.assistant.modelLocalOption')}</span>
+                    </button>
+                  </li>
+                </ul>
 
                 <div className="assistant-panel__log-entry-header">
                   <span className="assistant-panel__log-title">{t('admin.assistant.chunkSizeMenuTitle')}</span>
@@ -1113,6 +1166,21 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                     </div>
                   )}
 
+                  {flow.state.status === 'clarifyingLookupItem' && (
+                    <div className="assistant-panel__confirm-item">
+                      <p>{t('admin.assistant.clarifyLookupItemQuestion')}</p>
+                      <ul>
+                        {flow.state.candidates.map((candidate) => (
+                          <li key={candidate.id}>
+                            <button type="button" onClick={() => void flow.pickLookupItem(candidate.id)}>
+                              {candidate.label}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   {(flow.state.status === 'reviewingForm' || flow.state.status === 'reviewingDestructive') && <div className="assistant-panel__review">{renderReview()}</div>}
 
                   {isBusy && (
@@ -1172,8 +1240,8 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                       }
                     }}
                   />
-                  <Button type="button" onClick={handleSend} disabled={!message.trim()}>
-                    {t('admin.assistant.send')}
+                  <Button type="button" variant={isBusy ? 'secondary' : 'primary'} onClick={isBusy ? flow.cancel : handleSend} disabled={!isBusy && !message.trim()}>
+                    {isBusy ? t('admin.common.cancel') : t('admin.assistant.send')}
                   </Button>
                 </div>
               </motion.div>

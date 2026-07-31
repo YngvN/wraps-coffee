@@ -87,7 +87,10 @@ export function AssistantThoughtTrace({ trace, durationMs, live, typingLabel, de
                 >
                   <div className="assistant-thought-trace__step-raw">
                     <div>
-                      <span className="assistant-thought-trace__step-raw-label">{entry.toolName}</span>
+                      <span className="assistant-thought-trace__step-raw-label">
+                        {entry.toolName}
+                        {entry.model && <span className="assistant-thought-trace__step-raw-model"> · {entry.model}</span>}
+                      </span>
                       <span className="assistant-thought-trace__step-raw-duration">{formatThoughtDuration(entry.durationMs)}</span>
                     </div>
                     <pre>{entry.input}</pre>

@@ -3,6 +3,7 @@ import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
 import {
   assistantAnswerLookup,
+  assistantAnswerLookupForItem,
   assistantFillFields,
   assistantGenerateTitle,
   assistantSelectIntent,
@@ -10,6 +11,7 @@ import {
   assistantTranscribeAttachment,
   type AssistantIntentResult,
   type AssistantModel,
+  type AssistantProvider,
   type AssistantTraceEntry,
   type ChunkSizePreference,
 } from '../../../lib/localServer'
@@ -153,6 +155,15 @@ type FlowState =
       issues: AssistantValidationIssue[]
       label: string
     }
+  /**
+   * A factual question named one specific item, but `answerLookup` couldn't confidently narrow it
+   * down to just one real candidate (e.g. two products sharing the exact same name across
+   * categories) — see `AssistantLookupResult`'s own doc comment. Picking one re-answers via
+   * `pickLookupItem` instead of silently guessing; this is read-only Q&A, not a CRUD operation, so
+   * unlike `confirmItem` there's no entity/action/draft to carry, just enough to re-ask the same
+   * question once the admin resolves which item they meant.
+   */
+  | { status: 'clarifyingLookupItem'; entityKey: string; candidates: AssistantCandidate[]; message: string; historyContext: string | null }
 
 export interface AttachedImage {
   mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
@@ -186,12 +197,18 @@ export type AssistantImageMode = 'fillForm' | 'transcribeOnly'
  * `getAssistantModel()`) — see `AssistantPanel`'s model-picker menu, which
  * owns the actual per-device preference this value comes from. Never
  * written back to that shared, admin-configured default itself.
- * `chunkSizePreference`/`customChunkRecordCount` are the same kind of
- * per-device override, threaded only into the lookup call (see
- * `sendMessage`'s own `lookupEntities` branch) — see `AssistantPanel`'s
+ * `providerOverride` is the same kind of per-device, never-persisted
+ * override but for which *backend* answers (Claude vs. Local/Ollama) —
+ * independently selectable from `modelOverride` in that same kebab menu
+ * (picking "Local (Ollama)" there sets this without touching `modelOverride`,
+ * and picking a specific Claude model sets both at once). Falls back to
+ * `server/store.ts`'s `getAssistantProvider()` (the shared, admin-configured
+ * default) when omitted. `chunkSizePreference`/`customChunkRecordCount` are
+ * the same kind of per-device override, threaded only into the lookup call
+ * (see `sendMessage`'s own `lookupEntities` branch) — see `AssistantPanel`'s
  * kebab-menu chunk-size setting.
  */
-export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePreference?: ChunkSizePreference, customChunkRecordCount?: number) {
+export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePreference?: ChunkSizePreference, customChunkRecordCount?: number, providerOverride?: AssistantProvider) {
   const { session } = useAdminSession()
   const { language, t } = useLanguage()
   const [transcript, setTranscript] = useState<TranscriptLine[]>([])
@@ -304,12 +321,12 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
 
     const id = conversationLog.archive(linesToArchive, fallbackConversationTitle(linesToArchive), hadError)
     if (!session) return
-    assistantGenerateTitle(session.token, transcriptToText(linesToArchive), language, modelOverride)
+    assistantGenerateTitle(session.token, transcriptToText(linesToArchive), language, modelOverride, providerOverride)
       .then((result) => conversationLog.updateTitle(id, result.title))
       .catch(() => {
         // Keep the plain-text fallback title — a failed/unconfigured assistant shouldn't block browsing the log.
       })
-  }, [transcript, session, language, conversationLog, setState, modelOverride])
+  }, [transcript, session, language, conversationLog, setState, modelOverride, providerOverride])
 
   const runFillFields = useCallback(
     async (
@@ -332,6 +349,7 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
           priorDraft: options.priorDraft,
           resolvedFields: options.resolvedFields,
           model: modelOverride,
+          provider: providerOverride,
           history: options.history,
           historyContext: options.historyContext,
         })
@@ -356,7 +374,7 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride],
+    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride],
   )
 
   /** Delete still runs `fillFields` (an empty schema for every destructible entity — see each adapter's own `fillFieldsSchema`) purely to get a real `validate()` pass: that's the only path that surfaces a delete-time soft warning (e.g. "N products would be orphaned") or hard guard (e.g. "can't delete the active theme") before the typed-confirmation screen, rather than skipping straight to an empty-issues review. */
@@ -380,6 +398,7 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
           itemID,
           resolvedFields: options.resolvedFields,
           model: modelOverride,
+          provider: providerOverride,
           history: options.history,
           historyContext: options.historyContext,
         })
@@ -405,7 +424,7 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride],
+    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride],
   )
 
   const proceedWithItem = useCallback(
@@ -432,7 +451,16 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
       }
       beginBusy('thinking')
       try {
-        const result = await assistantSelectItem(session.token, { entity, action, message, searchText, uiLanguage: language, model: modelOverride, historyContext: historyContext ?? undefined })
+        const result = await assistantSelectItem(session.token, {
+          entity,
+          action,
+          message,
+          searchText,
+          uiLanguage: language,
+          model: modelOverride,
+          provider: providerOverride,
+          historyContext: historyContext ?? undefined,
+        })
         recordTrace(result.trace)
         if (result.candidates.length === 0) {
           reportNoMatch()
@@ -448,7 +476,7 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, runFillFields, beginBusy, recordTrace, finalizeThought, reportNoMatch, reportError, modelOverride],
+    [session, language, runFillFields, beginBusy, recordTrace, finalizeThought, reportNoMatch, reportError, modelOverride, providerOverride],
   )
 
   const sendMessage = useCallback(
@@ -466,7 +494,7 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
       if (image && imageMode === 'transcribeOnly') {
         beginBusy('thinking')
         try {
-          const result = await assistantTranscribeAttachment(session.token, { message, uiLanguage: language, image, model: modelOverride })
+          const result = await assistantTranscribeAttachment(session.token, { message, uiLanguage: language, image, model: modelOverride, provider: providerOverride })
           recordTrace(result.trace)
           finalizeThought()
           appendLine('assistant', result.text)
@@ -494,10 +522,14 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
         appendLine('assistant', t('admin.assistant.answerClarificationFirst'))
         return
       }
+      if (state.status === 'clarifyingLookupItem') {
+        appendLine('assistant', t('admin.assistant.answerClarificationFirst'))
+        return
+      }
 
       beginBusy('thinking')
       try {
-        const result: AssistantIntentResult = await assistantSelectIntent(session.token, message, language, modelOverride, historyText || undefined)
+        const result: AssistantIntentResult = await assistantSelectIntent(session.token, message, language, modelOverride, historyText || undefined, providerOverride)
         recordTrace(result.trace)
 
         // General question/greeting/etc. — answered directly, never routed
@@ -513,11 +545,18 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
               uiLanguage: language,
               entities: result.lookupEntities,
               model: modelOverride,
+              provider: providerOverride,
               chunkSizePreference,
               customChunkRecordCount,
               historyContext: result.historyContext ?? undefined,
+              itemSearchText: result.searchText ?? undefined,
             })
             recordTrace(lookup.trace)
+            if (lookup.status === 'clarifyItem') {
+              finalizeThought()
+              setState({ status: 'clarifyingLookupItem', entityKey: lookup.entityKey, candidates: lookup.candidates, message, historyContext: result.historyContext })
+              return
+            }
             finalizeThought()
             appendLine('assistant', lookup.reply)
           } else {
@@ -552,6 +591,7 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
       finalizeThought,
       reportError,
       modelOverride,
+      providerOverride,
       chunkSizePreference,
       customChunkRecordCount,
       transcript,
@@ -599,6 +639,34 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
     [state, runFillFields, runFillFieldsForDelete, setState],
   )
 
+  /** Resolves a `'clarifyingLookupItem'` question — the admin's pick of which specific item a factual question meant (see the state's own doc comment) — by re-answering directly from that one, now-unambiguous record via `assistantAnswerLookupForItem`. Read-only, same as every other lookup path; never writes anything. */
+  const pickLookupItem = useCallback(
+    async (itemID: string) => {
+      if (state.status !== 'clarifyingLookupItem') return
+      if (!session) return
+      const { entityKey, message, historyContext } = state
+      beginBusy('thinking')
+      try {
+        const result = await assistantAnswerLookupForItem(session.token, {
+          entity: entityKey,
+          itemID,
+          message,
+          uiLanguage: language,
+          historyContext: historyContext ?? undefined,
+          model: modelOverride,
+          provider: providerOverride,
+        })
+        recordTrace(result.trace)
+        finalizeThought()
+        appendLine('assistant', result.reply)
+        setState({ status: 'idle' })
+      } catch (error) {
+        reportError(error instanceof Error ? error.message : 'Something went wrong')
+      }
+    },
+    [state, session, language, modelOverride, providerOverride, beginBusy, recordTrace, finalizeThought, appendLine, reportError],
+  )
+
   /** Called by the review UI once the real, existing save/delete path has actually committed the write — the assistant itself never does (see the plan's hard invariant). */
   const onCommitted = useCallback(() => {
     appendLine('assistant', 'done')
@@ -615,6 +683,7 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
     pickCandidate,
     showOtherCandidates,
     answerClarification,
+    pickLookupItem,
     cancel,
     newChat,
     conversationLog,

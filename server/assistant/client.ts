@@ -27,6 +27,17 @@ export interface AssistantTraceEntry {
   input: string
   output: string
   usage?: { inputTokens: number; outputTokens: number; estimatedCostUsd?: number }
+  /**
+   * The literal model that actually answered this one call — a Claude model
+   * id (e.g. `"claude-sonnet-4-5"`) or an Ollama tag (e.g.
+   * `"qwen2.5:7b-instruct"`), read directly from the real request each entry
+   * came from (see `anthropicClient.ts`/`ollamaClient.ts`), never from a
+   * separately-fetched config/settings value that could be stale or wrong.
+   * The one ground-truth way to confirm which model actually handled a given
+   * step — a global "Model: ..." header/subtitle only ever reflects
+   * client-side config state, not the real per-call request.
+   */
+  model?: string
 }
 
 export interface ToolCallInput {
@@ -47,6 +58,8 @@ export interface ToolCallInput {
   schema: AssistantJsonSchema
   /** Per-chat override of which Claude model answers this one call — see `AssistantPanel`'s model-picker menu. Never persisted; falls back to `store.getAssistantModel()` (the shared, admin-configured default) when omitted. Ignored on the Ollama path, which routes by call shape instead — see `ollamaClient.ts`. */
   model?: store.AssistantModel
+  /** Per-device override of which *provider* answers this one call — same kebab-menu, never-persisted posture as `model` above, but independently selectable (picking "Local (Ollama)" there sets this without touching `model`, and vice versa). Falls back to `store.getAssistantProvider()` (the shared, admin-configured default) when omitted. */
+  provider?: store.AssistantProvider
   /** When provided, this call's own timing/input/output/token-usage is pushed onto it — see `AssistantTraceEntry`. Omitted entirely for calls with nothing to attach a trace to (e.g. `generateTitle`, which has no visible "thinking" UI). */
   trace?: AssistantTraceEntry[]
   /** Only meaningful alongside `trace` — tags which `generateThenVerify` pass this call is, so the UI can label them. Never set for a `callToolOnce` call. */
@@ -54,18 +67,22 @@ export interface ToolCallInput {
 }
 
 /**
- * Dispatches to whichever provider is actually configured (`server/store.ts`'s
- * `getAssistantProvider()`) — `anthropicClient.ts`'s `anthropicCallTool` for
- * `'claude'`, `ollamaClient.ts`'s `ollamaCallTool` for `'local'`. Both
- * implementations guarantee the same contract: `toolName`'s `input` is
- * returned already validated against `schema` — never a free-text response
- * to parse (Claude via native `strict` forced tool-use; Ollama via the
- * parse/repair/retry pipeline described in the plan behind this feature).
- * Vision is opt-in per call via `image`, so a step that doesn't carry an
- * attached image never pays for/risks a vision misread on either provider.
+ * Dispatches to whichever provider is actually active for this call —
+ * `input.provider` (a per-device kebab-menu override, see `ToolCallInput`)
+ * if set, otherwise `server/store.ts`'s `getAssistantProvider()` (the
+ * shared, admin-configured default) — to `anthropicClient.ts`'s
+ * `anthropicCallTool` for `'claude'`, `ollamaClient.ts`'s `ollamaCallTool`
+ * for `'local'`. Both implementations guarantee the same contract:
+ * `toolName`'s `input` is returned already validated against `schema` —
+ * never a free-text response to parse (Claude via native `strict` forced
+ * tool-use; Ollama via the parse/repair/retry pipeline described in the plan
+ * behind this feature). Vision is opt-in per call via `image`, so a step
+ * that doesn't carry an attached image never pays for/risks a vision
+ * misread on either provider.
  */
 function callTool<T>(input: ToolCallInput): Promise<T> {
-  return store.getAssistantProvider() === 'claude' ? anthropicCallTool<T>(input) : ollamaCallTool<T>(input)
+  const provider = input.provider ?? store.getAssistantProvider()
+  return provider === 'claude' ? anthropicCallTool<T>(input) : ollamaCallTool<T>(input)
 }
 
 /**
@@ -87,6 +104,8 @@ export async function generateThenVerify<T>(input: {
   verifyContext?: string
   /** See `ToolCallInput.model` — applied to both the draft and verify pass. */
   model?: store.AssistantModel
+  /** See `ToolCallInput.provider` — applied to both the draft and verify pass. */
+  provider?: store.AssistantProvider
   /** See `ToolCallInput.trace` — both the draft and verify pass push their own entry onto it, tagged `pass: 'draft'`/`'verify'` respectively. */
   trace?: AssistantTraceEntry[]
 }): Promise<T> {
@@ -98,6 +117,7 @@ export async function generateThenVerify<T>(input: {
     toolDescription: input.toolDescription,
     schema: input.schema,
     model: input.model,
+    provider: input.provider,
     trace: input.trace,
     pass: 'draft',
   })
@@ -120,6 +140,7 @@ export async function generateThenVerify<T>(input: {
     toolDescription: input.toolDescription,
     schema: input.schema,
     model: input.model,
+    provider: input.provider,
     trace: input.trace,
     pass: 'verify',
   })

@@ -58,7 +58,13 @@ const HISTORY_COMPACTION_THRESHOLD = 500
  * short follow-up like "remove the discount" or "no, the other one" refers
  * to.
  */
-async function compactHistory(historyText: string, uiLanguage: 'no' | 'en', modelOverride: store.AssistantModel | undefined, trace: AssistantTraceEntry[]): Promise<string> {
+async function compactHistory(
+  historyText: string,
+  uiLanguage: 'no' | 'en',
+  modelOverride: store.AssistantModel | undefined,
+  providerOverride: store.AssistantProvider | undefined,
+  trace: AssistantTraceEntry[],
+): Promise<string> {
   const schema: AssistantJsonSchema = {
     type: 'object',
     properties: {
@@ -85,6 +91,7 @@ async function compactHistory(historyText: string, uiLanguage: 'no' | 'en', mode
     toolDescription: 'Summarize the relevant facts/pending topic from this conversation slice.',
     schema,
     model: modelOverride,
+    provider: providerOverride,
     trace,
   })
   return result.summary
@@ -107,14 +114,15 @@ async function resolveHistoryContext(
   input: { history?: string; historyContext?: string },
   uiLanguage: 'no' | 'en',
   modelOverride: store.AssistantModel | undefined,
+  providerOverride: store.AssistantProvider | undefined,
   trace: AssistantTraceEntry[],
 ): Promise<string | null> {
   if (input.historyContext) return input.historyContext
   if (!input.history?.trim()) return null
   const boundedHistory = input.history.slice(-HISTORY_CHAR_CAP)
-  const capability = resolveModelCapability(modelOverride)
+  const capability = resolveModelCapability(modelOverride, providerOverride)
   if (capability.historyMode === 'full' || boundedHistory.length < HISTORY_COMPACTION_THRESHOLD) return boundedHistory
-  return compactHistory(boundedHistory, uiLanguage, modelOverride, trace)
+  return compactHistory(boundedHistory, uiLanguage, modelOverride, providerOverride, trace)
 }
 
 /**
@@ -138,6 +146,7 @@ export interface IntentResult {
   entity: string
   /** `null` when `entity === 'chat'`. */
   action: AssistantActionName | null
+  /** Meaningful for a real entity action (finds the update/delete target), or for a `'chat'`+`lookupEntities` question about one specific, already-named item — see `answerLookup`'s own single-item fast path, which uses this the same way `selectItem` uses it for the CRUD flow. `null` for a filter/count/list question with no one named item to search for. */
   searchText: string | null
   /** The conversational answer, only set when `entity === 'chat'` and `lookupEntities` is empty — never a stand-in for a real operation's own result. */
   reply: string | null
@@ -173,12 +182,13 @@ export async function selectIntent(
   uiLanguage: 'no' | 'en',
   modelOverride?: store.AssistantModel,
   history?: string,
+  providerOverride?: store.AssistantProvider,
 ): Promise<IntentResult> {
   const entities = allowedEntitiesFor(session)
   if (entities.length === 0) throw new Error('No assistant actions are available to this account.')
 
   const trace: AssistantTraceEntry[] = []
-  const historyContext = await resolveHistoryContext({ history }, uiLanguage, modelOverride, trace)
+  const historyContext = await resolveHistoryContext({ history }, uiLanguage, modelOverride, providerOverride, trace)
 
   const entityKeys = entities.map((entity) => entity.key)
   const entityListForPrompt = entities.map((entity) => `${entity.key} (${ENTITY_DESCRIPTIONS[entity.key] ?? ''})`).join(', ')
@@ -187,13 +197,17 @@ export async function selectIntent(
     properties: {
       entity: { type: 'string', enum: [...entityKeys, 'chat'] },
       action: nullable({ type: 'string', enum: ALL_ACTIONS }),
-      searchText: nullable({ type: 'string', description: 'A short phrase to help find the target existing item — only meaningful when action is not "create".' }),
+      searchText: nullable({
+        type: 'string',
+        description:
+          'A short phrase to help find the target existing item — meaningful when action is not "create", or when entity is "chat" and lookupEntities names a single entity because the question is actually about one specific, already-named item (e.g. "how much does the Chicken Fajitas wrap cost?" → "Chicken Fajitas") rather than a filter/count across many records (e.g. "how many products are on sale?" leaves this null — there is no one named item to search for).',
+      }),
       reply: nullable({ type: 'string', description: 'Your conversational reply, in the admin\'s own language — set only when entity is "chat" and lookupEntities is empty, otherwise leave null.' }),
       lookupEntities: nullable({
         type: 'array',
         items: { type: 'string', enum: entityKeys },
         description:
-          'Only when entity is "chat": set this instead of reply when the message is a factual question about the cafe\'s own current data (e.g. "what message boards exist?", "how many products are in category X?", "what are our opening hours?") — which of the entities above would have the data to answer it (usually 1, rarely more than 2-3). Leave null for a generic question/greeting/small talk with no real data need, and answer via reply instead.',
+          'Only when entity is "chat": set this instead of reply when the message is a factual question about the cafe\'s own current data (e.g. "what message boards exist?", "how many products are in category X?", "what are our opening hours?") — which of the entities above would have the data to answer it (usually 1, rarely more than 2-3). This includes a question naming one specific, already-identifiable item (e.g. "how much does the Chicken Fajitas wrap cost?", "is the Chicken Fajitas wrap on sale?") — that is still a factual question, not a create/update/delete request, even though a specific item is named; set lookupEntities to ["product"] for it rather than treating the named item as something to edit. A question about products\' own price/discount/availability (e.g. "how many products are on sale") always means "product", never "category", even though the word "products" appears — see the entity descriptions above for why. Leave null for a generic question/greeting/small talk with no real data need, and answer via reply instead.',
       }),
     },
     required: ['entity', 'action', 'searchText', 'reply', 'lookupEntities'],
@@ -206,11 +220,11 @@ export async function selectIntent(
     'You are the AI assistant built into the Wraps & Coffee admin dashboard — a flexible catalogue/category/product system a business uses to manage whatever it sells, not limited to food and drink: a catalogue and its categories can represent any product line (e.g. a "Cars" catalogue with categories like "Sedans"/"SUVs", using custom fields such as "Mileage"/"Fuel type" the same way a food category might use its own custom fields), plus events, message boards, and staff accounts.',
     `You can create, update, or delete: ${entityListForPrompt}${entityKeys.includes('user') ? ' (non-admin accounts only)' : ''}.`,
     "If the admin's message is a specific request to create/update/delete one of those, pick exactly one entity and one action — don't try to handle more than one thing at once — and leave reply/lookupEntities null. This includes setting up an entirely new kind of product line (e.g. \"I'm going to sell cars, what do I need to do?\") — help them create a catalogue/categories/products for it, never say this dashboard doesn't support what they sell.",
-    'A named menu item\'s own price (e.g. "change the price of Nachos to 110kr") is always a product update — never a category update. A category only has one optional shared *default* price applied to items that have no price of their own; naming a specific item always means that item, not its category.',
+    'A named menu item\'s own price (e.g. "change the price of Nachos to 110kr") is always a product update — never a category update. A category only has one optional shared *default* price applied to items that have no price of their own; naming a specific item always means that item, not its category. The same distinction applies to a factual question about price/discount/availability (e.g. "how many products are on sale?", "how much does Nachos cost?") — that always needs lookupEntities: ["product"], never ["category"], regardless of whether the word "product(s)" or a specific item name appears in the message.',
     'action is one of: "create" (make a brand new one), "update" (change an existing one), "delete" (remove one), "resetPassword" (user accounts only), "trigger" (a one-off action with no fields to fill).',
     'If the message is a factual question about the cafe\'s own current data rather than a create/update/delete request, set entity to "chat", leave action/searchText/reply null, and set lookupEntities instead (see its own description).',
     'If the message is a general question (e.g. "what can you do?"), a greeting, small talk, or anything else that is neither a create/update/delete request nor a factual data question, set entity to "chat", leave action/searchText/lookupEntities null, and write a short, helpful, conversational reply in the reply field — mention what you can help with on this dashboard when it\'s relevant to the question.',
-    'If resolving a reference like "it"/"that one" via the conversation context below turns the message into a factual data question (e.g. "how much is it on sale for?" once "it" resolves to a specific product), set lookupEntities for it the same as any other factual data question — do not just report back what you resolved in a reply instead of actually looking it up; reply is only for an actual greeting/generic question with no real data need.',
+    'If resolving a reference like "it"/"that one" via the conversation context below turns the message into a factual data question (e.g. "how much is it on sale for?" once "it" resolves to a specific product), set lookupEntities for it the same as any other factual data question — do not just report back what you resolved in a reply instead of actually looking it up; reply is only for an actual greeting/generic question with no real data need. This includes searchText too: once a reference resolves to one specific, already-discussed item, set searchText to that item\'s own name (e.g. "how much is it in kroner?" right after discussing "Chicken Fajitas" still sets searchText to "Chicken Fajitas") — every later follow-up about the same item needs this set again, not just the first question that named it.',
     historyContextPromptLine(historyContext),
   ]
     .filter(Boolean)
@@ -223,13 +237,24 @@ export async function selectIntent(
     toolDescription: "Choose which entity and action the admin's message is about, or answer directly/look up data via the chat fallback.",
     schema,
     model: modelOverride,
+    provider: providerOverride,
     trace,
   })
 
-  if (result.entity === 'chat') {
-    // Never trust the model to have kept `reply`/`lookupEntities` mutually exclusive on its own.
-    const hasLookup = Boolean(result.lookupEntities && result.lookupEntities.length > 0)
-    return { ...result, action: null, reply: hasLookup ? null : result.reply, lookupEntities: hasLookup ? result.lookupEntities : null, historyContext, trace }
+  // Never trust the model to have kept `entity`/`action`/`reply`/`lookupEntities` mutually
+  // consistent on its own — a non-empty `lookupEntities` is treated as authoritative regardless of
+  // whatever `entity`/`action` the model also filled in, not just when `entity === 'chat'`. Real
+  // testing against a local model showed it can correctly recognize a factual question (setting
+  // `lookupEntities`) while *also* misfiring `entity`/`action` into a bogus create/update/delete
+  // choice on the very same call (e.g. "which products are on sale?" got `lookupEntities:
+  // ["product"]` — right — alongside `entity: "product", action: "update"` — wrong); discarding the
+  // correct signal just because `entity` wasn't literally `"chat"` routed that message into editing
+  // a random product instead of just answering the question. Preferring the lookup path on any
+  // ambiguity/contradiction is also strictly the safer choice per this function's own doc
+  // comment — a lookup misroute is harmless by construction, since it never proposes a write.
+  const hasLookup = Boolean(result.lookupEntities && result.lookupEntities.length > 0)
+  if (result.entity === 'chat' || hasLookup) {
+    return { ...result, entity: 'chat', action: null, reply: hasLookup ? null : result.reply, lookupEntities: hasLookup ? result.lookupEntities : null, historyContext, trace }
   }
 
   const entity = entities.find((candidate) => candidate.key === result.entity)
@@ -265,6 +290,7 @@ export async function selectItem(
   priorItemID?: string,
   modelOverride?: store.AssistantModel,
   historyContext?: string,
+  providerOverride?: store.AssistantProvider,
 ): Promise<SelectItemResult> {
   const entity = requireAccessibleEntity(entityKey, session)
   if (!entity.listCandidates) throw new Error(`"${entityKey}" has nothing to select from.`)
@@ -306,6 +332,7 @@ export async function selectItem(
     schema,
     verifyContext: candidateList,
     model: modelOverride,
+    provider: providerOverride,
     trace,
   })
 
@@ -341,6 +368,7 @@ export async function fillFields(
     priorDraft?: unknown
     resolvedFields?: Record<string, string>
     modelOverride?: store.AssistantModel
+    providerOverride?: store.AssistantProvider
     /** Raw recent-transcript text — only sent when this call is itself the first of its turn/continuation (the `reviewingForm`-correction path, which bypasses `selectIntent`). Mutually exclusive with `historyContext`. */
     history?: string
     /** An already-resolved value from an earlier call in the same turn (usually `selectIntent`'s). Mutually exclusive with `history`. */
@@ -359,7 +387,7 @@ export async function fillFields(
     : message
 
   const trace: AssistantTraceEntry[] = []
-  const historyContext = await resolveHistoryContext({ history: options.history, historyContext: options.historyContext }, uiLanguage, options.modelOverride, trace)
+  const historyContext = await resolveHistoryContext({ history: options.history, historyContext: options.historyContext }, uiLanguage, options.modelOverride, options.providerOverride, trace)
 
   const systemPrompt = [
     languageInstruction(uiLanguage),
@@ -380,6 +408,7 @@ export async function fillFields(
     toolDescription: `Propose field values for this "${entityKey}" ${action}.`,
     schema,
     model: options.modelOverride,
+    provider: options.providerOverride,
     trace,
   })
 
@@ -407,8 +436,12 @@ export async function fillFields(
  * client-side; the client shows a plain-text fallback title in the
  * meantime rather than waiting on this call.
  */
-export async function generateTitle(transcriptText: string, uiLanguage: 'no' | 'en', modelOverride?: store.AssistantModel): Promise<{ title: string }> {
-
+export async function generateTitle(
+  transcriptText: string,
+  uiLanguage: 'no' | 'en',
+  modelOverride?: store.AssistantModel,
+  providerOverride?: store.AssistantProvider,
+): Promise<{ title: string }> {
   const schema: AssistantJsonSchema = {
     type: 'object',
     properties: { title: { type: 'string', description: 'A short (3-6 word) title summarizing the conversation, with no surrounding quotes or trailing punctuation.' } },
@@ -429,6 +462,7 @@ export async function generateTitle(transcriptText: string, uiLanguage: 'no' | '
     toolDescription: 'Provide a short title summarizing the conversation.',
     schema,
     model: modelOverride,
+    provider: providerOverride,
   })
 }
 
@@ -440,7 +474,7 @@ interface AssistantModelCapability {
   recordsPerBatch: number
   /** A secondary ceiling applied alongside `recordsPerBatch`, not after it — `packRecordsIntoBatches` closes a batch as soon as either bound would be exceeded, so a batch of unusually content-heavy records (bilingual name/description, custom fields, etc.) gets split into more, smaller batches rather than ever having its serialized JSON truncated mid-record. */
   chunkCharBudget: number
-  /** Whether the extra `generateThenVerify` pass is worth the added latency for this tier — always used for cloud Claude; the placeholder `'local'` row opts out, since a constrained local model paying 2x latency per call may not be worth it. */
+  /** Whether the extra `generateThenVerify` pass is worth the added latency for this tier — always used for cloud Claude and, despite the extra latency, for `local` too: real testing showed a small Ollama model over-includes an entire batch on a filtering question (e.g. confidently marking most of a batch "on sale" when none of it actually had a discount field set) at a high enough rate that skipping the verify pass there isn't actually a good tradeoff — see `LOOKUP_BATCH_SCHEMA`'s own doc comment, which named this exact failure mode. */
   useVerifyPass: boolean
   maxParallelChunkCalls: number
   /** `'full'` — a strong-enough model reads the (already client-capped) recent transcript itself; the raw text is passed straight through with no extra call (see `resolveHistoryContext`). `'compact'` — a real extra summarization call (`compactHistory`) condenses it into a short blurb first, so the cheaper/weaker tier pays for history-awareness once in output tokens rather than repeatedly in input tokens across a turn's several calls (the "compute once per turn" plan). Chosen for `claude-haiku-4-5` and the `local` placeholder, mirroring the haiku-vs-sonnet+ split above. */
@@ -471,7 +505,7 @@ const ASSISTANT_MODEL_CAPABILITIES: Record<store.AssistantModel | 'local', Assis
   'claude-haiku-4-5': { recordsPerBatch: 25, chunkCharBudget: 6000, useVerifyPass: true, maxParallelChunkCalls: 4, historyMode: 'compact' },
   'claude-sonnet-4-5': { recordsPerBatch: 150, chunkCharBudget: 12000, useVerifyPass: true, maxParallelChunkCalls: 4, historyMode: 'full' },
   'claude-opus-4-5': { recordsPerBatch: 150, chunkCharBudget: 12000, useVerifyPass: true, maxParallelChunkCalls: 4, historyMode: 'full' },
-  local: { recordsPerBatch: 10, chunkCharBudget: 2400, useVerifyPass: false, maxParallelChunkCalls: 1, historyMode: 'compact' },
+  local: { recordsPerBatch: 10, chunkCharBudget: 2400, useVerifyPass: true, maxParallelChunkCalls: 1, historyMode: 'compact' },
 }
 
 /** Bounds enforced on an admin's own "Custom" record-per-batch entry — re-clamped here regardless of whatever the client-side `NumberInput` already enforces, since a client-supplied number is never trusted as-is. Guards against both an oversized single batch (could blow past `client.ts`'s shared `max_tokens: 1024`) and a `0`/negative value (would break the batch-splitting loop below). */
@@ -481,8 +515,9 @@ const CUSTOM_RECORDS_PER_BATCH_MAX = 1000
 /** Hard cap on how many entities one lookup ever pulls data for, regardless of how many the model names — keeps a single lookup message's total cost bounded even in the worst case. */
 const MAX_LOOKUP_ENTITIES = 5
 
-function resolveModelCapability(modelOverride: store.AssistantModel | undefined): AssistantModelCapability {
-  if (store.getAssistantProvider() !== 'claude') return ASSISTANT_MODEL_CAPABILITIES.local
+function resolveModelCapability(modelOverride: store.AssistantModel | undefined, providerOverride?: store.AssistantProvider): AssistantModelCapability {
+  const provider = providerOverride ?? store.getAssistantProvider()
+  if (provider !== 'claude') return ASSISTANT_MODEL_CAPABILITIES.local
   return ASSISTANT_MODEL_CAPABILITIES[modelOverride ?? store.getAssistantModel()]
 }
 
@@ -511,7 +546,7 @@ const LOOKUP_BATCH_SCHEMA: AssistantJsonSchema = {
       type: 'array',
       items: { type: 'string' },
       description:
-        "Every matching record's short, human-readable name/title from this batch (e.g. a product name) — the complete list of matches, not a capped sample, since the admin may be asking to see everything, not just a count. Empty if matchingCount is 0.",
+        "Every matching record's short, human-readable name/title from this batch (e.g. a product's real display name like \"Chicken Fajitas\") — never an internal id/key/slug field (e.g. never something like \"wraps-chickenFajitasWrap\"), even if that's the field name that stood out while scanning the record. If the record has its own category/location field (e.g. a product's resolved location), append it in parentheses (e.g. \"Chicken Fajitas (Wraps)\") — two real records can share the exact same name across different categories (e.g. a \"Chicken Fajitas\" wrap and a \"Chicken Fajitas\" nachos), and the bare name alone can't tell them apart later in the conversation. The complete list of matches, not a capped sample, since the admin may be asking to see everything, not just a count. Empty if matchingCount is 0.",
     },
   },
   required: ['matchingCount', 'matchingExamples'],
@@ -562,7 +597,13 @@ function packRecordsIntoBatches(records: unknown[], recordsPerBatch: number, chu
  * Every matching record's name is kept, never capped to a sample — a "how
  * many" question only needs the count, but a "list them all" question needs
  * the complete list, and there's no way to tell which the admin meant before
- * the model actually reads it.
+ * the model actually reads it. When the map-reduce narrows to exactly one
+ * match, that one record's real field data is additionally resolved (via the
+ * same deterministic `listCandidates`/`getCurrent` lookup `selectItem` uses,
+ * no extra model call) and appended as its own block — without this, a
+ * question needing a specific field value (e.g. a price) had nothing to work
+ * with beyond a name and a count, and real testing showed that led to an
+ * invented answer rather than an honest "I don't have that detail."
  */
 async function buildEntityDataBlock(
   entity: AssistantEntity<unknown>,
@@ -574,6 +615,7 @@ async function buildEntityDataBlock(
   useVerifyPass: boolean,
   historyContext: string | null,
   modelOverride: store.AssistantModel | undefined,
+  providerOverride: store.AssistantProvider | undefined,
   trace: AssistantTraceEntry[],
 ): Promise<string> {
   const data = await entity.listAll!(context)
@@ -610,6 +652,7 @@ async function buildEntityDataBlock(
       toolDescription: "Report how many records in this batch are relevant to the admin's question, and the complete list of their names.",
       schema: LOOKUP_BATCH_SCHEMA,
       model: modelOverride,
+      provider: providerOverride,
       trace,
     }
     const result = useVerifyPass ? await generateThenVerify<LookupBatchFacts>(batchCallArgs) : await callToolOnce<LookupBatchFacts>(batchCallArgs)
@@ -617,9 +660,96 @@ async function buildEntityDataBlock(
     allMatches.push(...result.matchingExamples)
   }
 
-  const batchedResultSummary = `"${entity.key}" data (${records.length} total records) has already been fully checked, batch by batch, against the admin's exact question ("${message}") — this is the complete, final result, not a sample: ${totalMatchingCount} record(s) satisfy it. Every one of their names: ${JSON.stringify(allMatches)}`
-  return [datasetSummary, batchedResultSummary].filter(Boolean).join('\n\n')
+  // Deliberately *not* phrased as a ready-made sentence (e.g. never "N record(s) satisfy it") —
+  // real testing against a local model showed it will literally copy a quotable phrase like that
+  // verbatim as its entire final reply instead of composing its own natural-language answer that
+  // actually names the matches (see the plan behind this feature). Presented as plain labeled
+  // facts instead, which there's nothing grammatical to copy-paste from.
+  const batchedResultSummary = `"${entity.key}" data (${records.length} total records) — already fully checked, batch by batch, against the admin's exact question ("${message}"); this is the complete, final result, not a sample.\nmatchingCount: ${totalMatchingCount}\nmatchingNames: ${JSON.stringify(allMatches)}`
+
+  // When the batch scan narrows to exactly one match, resolve that one name to its real record via
+  // the same deterministic (no model call) candidate lookup `selectItem`/the single-item fast path
+  // above already rely on — never by asking the classifier model itself to also echo back a raw
+  // id, which is exactly the kind of string it's already shown to mangle (see `LOOKUP_BATCH_SCHEMA`'s
+  // own `matchingExamples` doc comment). Without this, the final compose call below only ever has a
+  // name and a count to work with — enough for a "which"/"how many" question, but nothing for a
+  // "how much does it cost?"-shaped one, which is exactly what led it to invent a price out of thin
+  // air in real testing rather than admit the data here doesn't include it.
+  let singleMatchRecordBlock = ''
+  if (totalMatchingCount === 1 && allMatches.length === 1 && entity.listCandidates && entity.getCurrent) {
+    const candidates = await entity.listCandidates('update', context, allMatches[0])
+    if (candidates.length === 1) {
+      const record = await entity.getCurrent(candidates[0].id, context)
+      if (record) singleMatchRecordBlock = `Full record for the one match found above (${candidates[0].label}):\n${JSON.stringify(record)}`
+    }
+  }
+
+  return [datasetSummary, batchedResultSummary, singleMatchRecordBlock].filter(Boolean).join('\n\n')
 }
+
+/**
+ * Composes the final natural-language answer from one already-resolved
+ * record — shared by `answerLookup`'s own single-item fast path and
+ * `answerLookupForItem` (the continuation call once the admin has picked one
+ * candidate off a `'clarifyItem'` result). Never asks the model to pick or
+ * search anything itself; by the time this runs, which record to use is
+ * already a settled, deterministic fact.
+ */
+async function answerFromRecord(
+  entity: AssistantEntity<unknown>,
+  record: unknown,
+  matchedLabel: string | undefined,
+  message: string,
+  uiLanguage: 'no' | 'en',
+  historyContext: string | undefined,
+  modelOverride: store.AssistantModel | undefined,
+  providerOverride: store.AssistantProvider | undefined,
+  capability: AssistantModelCapability,
+  trace: AssistantTraceEntry[],
+): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
+  const systemPrompt = [
+    languageInstruction(uiLanguage),
+    currentDateInstruction(),
+    `You are answering a factual question about one specific "${entity.key}" record from the Wraps & Coffee admin dashboard's own current data (the admin already named/picked it) — using only the record below, never outside/general knowledge, and never inventing a fact it doesn't support.`,
+    entity.lookupGuidance ?? '',
+    'Write your own complete sentence in the admin\'s own language — never literally copy a label or field name straight out of the record below.',
+    'If the question is about a price/cost, give the actual concrete amount (e.g. "80 kr") — never just a relative/percentage description like "80% of the normal price" on its own. If the record has its own already-computed effective/final price field, always read the answer directly from that field — never calculate a discounted price yourself from a base price and a discount percentage/amount, even if both are right there in the record: real testing showed that arithmetic gets it wrong. Only mention a discount percentage/amount as additional context alongside the real price, never as a substitute for it, and never as something to compute from.',
+    historyContextPromptLine(historyContext ?? null),
+    `"${entity.key}" record${matchedLabel ? ` (${matchedLabel})` : ''}:\n${JSON.stringify(record)}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+  const schema: AssistantJsonSchema = {
+    type: 'object',
+    properties: { reply: { type: 'string', description: "A short, direct answer to the admin's question, in their own language, based only on the record above." } },
+    required: ['reply'],
+    additionalProperties: false,
+  }
+  const callArgs = {
+    systemPrompt,
+    userText: message,
+    toolName: 'answer_lookup_item',
+    toolDescription: 'Answer the question using the provided record.',
+    schema,
+    model: modelOverride,
+    provider: providerOverride,
+    trace,
+  }
+  const result = capability.useVerifyPass ? await generateThenVerify<{ reply: string }>(callArgs) : await callToolOnce<{ reply: string }>(callArgs)
+  return { ...result, trace }
+}
+
+/**
+ * `'ready'` — a complete answer. `'clarifyItem'` — the question was about one
+ * specific item, but more than one real candidate matched and nothing
+ * (search text, conversation history) confidently narrowed it down further —
+ * asking which one is the honest alternative to silently guessing (which is
+ * exactly what a small local model was observed doing: confidently picking
+ * one of two identically-named products with no real signal favoring either).
+ * The caller shows `candidates` as a plain pick-one list and re-answers via
+ * `answerLookupForItem` once the admin picks.
+ */
+export type AnswerLookupResult = { status: 'ready'; reply: string; trace: AssistantTraceEntry[] } | { status: 'clarifyItem'; entityKey: string; candidates: AssistantCandidate[]; trace: AssistantTraceEntry[] }
 
 /**
  * Answers a factual question about the cafe's own current dashboard data —
@@ -637,8 +767,10 @@ export async function answerLookup(
   chunkSizePreference?: ChunkSizePreference,
   customChunkRecordCount?: number,
   historyContext?: string,
-): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
-
+  providerOverride?: store.AssistantProvider,
+  /** Set by `selectIntent` (the same `searchText` field the update/delete flow uses to find a target item) when the question is actually about one specific, already-named item (e.g. "how much does the Chicken Fajitas wrap cost?") rather than a filter/count across many records — see the single-item fast path below. `undefined` for an ordinary filter/count/list question. */
+  itemSearchText?: string,
+): Promise<AnswerLookupResult> {
   // Never trust the model's/client's own entity list — re-filter through the same session-scoped gate every other step uses, then drop anything with no `listAll` implemented (a sub-resource, or an entity that simply doesn't support lookup), then bound the total count regardless.
   const allowed = allowedEntitiesFor(session)
   const entities = entityKeys
@@ -647,17 +779,68 @@ export async function answerLookup(
     .slice(0, MAX_LOOKUP_ENTITIES)
 
   if (entities.length === 0) {
-    return { reply: uiLanguage === 'no' ? 'Jeg har ikke informasjon til å svare på det.' : "I don't have information to answer that.", trace: [] }
+    return {
+      status: 'ready',
+      reply: uiLanguage === 'no' ? 'Jeg har ikke informasjon til å svare på det.' : "I don't have information to answer that.",
+      trace: [],
+    }
   }
 
   const context: AssistantFillContext = { uiLanguage, session }
-  const capability = resolveModelCapability(modelOverride)
+  const capability = resolveModelCapability(modelOverride, providerOverride)
+
+  // Single-item fast path — a question about one specific, already-named item (see
+  // `itemSearchText`'s own doc comment) is answered directly from that one record instead of
+  // scanning/batching the entire dataset: both faster and far more reliable than the batch
+  // classifier below for this question shape. Resolving *which* record uses the exact same
+  // machinery `selectItem` already relies on for the CRUD flow — including its own real narrowing
+  // call for the ambiguous case, not just a "must already be exactly 1 substring match" check:
+  // an initial version of this fast path required `listCandidates` to return exactly one match up
+  // front, but a search text can easily substring-match more than one real record (e.g. "Chicken
+  // Fajitas" also matching "Chicken Fajitas Nachos") — silently falling through to the full batch
+  // scan in that case defeated the entire point for exactly the questions this was built for.
+  // Reusing `selectItem` here means: 0 candidates → falls through below unchanged; exactly 1 → its
+  // own zero-model-call fast path; 2+ → one real (and already-proven) narrowing call. If that
+  // narrowing call *still* can't confidently resolve one record — real testing showed a small local
+  // model will otherwise just confidently pick one of two identically-named products with no real
+  // signal favoring either — this returns `'clarifyItem'` instead of silently guessing or falling
+  // through to a batch scan that's just as unequipped to disambiguate. Only truly falls through to
+  // the batch path below when there's genuinely nothing to work with (0 candidates).
+  let fastPathTrace: AssistantTraceEntry[] = []
+  if (itemSearchText && entities.length === 1) {
+    const [singleEntity] = entities
+    if (singleEntity.listCandidates && singleEntity.getCurrent) {
+      const selection = await selectItem(singleEntity.key, 'update', session, message, itemSearchText, uiLanguage, undefined, modelOverride, historyContext, providerOverride)
+      fastPathTrace = selection.trace
+      if (selection.itemID) {
+        const record = await singleEntity.getCurrent(selection.itemID, context)
+        const matchedLabel = selection.candidates.find((candidate) => candidate.id === selection.itemID)?.label
+        if (record) {
+          const trace: AssistantTraceEntry[] = [...selection.trace]
+          const result = await answerFromRecord(singleEntity, record, matchedLabel, message, uiLanguage, historyContext, modelOverride, providerOverride, capability, trace)
+          return { status: 'ready', ...result }
+        }
+        console.log(`[assistant] answerLookup: single-item fast path resolved itemID "${selection.itemID}" but getCurrent found no record — falling back to the full batch scan`)
+      } else if (selection.candidates.length > 1) {
+        // Genuine ambiguity (2+ real candidates, no confident pick even after a real narrowing
+        // call) — ask, rather than guess or fall through to a batch scan that has no better way to
+        // pick between them either.
+        return { status: 'clarifyItem', entityKey: singleEntity.key, candidates: selection.candidates, trace: fastPathTrace }
+      } else {
+        // See the doc comment on `fastPathTrace` above: this is the one place that explains *why* a fallthrough happened, instead of it looking identical to "never attempted."
+        console.log(
+          `[assistant] answerLookup: single-item fast path for "${singleEntity.key}" fell through (itemSearchText=${JSON.stringify(itemSearchText)}, ${selection.candidates.length} candidate(s), no confident itemID) — falling back to the full batch scan`,
+        )
+      }
+    }
+  }
+
   const recordsPerBatch = resolveRecordsPerBatch(capability, chunkSizePreference, customChunkRecordCount)
 
-  const trace: AssistantTraceEntry[] = []
+  const trace: AssistantTraceEntry[] = [...fastPathTrace]
   const dataBlocks = await Promise.all(
     entities.map((entity) =>
-      buildEntityDataBlock(entity, context, message, uiLanguage, recordsPerBatch, capability.chunkCharBudget, capability.useVerifyPass, historyContext ?? null, modelOverride, trace),
+      buildEntityDataBlock(entity, context, message, uiLanguage, recordsPerBatch, capability.chunkCharBudget, capability.useVerifyPass, historyContext ?? null, modelOverride, providerOverride, trace),
     ),
   )
 
@@ -671,8 +854,10 @@ export async function answerLookup(
     currentDateInstruction(),
     "You are answering a factual question about the Wraps & Coffee admin dashboard's own current data, using only the data provided below — never use outside/general knowledge, and never invent a fact the data doesn't support.",
     'An empty list, a zero count, or "no matches" in the data below is itself a complete, valid answer (e.g. "there are currently none") — do not treat it as missing information to hedge about.',
-    'Any data block below that says a count of records "satisfy" the question has already been fully, completely checked against that exact question, record by record — that number and name list are the final answer, not a sample or a subset needing further detail. Report the count as a definite fact (e.g. "there are 7") — never hedge with "I only have example data" or "I\'d need more detail (like dates) to know for sure" when that checking has already been done for you.',
+    'A data block below with a "matchingCount"/"matchingNames" pair has already been fully, completely checked against that exact question, record by record — that count and name list are the final answer, not a sample or a subset needing further detail. Report the count as a definite fact (e.g. "there are 7") — never hedge with "I only have example data" or "I\'d need more detail (like dates) to know for sure" when that checking has already been done for you.',
+    'Write your own complete sentence in the admin\'s own language — never literally copy a label or phrase straight out of the data block below (e.g. never answer with something like "7 record(s) satisfy it"). If the question asks "which"/"what" ones (not just a count), your sentence must actually name every one of them from "matchingNames" — a bare count alone does not answer a "which" question.',
     "If the data below genuinely doesn't contain what's needed to answer, say so honestly rather than guessing.",
+    'A "matchingCount"/"matchingNames" data block only tells you whether each record matched the question and its name — never any other field (price, discount, stock, allergens, etc.) by itself. When exactly one match was found, a separate "Full record for the one match found above" block may also be present below with that record\'s real field data — check for it and use it if the question needs a specific field value. If the question asks for a specific field value (e.g. "how much does it cost?", "what\'s the discount amount?") and that value genuinely isn\'t present anywhere in the data below (no such full-record block, or it\'s missing the needed field), say you don\'t have that specific detail rather than inventing a plausible-sounding number — a fabricated price is far worse than admitting the data below doesn\'t include it.',
     lookupGuidance,
     historyContextPromptLine(historyContext ?? null),
     dataBlocks.join('\n\n'),
@@ -682,14 +867,45 @@ export async function answerLookup(
 
   const schema: AssistantJsonSchema = {
     type: 'object',
-    properties: { reply: { type: 'string', description: "A short, direct answer to the admin's question, in their own language, based only on the data above." } },
+    properties: {
+      reply: {
+        type: 'string',
+        description:
+          "A short, direct answer to the admin's question, in their own language, based only on the data above — your own complete sentence, never a phrase copied verbatim from the data block. If the question asks which/what items match, name them (from \"matchingNames\"), not just a bare count.",
+      },
+    },
     required: ['reply'],
     additionalProperties: false,
   }
 
-  const callArgs = { systemPrompt, userText: message, toolName: 'answer_lookup', toolDescription: 'Answer the question using the provided data.', schema, model: modelOverride, trace }
+  const callArgs = { systemPrompt, userText: message, toolName: 'answer_lookup', toolDescription: 'Answer the question using the provided data.', schema, model: modelOverride, provider: providerOverride, trace }
   const result = capability.useVerifyPass ? await generateThenVerify<{ reply: string }>(callArgs) : await callToolOnce<{ reply: string }>(callArgs)
-  return { ...result, trace }
+  return { status: 'ready', ...result, trace }
+}
+
+/**
+ * The continuation call once the admin has picked one specific candidate off
+ * an `answerLookup` `'clarifyItem'` result — answers directly from that one,
+ * now-unambiguous record. Never searches or picks anything itself; `itemID`
+ * is already a settled fact by the time this runs.
+ */
+export async function answerLookupForItem(
+  entityKey: string,
+  itemID: string,
+  message: string,
+  uiLanguage: 'no' | 'en',
+  session: AssistantSession,
+  historyContext?: string,
+  modelOverride?: store.AssistantModel,
+  providerOverride?: store.AssistantProvider,
+): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
+  const entity = requireAccessibleEntity(entityKey, session)
+  if (!entity.getCurrent) throw new Error(`"${entityKey}" has nothing to look up.`)
+  const context: AssistantFillContext = { uiLanguage, session }
+  const record = await entity.getCurrent(itemID, context)
+  if (!record) throw new Error("Couldn't find that item anymore — it may have been deleted.")
+  const capability = resolveModelCapability(modelOverride, providerOverride)
+  return answerFromRecord(entity, record, undefined, message, uiLanguage, historyContext, modelOverride, providerOverride, capability, [])
 }
 
 /**
@@ -709,6 +925,7 @@ export async function transcribeAttachment(
   uiLanguage: 'no' | 'en',
   image: AssistantImageInput,
   modelOverride?: store.AssistantModel,
+  providerOverride?: store.AssistantProvider,
 ): Promise<{ text: string; trace: AssistantTraceEntry[] }> {
   const schema: AssistantJsonSchema = {
     type: 'object',
@@ -737,6 +954,7 @@ export async function transcribeAttachment(
     toolDescription: 'Report the transcribed text from the photo.',
     schema,
     model: modelOverride,
+    provider: providerOverride,
     trace,
   })
   return { ...result, trace }

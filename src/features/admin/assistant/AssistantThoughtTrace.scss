@@ -112,6 +112,10 @@
       font-family: monospace;
     }
 
+    &-model {
+      opacity: 0.75;
+    }
+
     pre {
       margin: 0;
       overflow-x: auto;

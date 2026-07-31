@@ -71,6 +71,7 @@ export async function anthropicCallTool<T>(input: ToolCallInput): Promise<T> {
       input: JSON.stringify({ userText: input.userText }).slice(0, 500),
       output: JSON.stringify(toolUse.input).slice(0, 500),
       usage,
+      model,
     })
   }
 
