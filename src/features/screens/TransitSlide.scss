@@ -293,8 +293,15 @@
 // which our redefinition further down the tree can't retroactively change.
 // `> h1` needs the same explicit `font-family` for the same reason — its
 // own more-specific rule above wins over whatever the container inherits.
-.transit-slide--branded-ruter,
-.transit-slide--branded-entur {
+// Qualified with the base `.transit-slide` class too (always present
+// alongside the `--branded-*` modifier, see `TransitSlide.tsx`'s own
+// className) so `> h1`'s combined specificity (0,2,1) reliably beats
+// `SplitLayout.scss`'s own `.split-layout h1` theme-heading-font catch-all
+// (0,1,1) regardless of stylesheet order — `.transit-slide--branded-ruter
+// > h1` alone would only *tie* it (same 0,1,1), leaving the theme's font to
+// win or lose purely by accident of import order.
+.transit-slide.transit-slide--branded-ruter,
+.transit-slide.transit-slide--branded-entur {
   font-family: $font-dashboard-sans;
   color: var(--screen-text);
   background: var(--screen-bg);

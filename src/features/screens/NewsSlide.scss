@@ -157,13 +157,6 @@
 
 .news-slide__headline {
   margin: 0;
-  // `global.scss` sets a `h2 { font-family: $font-subheading }` rule (a
-  // cursive font for the kiosk's own menu/announcement headings) that
-  // directly targets this element — an inherited value never wins against
-  // an explicit rule matching the element itself, however low that rule's
-  // own specificity is, so this needs its own explicit override back to
-  // "actually inherit from `.news-slide` (or its branded per-source font)."
-  font-family: inherit;
   font-size: var(--slide-heading-size, 8cqmin);
   font-weight: 700;
   line-height: 1.3;
@@ -173,6 +166,24 @@
   // tall, rather than a long headline alone forcing a scrollbar or getting
   // silently clipped mid-word.
   @include line-clamp(3);
+}
+
+// Both `global.scss`'s bare `h2 { font-family: $font-subheading }` (a
+// cursive font for the kiosk's own menu/announcement headings) and
+// `SplitLayout.scss`'s own `.split-layout h2` catch-all (the active theme's
+// own heading font, for any slide with no override of its own) directly
+// target `.news-slide__headline` — an inherited value never wins against an
+// explicit rule matching the element itself, only a *more specific* one
+// does, so this needs its own explicit override back to "actually inherit
+// from `.news-slide__content` (its branded per-source font, via the inline
+// style `NewsSlide.tsx` sets there, when branded)." Qualified with
+// `.news-slide__content` (its real DOM parent, see `NewsSlide.tsx`) rather
+// than just `.news-slide__headline` alone specifically to out-specificity
+// `.split-layout h2` (0,1,1) — a bare class selector (0,1,0) used to be
+// enough back when the only competing rule was `global.scss`'s bare `h2`
+// (0,0,1), but isn't anymore.
+.news-slide__content .news-slide__headline {
+  font-family: inherit;
 }
 
 .news-slide__description {
