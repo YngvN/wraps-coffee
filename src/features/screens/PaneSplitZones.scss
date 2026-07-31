@@ -92,17 +92,21 @@
   }
 }
 
-// The actual "invisible border" — only painted on hover, always dead-center
-// across the whole pane, since the split it triggers is always an even
-// 50/50 (see `splitLeaf`). A direct child of `.pane-split-zones` (spanning
-// the whole pane), so `50%` resolves against the pane itself, not one
-// piece's own narrow band.
+// The pane's own "invisible border" — since `PaneSplitZones` is only ever
+// rendered for the currently *selected* pane (see `LayoutPane.tsx`), it
+// stays faintly visible (~10% opacity — "almost 90% transparent") at rest
+// so a selected pane always hints where it would split, then brightens to
+// fully opaque on hover (see the `@media (hover: hover)` rules below).
+// Always dead-center across the whole pane, since the split it triggers is
+// always an even 50/50 (see `splitLeaf`). A direct child of
+// `.pane-split-zones` (spanning the whole pane), so `50%` resolves against
+// the pane itself, not one piece's own narrow band.
 .pane-split-zones__row-line,
 .pane-split-zones__column-line {
   position: absolute;
   background: var(--screen-accent);
   box-shadow: 0 0 6px 1px rgba(0, 0, 0, 0.4);
-  opacity: 0;
+  opacity: 0.1;
   transition: opacity 0.15s ease;
   pointer-events: none;
 }

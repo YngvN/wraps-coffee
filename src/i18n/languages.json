@@ -429,7 +429,9 @@
           "submit": "Sign in",
           "submitting": "Signing in...",
           "error": "Invalid username or password.",
-          "serverUnreachable": "Could not reach the local server. Is it running?"
+          "serverUnreachable": "Could not reach the local server. Is it running?",
+          "showQr": "Show QR code",
+          "hideQr": "Hide QR code"
         },
         "windowControls": {
           "minimizeLabel": "Minimize",
@@ -452,7 +454,8 @@
           "users": "Users",
           "settings": "Settings",
           "messageBoard": "Message board",
-          "recentlyOpened": "Recently opened"
+          "recentlyOpened": "Recently opened",
+          "showLoginQr": "Show login QR code"
         },
         "notifications": {
           "title": "Notifications",
@@ -924,7 +927,7 @@
           "editTextSize": "Edit text size",
           "displayUrlLabel": "Display link",
           "openInNewTab": "Open",
-          "openEditorLink": "Editor",
+          "openEditorLink": "Fullscreen editor",
           "urlCopied": "Copied to clipboard",
           "noScreens": "No screens yet.",
           "duplicateName": "{{name}} copy",
@@ -1010,6 +1013,7 @@
           "openMenu": "Open menu",
           "closeMenu": "Close menu",
           "close": "Close",
+          "undo": "Undo",
           "yes": "Yes",
           "no": "No"
         },
@@ -1914,6 +1918,14 @@
         "uploadButtonMedia": "Upload image/video",
         "uploadingPercent": "Uploading... {{percent}}%",
         "videoFailedFallback": "Video processing failed."
+      },
+      "errorBoundary": {
+        "title": "Something went wrong",
+        "description": "This page ran into an unexpected error. You can try refreshing, or send a crash report so it can be looked into.",
+        "goBackButton": "Go back",
+        "sendReportButton": "Send crash report",
+        "reportSubject": "Crash report - Wraps Coffee",
+        "reportSent": "Your email app should now be open with the report ready to send."
       }
     }
   },
@@ -2347,7 +2359,9 @@
           "submit": "Logg inn",
           "submitting": "Logger inn...",
           "error": "Feil brukernavn eller passord.",
-          "serverUnreachable": "Fant ikke den lokale serveren. Kjører den?"
+          "serverUnreachable": "Fant ikke den lokale serveren. Kjører den?",
+          "showQr": "Vis QR-kode",
+          "hideQr": "Skjul QR-kode"
         },
         "windowControls": {
           "minimizeLabel": "Minimer",
@@ -2370,7 +2384,8 @@
           "users": "Brukere",
           "settings": "Innstillinger",
           "messageBoard": "Oppslagstavle",
-          "recentlyOpened": "Nylig åpnet"
+          "recentlyOpened": "Nylig åpnet",
+          "showLoginQr": "Vis QR-kode for innlogging"
         },
         "notifications": {
           "title": "Varsler",
@@ -2842,7 +2857,7 @@
           "editTextSize": "Rediger tekststørrelse",
           "displayUrlLabel": "Visningslenke",
           "openInNewTab": "Åpne",
-          "openEditorLink": "Redigering",
+          "openEditorLink": "Fullskjerm-redigering",
           "urlCopied": "Kopiert til utklippstavlen",
           "noScreens": "Ingen skjermer ennå.",
           "duplicateName": "{{name}} kopi",
@@ -2928,6 +2943,7 @@
           "openMenu": "Åpne meny",
           "closeMenu": "Lukk meny",
           "close": "Lukk",
+          "undo": "Angre",
           "yes": "Ja",
           "no": "Nei"
         },
@@ -3832,6 +3848,14 @@
         "uploadButtonMedia": "Last opp bilde/video",
         "uploadingPercent": "Laster opp... {{percent}}%",
         "videoFailedFallback": "Videobehandling feilet."
+      },
+      "errorBoundary": {
+        "title": "Noe gikk galt",
+        "description": "Denne siden støtte på en uventet feil. Du kan prøve å oppdatere, eller sende en feilrapport slik at den kan undersøkes.",
+        "goBackButton": "Gå tilbake",
+        "sendReportButton": "Send feilrapport",
+        "reportSubject": "Feilrapport - Wraps Coffee",
+        "reportSent": "E-postappen din skal nå være åpen med rapporten klar til å sendes."
       }
     }
   }

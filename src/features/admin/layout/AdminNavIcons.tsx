@@ -161,3 +161,19 @@ export function AssistantSparkleIcon(props: IconProps) {
     </Icon>
   )
 }
+
+/** A simplified QR code glyph (three outlined corner "finder" squares plus a scatter of data-module dots), matching this file's shared stroke-icon convention — `AdminSidebarNav`'s own button that opens a modal with a scannable QR code linking to the login page. */
+export function QrCodeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <line x1="14" y1="14" x2="14" y2="17" />
+      <line x1="17" y1="14" x2="20" y2="14" />
+      <line x1="20" y1="17" x2="20" y2="20" />
+      <line x1="14" y1="20" x2="17" y2="20" />
+      <circle cx="17" cy="17" r="0.5" fill="currentColor" />
+    </Icon>
+  )
+}

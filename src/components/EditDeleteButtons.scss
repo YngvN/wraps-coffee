@@ -6,6 +6,60 @@
   gap: calc($spacing-unit / 2);
 }
 
+.edit-delete-buttons__menu-wrapper {
+  display: inline-flex;
+}
+
+.edit-delete-buttons__menu-caret {
+  display: inline-flex;
+  transform: rotate(90deg);
+}
+
+// Positioned via inline `top`/`left` (see `EditDeleteButtons.tsx`'s own
+// `menuPosition`, computed from the trigger button's bounding rect) rather
+// than `position: absolute` relative to `.edit-delete-buttons__menu-wrapper`
+// — it's portaled straight to `document.body` so an ancestor card's own
+// `overflow: hidden` (needed to clip its rounded preview corners) can't
+// clip this menu too.
+.edit-delete-buttons__menu {
+  position: fixed;
+  z-index: 1000;
+  margin: 0;
+  padding: calc($spacing-unit / 2) 0;
+  min-width: 10rem;
+  width: max-content;
+  list-style: none;
+  background: $color-bg;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px $color-shadow;
+}
+
+.edit-delete-buttons__menu-item {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  width: 100%;
+  padding: calc($spacing-unit / 2) calc($spacing-unit * 1.5);
+  border: none;
+  background: transparent;
+  color: $color-text;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  text-align: left;
+  cursor: pointer;
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-border;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
 // Hidden below this width so a row's Edit/Delete pair doesn't crowd out its
 // own name/badges on a narrow (phone-width) admin screen — the icon alone
 // (see `EditIcon`/`TrashIcon`) stays, still recognizable and still announced

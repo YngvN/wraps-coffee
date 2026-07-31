@@ -25,15 +25,18 @@ const PIECE_AXIS: Record<Piece, SplitDirection> = {
  * Since a split is always an even 50/50 (see `splitLeaf`), a pane's own
  * "invisible border" sits exactly on its own middle — a vertical line for a
  * prospective 'row' (left/right) split, a horizontal one for a 'column'
- * (top/bottom) split. Hovering close to either middle line reveals it: a
- * hollow "plus" of 4 narrow band pieces (see `PaneSplitZones.scss`) —
- * north/south flank the vertical line (narrow in x, tall in y), west/east
- * flank the horizontal one (narrow in y, tall in x). Which side of the line
- * the new pane lands on is decided from the actual click position (left/right
- * of the vertical line for a row split, above/below the horizontal one for a
- * column split), not which piece was clicked — north and south, for
- * instance, both flank the *same* vertical line and don't inherently know
- * which side of it either.
+ * (top/bottom) split. Only ever rendered for the currently *selected* pane
+ * (see `LayoutPane.tsx`), so both lines already sit at a faint ~10% opacity
+ * at rest, hinting where they'd land — hovering close to either one instead
+ * brightens it to fully opaque: a hollow "plus" of 4 narrow band pieces (see
+ * `PaneSplitZones.scss`) — north/south flank the vertical line (narrow in x,
+ * tall in y), west/east flank the horizontal one (narrow in y, tall in x).
+ * Which side of the line the new pane lands on is decided from the actual
+ * click position (left/right of the vertical line for a row split,
+ * above/below the horizontal one for a column split), not which piece was
+ * clicked — north and south, for instance, both flank the *same* vertical
+ * line and don't inherently know which side of it either. The "Split" label
+ * itself stays hidden until hovered, regardless of selection.
  *
  * Dead center, where both lines would cross, is its own fifth zone instead
  * of falling through to `PaneEditButton` beneath — hovering it previews

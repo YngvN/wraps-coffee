@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { forwardRef, useImperativeHandle, useState } from 'react'
 import { Button, Checkbox } from '../../components'
 import { useLanguage } from '../../i18n'
 import { DEFAULT_TEXT_SIZES, type ScreenConfig, type TextSizes } from '../../types/screen'
@@ -66,6 +66,11 @@ interface GlobalTextSizeScalerProps {
   onDone: () => void
 }
 
+/** Exposed via `ref` so a caller's own UI outside this component (e.g. the wrapping `Modal`'s own header undo button) can trigger the same "Restore previous" behavior as this panel's own action-row button. */
+export interface GlobalTextSizeScalerHandle {
+  restore: () => void
+}
+
 /**
  * Scales every text size role by a percentage — 100% means "unchanged".
  * Unlike the display's own (absolute) text-size editor, this doesn't set one
@@ -79,9 +84,16 @@ interface GlobalTextSizeScalerProps {
  * and has no restore/reset semantics of its own. "Restore previous" undoes
  * everything back to how the screen was when the panel opened; "Reset"
  * instead sets every size to the hardcoded standard and clears every slot's
- * own color/image (at every stage) back to a single fresh default.
+ * own color/image (at every stage) back to a single fresh default. Also
+ * exposes that same "Restore previous" behavior via `ref` (see
+ * `GlobalTextSizeScalerHandle`), for a caller that wants to trigger it from
+ * outside this component's own action row — e.g. an undo button in the
+ * wrapping `Modal`'s header.
  */
-export function GlobalTextSizeScaler({ screen, onChange, screensaver, onOpenBackground, onDone }: GlobalTextSizeScalerProps) {
+export const GlobalTextSizeScaler = forwardRef<GlobalTextSizeScalerHandle, GlobalTextSizeScalerProps>(function GlobalTextSizeScaler(
+  { screen, onChange, screensaver, onOpenBackground, onDone },
+  ref,
+) {
   const { t } = useLanguage()
   const [baseline] = useState(() => snapshotFrom(screen))
   const [reference, setReference] = useState<SizeSnapshot>(baseline)
@@ -144,6 +156,8 @@ export function GlobalTextSizeScaler({ screen, onChange, screensaver, onOpenBack
     onChange(baseline)
   }
 
+  useImperativeHandle(ref, () => ({ restore: handleRestore }))
+
   /** Hard-resets every size to the standard default and clears every pane's own color — a fresh 100% reference point, not tied to how the screen looked when the panel opened. Leaves the screen's own background color untouched. */
   const handleReset = () => {
     const standard = standardSnapshotFrom(current.paneSlots)
@@ -205,4 +219,4 @@ export function GlobalTextSizeScaler({ screen, onChange, screensaver, onOpenBack
       </div>
     </div>
   )
-}
+})

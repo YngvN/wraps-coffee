@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react'
-import { Badge, CopyIcon, EditDeleteButtons } from '../../../components'
+import { Badge, CopyIcon, EditDeleteButtons, FullscreenIcon } from '../../../components'
 import { useLanguage, type LanguageCode } from '../../../i18n'
 import { DEFAULT_SCREEN_BACKGROUND_COLOR, type ScreenConfig } from '../../../types/screen'
 import { getScreenColorVars } from '../../../utils/screenColors'
@@ -36,13 +36,14 @@ interface ScreenCardProps {
  * previous/next stepper overlaid on the preview (local to this one card —
  * switching another card's step never affects this one) so a multi-step
  * screen's other steps can be glanced at without opening the editor. Below
- * the preview, a footer repeats the name/badges/URL, an "Editor" link (opens
- * the screen's own dedicated `/screens/editor/:screenId` display, the only
- * URL that ever offers the in-place editing toolbar — distinct from "Open,"
- * which opens the plain, always read-only `/screens/:screenId` URL and
- * additionally requests fullscreen/autoplay for a real kiosk deployment)
- * alongside it, and the Edit/Duplicate/Delete actions this list has always
- * had ("Edit" there opens this dashboard's own form, not the live display).
+ * the preview, a footer repeats the name/badges/URL and the Edit/Duplicate/
+ * Delete actions this list has always had. The Edit button's own dropdown
+ * menu (`EditDeleteButtons`' `editMenuExtra`) offers a second destination
+ * alongside the plain "Edit" (this dashboard's own form): the screen's own
+ * dedicated `/screens/editor/:screenId` display, the only URL that ever
+ * offers the in-place editing toolbar — distinct from "Open," which opens
+ * the plain, always read-only `/screens/:screenId` URL and additionally
+ * requests fullscreen/autoplay for a real kiosk deployment.
  */
 export function ScreenCard({ screen, url, editorUrl, defaultPaneLanguage, slotCountLabel, copied, onCopy, onOpen, onOpenEditor, onEdit, onDuplicate, onDelete }: ScreenCardProps) {
   const { t } = useLanguage()
@@ -99,20 +100,14 @@ export function ScreenCard({ screen, url, editorUrl, defaultPaneLanguage, slotCo
           >
             {t('admin.screens.openInNewTab')}
           </a>
-          <a
-            href={editorUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(event) => {
-              event.preventDefault()
-              onOpenEditor()
-            }}
-          >
-            {t('admin.screens.openEditorLink')}
-          </a>
         </div>
         <div className="screen-card__actions">
-          <EditDeleteButtons onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />
+          <EditDeleteButtons
+            onEdit={onEdit}
+            onDuplicate={onDuplicate}
+            onDelete={onDelete}
+            editMenuExtra={{ label: t('admin.screens.openEditorLink'), icon: <FullscreenIcon />, onClick: onOpenEditor, href: editorUrl }}
+          />
         </div>
       </div>
     </div>

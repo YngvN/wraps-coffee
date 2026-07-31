@@ -2,8 +2,10 @@ import { AnimatePresence, motion, useDragControls } from 'framer-motion'
 import { useRef, type ReactNode } from 'react'
 import { useEscapeToClose } from '../hooks/useEscapeToClose'
 import { useMediaQuery } from '../hooks/useMediaQuery'
-import { MoveIcon } from './MoveIcon'
+import { useLanguage } from '../i18n'
 import './FloatingPanel.scss'
+import { MoveIcon } from './MoveIcon'
+import { UndoIcon } from './UndoIcon'
 
 /** Viewport width from which the panel becomes a freely draggable floating card instead of a bottom sheet — matches `Modal.tsx`'s own breakpoint. */
 const BIG_SCREEN_QUERY = '(min-width: 768px)'
@@ -12,6 +14,8 @@ interface FloatingPanelProps {
   open: boolean
   onClose: () => void
   title?: string
+  /** Adds an undo button to the header row, right before the × — see `Modal`'s own `onUndo` doc comment, same idea here. Omit to hide it entirely. */
+  onUndo?: () => void
   /** A non-scrolling row pinned to the bottom of the panel — e.g. Restore/Done actions. */
   footer?: ReactNode
   children: ReactNode
@@ -27,14 +31,16 @@ interface FloatingPanelProps {
  * viewport via a full-screen `pointer-events: none` bounds element — a
  * `MoveIcon` sits to the left of the title as a visual cue that the header
  * is what's draggable, whenever dragging is actually enabled (i.e. not in
- * the mobile sheet mode below). Closes
+ * the mobile sheet mode below). An undo button (see `onUndo`) can sit right
+ * before the × when a caller passes one, same idea as `Modal`'s own. Closes
  * via its × button or Escape (`useEscapeToClose`, shared with `Modal`) —
  * there's no backdrop to click, so that's not a close affordance here.
  * Below `BIG_SCREEN_QUERY`, it drops the drag behavior (awkward to reposition
  * on a small touch screen) and docks full-width to the bottom of the
  * viewport instead, sheet-style.
  */
-export function FloatingPanel({ open, onClose, title, footer, children }: FloatingPanelProps) {
+export function FloatingPanel({ open, onClose, title, onUndo, footer, children }: FloatingPanelProps) {
+  const { t } = useLanguage()
   const dragControls = useDragControls()
   const constraintsRef = useRef<HTMLDivElement>(null)
   const isBigScreen = useMediaQuery(BIG_SCREEN_QUERY)
@@ -68,7 +74,12 @@ export function FloatingPanel({ open, onClose, title, footer, children }: Floati
                   </span>
                 )}
                 {title && <h3 className="floating-panel__title">{title}</h3>}
-                <button type="button" className="floating-panel__close" onClick={onClose} aria-label="Close">
+                {onUndo && (
+                  <button type="button" className="floating-panel__undo" onClick={onUndo} aria-label={t('admin.common.undo')} title={t('admin.common.undo')}>
+                    <UndoIcon />
+                  </button>
+                )}
+                <button type="button" className="floating-panel__close" onClick={onClose} aria-label={t('admin.common.close')}>
                   ×
                 </button>
               </div>

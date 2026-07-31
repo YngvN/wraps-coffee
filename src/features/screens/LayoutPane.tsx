@@ -42,7 +42,7 @@ interface LayoutPaneProps {
   screenBackgroundImage?: BackgroundImage
   /** This pane's own slice of `screenBackgroundImage`, in pixels — `left`/`top` is this pane's own offset from the whole screen's own top-left corner, `screenWidth`/`screenHeight` is the whole screen's own measured size. `undefined` before the container's real pixel size is known yet (see `LayoutTree.tsx`'s own `containerSize`) — the fallback image simply doesn't render for those first few frames rather than momentarily flashing an unwindowed/wrongly-cropped one. */
   screenBackgroundWindow?: { left: number; top: number; screenWidth: number; screenHeight: number }
-  /** Hovering close to the pane's own middle (either axis) reveals a "Split" line/label there; clicking splits it 50/50 along that axis — see `PaneSplitZones`. Omit (like `onEditSlide`) to disable, e.g. while the screen is locked. */
+  /** Hovering close to the pane's own middle (either axis) reveals a "Split" line/label there; clicking splits it 50/50 along that axis — see `PaneSplitZones`. Omit (like `onEditSlide`) to disable, e.g. while the screen is locked. Only ever actually rendered while `selected` is also true (see the render below) — an unselected pane offers no split zones at all, regardless of this prop. */
   onSplitPane?: (leafId: PaneId, axis: SplitDirection, edge: 'start' | 'end') => void
   /** Hovering dead center instead splits this pane straight into a clean 2x2 of 4 — see `PaneSplitZones`' own doc comment. Omit (like `onSplitPane`) to disable. */
   onSplitFour?: (leafId: PaneId) => void
@@ -382,8 +382,8 @@ export function LayoutPane({
         also `pointer-events: none` — see its own prop doc comment).
       */}
       {onEditSlide && <PaneEditButton onClick={() => onEditSlide(leafId)} />}
-      {/* A video fills its own pane edge-to-edge with no natural split point, so splitting it isn't offered at all — not even the hover highlight. */}
-      {onSplitPane && content.kind !== 'video' && (
+      {/* A video fills its own pane edge-to-edge with no natural split point, so splitting it isn't offered at all — not even the hover highlight. Splitting an unselected pane isn't offered either: select it first (via `PaneEditButton` above), same as every other per-pane action here. */}
+      {onSplitPane && selected && content.kind !== 'video' && (
         <PaneSplitZones
           onSplit={(axis, edge) => onSplitPane(leafId, axis, edge)}
           onSplitFour={onSplitFour ? () => onSplitFour(leafId) : undefined}

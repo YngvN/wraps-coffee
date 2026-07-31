@@ -23,3 +23,29 @@
     font-family: $font-subheading;
   }
 }
+
+.admin-login__qr-toggle {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-login__qr {
+  display: flex;
+  justify-content: center;
+  max-height: 0;
+  margin-top: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.3s ease, margin-top 0.3s ease, opacity 0.3s ease;
+
+  &--open {
+    max-height: 220px;
+    margin-top: $spacing-unit;
+    opacity: 1;
+  }
+}
+
+.admin-login__qr-code {
+  width: 160px;
+  height: 160px;
+}

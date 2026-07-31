@@ -41,9 +41,14 @@ interface ExitingPaneGhostProps {
  * `src/utils/paneGrowth.ts` for why this is the exact reverse of the same
  * algorithm). Wraps a read-only `LayoutPane` (every interactive prop
  * omitted, exactly like a locked screen renders one today) rather than
- * re-implementing pane rendering — `paneSlots[leafId]` is guaranteed still
- * present, since removing a leaf from the tree never touches `paneSlots`
- * (orphaned entries are deliberately left in place).
+ * re-implementing pane rendering — `paneSlots[leafId]` is present for
+ * ordinary deletes (`deleteLeaf` never touches `paneSlots`, orphaned
+ * entries are deliberately left in place), but *not* guaranteed for a leaf
+ * that disappeared via undo/redo (which swaps in a whole prior
+ * `ScreenConfig` snapshot, `paneSlots` included, rather than just the
+ * tree) — `SplitLayout.tsx`'s own caller skips ever mounting this component
+ * at all once `paneSlots[leafId]` is missing, rather than rendering it with
+ * an undefined `slot`.
  */
 export function ExitingPaneGhost({
   leafId,

@@ -1,0 +1,39 @@
+@use '../styles/variables' as *;
+
+.error-boundary-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: $spacing-unit * 3;
+}
+
+.error-boundary-page__card {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+
+  h1 {
+    margin: 0;
+    font-family: $font-subheading;
+  }
+}
+
+.error-boundary-page__description {
+  margin: 0;
+  color: $color-text-muted;
+}
+
+.error-boundary-page__sent {
+  margin: 0;
+  color: $color-accent;
+}
+
+.error-boundary-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-unit;
+  margin-top: $spacing-unit;
+}

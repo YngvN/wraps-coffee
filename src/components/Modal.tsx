@@ -2,7 +2,9 @@ import { AnimatePresence, motion, useDragControls } from 'framer-motion'
 import { useEffect, useState, type PointerEvent, type ReactNode } from 'react'
 import { useEscapeToClose } from '../hooks/useEscapeToClose'
 import { useMediaQuery } from '../hooks/useMediaQuery'
+import { useLanguage } from '../i18n'
 import './Modal.scss'
+import { UndoIcon } from './UndoIcon'
 
 /** Viewport width from which the modal switches from an iOS-style bottom sheet to a centered card dialog. */
 const BIG_SCREEN_QUERY = '(min-width: 768px)'
@@ -22,6 +24,8 @@ interface ModalProps {
    * editor, which just sits over a list of other screens).
    */
   transparentOnSliderDrag?: boolean
+  /** Adds an undo button to the header row, right before the × — e.g. the on-screen "Edit screen" modal's own text-size/percentage scaler, which needs a way to step edits back without scrolling down to its own action row. Omit (as most callers do) to hide it entirely. */
+  onUndo?: () => void
   children: ReactNode
 }
 
@@ -72,12 +76,14 @@ const CLOSE_VELOCITY_THRESHOLD = 500
  * as the body below them, with a permanent bottom border — no wider than
  * that, so it only ever separates content that's actually there to scroll
  * under it — and the × lines up with the title since they're side by side
- * in that same row. When a caller has its own sub-view navigation (e.g.
- * the admin screen editor's "Resize slots" panel), `route` names the
- * currently open one right after the title in regular weight, e.g. "Edit
- * screen - Resize slots".
+ * in that same row (an undo button, see `onUndo`, sits between the title
+ * and the × when a caller passes one). When a caller has its own sub-view
+ * navigation (e.g. the admin screen editor's "Resize slots" panel), `route`
+ * names the currently open one right after the title in regular weight,
+ * e.g. "Edit screen - Resize slots".
  */
-export function Modal({ open, onClose, title, route, transparentOnSliderDrag = true, children }: ModalProps) {
+export function Modal({ open, onClose, title, route, transparentOnSliderDrag = true, onUndo, children }: ModalProps) {
+  const { t } = useLanguage()
   const [isDraggingSlider, setIsDraggingSlider] = useState(false)
   const dragControls = useDragControls()
   const isBigScreen = useMediaQuery(BIG_SCREEN_QUERY)
@@ -145,7 +151,12 @@ export function Modal({ open, onClose, title, route, transparentOnSliderDrag = t
                     {route && <span className="modal__route"> - {route}</span>}
                   </h3>
                 )}
-                <button type="button" className="modal__close" onClick={onClose} aria-label="Close">
+                {onUndo && (
+                  <button type="button" className="modal__undo" onClick={onUndo} aria-label={t('admin.common.undo')} title={t('admin.common.undo')}>
+                    <UndoIcon />
+                  </button>
+                )}
+                <button type="button" className="modal__close" onClick={onClose} aria-label={t('admin.common.close')}>
                   ×
                 </button>
               </div>

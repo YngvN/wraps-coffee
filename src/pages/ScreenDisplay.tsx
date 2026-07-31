@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, useMatch, useNavigate, useParams } from 'react-router-dom'
 import { BackButton, Button, Checkbox, FloatingPanel, Modal, RedoIcon } from '../components'
 import { DashboardWindowControls } from '../features/admin/layout/DashboardWindowControls'
@@ -7,7 +7,7 @@ import { BackgroundEditor } from '../features/screens/BackgroundEditor'
 import { BorderSettingsEditor } from '../features/screens/BorderSettingsEditor'
 import { DisplayControlsBar } from '../features/screens/DisplayControlsBar'
 import { FullscreenToggle } from '../features/screens/FullscreenToggle'
-import { GlobalTextSizeScaler, type SizeSnapshot } from '../features/screens/GlobalTextSizeScaler'
+import { GlobalTextSizeScaler, type GlobalTextSizeScalerHandle, type SizeSnapshot } from '../features/screens/GlobalTextSizeScaler'
 import { KeepEditPrompt, type SlotEditChanges } from '../features/screens/KeepEditPrompt'
 import { NoConnectionIcon } from '../features/screens/NoConnectionIcon'
 import { ScreenToolbar } from '../features/screens/ScreenToolbar'
@@ -261,6 +261,8 @@ export function ScreenDisplay() {
   const [screenDraftSnapshot, setScreenDraftSnapshot] = useState<SizeSnapshot | null>(null)
   /** Whether the whole-screen editor is showing its own "Background" or "Borders" sub-view instead of the main percentage scaler — reset whenever the editor (re)opens. Both write straight through `applyScreenPatch` on every change (see `handleScreenBackgroundColorChange`/`handleScreenBackgroundImageChange`/`handleShowSlotBordersChange`/`handleBorderColorChange`), so unlike the scaler's own fields neither has any local draft/restore state of its own. */
   const [screenSubview, setScreenSubview] = useState<'background' | 'border' | null>(null)
+  /** Lets the "Edit screen" modal's own header undo button (see the `Modal`'s `onUndo`) trigger `GlobalTextSizeScaler`'s own "Restore previous" from outside its action row — only actually passed to the modal while `screenSubview` is `null` (its own main view), since the background/border sub-views have no restore semantics of their own. */
+  const globalTextSizeScalerRef = useRef<GlobalTextSizeScalerHandle>(null)
   const [draftSlot, setDraftSlot] = useState<ScreenSlot>(emptySlot())
   const [originalSlot, setOriginalSlot] = useState<ScreenSlot>(emptySlot())
   const [draftTextSizes, setDraftTextSizes] = useState<TextSizes>(DEFAULT_TEXT_SIZES)
@@ -1177,6 +1179,7 @@ export function ScreenDisplay() {
         route={
           screenSubview === 'background' ? t('admin.screens.backgroundLabel') : screenSubview === 'border' ? t('admin.screens.bordersLabel') : undefined
         }
+        onUndo={screenSubview === null ? () => globalTextSizeScalerRef.current?.restore() : undefined}
       >
         {screenSubview === 'background' ? (
           <>
@@ -1200,6 +1203,7 @@ export function ScreenDisplay() {
           </>
         ) : (
           <GlobalTextSizeScaler
+            ref={globalTextSizeScalerRef}
             screen={viewScreen}
             onChange={setScreenDraftSnapshot}
             screensaver={
@@ -1222,6 +1226,7 @@ export function ScreenDisplay() {
         open={typeof editingTarget === 'object' && editingTarget !== null}
         onClose={requestCloseEditor}
         title={showKeepEditPrompt ? t('screenDisplay.keepEditPrompt.title') : t('screenDisplay.slotEditorTitle')}
+        onUndo={showKeepEditPrompt ? undefined : handleRestore}
         footer={
           !showKeepEditPrompt && (
             <>

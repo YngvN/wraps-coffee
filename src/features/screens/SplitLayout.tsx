@@ -324,6 +324,7 @@ export function SplitLayout({
           if (id in current) continue
           const rect = priorGeometry.leaves.find((leaf) => leaf.id === id)?.rect
           if (!rect) continue
+          // Still added to `exitingGhosts` even when `screen.paneSlots[id]` is already gone (see the render call below, which skips mounting `ExitingPaneGhost` for exactly that case) — *not* skipped here, since `id` leaving this map is what stops `newlyDisappeared` from including it again above; permanently excluding it here instead would make this same block re-fire, and re-call `setExitingGhosts`, on every single future render (an infinite "too many re-renders" loop), not just a one-time skip.
           additions[id] = { rect, growth: resolvePaneGrowthOrigin(baseForExit, tree, id, paneGrowthFallback) }
         }
         return Object.keys(additions).length > 0 ? { ...current, ...additions } : current
@@ -589,26 +590,31 @@ export function SplitLayout({
         stageTick={stageTick}
         onRequestStageAdvance={onRequestStageAdvance}
       />
-      {Object.entries(exitingGhosts).map(([leafId, { rect, growth }]) => (
-        <ExitingPaneGhost
-          key={leafId}
-          leafId={leafId}
-          rect={rect}
-          growth={growth}
-          slot={screen.paneSlots[leafId]}
-          stage={displayStage}
-          transitionStyle={screen.transitionStyle}
-          resolveTextSizes={resolveTextSizes}
-          defaultPaneLanguage={defaultPaneLanguage}
-          screenBackgroundImage={screen.backgroundImage}
-          containerSize={containerSize}
-          screenBackgroundCoverRect={screenBackgroundCoverRect}
-          onCollapseComplete={removeGhost}
-          newsSlots={newsSlots}
-          stageTick={stageTick}
-          onRequestStageAdvance={onRequestStageAdvance}
-        />
-      ))}
+      {Object.entries(exitingGhosts).map(([leafId, { rect, growth }]) => {
+        const slot = screen.paneSlots[leafId]
+        // `ExitingPaneGhost` assumes `screen.paneSlots[leafId]` is still there (true whenever a leaf disappears via `deleteLeaf`, which deliberately never touches `paneSlots`) — but undo/redo instead swaps in a whole prior `ScreenConfig` snapshot wholesale, which can genuinely have no entry at all for a pane that only ever existed *after* the snapshot it's reverting to (e.g. undoing straight back across the split that created it). No slot means nothing valid to animate out, so skip mounting it here rather than pass `LayoutPane` an undefined slot — `leafId` still stays in `exitingGhosts` either way (see the block above for why that matters), it just never actually renders anything.
+        if (!slot) return null
+        return (
+          <ExitingPaneGhost
+            key={leafId}
+            leafId={leafId}
+            rect={rect}
+            growth={growth}
+            slot={slot}
+            stage={displayStage}
+            transitionStyle={screen.transitionStyle}
+            resolveTextSizes={resolveTextSizes}
+            defaultPaneLanguage={defaultPaneLanguage}
+            screenBackgroundImage={screen.backgroundImage}
+            containerSize={containerSize}
+            screenBackgroundCoverRect={screenBackgroundCoverRect}
+            onCollapseComplete={removeGhost}
+            newsSlots={newsSlots}
+            stageTick={stageTick}
+            onRequestStageAdvance={onRequestStageAdvance}
+          />
+        )
+      })}
     </div>
   )
 }

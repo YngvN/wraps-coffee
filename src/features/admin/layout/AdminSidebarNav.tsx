@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
-import { ChevronRightIcon, ThemeToggle, TranslatedText } from '../../../components'
+import { QRCodeSVG } from 'qrcode.react'
+import { ChevronRightIcon, Modal, ThemeToggle, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useCatalogues } from '../../../hooks/useCatalogues'
+import { useLanOrigin } from '../../../hooks/useLanOrigin'
 import { useRecentlyOpened } from '../../../hooks/useRecentlyOpened'
 import { useScreens } from '../../../hooks/useScreens'
 import { useSidebarSettings } from '../../../hooks/useSidebarSettings'
@@ -10,7 +12,7 @@ import { useLanguage } from '../../../i18n'
 import type { ToggleableSidebarItem } from '../../../types/sidebarSettings'
 import { useAssistantAllowedEntities } from '../assistant/useAssistantFlow'
 import { ADMIN_NAV_ICONS, NAV_ITEMS } from './adminNavItems'
-import { AssistantSparkleIcon, PinSidebarIcon, SearchIcon } from './AdminNavIcons'
+import { AssistantSparkleIcon, PinSidebarIcon, QrCodeIcon, SearchIcon } from './AdminNavIcons'
 import './AdminSidebarNav.scss'
 
 /** Rail items with a real tier-2 flyout (see `AdminSidebarNav`'s own module doc comment) — every other item is a plain direct link, same as before this redesign. */
@@ -120,6 +122,10 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
   const [isRailExpanded, setIsRailExpanded] = useState(false)
   /** Pending "close the rail + tier-2" timeout — see `scheduleCloseCluster`/`openCluster`. */
   const closeClusterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Whether the "scan to open the login page" QR modal (desktop rail only, next to the pin-toggle) is open. */
+  const [qrModalOpen, setQrModalOpen] = useState(false)
+  const lanOrigin = useLanOrigin()
+  const loginQrUrl = `${lanOrigin}/admin/login`
 
   const visibleItems = NAV_ITEMS.filter(
     (item) =>
@@ -276,223 +282,239 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
   }
 
   return (
-    <nav className={`admin-sidebar-nav admin-sidebar-nav--desktop${isPinned || isRailExpanded ? ' admin-sidebar-nav--expanded' : ''}`} ref={containerRef}>
-      <div
-        className={`admin-sidebar-nav__scrim${activeRailItem || activeScreen ? ' admin-sidebar-nav__scrim--visible' : ''}`}
-        onClick={closeFlyouts}
-      />
-      <div className="admin-sidebar-nav__rail" onMouseEnter={openCluster} onMouseLeave={scheduleCloseCluster}>
-        <div className="admin-sidebar-nav__top">
-          <ul className="admin-sidebar-nav__list">
-            {assistantAllowedEntities.length > 0 && (
-              <li>
-                <button
-                  type="button"
-                  className="admin-sidebar-nav__link"
-                  onClick={() => {
-                    onTogglePanel?.('assistant')
-                    closeFlyouts()
-                    onNavigate?.()
-                  }}
-                  title={t('admin.assistant.title')}
-                  aria-label={t('admin.assistant.title')}
-                >
-                  <AssistantSparkleIcon className="admin-sidebar-nav__icon" />
-                  <span className="admin-sidebar-nav__link-label">{t('admin.assistant.title')}</span>
-                </button>
-              </li>
-            )}
-            {visibleItems.flatMap((item) => {
-              const NavIcon = ADMIN_NAV_ICONS[item.to]
-              const hasFlyout = FLYOUT_RAIL_ITEMS.has(item.to)
-              const navLi = (
-                <li
-                  key={item.to}
-                  onMouseEnter={
-                    hasFlyout
-                      ? () => {
-                          openCluster()
-                          setActiveRailItem(item.to)
-                          setActiveSubmenuRow(null)
-                        }
-                      : undefined
-                  }
-                >
-                  <NavLink
-                    to={item.to}
-                    onClick={() => {
-                      closeFlyouts()
-                      onNavigate?.()
-                    }}
-                    className={({ isActive }) => `admin-sidebar-nav__link${isActive ? ' admin-sidebar-nav__link--active' : ''}`}
-                    title={t(item.id)}
-                    aria-label={t(item.id)}
-                  >
-                    <NavIcon className="admin-sidebar-nav__icon" />
-                    <span className="admin-sidebar-nav__link-label">{t(item.id)}</span>
-                    {hasFlyout && (
-                      <span className="admin-sidebar-nav__link-chevron">
-                        <ChevronRightIcon />
-                      </span>
-                    )}
-                  </NavLink>
-                </li>
-              )
-              if (item.to !== 'overview') return [navLi]
-              return [
-                navLi,
-                <li key="search-action">
+    <>
+      <nav className={`admin-sidebar-nav admin-sidebar-nav--desktop${isPinned || isRailExpanded ? ' admin-sidebar-nav--expanded' : ''}`} ref={containerRef}>
+        <div
+          className={`admin-sidebar-nav__scrim${activeRailItem || activeScreen ? ' admin-sidebar-nav__scrim--visible' : ''}`}
+          onClick={closeFlyouts}
+        />
+        <div className="admin-sidebar-nav__rail" onMouseEnter={openCluster} onMouseLeave={scheduleCloseCluster}>
+          <div className="admin-sidebar-nav__top">
+            <ul className="admin-sidebar-nav__list">
+              {assistantAllowedEntities.length > 0 && (
+                <li>
                   <button
                     type="button"
                     className="admin-sidebar-nav__link"
                     onClick={() => {
-                      onTogglePanel?.('search')
+                      onTogglePanel?.('assistant')
                       closeFlyouts()
                       onNavigate?.()
                     }}
-                    title={t('admin.search.title')}
-                    aria-label={t('admin.search.title')}
+                    title={t('admin.assistant.title')}
+                    aria-label={t('admin.assistant.title')}
                   >
-                    <SearchIcon className="admin-sidebar-nav__icon" />
-                    <span className="admin-sidebar-nav__link-label">{t('admin.search.title')}</span>
+                    <AssistantSparkleIcon className="admin-sidebar-nav__icon" />
+                    <span className="admin-sidebar-nav__link-label">{t('admin.assistant.title')}</span>
                   </button>
-                </li>,
-              ]
-            })}
-          </ul>
-        </div>
-        <button
-          type="button"
-          className={`admin-sidebar-nav__pin-toggle${isPinned ? ' admin-sidebar-nav__pin-toggle--active' : ''}`}
-          onClick={onTogglePinned}
-          aria-label={t(isPinned ? 'admin.sidebar.unpinLabel' : 'admin.sidebar.pinLabel')}
-          title={t(isPinned ? 'admin.sidebar.unpinLabel' : 'admin.sidebar.pinLabel')}
-          aria-pressed={isPinned}
-        >
-          <PinSidebarIcon />
-        </button>
-        <div className="admin-sidebar-nav__footer">
-          <button type="button" className="admin-sidebar-nav__back" onClick={handleLogout}>
-            {t('admin.nav.logout')}
-          </button>
-          <ThemeToggle />
-        </div>
-      </div>
-
-      <div
-        className={`admin-sidebar-nav__flyout admin-sidebar-nav__flyout--tier2${activeRailItem ? ' admin-sidebar-nav__flyout--visible' : ''}`}
-        onMouseEnter={openCluster}
-        onMouseLeave={scheduleCloseCluster}
-      >
-        {activeRailItem === 'products' && catalogue && (
-          <>
-            <div className="admin-sidebar-nav__flyout-header">{catalogue.name[language]}</div>
-            {recentCategories.length > 0 && (
-              <>
-                <div className="admin-sidebar-nav__flyout-section">{t('admin.nav.recentlyOpened')}</div>
-                {recentCategories.map((entry) => (
-                  <Link
-                    key={`recent-${entry.id}`}
-                    to={`/admin/dashboard/products?catalogueId=${catalogue.id}&categoryId=${entry.id}`}
-                    className="admin-sidebar-nav__flyout-row"
-                    onClick={handleRowActivate}
+                </li>
+              )}
+              {visibleItems.flatMap((item) => {
+                const NavIcon = ADMIN_NAV_ICONS[item.to]
+                const hasFlyout = FLYOUT_RAIL_ITEMS.has(item.to)
+                const navLi = (
+                  <li
+                    key={item.to}
+                    onMouseEnter={
+                      hasFlyout
+                        ? () => {
+                            openCluster()
+                            setActiveRailItem(item.to)
+                            setActiveSubmenuRow(null)
+                          }
+                        : undefined
+                    }
                   >
-                    {entry.label}
-                  </Link>
-                ))}
-              </>
-            )}
-            <Link to={`/admin/dashboard/products?catalogueId=${catalogue.id}&allProducts=1`} className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
-              {t('admin.products.viewAllProducts')}
-            </Link>
-            {catalogue.categories.map((category) => (
-              <Link
-                key={category.id}
-                to={`/admin/dashboard/products?catalogueId=${catalogue.id}&categoryId=${category.id}`}
-                className="admin-sidebar-nav__flyout-row"
-                onClick={handleRowActivate}
-              >
-                {category.name[language]}
-              </Link>
-            ))}
-          </>
-        )}
+                    <NavLink
+                      to={item.to}
+                      onClick={() => {
+                        closeFlyouts()
+                        onNavigate?.()
+                      }}
+                      className={({ isActive }) => `admin-sidebar-nav__link${isActive ? ' admin-sidebar-nav__link--active' : ''}`}
+                      title={t(item.id)}
+                      aria-label={t(item.id)}
+                    >
+                      <NavIcon className="admin-sidebar-nav__icon" />
+                      <span className="admin-sidebar-nav__link-label">{t(item.id)}</span>
+                      {hasFlyout && (
+                        <span className="admin-sidebar-nav__link-chevron">
+                          <ChevronRightIcon />
+                        </span>
+                      )}
+                    </NavLink>
+                  </li>
+                )
+                if (item.to !== 'overview') return [navLi]
+                return [
+                  navLi,
+                  <li key="search-action">
+                    <button
+                      type="button"
+                      className="admin-sidebar-nav__link"
+                      onClick={() => {
+                        onTogglePanel?.('search')
+                        closeFlyouts()
+                        onNavigate?.()
+                      }}
+                      title={t('admin.search.title')}
+                      aria-label={t('admin.search.title')}
+                    >
+                      <SearchIcon className="admin-sidebar-nav__icon" />
+                      <span className="admin-sidebar-nav__link-label">{t('admin.search.title')}</span>
+                    </button>
+                  </li>,
+                ]
+              })}
+            </ul>
+          </div>
+          <button
+            type="button"
+            className="admin-sidebar-nav__icon-button admin-sidebar-nav__qr-toggle"
+            onClick={() => setQrModalOpen(true)}
+            aria-label={t('admin.nav.showLoginQr')}
+            title={t('admin.nav.showLoginQr')}
+          >
+            <QrCodeIcon />
+          </button>
+          <button
+            type="button"
+            className={`admin-sidebar-nav__icon-button admin-sidebar-nav__pin-toggle${isPinned ? ' admin-sidebar-nav__pin-toggle--active' : ''}`}
+            onClick={onTogglePinned}
+            aria-label={t(isPinned ? 'admin.sidebar.unpinLabel' : 'admin.sidebar.pinLabel')}
+            title={t(isPinned ? 'admin.sidebar.unpinLabel' : 'admin.sidebar.pinLabel')}
+            aria-pressed={isPinned}
+          >
+            <PinSidebarIcon />
+          </button>
+          <div className="admin-sidebar-nav__footer">
+            <button type="button" className="admin-sidebar-nav__back" onClick={handleLogout}>
+              {t('admin.nav.logout')}
+            </button>
+            <ThemeToggle />
+          </div>
+        </div>
 
-        {activeRailItem === 'screens' && (
-          <>
-            <div className="admin-sidebar-nav__flyout-header">{t('admin.nav.screens')}</div>
-            {recentScreens.length > 0 && (
-              <>
-                <div className="admin-sidebar-nav__flyout-section">{t('admin.nav.recentlyOpened')}</div>
-                {recentScreens.map((entry) => (
-                  <Link key={`recent-${entry.id}`} to={`/admin/dashboard/screens?screenId=${entry.id}`} className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
-                    {entry.label}
-                  </Link>
-                ))}
-              </>
-            )}
-            <Link to="/admin/dashboard/screens?displayManager=1" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
-              {t('admin.displayManager.title')}
-            </Link>
-            {screens.map((screen) => (
-              <Link
-                key={screen.screenID}
-                to={`/admin/dashboard/screens?screenId=${screen.screenID}`}
-                className="admin-sidebar-nav__flyout-row admin-sidebar-nav__flyout-row--expandable"
-                onClick={handleRowActivate}
-                onMouseEnter={() => setActiveSubmenuRow(screen.screenID)}
-              >
-                <span>{screen.name}</span>
-                <ChevronRightIcon />
+        <div
+          className={`admin-sidebar-nav__flyout admin-sidebar-nav__flyout--tier2${activeRailItem ? ' admin-sidebar-nav__flyout--visible' : ''}`}
+          onMouseEnter={openCluster}
+          onMouseLeave={scheduleCloseCluster}
+        >
+          {activeRailItem === 'products' && catalogue && (
+            <>
+              <div className="admin-sidebar-nav__flyout-header">{catalogue.name[language]}</div>
+              {recentCategories.length > 0 && (
+                <>
+                  <div className="admin-sidebar-nav__flyout-section">{t('admin.nav.recentlyOpened')}</div>
+                  {recentCategories.map((entry) => (
+                    <Link
+                      key={`recent-${entry.id}`}
+                      to={`/admin/dashboard/products?catalogueId=${catalogue.id}&categoryId=${entry.id}`}
+                      className="admin-sidebar-nav__flyout-row"
+                      onClick={handleRowActivate}
+                    >
+                      {entry.label}
+                    </Link>
+                  ))}
+                </>
+              )}
+              <Link to={`/admin/dashboard/products?catalogueId=${catalogue.id}&allProducts=1`} className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                {t('admin.products.viewAllProducts')}
               </Link>
-            ))}
-            <Link to="/admin/dashboard/screens?new=1" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
-              {t('admin.screens.addScreen')}
-            </Link>
-          </>
-        )}
+              {catalogue.categories.map((category) => (
+                <Link
+                  key={category.id}
+                  to={`/admin/dashboard/products?catalogueId=${catalogue.id}&categoryId=${category.id}`}
+                  className="admin-sidebar-nav__flyout-row"
+                  onClick={handleRowActivate}
+                >
+                  {category.name[language]}
+                </Link>
+              ))}
+            </>
+          )}
 
-        {activeRailItem === 'settings' && (
-          <>
-            <div className="admin-sidebar-nav__flyout-header">{t('admin.nav.settings')}</div>
-            <Link to="/admin/dashboard/settings?view=store" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
-              {t('admin.store.title')}
-            </Link>
-            <Link to="/admin/dashboard/settings?view=integrations" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
-              {t('admin.settings.integrations.title')}
-            </Link>
-            {session?.role !== 'limited' && (
-              <Link to="/admin/dashboard/settings?view=advanced" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
-                {t('admin.settings.advanced.title')}
+          {activeRailItem === 'screens' && (
+            <>
+              <div className="admin-sidebar-nav__flyout-header">{t('admin.nav.screens')}</div>
+              {recentScreens.length > 0 && (
+                <>
+                  <div className="admin-sidebar-nav__flyout-section">{t('admin.nav.recentlyOpened')}</div>
+                  {recentScreens.map((entry) => (
+                    <Link key={`recent-${entry.id}`} to={`/admin/dashboard/screens?screenId=${entry.id}`} className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                      {entry.label}
+                    </Link>
+                  ))}
+                </>
+              )}
+              <Link to="/admin/dashboard/screens?displayManager=1" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                {t('admin.displayManager.title')}
               </Link>
-            )}
-            {session?.role !== 'limited' && (
-              <Link to="/admin/dashboard/settings?view=backup" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
-                {t('admin.settings.backup.title')}
+              {screens.map((screen) => (
+                <Link
+                  key={screen.screenID}
+                  to={`/admin/dashboard/screens?screenId=${screen.screenID}`}
+                  className="admin-sidebar-nav__flyout-row admin-sidebar-nav__flyout-row--expandable"
+                  onClick={handleRowActivate}
+                  onMouseEnter={() => setActiveSubmenuRow(screen.screenID)}
+                >
+                  <span>{screen.name}</span>
+                  <ChevronRightIcon />
+                </Link>
+              ))}
+              <Link to="/admin/dashboard/screens?new=1" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                {t('admin.screens.addScreen')}
               </Link>
-            )}
-            <Link to="/admin/dashboard/settings?view=developers" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
-              {t('admin.settings.developersTitle')}
-            </Link>
-          </>
-        )}
-      </div>
+            </>
+          )}
 
-      <div
-        className={`admin-sidebar-nav__flyout admin-sidebar-nav__flyout--tier3${activeScreen ? ' admin-sidebar-nav__flyout--visible' : ''}`}
-        onMouseEnter={openCluster}
-      >
-        {activeScreen && (
-          <>
-            <div className="admin-sidebar-nav__flyout-header">{activeScreen.name}</div>
-            {SCREEN_FORM_TARGETS.map(({ target, labelId }) => (
-              <Link key={target} to={`/admin/dashboard/screens?screenId=${activeScreen.screenID}&tab=${target}`} className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
-                {t(labelId)}
+          {activeRailItem === 'settings' && (
+            <>
+              <div className="admin-sidebar-nav__flyout-header">{t('admin.nav.settings')}</div>
+              <Link to="/admin/dashboard/settings?view=store" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                {t('admin.store.title')}
               </Link>
-            ))}
-          </>
-        )}
-      </div>
-    </nav>
+              <Link to="/admin/dashboard/settings?view=integrations" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                {t('admin.settings.integrations.title')}
+              </Link>
+              {session?.role !== 'limited' && (
+                <Link to="/admin/dashboard/settings?view=advanced" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                  {t('admin.settings.advanced.title')}
+                </Link>
+              )}
+              {session?.role !== 'limited' && (
+                <Link to="/admin/dashboard/settings?view=backup" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                  {t('admin.settings.backup.title')}
+                </Link>
+              )}
+              <Link to="/admin/dashboard/settings?view=developers" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                {t('admin.settings.developersTitle')}
+              </Link>
+            </>
+          )}
+        </div>
+
+        <div
+          className={`admin-sidebar-nav__flyout admin-sidebar-nav__flyout--tier3${activeScreen ? ' admin-sidebar-nav__flyout--visible' : ''}`}
+          onMouseEnter={openCluster}
+        >
+          {activeScreen && (
+            <>
+              <div className="admin-sidebar-nav__flyout-header">{activeScreen.name}</div>
+              {SCREEN_FORM_TARGETS.map(({ target, labelId }) => (
+                <Link key={target} to={`/admin/dashboard/screens?screenId=${activeScreen.screenID}&tab=${target}`} className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                  {t(labelId)}
+                </Link>
+              ))}
+            </>
+          )}
+        </div>
+      </nav>
+      <Modal open={qrModalOpen} onClose={() => setQrModalOpen(false)} title={t('admin.nav.showLoginQr')} transparentOnSliderDrag={false}>
+        <div className="admin-sidebar-nav__qr-modal">
+          <QRCodeSVG value={loginQrUrl} bgColor="transparent" fgColor="currentColor" className="admin-sidebar-nav__qr-modal-code" />
+        </div>
+      </Modal>
+    </>
   )
 }

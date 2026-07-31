@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, Navigate, Outlet, RouterProvider } from 'react-router-dom'
 import { AdminLayout } from './features/admin/layout/AdminLayout'
 import { AdminDashboard } from './features/admin/layout/AdminDashboard'
 import { AdminLogin } from './features/admin/login/AdminLogin'
@@ -21,6 +21,7 @@ import { LanguageProvider } from './i18n'
 import { DisplayConnect } from './pages/DisplayConnect'
 import { DisplayStandby } from './pages/DisplayStandby'
 import { DisplayWindow } from './pages/DisplayWindow'
+import { ErrorBoundaryPage } from './pages/ErrorBoundaryPage'
 import { ScreenDisplay } from './pages/ScreenDisplay'
 import './styles/global.scss'
 
@@ -28,38 +29,48 @@ import './styles/global.scss'
 // (deployed to Netlify, backed by Neon) — this repo is just the admin
 // dashboard and the kiosk/screens display, run against the local LAN server.
 const router = createBrowserRouter([
-  { index: true, element: <Navigate to="/admin/login" replace /> },
   {
-    path: '/admin',
-    element: <AdminLayout />,
+    // Pathless wrapping route — its only job is giving every real route below
+    // a shared `errorElement`, since `createBrowserRouter`'s error handling
+    // is scoped to the nearest ancestor route that declares one, and none of
+    // these top-level routes otherwise share a common parent to hang it off.
+    element: <Outlet />,
+    errorElement: <ErrorBoundaryPage />,
     children: [
-      { path: 'login', element: <AdminLogin /> },
+      { index: true, element: <Navigate to="/admin/login" replace /> },
       {
-        path: 'dashboard',
-        element: <AdminDashboard />,
+        path: '/admin',
+        element: <AdminLayout />,
         children: [
-          { index: true, element: <Navigate to="overview" replace /> },
-          { path: 'overview', element: <OverviewView /> },
-          { path: 'messages', element: <MessagesView /> },
-          { path: 'products', element: <ProductsView /> },
-          { path: 'events', element: <AdminEventsView /> },
-          { path: 'orders', element: <OrdersView /> },
-          { path: 'screens', element: <ScreensView /> },
-          { path: 'messageboard', element: <MessageBoardView /> },
-          { path: 'media', element: <MediaLibraryView /> },
-          { path: 'users', element: <UsersView /> },
-          { path: 'settings', element: <SettingsView /> },
-          { path: '*', element: <NotFoundView /> },
+          { path: 'login', element: <AdminLogin /> },
+          {
+            path: 'dashboard',
+            element: <AdminDashboard />,
+            children: [
+              { index: true, element: <Navigate to="overview" replace /> },
+              { path: 'overview', element: <OverviewView /> },
+              { path: 'messages', element: <MessagesView /> },
+              { path: 'products', element: <ProductsView /> },
+              { path: 'events', element: <AdminEventsView /> },
+              { path: 'orders', element: <OrdersView /> },
+              { path: 'screens', element: <ScreensView /> },
+              { path: 'messageboard', element: <MessageBoardView /> },
+              { path: 'media', element: <MediaLibraryView /> },
+              { path: 'users', element: <UsersView /> },
+              { path: 'settings', element: <SettingsView /> },
+              { path: '*', element: <NotFoundView /> },
+            ],
+          },
         ],
       },
+      { path: '/screens/:screenId', element: <ScreenDisplay /> },
+      { path: '/screens/editor/:screenId', element: <ScreenDisplay /> },
+      { path: '/display-standby', element: <DisplayStandby /> },
+      { path: '/display-connect', element: <DisplayConnect /> },
+      { path: '/display-window', element: <DisplayWindow /> },
+      { path: '*', element: <NotFoundRedirect /> },
     ],
   },
-  { path: '/screens/:screenId', element: <ScreenDisplay /> },
-  { path: '/screens/editor/:screenId', element: <ScreenDisplay /> },
-  { path: '/display-standby', element: <DisplayStandby /> },
-  { path: '/display-connect', element: <DisplayConnect /> },
-  { path: '/display-window', element: <DisplayWindow /> },
-  { path: '*', element: <NotFoundRedirect /> },
 ])
 
 createRoot(document.getElementById('root')!).render(

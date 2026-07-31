@@ -1,8 +1,10 @@
 import type { FormEvent } from 'react'
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { QRCodeSVG } from 'qrcode.react'
 import { Alert, Button, Card, Input, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
+import { useLanOrigin } from '../../../hooks/useLanOrigin'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
 import { useLanguage } from '../../../i18n'
 import { login, LoginError } from '../../../lib/localServer'
@@ -22,6 +24,12 @@ const REDIRECT_TARGET_PATTERN = /^\/screens\/editor\/[^/]+$/
  * back to that screen, now with a session on this origin. A wrong password
  * or an unreachable server both surface as an inline error — nothing
  * navigates away until the server actually confirms the login.
+ *
+ * Also offers a "Show QR code" toggle that reveals a QR code encoding this
+ * same login page's URL, addressed by this machine's LAN IP instead of
+ * `localhost`/`127.0.0.1` (same LAN-IP substitution `ScreensView` uses for
+ * screen links) — so a phone on the same network can scan it straight to
+ * this page rather than someone typing the address in by hand.
  */
 export function AdminLogin() {
   const { t } = useLanguage()
@@ -33,6 +41,9 @@ export function AdminLogin() {
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showQr, setShowQr] = useState(false)
+  const lanOrigin = useLanOrigin()
+  const loginUrl = `${lanOrigin}${window.location.pathname}`
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -76,6 +87,14 @@ export function AdminLogin() {
           <Button type="submit" disabled={submitting}>
             <TranslatedText id={submitting ? 'admin.login.submitting' : 'admin.login.submit'} />
           </Button>
+          <div className="admin-login__qr-toggle">
+            <Button type="button" variant="secondary" onClick={() => setShowQr((current) => !current)}>
+              <TranslatedText id={showQr ? 'admin.login.hideQr' : 'admin.login.showQr'} />
+            </Button>
+            <div className={`admin-login__qr${showQr ? ' admin-login__qr--open' : ''}`}>
+              <QRCodeSVG value={loginUrl} bgColor="transparent" fgColor="currentColor" className="admin-login__qr-code" />
+            </div>
+          </div>
         </form>
       </Card>
     </div>

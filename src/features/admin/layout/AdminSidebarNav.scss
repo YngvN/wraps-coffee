@@ -209,33 +209,23 @@
   justify-content: space-between;
 }
 
-// Pin-toggle button, sitting just above the footer. Deliberately
-// `position: absolute` (relative to `.rail`, see its own `position:
-// relative` above) rather than a normal flex child of `.rail`'s own
-// top/footer space-between — that would tie its vertical position to the
-// footer's own box height, which changes shape (hidden vs. column vs. row)
-// between collapsed/expanded, making the button visibly jump. Anchoring it
-// at a constant `bottom` offset instead means it stays at the same height
-// and stays visible in every rail state, footer included or not.
-.admin-sidebar-nav__pin-toggle {
+// Shared chrome for the pin-toggle and QR-toggle buttons — both sit at the
+// same `bottom` offset (same row), just anchored to opposite sides once the
+// rail expands (see each of their own rules below).
+.admin-sidebar-nav__icon-button {
   position: absolute;
-  // Centered on the collapsed 72px-wide rail (matching where the icons
-  // above visually sit) by default — overridden below to sit flush right
-  // once the rail expands, alongside the footer's own row-aligned content.
-  left: 50%;
-  transform: translateX(-50%);
   // Clears (from the *rail's own outer edge*, not its content edge — see
   // below) the rail's own bottom padding, plus the footer's expanded-state
   // height (padding-top + border + one row of icon-sized content), plus a
   // gap — so the two don't overlap when the footer is visible. This is a
   // constant rather than derived from the footer's actual current height
   // (see the comment above), but it does have to start from the rail's
-  // own padding: `bottom`/`right` on an absolutely-positioned child are
-  // resolved against the *padding edge* of the containing block (`.rail`),
-  // which is unaffected by `.rail`'s *own* padding — while the footer,
-  // an ordinary flex child, sits inset *by* that same padding. Without
-  // adding it back in here, this constant would undercount by exactly
-  // `.rail`'s own bottom padding and the two would overlap.
+  // own padding: `bottom`/`left`/`right` on an absolutely-positioned child
+  // are resolved against the *padding edge* of the containing block
+  // (`.rail`), which is unaffected by `.rail`'s *own* padding — while the
+  // footer, an ordinary flex child, sits inset *by* that same padding.
+  // Without adding it back in here, this constant would undercount by
+  // exactly `.rail`'s own bottom padding and the two would overlap.
   bottom: calc($spacing-unit * 6 + 37px);
   display: flex;
   align-items: center;
@@ -259,6 +249,28 @@
     box-shadow: inset 0 2px 4px $color-shadow;
   }
 
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+// Deliberately `position: absolute` (relative to `.rail`, see its own
+// `position: relative` above) rather than a normal flex child of `.rail`'s
+// own top/footer space-between — that would tie its vertical position to
+// the footer's own box height, which changes shape (hidden vs. column vs.
+// row) between collapsed/expanded, making the button visibly jump.
+// Anchoring it at a constant `bottom` offset (see `.admin-sidebar-nav__icon-button`
+// above) instead means it stays at the same height and stays visible in
+// every rail state, footer included or not.
+.admin-sidebar-nav__pin-toggle {
+  // Centered on the collapsed 72px-wide rail (matching where the icons
+  // above visually sit) by default — overridden below to sit flush right
+  // once the rail expands, alongside the footer's own row-aligned content
+  // (the theme toggle).
+  left: 50%;
+  transform: translateX(-50%);
+
   &--active {
     color: $color-accent;
 
@@ -268,20 +280,37 @@
   }
 
   svg {
-    width: 16px;
-    height: 16px;
     transition: transform 0.2s ease;
   }
 }
 
 .admin-sidebar-nav--expanded .admin-sidebar-nav__pin-toggle {
   left: auto;
-  // Matches `.rail`'s own right padding (see the `bottom` comment above
-  // for why this can't just be `0`), so this lines up flush with the
-  // footer's own inset content (e.g. the theme toggle) instead of sitting
-  // further out past it.
+  // Matches `.rail`'s own right padding (see `.admin-sidebar-nav__icon-button`'s
+  // own `bottom` comment for why this can't just be `0`), so this lines up
+  // flush with the footer's own inset content (the theme toggle) instead of
+  // sitting further out past it.
   right: calc($spacing-unit * 1.5);
   transform: none;
+}
+
+// Hidden while the rail is collapsed — there's no "Log out" row underneath
+// to sit above yet (the footer itself is hidden collapsed, same as this),
+// and no room to show a second icon sensibly at 72px wide anyway.
+// Reappears once the rail expands, flush with the rail's own left padding —
+// directly above the footer's own "Log out" button once it's showing,
+// rather than next to the (right-aligned) pin-toggle.
+.admin-sidebar-nav__qr-toggle {
+  display: none;
+}
+
+.admin-sidebar-nav--expanded .admin-sidebar-nav__qr-toggle {
+  display: flex;
+  left: calc($spacing-unit * 1.5);
+}
+
+.admin-sidebar-nav--expanded .admin-sidebar-nav__qr-toggle {
+  display: flex;
 }
 
 .admin-sidebar-nav__back {
@@ -462,4 +491,17 @@
 .admin-sidebar-nav--mobile .admin-sidebar-nav__back {
   font-size: 0.875rem;
   text-align: left;
+}
+
+// --- QR modal (opened via `.admin-sidebar-nav__qr-toggle` above) ---
+
+.admin-sidebar-nav__qr-modal {
+  display: flex;
+  justify-content: center;
+  padding: $spacing-unit * 2 0;
+}
+
+.admin-sidebar-nav__qr-modal-code {
+  width: 200px;
+  height: 200px;
 }
