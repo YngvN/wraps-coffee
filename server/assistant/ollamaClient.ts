@@ -1,10 +1,21 @@
+import { spawn } from 'node:child_process'
 import * as store from '../store'
 import { AssistantLocalProviderError, AssistantNotConfiguredError, type AssistantJsonSchema } from './types'
 import type { ToolCallInput } from './client'
 
-/** Which of the two configured Ollama models a call uses — vision whenever an image is attached, thinking otherwise. Deterministic by call shape (see the plan's "two independent roles" note), never an admin/per-message choice — Ollama only keeps one model resident at a time anyway, so there's no simultaneous-RAM cost to this split. */
-function resolveOllamaModel(hasImage: boolean, config: store.OllamaConfig): string {
-  return hasImage ? config.visionModel : config.thinkingModel
+/**
+ * Which Ollama model a call uses. The vision-vs-thinking split is
+ * deterministic by call shape (see the plan's "two independent roles" note),
+ * never an admin/per-message choice — Ollama only keeps one model resident at
+ * a time anyway, so there's no simultaneous-RAM cost to this split. `override`
+ * (see `ToolCallInput.localModel`) lets one device's chat pin a specific tag
+ * for the *thinking* role only — a per-chat model choice makes no sense for
+ * vision, since which image-capable model to use isn't something a text
+ * conversation ever has a reason to override mid-chat.
+ */
+function resolveOllamaModel(hasImage: boolean, config: store.OllamaConfig, override: string | undefined): string {
+  if (hasImage) return config.visionModel
+  return override || config.thinkingModel
 }
 
 /** Ollama's `/api/chat` `format` field accepts a plain JSON Schema object for grammar-constrained decoding — this schema shape is already close to that (see `AssistantJsonSchema`'s own doc comment), the index signature is only for the Anthropic SDK's benefit, so passing it straight through is fine. */
@@ -91,7 +102,7 @@ async function ollamaChat(config: store.OllamaConfig, model: string, systemPromp
  */
 export async function ollamaCallTool<T>(input: ToolCallInput): Promise<T> {
   const config = store.getOllamaConfig()
-  const model = resolveOllamaModel(Boolean(input.image), config)
+  const model = resolveOllamaModel(Boolean(input.image), config, input.localModel)
   if (!config.baseUrl || !model) throw new AssistantNotConfiguredError("The Ollama host/models haven't been configured yet — check the Integrations page.")
 
   const systemPrompt = [input.systemPrompt, schemaInstructionBlock(input.toolDescription, input.schema)].join('\n\n')
@@ -172,5 +183,102 @@ export async function pullOllamaModel(tag: string): Promise<{ ok: boolean; error
     return { ok: true }
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'Could not reach the Ollama host.' }
+  }
+}
+
+export interface OllamaModelInfo {
+  name: string
+  /** Bytes on disk, straight from Ollama's own `/api/tags` response — shown as a human-readable size by the Integrations page's model manager. */
+  size: number
+}
+
+/** Lists every model tag currently pulled on the configured Ollama host, not just the two configured vision/thinking roles — backs the Integrations page's own model manager (add/delete any tag). */
+export async function listOllamaModels(): Promise<{ ok: boolean; models?: OllamaModelInfo[]; error?: string }> {
+  const config = store.getOllamaConfig()
+  try {
+    const response = await fetch(`${config.baseUrl}/api/tags`, { signal: AbortSignal.timeout(5000) })
+    if (!response.ok) return { ok: false, error: `Ollama responded with ${response.status}` }
+    const body = (await response.json()) as { models?: { name: string; size?: number }[] }
+    return { ok: true, models: (body.models ?? []).map((entry) => ({ name: entry.name, size: entry.size ?? 0 })) }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Could not reach the Ollama host.' }
+  }
+}
+
+/** Removes a model tag from the configured Ollama host via its own `/api/delete` endpoint — backs the model manager's own "Delete" button. Frees disk space; the tag needs pulling again (see `pullOllamaModel`) before it can answer anything again. */
+export async function deleteOllamaModel(tag: string): Promise<{ ok: boolean; error?: string }> {
+  const config = store.getOllamaConfig()
+  try {
+    const response = await fetch(`${config.baseUrl}/api/delete`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: tag }),
+      signal: AbortSignal.timeout(10_000),
+    })
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as { error?: string }
+      return { ok: false, error: body.error ?? `Ollama responded with ${response.status}` }
+    }
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'Could not reach the Ollama host.' }
+  }
+}
+
+/**
+ * Best-effort: if the configured Ollama host is on this same machine and
+ * isn't already up, starts `ollama serve` directly rather than leaving the
+ * Local provider silently broken until an admin notices and starts it by
+ * hand. Called once from `server/index.ts`'s own startup sequence, so this
+ * runs whichever way the server itself happens to be launched (`npm run
+ * dev`, a plain `npm run preview`, etc.) — the Linux systemd service
+ * (`installer/linux/install.sh`'s own `Wants=ollama.service`) and the
+ * Windows launcher script (`installer/start-wraps-coffee.bat`'s own
+ * `:start_ollama`) already give this same guarantee at their own startup
+ * moment, but neither covers a manually-run dev server.
+ *
+ * Unlike `pullOllamaModel` above, this can't go through Ollama's own HTTP
+ * API — there's nothing listening yet for it to call. A `child_process`
+ * shell-out is the only option here, so (unlike that function's own
+ * deliberate avoidance of one) this accepts the same PATH-under-systemd risk
+ * that comment describes: if `ollama` isn't resolvable in whatever
+ * environment this server process itself was started with, the spawn just
+ * fails quietly below rather than actually starting anything — no worse than
+ * today's baseline (nothing tries to start it at all), and a real install
+ * normally does have it on `PATH` regardless.
+ *
+ * Deliberately never awaited by its caller — starting Ollama can take a few
+ * seconds, and nothing about the app's own server startup actually depends
+ * on it being ready yet (only an in-chat request against the Local provider
+ * does, by which point it will be).
+ */
+export async function ensureOllamaRunning(): Promise<void> {
+  const config = store.getOllamaConfig()
+  let baseUrl: URL
+  try {
+    baseUrl = new URL(config.baseUrl)
+  } catch {
+    return
+  }
+  // A remote (non-localhost) host has no local `ollama` binary for this process to start anyway —
+  // whoever manages that machine is expected to keep it running themselves.
+  if (!['localhost', '127.0.0.1', '::1'].includes(baseUrl.hostname)) return
+
+  try {
+    const response = await fetch(`${config.baseUrl}/api/tags`, { signal: AbortSignal.timeout(2000) })
+    if (response.ok) return
+  } catch {
+    // Not reachable yet — fall through to actually starting it below.
+  }
+
+  try {
+    const child = spawn('ollama', ['serve'], { detached: true, stdio: 'ignore' })
+    child.once('error', () => {
+      // `ollama` isn't installed/on PATH — nothing more to do here; a Claude-only setup never needed it.
+    })
+    child.unref()
+    console.log('[assistant] Ollama was not running — started it automatically.')
+  } catch {
+    // Same "not installed" case as above, for a platform that throws synchronously instead.
   }
 }

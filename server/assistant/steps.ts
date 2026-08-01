@@ -1,5 +1,6 @@
 import * as store from '../store'
 import { type AssistantImageInput, type AssistantTraceEntry, callToolOnce, currentDateInstruction, generateThenVerify, languageInstruction } from './client'
+import { buildLookupQuerySchema, executeLookupQuery, type LookupQuerySpec } from './lookupQuery'
 import { allowedEntitiesFor, findEntity } from './registry'
 import {
   nullable,
@@ -63,6 +64,7 @@ async function compactHistory(
   uiLanguage: 'no' | 'en',
   modelOverride: store.AssistantModel | undefined,
   providerOverride: store.AssistantProvider | undefined,
+  localModelOverride: string | undefined,
   trace: AssistantTraceEntry[],
 ): Promise<string> {
   const schema: AssistantJsonSchema = {
@@ -92,6 +94,7 @@ async function compactHistory(
     schema,
     model: modelOverride,
     provider: providerOverride,
+    localModel: localModelOverride,
     trace,
   })
   return result.summary
@@ -115,6 +118,7 @@ async function resolveHistoryContext(
   uiLanguage: 'no' | 'en',
   modelOverride: store.AssistantModel | undefined,
   providerOverride: store.AssistantProvider | undefined,
+  localModelOverride: string | undefined,
   trace: AssistantTraceEntry[],
 ): Promise<string | null> {
   if (input.historyContext) return input.historyContext
@@ -122,7 +126,7 @@ async function resolveHistoryContext(
   const boundedHistory = input.history.slice(-HISTORY_CHAR_CAP)
   const capability = resolveModelCapability(modelOverride, providerOverride)
   if (capability.historyMode === 'full' || boundedHistory.length < HISTORY_COMPACTION_THRESHOLD) return boundedHistory
-  return compactHistory(boundedHistory, uiLanguage, modelOverride, providerOverride, trace)
+  return compactHistory(boundedHistory, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
 }
 
 /**
@@ -183,63 +187,19 @@ export async function selectIntent(
   modelOverride?: store.AssistantModel,
   history?: string,
   providerOverride?: store.AssistantProvider,
+  localModelOverride?: string,
 ): Promise<IntentResult> {
   const entities = allowedEntitiesFor(session)
   if (entities.length === 0) throw new Error('No assistant actions are available to this account.')
 
   const trace: AssistantTraceEntry[] = []
-  const historyContext = await resolveHistoryContext({ history }, uiLanguage, modelOverride, providerOverride, trace)
+  const historyContext = await resolveHistoryContext({ history }, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
 
-  const entityKeys = entities.map((entity) => entity.key)
-  const entityListForPrompt = entities.map((entity) => `${entity.key} (${ENTITY_DESCRIPTIONS[entity.key] ?? ''})`).join(', ')
-  const schema: AssistantJsonSchema = {
-    type: 'object',
-    properties: {
-      entity: { type: 'string', enum: [...entityKeys, 'chat'] },
-      action: nullable({ type: 'string', enum: ALL_ACTIONS }),
-      searchText: nullable({
-        type: 'string',
-        description:
-          'A short phrase to help find the target existing item — meaningful when action is not "create", or when entity is "chat" and lookupEntities names a single entity because the question is actually about one specific, already-named item (e.g. "how much does the Chicken Fajitas wrap cost?" → "Chicken Fajitas") rather than a filter/count across many records (e.g. "how many products are on sale?" leaves this null — there is no one named item to search for).',
-      }),
-      reply: nullable({ type: 'string', description: 'Your conversational reply, in the admin\'s own language — set only when entity is "chat" and lookupEntities is empty, otherwise leave null.' }),
-      lookupEntities: nullable({
-        type: 'array',
-        items: { type: 'string', enum: entityKeys },
-        description:
-          'Only when entity is "chat": set this instead of reply when the message is a factual question about the cafe\'s own current data (e.g. "what message boards exist?", "how many products are in category X?", "what are our opening hours?") — which of the entities above would have the data to answer it (usually 1, rarely more than 2-3). This includes a question naming one specific, already-identifiable item (e.g. "how much does the Chicken Fajitas wrap cost?", "is the Chicken Fajitas wrap on sale?") — that is still a factual question, not a create/update/delete request, even though a specific item is named; set lookupEntities to ["product"] for it rather than treating the named item as something to edit. A question about products\' own price/discount/availability (e.g. "how many products are on sale") always means "product", never "category", even though the word "products" appears — see the entity descriptions above for why. Leave null for a generic question/greeting/small talk with no real data need, and answer via reply instead.',
-      }),
-    },
-    required: ['entity', 'action', 'searchText', 'reply', 'lookupEntities'],
-    additionalProperties: false,
-  }
-
-  const systemPrompt = [
-    languageInstruction(uiLanguage),
-    currentDateInstruction(),
-    'You are the AI assistant built into the Wraps & Coffee admin dashboard — a flexible catalogue/category/product system a business uses to manage whatever it sells, not limited to food and drink: a catalogue and its categories can represent any product line (e.g. a "Cars" catalogue with categories like "Sedans"/"SUVs", using custom fields such as "Mileage"/"Fuel type" the same way a food category might use its own custom fields), plus events, message boards, and staff accounts.',
-    `You can create, update, or delete: ${entityListForPrompt}${entityKeys.includes('user') ? ' (non-admin accounts only)' : ''}.`,
-    "If the admin's message is a specific request to create/update/delete one of those, pick exactly one entity and one action — don't try to handle more than one thing at once — and leave reply/lookupEntities null. This includes setting up an entirely new kind of product line (e.g. \"I'm going to sell cars, what do I need to do?\") — help them create a catalogue/categories/products for it, never say this dashboard doesn't support what they sell.",
-    'A named menu item\'s own price (e.g. "change the price of Nachos to 110kr") is always a product update — never a category update. A category only has one optional shared *default* price applied to items that have no price of their own; naming a specific item always means that item, not its category. The same distinction applies to a factual question about price/discount/availability (e.g. "how many products are on sale?", "how much does Nachos cost?") — that always needs lookupEntities: ["product"], never ["category"], regardless of whether the word "product(s)" or a specific item name appears in the message.',
-    'action is one of: "create" (make a brand new one), "update" (change an existing one), "delete" (remove one), "resetPassword" (user accounts only), "trigger" (a one-off action with no fields to fill).',
-    'If the message is a factual question about the cafe\'s own current data rather than a create/update/delete request, set entity to "chat", leave action/searchText/reply null, and set lookupEntities instead (see its own description).',
-    'If the message is a general question (e.g. "what can you do?"), a greeting, small talk, or anything else that is neither a create/update/delete request nor a factual data question, set entity to "chat", leave action/searchText/lookupEntities null, and write a short, helpful, conversational reply in the reply field — mention what you can help with on this dashboard when it\'s relevant to the question.',
-    'If resolving a reference like "it"/"that one" via the conversation context below turns the message into a factual data question (e.g. "how much is it on sale for?" once "it" resolves to a specific product), set lookupEntities for it the same as any other factual data question — do not just report back what you resolved in a reply instead of actually looking it up; reply is only for an actual greeting/generic question with no real data need. This includes searchText too: once a reference resolves to one specific, already-discussed item, set searchText to that item\'s own name (e.g. "how much is it in kroner?" right after discussing "Chicken Fajitas" still sets searchText to "Chicken Fajitas") — every later follow-up about the same item needs this set again, not just the first question that named it.',
-    historyContextPromptLine(historyContext),
-  ]
-    .filter(Boolean)
-    .join('\n')
-
-  const result = await callToolOnce<Omit<IntentResult, 'trace' | 'historyContext'>>({
-    systemPrompt,
-    userText: message,
-    toolName: 'select_intent',
-    toolDescription: "Choose which entity and action the admin's message is about, or answer directly/look up data via the chat fallback.",
-    schema,
-    model: modelOverride,
-    provider: providerOverride,
-    trace,
-  })
+  const provider = providerOverride ?? store.getAssistantProvider()
+  const raw =
+    provider === 'local'
+      ? await selectIntentCascaded(entities, message, uiLanguage, modelOverride, providerOverride, localModelOverride, history, historyContext, trace)
+      : await selectIntentSinglePass(entities, message, uiLanguage, modelOverride, providerOverride, historyContext, trace)
 
   // Never trust the model to have kept `entity`/`action`/`reply`/`lookupEntities` mutually
   // consistent on its own — a non-empty `lookupEntities` is treated as authoritative regardless of
@@ -251,17 +211,393 @@ export async function selectIntent(
   // correct signal just because `entity` wasn't literally `"chat"` routed that message into editing
   // a random product instead of just answering the question. Preferring the lookup path on any
   // ambiguity/contradiction is also strictly the safer choice per this function's own doc
-  // comment — a lookup misroute is harmless by construction, since it never proposes a write.
-  const hasLookup = Boolean(result.lookupEntities && result.lookupEntities.length > 0)
-  if (result.entity === 'chat' || hasLookup) {
-    return { ...result, entity: 'chat', action: null, reply: hasLookup ? null : result.reply, lookupEntities: hasLookup ? result.lookupEntities : null, historyContext, trace }
+  // comment — a lookup misroute is harmless by construction, since it never proposes a write. Kept
+  // as a shared safety net for both paths below even though `selectIntentCascaded`'s own branches
+  // can no longer produce a contradictory combination by construction — cheap insurance either way.
+  const hasLookup = Boolean(raw.lookupEntities && raw.lookupEntities.length > 0)
+  if (raw.entity === 'chat' || hasLookup) {
+    return { ...raw, entity: 'chat', action: null, reply: hasLookup ? null : raw.reply, lookupEntities: hasLookup ? raw.lookupEntities : null, historyContext, trace }
   }
 
-  const entity = entities.find((candidate) => candidate.key === result.entity)
-  if (!entity || !result.action || !entity.supportedActions.includes(result.action)) {
+  const entity = entities.find((candidate) => candidate.key === raw.entity)
+  if (!entity || !raw.action || !entity.supportedActions.includes(raw.action)) {
     throw new Error("Couldn't confidently tell what you want to do — try rephrasing with a specific entity and action.")
   }
-  return { ...result, lookupEntities: null, historyContext, trace }
+  return { ...raw, lookupEntities: null, historyContext, trace }
+}
+
+type RawIntentResult = Omit<IntentResult, 'trace' | 'historyContext'>
+
+const SEARCH_TEXT_DESCRIPTION =
+  'A short phrase to help find the target existing item — meaningful when action is not "create", or when entity is "chat" and lookupEntities names a single entity because the question is actually about one specific, already-named item (e.g. "how much does the Chicken Fajitas wrap cost?" → "Chicken Fajitas") rather than a filter/count across many records (e.g. "how many products are on sale?" leaves this null — there is no one named item to search for).'
+
+/** Used verbatim by `selectIntentSinglePass` — Claude's own path stays byte-for-byte unchanged from before this cascade existed. */
+const LOOKUP_ENTITIES_DESCRIPTION_FOR_CHAT_ENTITY =
+  'Only when entity is "chat": set this instead of reply when the message is a factual question about the cafe\'s own current data (e.g. "what message boards exist?", "how many products are in category X?", "what are our opening hours?") — which of the entities above would have the data to answer it (usually 1, rarely more than 2-3). This includes a question naming one specific, already-identifiable item (e.g. "how much does the Chicken Fajitas wrap cost?", "is the Chicken Fajitas wrap on sale?") — that is still a factual question, not a create/update/delete request, even though a specific item is named; set lookupEntities to ["product"] for it rather than treating the named item as something to edit. A question about products\' own price/discount/availability (e.g. "how many products are on sale") always means "product", never "category", even though the word "products" appears — see the entity descriptions above for why. Leave null for a generic question/greeting/small talk with no real data need, and answer via reply instead.'
+
+/** Used by the local cascade's `selectLookupTarget` — same rule as `LOOKUP_ENTITIES_DESCRIPTION_FOR_CHAT_ENTITY` above, reworded for a schema with no `entity`/`reply` fields to reference (this branch only ever runs once `classifyMessageType` already committed to "question"). */
+const LOOKUP_ENTITIES_DESCRIPTION =
+  'Which of the entities above would have the data to answer this factual question about the cafe\'s own current data (e.g. "what message boards exist?", "how many products are in category X?", "what are our opening hours?") — usually 1, rarely more than 2-3. This includes a question naming one specific, already-identifiable item (e.g. "how much does the Chicken Fajitas wrap cost?", "is the Chicken Fajitas wrap on sale?") — that is still a factual question, not a create/update/delete request, even though a specific item is named; set this to ["product"] for it rather than treating the named item as something to edit. A question about products\' own price/discount/availability (e.g. "how many products are on sale") always means "product", never "category", even though the word "products" appears — see the entity descriptions above for why.'
+
+/** Used verbatim by `selectIntentSinglePass` — Claude's own path stays byte-for-byte unchanged from before this cascade existed. */
+const REFERENCE_RESOLUTION_LINE_WITH_REPLY =
+  'If resolving a reference like "it"/"that one" via the conversation context below turns the message into a factual data question (e.g. "how much is it on sale for?" once "it" resolves to a specific product), set lookupEntities for it the same as any other factual data question — do not just report back what you resolved in a reply instead of actually looking it up; reply is only for an actual greeting/generic question with no real data need. This includes searchText too: once a reference resolves to one specific, already-discussed item, set searchText to that item\'s own name (e.g. "how much is it in kroner?" right after discussing "Chicken Fajitas" still sets searchText to "Chicken Fajitas") — every later follow-up about the same item needs this set again, not just the first question that named it.'
+
+/** Used by the local cascade's `selectLookupTarget` — same rule as `REFERENCE_RESOLUTION_LINE_WITH_REPLY` above, minus the "reply" field callout, since that branch's own schema has no `reply` field to confuse it with. */
+const REFERENCE_RESOLUTION_LINE =
+  'If resolving a reference like "it"/"that one" via the conversation context below turns the message into a factual data question (e.g. "how much is it on sale for?" once "it" resolves to a specific product), treat it the same as any other factual data question — do not just report back what you resolved instead of actually looking it up. This includes searchText too: once a reference resolves to one specific, already-discussed item, set searchText to that item\'s own name (e.g. "how much is it in kroner?" right after discussing "Chicken Fajitas" still sets searchText to "Chicken Fajitas") — every later follow-up about the same item needs this set again, not just the first question that named it.'
+
+/** The "who you are" line every `selectIntent` prompt (single-pass or cascaded) opens with. */
+const ASSISTANT_INTRO_LINE =
+  'You are the AI assistant built into the Wraps & Coffee admin dashboard — a flexible catalogue/category/product system a business uses to manage whatever it sells, not limited to food and drink: a catalogue and its categories can represent any product line (e.g. a "Cars" catalogue with categories like "Sedans"/"SUVs", using custom fields such as "Mileage"/"Fuel type" the same way a food category might use its own custom fields), plus events, message boards, and staff accounts.'
+
+function entityListLine(entityListForPrompt: string, hasUserEntity: boolean): string {
+  return `You can create, update, or delete: ${entityListForPrompt}${hasUserEntity ? ' (non-admin accounts only)' : ''}.`
+}
+
+/** Shared "a named item's own price is always that item, never its category" rule — applies equally to a CRUD price edit and a factual price/discount question. */
+const PRODUCT_VS_CATEGORY_PRICE_LINE =
+  'A named menu item\'s own price (e.g. "change the price of Nachos to 110kr") is always a product update — never a category update. A category only has one optional shared *default* price applied to items that have no price of their own; naming a specific item always means that item, not its category. The same distinction applies to a factual question about price/discount/availability (e.g. "how many products are on sale?", "how much does Nachos cost?") — that always needs product data, never category, regardless of whether the word "product(s)" or a specific item name appears in the message.'
+
+/** `action is one of: ...` — shared verbatim between Claude's single-pass schema and the local cascade's `selectCommand` branch. */
+const ACTION_ENUM_LINE = 'action is one of: "create" (make a brand new one), "update" (change an existing one), "delete" (remove one), "resetPassword" (user accounts only), "trigger" (a one-off action with no fields to fill).'
+
+/** Bundled shared context for the local cascade's own branch calls (`classifyMessageType`/`selectCommand`/`composeChatReply`) — order/bundling here has no "byte-identical" constraint the way `selectIntentSinglePass` does, since this prompt surface is new. */
+function assistantIntroLines(entityListForPrompt: string, hasUserEntity: boolean): string[] {
+  return [ASSISTANT_INTRO_LINE, entityListLine(entityListForPrompt, hasUserEntity), PRODUCT_VS_CATEGORY_PRICE_LINE]
+}
+
+/** Claude's own path — unchanged single-pass call (a coarse, low-ambiguity choice from a small enum; any mistake on the CRUD path is still caught by the later confirm-before-write review). See `selectIntent`'s own doc comment for why this stays single-pass here: real testing found no reliability problem with Claude keeping these fields mutually consistent, unlike the local provider (see `selectIntentCascaded`). */
+async function selectIntentSinglePass(
+  entities: AssistantEntity<unknown>[],
+  message: string,
+  uiLanguage: 'no' | 'en',
+  modelOverride: store.AssistantModel | undefined,
+  providerOverride: store.AssistantProvider | undefined,
+  historyContext: string | null,
+  trace: AssistantTraceEntry[],
+): Promise<RawIntentResult> {
+  const entityKeys = entities.map((entity) => entity.key)
+  const entityListForPrompt = entities.map((entity) => `${entity.key} (${ENTITY_DESCRIPTIONS[entity.key] ?? ''})`).join(', ')
+  const schema: AssistantJsonSchema = {
+    type: 'object',
+    properties: {
+      entity: { type: 'string', enum: [...entityKeys, 'chat'] },
+      action: nullable({ type: 'string', enum: ALL_ACTIONS }),
+      searchText: nullable({ type: 'string', description: SEARCH_TEXT_DESCRIPTION }),
+      reply: nullable({ type: 'string', description: 'Your conversational reply, in the admin\'s own language — set only when entity is "chat" and lookupEntities is empty, otherwise leave null.' }),
+      lookupEntities: nullable({
+        type: 'array',
+        items: { type: 'string', enum: entityKeys },
+        description: LOOKUP_ENTITIES_DESCRIPTION_FOR_CHAT_ENTITY,
+      }),
+    },
+    required: ['entity', 'action', 'searchText', 'reply', 'lookupEntities'],
+    additionalProperties: false,
+  }
+
+  const systemPrompt = [
+    languageInstruction(uiLanguage),
+    currentDateInstruction(),
+    ASSISTANT_INTRO_LINE,
+    entityListLine(entityListForPrompt, entityKeys.includes('user')),
+    "If the admin's message is a specific request to create/update/delete one of those, pick exactly one entity and one action — don't try to handle more than one thing at once — and leave reply/lookupEntities null. This includes setting up an entirely new kind of product line (e.g. \"I'm going to sell cars, what do I need to do?\") — help them create a catalogue/categories/products for it, never say this dashboard doesn't support what they sell.",
+    PRODUCT_VS_CATEGORY_PRICE_LINE,
+    ACTION_ENUM_LINE,
+    'If the message is a factual question about the cafe\'s own current data rather than a create/update/delete request, set entity to "chat", leave action/searchText/reply null, and set lookupEntities instead (see its own description).',
+    'If the message is a general question (e.g. "what can you do?"), a greeting, small talk, or anything else that is neither a create/update/delete request nor a factual data question, set entity to "chat", leave action/searchText/lookupEntities null, and write a short, helpful, conversational reply in the reply field — mention what you can help with on this dashboard when it\'s relevant to the question.',
+    REFERENCE_RESOLUTION_LINE_WITH_REPLY,
+    historyContextPromptLine(historyContext),
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  return callToolOnce<RawIntentResult>({
+    systemPrompt,
+    userText: message,
+    toolName: 'select_intent',
+    toolDescription: "Choose which entity and action the admin's message is about, or answer directly/look up data via the chat fallback.",
+    schema,
+    model: modelOverride,
+    provider: providerOverride,
+    trace,
+  })
+}
+
+/** The 4-way split `selectIntentCascaded` classifies every local-provider message into — see that function's own doc comment for why this exists instead of one combined call. */
+type MessageType = 'command' | 'question' | 'meta' | 'chat'
+
+/** The literal last `Assistant: ...` line from `historyRaw` (see `useAssistantFlow.ts`'s own `transcriptToText`), uncompacted — specifically for the `'meta'` classification/reply below, where the exact wording of the assistant's own last answer matters and a `resolveHistoryContext`-compacted blurb could lose it. `null` if there's no prior assistant line yet (the very first message of a conversation). */
+function extractLastAssistantLine(historyRaw: string | undefined): string | null {
+  if (!historyRaw) return null
+  const lines = historyRaw.split('\n')
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].startsWith('Assistant: ')) return lines[i].slice('Assistant: '.length)
+  }
+  return null
+}
+
+/** First step of the local cascade — a tiny, single-field classification. See `selectIntentCascaded`'s own doc comment for why this exists. */
+async function classifyMessageType(
+  entityListForPrompt: string,
+  hasUserEntity: boolean,
+  historyContext: string | null,
+  lastAssistantReply: string | null,
+  message: string,
+  uiLanguage: 'no' | 'en',
+  modelOverride: store.AssistantModel | undefined,
+  providerOverride: store.AssistantProvider | undefined,
+  localModelOverride: string | undefined,
+  trace: AssistantTraceEntry[],
+): Promise<MessageType> {
+  const schema: AssistantJsonSchema = {
+    type: 'object',
+    properties: {
+      messageType: {
+        type: 'string',
+        enum: ['command', 'question', 'meta', 'chat'],
+        description:
+          '"command" = a specific create/update/delete request naming one entity/item. "question" = a factual question about the cafe\'s own current data (products, events, prices, settings, etc.), including one naming a specific already-known item. "meta" = the message is about YOUR OWN previous reply below (correcting it, doubting it, asking to clarify/expand on it) rather than asking for anything new — e.g. "isn\'t that a percentage, not the price?" right after you answered a price question. "chat" = a greeting, small talk, or a generic question with no real data need.',
+      },
+    },
+    required: ['messageType'],
+    additionalProperties: false,
+  }
+
+  const systemPrompt = [
+    languageInstruction(uiLanguage),
+    currentDateInstruction(),
+    ...assistantIntroLines(entityListForPrompt, hasUserEntity),
+    lastAssistantReply ? `Your own last reply in this conversation was: "${lastAssistantReply}" — use this to recognize a "meta" message referring back to it.` : '',
+    historyContextPromptLine(historyContext),
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  const result = await callToolOnce<{ messageType: MessageType }>({
+    systemPrompt,
+    userText: message,
+    toolName: 'classify_message',
+    toolDescription: 'Classify what kind of message this is.',
+    schema,
+    model: modelOverride,
+    provider: providerOverride,
+    localModel: localModelOverride,
+    trace,
+  })
+  return result.messageType
+}
+
+/** The `'command'` branch's own narrow call — today's single-pass schema minus `reply`/`lookupEntities`, since the classify step above has already ruled those out. */
+async function selectCommand(
+  entities: AssistantEntity<unknown>[],
+  entityListForPrompt: string,
+  historyContext: string | null,
+  message: string,
+  uiLanguage: 'no' | 'en',
+  modelOverride: store.AssistantModel | undefined,
+  providerOverride: store.AssistantProvider | undefined,
+  localModelOverride: string | undefined,
+  trace: AssistantTraceEntry[],
+): Promise<Pick<RawIntentResult, 'entity' | 'action' | 'searchText'>> {
+  const entityKeys = entities.map((entity) => entity.key)
+  const schema: AssistantJsonSchema = {
+    type: 'object',
+    properties: {
+      entity: { type: 'string', enum: entityKeys },
+      action: nullable({ type: 'string', enum: ALL_ACTIONS }),
+      searchText: nullable({ type: 'string', description: SEARCH_TEXT_DESCRIPTION }),
+    },
+    required: ['entity', 'action', 'searchText'],
+    additionalProperties: false,
+  }
+
+  const systemPrompt = [
+    languageInstruction(uiLanguage),
+    currentDateInstruction(),
+    ...assistantIntroLines(entityListForPrompt, entityKeys.includes('user')),
+    "Pick exactly one entity and one action for this create/update/delete request — don't try to handle more than one thing at once. This includes setting up an entirely new kind of product line (e.g. \"I'm going to sell cars, what do I need to do?\") — help them create a catalogue/categories/products for it, never say this dashboard doesn't support what they sell.",
+    ACTION_ENUM_LINE,
+    historyContextPromptLine(historyContext),
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  return callToolOnce<Pick<RawIntentResult, 'entity' | 'action' | 'searchText'>>({
+    systemPrompt,
+    userText: message,
+    toolName: 'select_command',
+    toolDescription: 'Choose which entity and action this create/update/delete request is about.',
+    schema,
+    model: modelOverride,
+    provider: providerOverride,
+    localModel: localModelOverride,
+    trace,
+  })
+}
+
+/** The `'question'` branch's own narrow call — just `lookupEntities`/`searchText`, no `entity`/`action`/`reply` fields for a local model to conflate them with. */
+async function selectLookupTarget(
+  entityKeys: string[],
+  historyContext: string | null,
+  message: string,
+  uiLanguage: 'no' | 'en',
+  modelOverride: store.AssistantModel | undefined,
+  providerOverride: store.AssistantProvider | undefined,
+  localModelOverride: string | undefined,
+  trace: AssistantTraceEntry[],
+): Promise<{ lookupEntities: string[]; searchText: string | null }> {
+  const schema: AssistantJsonSchema = {
+    type: 'object',
+    properties: {
+      lookupEntities: { type: 'array', items: { type: 'string', enum: entityKeys }, description: LOOKUP_ENTITIES_DESCRIPTION },
+      searchText: nullable({ type: 'string', description: SEARCH_TEXT_DESCRIPTION }),
+    },
+    required: ['lookupEntities', 'searchText'],
+    additionalProperties: false,
+  }
+
+  const systemPrompt = [languageInstruction(uiLanguage), currentDateInstruction(), REFERENCE_RESOLUTION_LINE, historyContextPromptLine(historyContext)].filter(Boolean).join('\n')
+
+  return callToolOnce<{ lookupEntities: string[]; searchText: string | null }>({
+    systemPrompt,
+    userText: message,
+    toolName: 'select_lookup_target',
+    toolDescription: "Choose which entities' data would answer this factual question.",
+    schema,
+    model: modelOverride,
+    provider: providerOverride,
+    localModel: localModelOverride,
+    trace,
+  })
+}
+
+/** The `'chat'` branch's own narrow call — a plain reply, nothing else. */
+async function composeChatReply(
+  entityListForPrompt: string,
+  hasUserEntity: boolean,
+  historyContext: string | null,
+  message: string,
+  uiLanguage: 'no' | 'en',
+  modelOverride: store.AssistantModel | undefined,
+  providerOverride: store.AssistantProvider | undefined,
+  localModelOverride: string | undefined,
+  trace: AssistantTraceEntry[],
+): Promise<string> {
+  const schema: AssistantJsonSchema = { type: 'object', properties: { reply: { type: 'string' } }, required: ['reply'], additionalProperties: false }
+  const systemPrompt = [
+    languageInstruction(uiLanguage),
+    ...assistantIntroLines(entityListForPrompt, hasUserEntity),
+    'Write a short, helpful, conversational reply to this greeting/small talk/generic question, in the admin\'s own language — mention what you can help with on this dashboard when relevant.',
+    historyContextPromptLine(historyContext),
+  ]
+    .filter(Boolean)
+    .join('\n')
+  const result = await callToolOnce<{ reply: string }>({
+    systemPrompt,
+    userText: message,
+    toolName: 'compose_chat_reply',
+    toolDescription: 'Write a conversational reply.',
+    schema,
+    model: modelOverride,
+    provider: providerOverride,
+    localModel: localModelOverride,
+    trace,
+  })
+  return result.reply
+}
+
+/** The `'meta'` branch's own narrow call — the reviewing AI's own suggested fix for the "isn't 80 the percentage, not the price?" misroute: instead of routing a challenge to your own last answer into a fresh data lookup, correct/clarify/expand on it directly from what you already said, with no new data fetch. */
+async function composeMetaReply(
+  lastAssistantReply: string | null,
+  historyContext: string | null,
+  message: string,
+  uiLanguage: 'no' | 'en',
+  modelOverride: store.AssistantModel | undefined,
+  providerOverride: store.AssistantProvider | undefined,
+  localModelOverride: string | undefined,
+  trace: AssistantTraceEntry[],
+): Promise<string> {
+  const schema: AssistantJsonSchema = { type: 'object', properties: { reply: { type: 'string' } }, required: ['reply'], additionalProperties: false }
+  const systemPrompt = [
+    languageInstruction(uiLanguage),
+    "The admin's message below is about YOUR OWN previous reply in this conversation, not a request for fresh data — a correction, a doubt, or a request to clarify/expand on it.",
+    lastAssistantReply ? `Your own last reply was: "${lastAssistantReply}"` : '',
+    'Respond directly to what the admin is saying about that reply — acknowledge/correct yourself if they\'re right, clarify if they\'re confused, or explain further if asked. Only say you\'d need to look something up fresh if answering genuinely requires data neither your last reply nor the conversation below already contains — never silently re-run a fresh lookup instead of addressing what was actually said.',
+    historyContextPromptLine(historyContext),
+  ]
+    .filter(Boolean)
+    .join('\n')
+  const result = await callToolOnce<{ reply: string }>({
+    systemPrompt,
+    userText: message,
+    toolName: 'compose_meta_reply',
+    toolDescription: 'Respond to a message about your own previous reply.',
+    schema,
+    model: modelOverride,
+    provider: providerOverride,
+    localModel: localModelOverride,
+    trace,
+  })
+  return result.reply
+}
+
+/**
+ * The local-provider-only cascade (see `selectIntent`'s own branch on
+ * `provider`) — splits the single Claude call above into a tiny classify call
+ * plus one small, single-purpose branch call. Real testing found a local
+ * model can correctly recognize a factual question (`lookupEntities`) while
+ * *also* misfiring `entity`/`action` into a bogus create/update/delete choice
+ * on that same combined call — a compounding-error pattern from asking one
+ * small model to juggle 4+ signals at once. Splitting into "which of 4
+ * buckets is this" followed by "given that bucket, extract only what it
+ * needs" removes the chance of that contradiction by construction, at the
+ * cost of one extra small round-trip per turn. Also folds in the "meta"
+ * bucket (a message about the assistant's own previous reply, e.g. "isn't 80
+ * the percentage, not the price?") — a gap no branch of the single-pass
+ * schema above ever covered, for either provider, until now.
+ */
+async function selectIntentCascaded(
+  entities: AssistantEntity<unknown>[],
+  message: string,
+  uiLanguage: 'no' | 'en',
+  modelOverride: store.AssistantModel | undefined,
+  providerOverride: store.AssistantProvider | undefined,
+  localModelOverride: string | undefined,
+  historyRaw: string | undefined,
+  historyContext: string | null,
+  trace: AssistantTraceEntry[],
+): Promise<RawIntentResult> {
+  const entityKeys = entities.map((entity) => entity.key)
+  const entityListForPrompt = entities.map((entity) => `${entity.key} (${ENTITY_DESCRIPTIONS[entity.key] ?? ''})`).join(', ')
+  const hasUserEntity = entityKeys.includes('user')
+  const lastAssistantReply = extractLastAssistantLine(historyRaw)
+
+  const messageType = await classifyMessageType(entityListForPrompt, hasUserEntity, historyContext, lastAssistantReply, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
+
+  if (messageType === 'meta') {
+    const reply = await composeMetaReply(lastAssistantReply, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
+    return { entity: 'chat', action: null, searchText: null, reply, lookupEntities: null }
+  }
+
+  if (messageType === 'chat') {
+    const reply = await composeChatReply(entityListForPrompt, hasUserEntity, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
+    return { entity: 'chat', action: null, searchText: null, reply, lookupEntities: null }
+  }
+
+  if (messageType === 'question') {
+    const { lookupEntities, searchText } = await selectLookupTarget(entityKeys, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
+    if (lookupEntities.length === 0) {
+      // Shouldn't happen given `classifyMessageType` already committed to "question", but never
+      // leave the admin with silence if it does.
+      return { entity: 'chat', action: null, searchText: null, reply: uiLanguage === 'no' ? 'Jeg er ikke sikker på hva du mener.' : "I'm not sure what you mean.", lookupEntities: null }
+    }
+    return { entity: 'chat', action: null, searchText, reply: null, lookupEntities }
+  }
+
+  // 'command'
+  const commandResult = await selectCommand(entities, entityListForPrompt, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
+  return { ...commandResult, reply: null, lookupEntities: null }
 }
 
 function requireAccessibleEntity(entityKey: string, session: AssistantSession) {
@@ -291,6 +627,7 @@ export async function selectItem(
   modelOverride?: store.AssistantModel,
   historyContext?: string,
   providerOverride?: store.AssistantProvider,
+  localModelOverride?: string,
 ): Promise<SelectItemResult> {
   const entity = requireAccessibleEntity(entityKey, session)
   if (!entity.listCandidates) throw new Error(`"${entityKey}" has nothing to select from.`)
@@ -333,6 +670,7 @@ export async function selectItem(
     verifyContext: candidateList,
     model: modelOverride,
     provider: providerOverride,
+    localModel: localModelOverride,
     trace,
   })
 
@@ -369,6 +707,7 @@ export async function fillFields(
     resolvedFields?: Record<string, string>
     modelOverride?: store.AssistantModel
     providerOverride?: store.AssistantProvider
+    localModelOverride?: string
     /** Raw recent-transcript text — only sent when this call is itself the first of its turn/continuation (the `reviewingForm`-correction path, which bypasses `selectIntent`). Mutually exclusive with `historyContext`. */
     history?: string
     /** An already-resolved value from an earlier call in the same turn (usually `selectIntent`'s). Mutually exclusive with `history`. */
@@ -387,7 +726,14 @@ export async function fillFields(
     : message
 
   const trace: AssistantTraceEntry[] = []
-  const historyContext = await resolveHistoryContext({ history: options.history, historyContext: options.historyContext }, uiLanguage, options.modelOverride, options.providerOverride, trace)
+  const historyContext = await resolveHistoryContext(
+    { history: options.history, historyContext: options.historyContext },
+    uiLanguage,
+    options.modelOverride,
+    options.providerOverride,
+    options.localModelOverride,
+    trace,
+  )
 
   const systemPrompt = [
     languageInstruction(uiLanguage),
@@ -409,6 +755,7 @@ export async function fillFields(
     schema,
     model: options.modelOverride,
     provider: options.providerOverride,
+    localModel: options.localModelOverride,
     trace,
   })
 
@@ -441,6 +788,7 @@ export async function generateTitle(
   uiLanguage: 'no' | 'en',
   modelOverride?: store.AssistantModel,
   providerOverride?: store.AssistantProvider,
+  localModelOverride?: string,
 ): Promise<{ title: string }> {
   const schema: AssistantJsonSchema = {
     type: 'object',
@@ -463,6 +811,7 @@ export async function generateTitle(
     schema,
     model: modelOverride,
     provider: providerOverride,
+    localModel: localModelOverride,
   })
 }
 
@@ -616,6 +965,7 @@ async function buildEntityDataBlock(
   historyContext: string | null,
   modelOverride: store.AssistantModel | undefined,
   providerOverride: store.AssistantProvider | undefined,
+  localModelOverride: string | undefined,
   trace: AssistantTraceEntry[],
 ): Promise<string> {
   const data = await entity.listAll!(context)
@@ -653,6 +1003,7 @@ async function buildEntityDataBlock(
       schema: LOOKUP_BATCH_SCHEMA,
       model: modelOverride,
       provider: providerOverride,
+      localModel: localModelOverride,
       trace,
     }
     const result = useVerifyPass ? await generateThenVerify<LookupBatchFacts>(batchCallArgs) : await callToolOnce<LookupBatchFacts>(batchCallArgs)
@@ -688,6 +1039,77 @@ async function buildEntityDataBlock(
 }
 
 /**
+ * The deterministic sibling of `buildEntityDataBlock` above — used instead of
+ * it whenever `entity` implements `lookupQueryFields`/`listQueryableRecords`
+ * (see `lookupQuery.ts`'s own module doc comment for why: it turns "does this
+ * record match the filter" from a model judgment call — the `lookup_batch`
+ * classifier's job, shown by real testing to be unreliable even at 7B — into
+ * a small enum pick the model makes once, executed deterministically in code).
+ * No batch loop, no chunking, no model ever asked to eyeball raw JSON.
+ * Returns the exact same data-block string shape `buildEntityDataBlock`
+ * returns, so `answerLookup`'s own final compose call/prompt/schema is
+ * completely unaware of which builder produced it.
+ */
+async function buildEntityQueryDataBlock(
+  entity: AssistantEntity<unknown>,
+  context: AssistantFillContext,
+  message: string,
+  uiLanguage: 'no' | 'en',
+  useVerifyPass: boolean,
+  historyContext: string | null,
+  modelOverride: store.AssistantModel | undefined,
+  providerOverride: store.AssistantProvider | undefined,
+  localModelOverride: string | undefined,
+  trace: AssistantTraceEntry[],
+): Promise<string> {
+  const fields = await entity.lookupQueryFields!(context)
+  const schema = buildLookupQuerySchema(fields)
+  const datasetSummary = (await entity.datasetSummary?.(context)) ?? ''
+
+  const systemPrompt = [
+    languageInstruction(uiLanguage),
+    currentDateInstruction(),
+    `You're building a structured query to answer a factual question about "${entity.key}" records from the Wraps & Coffee admin dashboard — pick filters only from the fields you're given below, never invent a field, and never add a condition the admin's question doesn't actually ask for.`,
+    entity.lookupGuidance ?? '',
+    historyContextPromptLine(historyContext),
+    `Admin's question: ${message}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+
+  const callArgs = {
+    systemPrompt,
+    userText: message,
+    toolName: 'lookup_query',
+    toolDescription: "Build a structured filter/report query to answer the admin's question.",
+    schema,
+    model: modelOverride,
+    provider: providerOverride,
+    localModel: localModelOverride,
+    trace,
+  }
+  const spec = useVerifyPass ? await generateThenVerify<LookupQuerySpec>(callArgs) : await callToolOnce<LookupQuerySpec>(callArgs)
+
+  const records = await entity.listQueryableRecords!(context)
+  const matches = executeLookupQuery(records, spec, fields)
+  const matchingNames = matches.map((record) => record.label)
+
+  let reportBlock = ''
+  const reportField = spec.reportField ? fields.find((field) => field.key === spec.reportField) : undefined
+  if (reportField) {
+    const reported = matches.slice(0, 50).map((record) => `${record.label}: ${JSON.stringify(record.fields[reportField.key])}`)
+    reportBlock = `Real "${reportField.label}" value for each match below — read it directly from here, never compute/guess it:\n${reported.join('\n')}`
+  }
+
+  // Same "plain labeled facts, nothing quotable" shape as `buildEntityDataBlock`'s own
+  // `batchedResultSummary` — real testing showed a model will otherwise copy a ready-made sentence
+  // verbatim instead of composing its own answer.
+  const resultSummary = `"${entity.key}" data (${records.length} total records) — already fully, exactly filtered against the admin's question ("${message}"); this is the complete, final result, not a sample.\nmatchingCount: ${matches.length}\nmatchingNames: ${JSON.stringify(matchingNames)}`
+
+  return [datasetSummary, resultSummary, reportBlock].filter(Boolean).join('\n\n')
+}
+
+/**
  * Composes the final natural-language answer from one already-resolved
  * record — shared by `answerLookup`'s own single-item fast path and
  * `answerLookupForItem` (the continuation call once the admin has picked one
@@ -704,6 +1126,7 @@ async function answerFromRecord(
   historyContext: string | undefined,
   modelOverride: store.AssistantModel | undefined,
   providerOverride: store.AssistantProvider | undefined,
+  localModelOverride: string | undefined,
   capability: AssistantModelCapability,
   trace: AssistantTraceEntry[],
 ): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
@@ -733,6 +1156,7 @@ async function answerFromRecord(
     schema,
     model: modelOverride,
     provider: providerOverride,
+    localModel: localModelOverride,
     trace,
   }
   const result = capability.useVerifyPass ? await generateThenVerify<{ reply: string }>(callArgs) : await callToolOnce<{ reply: string }>(callArgs)
@@ -770,6 +1194,7 @@ export async function answerLookup(
   providerOverride?: store.AssistantProvider,
   /** Set by `selectIntent` (the same `searchText` field the update/delete flow uses to find a target item) when the question is actually about one specific, already-named item (e.g. "how much does the Chicken Fajitas wrap cost?") rather than a filter/count across many records — see the single-item fast path below. `undefined` for an ordinary filter/count/list question. */
   itemSearchText?: string,
+  localModelOverride?: string,
 ): Promise<AnswerLookupResult> {
   // Never trust the model's/client's own entity list — re-filter through the same session-scoped gate every other step uses, then drop anything with no `listAll` implemented (a sub-resource, or an entity that simply doesn't support lookup), then bound the total count regardless.
   const allowed = allowedEntitiesFor(session)
@@ -810,14 +1235,14 @@ export async function answerLookup(
   if (itemSearchText && entities.length === 1) {
     const [singleEntity] = entities
     if (singleEntity.listCandidates && singleEntity.getCurrent) {
-      const selection = await selectItem(singleEntity.key, 'update', session, message, itemSearchText, uiLanguage, undefined, modelOverride, historyContext, providerOverride)
+      const selection = await selectItem(singleEntity.key, 'update', session, message, itemSearchText, uiLanguage, undefined, modelOverride, historyContext, providerOverride, localModelOverride)
       fastPathTrace = selection.trace
       if (selection.itemID) {
         const record = await singleEntity.getCurrent(selection.itemID, context)
         const matchedLabel = selection.candidates.find((candidate) => candidate.id === selection.itemID)?.label
         if (record) {
           const trace: AssistantTraceEntry[] = [...selection.trace]
-          const result = await answerFromRecord(singleEntity, record, matchedLabel, message, uiLanguage, historyContext, modelOverride, providerOverride, capability, trace)
+          const result = await answerFromRecord(singleEntity, record, matchedLabel, message, uiLanguage, historyContext, modelOverride, providerOverride, localModelOverride, capability, trace)
           return { status: 'ready', ...result }
         }
         console.log(`[assistant] answerLookup: single-item fast path resolved itemID "${selection.itemID}" but getCurrent found no record — falling back to the full batch scan`)
@@ -838,9 +1263,17 @@ export async function answerLookup(
   const recordsPerBatch = resolveRecordsPerBatch(capability, chunkSizePreference, customChunkRecordCount)
 
   const trace: AssistantTraceEntry[] = [...fastPathTrace]
+  // The deterministic query engine (see `buildEntityQueryDataBlock`) is strictly better than the
+  // batch classifier whenever it's available — faster (no batch loop) and immune to the
+  // over-inclusion failure mode real testing found even at 7B — so it's preferred outright, not just
+  // as a fallback for an oversized dataset. Only engaged for a single-entity question: a multi-entity
+  // lookup keeps using the legacy path below unchanged, same constraint the single-item fast path
+  // above already applies.
   const dataBlocks = await Promise.all(
     entities.map((entity) =>
-      buildEntityDataBlock(entity, context, message, uiLanguage, recordsPerBatch, capability.chunkCharBudget, capability.useVerifyPass, historyContext ?? null, modelOverride, providerOverride, trace),
+      entities.length === 1 && entity.lookupQueryFields && entity.listQueryableRecords
+        ? buildEntityQueryDataBlock(entity, context, message, uiLanguage, capability.useVerifyPass, historyContext ?? null, modelOverride, providerOverride, localModelOverride, trace)
+        : buildEntityDataBlock(entity, context, message, uiLanguage, recordsPerBatch, capability.chunkCharBudget, capability.useVerifyPass, historyContext ?? null, modelOverride, providerOverride, localModelOverride, trace),
     ),
   )
 
@@ -878,7 +1311,17 @@ export async function answerLookup(
     additionalProperties: false,
   }
 
-  const callArgs = { systemPrompt, userText: message, toolName: 'answer_lookup', toolDescription: 'Answer the question using the provided data.', schema, model: modelOverride, provider: providerOverride, trace }
+  const callArgs = {
+    systemPrompt,
+    userText: message,
+    toolName: 'answer_lookup',
+    toolDescription: 'Answer the question using the provided data.',
+    schema,
+    model: modelOverride,
+    provider: providerOverride,
+    localModel: localModelOverride,
+    trace,
+  }
   const result = capability.useVerifyPass ? await generateThenVerify<{ reply: string }>(callArgs) : await callToolOnce<{ reply: string }>(callArgs)
   return { status: 'ready', ...result, trace }
 }
@@ -898,6 +1341,7 @@ export async function answerLookupForItem(
   historyContext?: string,
   modelOverride?: store.AssistantModel,
   providerOverride?: store.AssistantProvider,
+  localModelOverride?: string,
 ): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
   const entity = requireAccessibleEntity(entityKey, session)
   if (!entity.getCurrent) throw new Error(`"${entityKey}" has nothing to look up.`)
@@ -905,7 +1349,7 @@ export async function answerLookupForItem(
   const record = await entity.getCurrent(itemID, context)
   if (!record) throw new Error("Couldn't find that item anymore — it may have been deleted.")
   const capability = resolveModelCapability(modelOverride, providerOverride)
-  return answerFromRecord(entity, record, undefined, message, uiLanguage, historyContext, modelOverride, providerOverride, capability, [])
+  return answerFromRecord(entity, record, undefined, message, uiLanguage, historyContext, modelOverride, providerOverride, localModelOverride, capability, [])
 }
 
 /**
@@ -926,6 +1370,7 @@ export async function transcribeAttachment(
   image: AssistantImageInput,
   modelOverride?: store.AssistantModel,
   providerOverride?: store.AssistantProvider,
+  localModelOverride?: string,
 ): Promise<{ text: string; trace: AssistantTraceEntry[] }> {
   const schema: AssistantJsonSchema = {
     type: 'object',
@@ -955,6 +1400,7 @@ export async function transcribeAttachment(
     schema,
     model: modelOverride,
     provider: providerOverride,
+    localModel: localModelOverride,
     trace,
   })
   return { ...result, trace }

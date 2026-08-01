@@ -3,7 +3,14 @@ import type { Catalogue, Category } from '../../../src/types/category'
 import type { CustomFieldDefinition, CustomFieldType } from '../../../src/types/customFields'
 import type { CategoryPrices, Price } from '../../../src/types/product'
 import * as store from '../../store'
+import type { LookupQueryField, LookupQueryRecord } from '../lookupQuery'
 import { nullable, type AssistantCandidate, type AssistantEntity, type AssistantFillContext, type AssistantJsonSchema, type AssistantValidationIssue } from '../types'
+
+/** Plain string rendering of a category's own default price (see `liveCategoryPrices`) for the lookup query engine's `reportField` — a `Price` can be one flat number or a `{takeaway, eatIn}` pair, and `LookupQueryRecord.fields` only accepts primitive/string-array values, never a nested object. */
+function formatPrice(price: Price | undefined): string {
+  if (price === undefined) return ''
+  return typeof price === 'number' ? `${price} kr` : `Takeaway: ${price.takeaway} kr / Eat-in: ${price.eatIn} kr`
+}
 
 /** Hard cap on how many custom fields (and, per field, how many `'select'` choices) a single `create` proposal can invent at once — a structural backstop, not just a prompt instruction, against a vague request ("make a catalogue for houses") spiraling into an oversized schema the admin then has to prune by hand. Chosen generously enough to cover real-world specs (a house or car easily has 5-8 meaningful fields) without being unbounded. */
 const MAX_CUSTOM_FIELDS_PER_PROPOSAL = 8
@@ -186,5 +193,28 @@ export const categoryEntity: AssistantEntity<AssistantCategoryDraft> = {
   /** Categories have no top-level array of their own (see the module doc comment above) — flattened here from every catalogue's own `categories[]`, with the parent catalogue's id/name attached so a lookup answer can actually say which catalogue a category belongs to. */
   async listAll(): Promise<(Category & { catalogueId: string; catalogueName: Catalogue['name'] })[]> {
     return liveCatalogues().flatMap((catalogue) => catalogue.categories.map((category) => ({ ...category, catalogueId: catalogue.id, catalogueName: catalogue.name })))
+  },
+
+  async lookupQueryFields(): Promise<LookupQueryField[]> {
+    return [
+      { key: 'catalogueName', label: 'Catalogue', type: 'string', description: 'Which catalogue this category belongs to.' },
+      { key: 'hasCustomFields', label: 'Has custom fields', type: 'boolean' },
+      { key: 'defaultPrice', label: 'Default price', type: 'string', description: 'This category\'s own shared default price, as text (e.g. "45 kr") — empty if none is set.' },
+    ]
+  },
+
+  async listQueryableRecords(context: AssistantFillContext): Promise<LookupQueryRecord[]> {
+    const categoryPrices = liveCategoryPrices()
+    return liveCatalogues().flatMap((catalogue) =>
+      catalogue.categories.map((category) => ({
+        id: category.id,
+        label: `${category.name[context.uiLanguage]} (${catalogue.name[context.uiLanguage]})`,
+        fields: {
+          catalogueName: catalogue.name[context.uiLanguage],
+          hasCustomFields: (category.customFields?.length ?? 0) > 0,
+          defaultPrice: formatPrice(categoryPrices[category.id]),
+        },
+      })),
+    )
   },
 }

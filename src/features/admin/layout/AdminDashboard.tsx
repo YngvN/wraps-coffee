@@ -43,7 +43,16 @@ export function AdminDashboard() {
       <ErrorToast />
       <AdminTopNavbar
         isSidebarOpen={isSidebarOpen}
-        onToggleSidebar={() => setSidebarOpen((open) => !open)}
+        onToggleSidebar={() =>
+          setSidebarOpen((open) => {
+            const next = !open
+            // Opening the left (hamburger) sidebar on mobile closes whichever right-side panel
+            // (Assistant/Search/Notifications/Messages) is open — the two overlays would otherwise
+            // stack on top of each other on a narrow screen with no room for both.
+            if (next) setActivePanel(null)
+            return next
+          })
+        }
         activePanel={activePanel}
         onTogglePanel={handleTogglePanel}
         onClosePanel={handleClosePanel}

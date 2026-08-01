@@ -467,7 +467,7 @@ GET /assistant/ollama-config       (Authorization: Bearer <token>, admin/subadmi
 → 200 { "baseUrl": string, "visionModel": string, "thinkingModel": string }   (nothing secret in here, unlike the Claude key above, but still admin/subadmin-gated since it configures the same feature)
 
 POST /assistant/ollama-config      (Authorization: Bearer <token>, admin/subadmin only)
-{ "baseUrl"?: string, "visionModel"?: string, "thinkingModel"?: string }   (any field independently updatable; defaults to "http://localhost:11434" / "qwen2.5vl:3b" / "qwen2.5:3b-instruct" until changed)
+{ "baseUrl"?: string, "visionModel"?: string, "thinkingModel"?: string }   (any field independently updatable; defaults to "http://localhost:11434" / "gemma3:4b" / "gemma3:4b" until changed — see server/store.ts's DEFAULT_OLLAMA_CONFIG)
 → 200 { "baseUrl": string, "visionModel": string, "thinkingModel": string }
 
 POST /assistant/ollama-test        (Authorization: Bearer <token>, admin/subadmin only)
@@ -478,7 +478,16 @@ POST /assistant/ollama-test        (Authorization: Bearer <token>, admin/subadmi
 POST /assistant/ollama-pull        (Authorization: Bearer <token>, admin/subadmin only)
 { "tag": string }
 → 200 { "ok": true }
-→ 502 { "ok": false, "error": string }   (pulls a model tag onto the configured Ollama host via its own /api/pull endpoint — backs the Integrations page's "Download missing model" button; first pulls are a one-time few-GB download and can take several minutes)
+→ 502 { "ok": false, "error": string }   (pulls a model tag onto the configured Ollama host via its own /api/pull endpoint — backs the Integrations page's "Download missing model" button and its own model manager's "Add a model" field; first pulls are a one-time few-GB download and can take several minutes)
+
+GET /assistant/ollama-models       (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "ok": true, "models": [{ "name": string, "size": number }] }   ("size" in raw bytes; every tag actually pulled on the host, not just the two configured vision/thinking roles — backs the Integrations page's own model manager submenu)
+→ 502 { "ok": false, "error": string }
+
+POST /assistant/ollama-delete      (Authorization: Bearer <token>, admin/subadmin only)
+{ "tag": string }
+→ 200 { "ok": true }
+→ 502 { "ok": false, "error": string }   (removes a model tag from the configured Ollama host via its own /api/delete endpoint — backs the model manager's own "Delete" button; frees disk space, the tag needs pulling again before it can answer anything)
 
 POST /assistant/transcribe         (Authorization: Bearer <token>, any authenticated session)
 { "message": string, "uiLanguage": "no" | "en", "image": { "mediaType", "base64Data" }, "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5", "provider"?: "local" | "claude" }

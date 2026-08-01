@@ -67,7 +67,7 @@ if command -v systemctl >/dev/null 2>&1; then
 [Unit]
 Description=Wraps & Coffee (admin dashboard + kiosk server)
 After=network-online.target ollama.service
-Wants=network-online.target
+Wants=network-online.target ollama.service
 
 [Service]
 Type=simple

@@ -14,6 +14,13 @@
   border-bottom: 1px solid $color-border;
 }
 
+// Lets the brand (its own flex child, between the hamburger and the shortcuts) actually shrink
+// and truncate on a narrow mobile screen instead of forcing the whole bar to overflow — a plain
+// flex item can't shrink below its content's intrinsic width without this.
+.admin-top-navbar > .store-brand-header {
+  min-width: 0;
+}
+
 .admin-top-navbar__toggle {
   display: none;
 }
@@ -142,12 +149,11 @@
     }
   }
 
-  // Icon labels/username crowd a narrow mobile bar — the shortcuts are
-  // still one tap from the sidebar overlay itself, so trimming them here
-  // (rather than shrinking everything to fit) keeps the bar legible. The
-  // window controls go with them — a touch-sized mobile viewport is never
-  // the Electron kiosk window they exist for.
-  .admin-top-navbar__shortcuts,
+  // The shortcuts (Assistant/Search/Overview/Notifications/Messages) stay visible on mobile too —
+  // the brand name (see `.admin-top-navbar > .store-brand-header` above) shrinks/truncates to make
+  // room for them instead. The username and window controls are still dropped: a touch-sized
+  // mobile viewport is never the Electron kiosk window the latter exist for, and there's no room
+  // left for the former once the shortcuts are showing.
   .admin-top-navbar__username,
   .admin-top-navbar__window-controls {
     display: none;

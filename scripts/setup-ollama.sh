@@ -10,8 +10,10 @@
 # runnable on its own (e.g. to just re-pull the default models again).
 set -euo pipefail
 
-VISION_MODEL="${OLLAMA_VISION_MODEL:-qwen2.5vl:3b}"
-THINKING_MODEL="${OLLAMA_THINKING_MODEL:-qwen2.5:3b-instruct}"
+# Gemma 3 4B (Q4 by default) for both roles — a single multimodal model capable of both at once,
+# matching server/store.ts's own DEFAULT_OLLAMA_CONFIG.
+VISION_MODEL="${OLLAMA_VISION_MODEL:-gemma3:4b}"
+THINKING_MODEL="${OLLAMA_THINKING_MODEL:-gemma3:4b}"
 
 if command -v ollama >/dev/null 2>&1; then
   echo "Ollama is already installed, skipping install step."
@@ -52,8 +54,12 @@ done
 echo "Pulling the default vision model ($VISION_MODEL)..."
 ollama pull "$VISION_MODEL"
 
-echo "Pulling the default thinking model ($THINKING_MODEL)..."
-ollama pull "$THINKING_MODEL"
+if [ "$THINKING_MODEL" != "$VISION_MODEL" ]; then
+  echo "Pulling the default thinking model ($THINKING_MODEL)..."
+  ollama pull "$THINKING_MODEL"
+else
+  echo "Thinking model is the same tag as vision ($THINKING_MODEL) — already pulled above."
+fi
 
 echo ""
 echo "Ollama is set up. Installed models:"

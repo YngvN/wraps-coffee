@@ -4,6 +4,7 @@ import type { CustomFieldDefinition } from '../../../src/types/customFields'
 import { ALLERGEN_OPTIONS, DIETARY_TAG_ORDER, type AllergenCode, type CategoryPrices, type DietaryTag, type Discount, type Price, type Product } from '../../../src/types/product'
 import { getEffectivePrice, type EffectivePrice } from '../../../src/utils/price'
 import * as store from '../../store'
+import type { LookupQueryField, LookupQueryRecord } from '../lookupQuery'
 import { nullable, type AssistantCandidate, type AssistantEntity, type AssistantFillContext, type AssistantJsonSchema, type AssistantValidationIssue } from '../types'
 
 function liveProducts(): Product[] {
@@ -37,6 +38,11 @@ function liveCategoryPrices(): CategoryPrices {
 function resolveProductEffectivePrice(product: Product): EffectivePrice | undefined {
   const price = product.price ?? (product.category ? liveCategoryPrices()[product.category] : undefined)
   return getEffectivePrice(price, product.discount)
+}
+
+/** A single representative number for the lookup query engine's numeric `price`/`originalPrice` fields — a dual (takeaway/eat-in) price has no one "the" number, so the takeaway side is used as the primary figure; `effectivePrice`'s own full `{original, discounted}` breakdown (used by `answerFromRecord`/`buildEntityDataBlock`) is unaffected by this simplification. */
+function priceToNumber(price: Price): number {
+  return typeof price === 'number' ? price : price.takeaway
 }
 
 /** The category (or, for a no-category product, the catalogue) a product's own candidate label names alongside it — several products can easily share the same name (e.g. "Chicken" appearing near-identically across many categories), so this is what actually lets the admin tell candidates apart in a "which one did you mean?" list. Reads only the admin's own chat language's side, not every language at once. */
@@ -334,4 +340,42 @@ export const productEntity: AssistantEntity<Product> = {
 
   lookupGuidance:
     'A product is "on sale"/"discounted"/"på tilbud"/"på salg" if and only if its own `discount` field is present (non-null) — never infer this from a product being available, in stock, or simply a real currently-listed item. A product with no `discount` field is not on sale, regardless of anything else about it. For any price/cost question, always read the answer straight from the record\'s own `effectivePrice` field (`original` = price before any discount, `discounted` = the real current price if a discount applies, otherwise `null`) — this is already fully computed; never calculate a discounted price yourself from `price`/`discount`, and never report `price` alone as "the price" once a discount is set.',
+
+  /** See `lookupQuery.ts`'s own module doc comment — `hasDiscount`/`price` are the exact fields behind the on-sale/price bugs real testing found in the old `lookup_batch` classifier; exposing them here lets `answerLookup` skip that classifier entirely for `product` questions. */
+  async lookupQueryFields(): Promise<LookupQueryField[]> {
+    return [
+      { key: 'available', label: 'Available', type: 'boolean', description: 'Whether the product is currently marked available for sale.' },
+      { key: 'hasDiscount', label: 'On sale', type: 'boolean', description: 'True only when the product has an active discount set — the one real signal for "on sale"/"discounted"/"på tilbud".' },
+      { key: 'outOfStock', label: 'Out of stock', type: 'boolean' },
+      { key: 'trackStock', label: 'Stock tracked', type: 'boolean', description: 'Whether stock quantity is tracked for this product at all.' },
+      { key: 'locationLabel', label: 'Category/catalogue', type: 'string', description: 'Which category (or, if none, catalogue) the product belongs to.' },
+      { key: 'price', label: 'Current price', type: 'number', description: 'The real price a customer pays right now — already the discounted price if one applies.' },
+      { key: 'originalPrice', label: 'Price before discount', type: 'number', description: 'The price before any discount — same as "price" when there is no discount.' },
+      { key: 'stockQuantity', label: 'Stock quantity', type: 'number' },
+      { key: 'allergens', label: 'Allergens', type: 'string', description: 'Comma-separated list of allergen codes.' },
+      { key: 'dietaryTags', label: 'Dietary tags', type: 'string', description: 'Comma-separated list of dietary tags (e.g. vegan, gluten-free).' },
+    ]
+  },
+
+  async listQueryableRecords(context: AssistantFillContext): Promise<LookupQueryRecord[]> {
+    return liveProducts().map((product) => {
+      const effective = resolveProductEffectivePrice(product)
+      return {
+        id: product.itemID,
+        label: `${product.name[context.uiLanguage]} (${productLocationLabel(product, context.uiLanguage)})`,
+        fields: {
+          available: product.available,
+          hasDiscount: product.discount != null,
+          outOfStock: Boolean(product.outOfStock),
+          trackStock: Boolean(product.trackStock),
+          locationLabel: productLocationLabel(product, context.uiLanguage),
+          price: effective ? priceToNumber(effective.discounted ?? effective.original) : null,
+          originalPrice: effective ? priceToNumber(effective.original) : null,
+          stockQuantity: product.stockQuantity ?? null,
+          allergens: (product.allergens ?? []).join(', '),
+          dietaryTags: (product.dietaryTags ?? []).join(', '),
+        },
+      }
+    })
+  },
 }

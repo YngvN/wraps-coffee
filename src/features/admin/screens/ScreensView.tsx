@@ -13,6 +13,7 @@ import { getLanIp, getScreenAddressSettings } from '../../../lib/localServer'
 import type { ScreenConfig } from '../../../types/screen'
 import { DEFAULT_SCREEN_ADDRESS_SETTINGS, type ScreenAddressSettings } from '../../../types/screenAddress'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
+import { copyToClipboard } from '../../../utils/clipboard'
 import { generateId } from '../../../utils/id'
 import { countLeaves } from '../../../utils/layoutTree'
 import { deriveMdnsName } from '../../../utils/mdnsName'
@@ -156,7 +157,8 @@ export function ScreensView() {
   }
 
   const handleCopy = (screen: ScreenConfig, url: string) => {
-    navigator.clipboard.writeText(url).then(() => {
+    copyToClipboard(url).then((succeeded) => {
+      if (!succeeded) return
       setCopiedID(screen.screenID)
       setTimeout(() => setCopiedID((current) => (current === screen.screenID ? null : current)), 2000)
     })

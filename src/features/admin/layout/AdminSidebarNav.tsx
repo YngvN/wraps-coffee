@@ -253,7 +253,6 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
               )
               if (item.to !== 'overview') return [navLi]
               return [
-                navLi,
                 <li key="search-action">
                   <button
                     type="button"
@@ -267,6 +266,7 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
                     {t('admin.search.title')}
                   </button>
                 </li>,
+                navLi,
               ]
             })}
           </ul>

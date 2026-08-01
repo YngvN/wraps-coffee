@@ -1,8 +1,15 @@
 import { validateCatalogueDraft } from '../../../src/lib/assistantValidation'
 import type { Catalogue } from '../../../src/types/category'
-import type { Product } from '../../../src/types/product'
+import type { Price, Product } from '../../../src/types/product'
 import * as store from '../../store'
+import type { LookupQueryField, LookupQueryRecord } from '../lookupQuery'
 import { nullable, type AssistantCandidate, type AssistantEntity, type AssistantFillContext, type AssistantJsonSchema, type AssistantValidationIssue } from '../types'
+
+/** Same "flatten to a display string for the query engine's `reportField`" reasoning as `category.ts`'s own `formatPrice`. */
+function formatPrice(price: Price | undefined): string {
+  if (price === undefined) return ''
+  return typeof price === 'number' ? `${price} kr` : `Takeaway: ${price.takeaway} kr / Eat-in: ${price.eatIn} kr`
+}
 
 function liveCatalogues(): Catalogue[] {
   return (store.get('admin.catalogues')?.value as Catalogue[] | undefined) ?? []
@@ -75,5 +82,25 @@ export const catalogueEntity: AssistantEntity<Catalogue> = {
 
   async listAll(): Promise<Catalogue[]> {
     return liveCatalogues()
+  },
+
+  async lookupQueryFields(): Promise<LookupQueryField[]> {
+    return [
+      { key: 'hasPrice', label: 'Has a default price', type: 'boolean' },
+      { key: 'categoryCount', label: 'Category count', type: 'number' },
+      { key: 'price', label: 'Default price', type: 'string', description: 'This catalogue\'s own default price, as text (e.g. "45 kr") — empty if none is set.' },
+    ]
+  },
+
+  async listQueryableRecords(context: AssistantFillContext): Promise<LookupQueryRecord[]> {
+    return liveCatalogues().map((catalogue) => ({
+      id: catalogue.id,
+      label: catalogue.name[context.uiLanguage],
+      fields: {
+        hasPrice: catalogue.price !== undefined,
+        categoryCount: catalogue.categories.length,
+        price: formatPrice(catalogue.price),
+      },
+    }))
   },
 }

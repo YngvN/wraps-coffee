@@ -3,6 +3,7 @@ import type { IntegrationsConfig } from '../../../src/types/integrations'
 import { DEFAULT_INTEGRATIONS_CONFIG } from '../../../src/types/integrations'
 import { NEWS_SOURCES } from '../../../src/types/news'
 import * as store from '../../store'
+import type { LookupQueryField, LookupQueryRecord } from '../lookupQuery'
 import { nullable, type AssistantCandidate, type AssistantEntity, type AssistantFillContext, type AssistantJsonSchema, type AssistantValidationIssue } from '../types'
 
 type IntegrationKey = 'weather' | 'transit' | 'entur' | 'news'
@@ -88,5 +89,24 @@ export const integrationToggleEntity: AssistantEntity<AssistantIntegrationToggle
 
   async listAll(): Promise<IntegrationsConfig> {
     return liveIntegrationsConfig()
+  },
+
+  async lookupQueryFields(): Promise<LookupQueryField[]> {
+    return [
+      { key: 'enabled', label: 'Enabled', type: 'boolean' },
+      { key: 'sourceIds', label: 'Enabled news sources', type: 'string', description: 'Comma-separated list of enabled news source ids — only meaningful for the "news" integration.' },
+    ]
+  },
+
+  async listQueryableRecords(): Promise<LookupQueryRecord[]> {
+    const config = liveIntegrationsConfig()
+    return (Object.keys(INTEGRATION_LABELS) as IntegrationKey[]).map((key) => ({
+      id: key,
+      label: INTEGRATION_LABELS[key],
+      fields: {
+        enabled: config[key].enabled,
+        sourceIds: key === 'news' ? config.news.enabledSourceIds.join(', ') : '',
+      },
+    }))
   },
 }

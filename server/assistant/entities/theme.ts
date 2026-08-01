@@ -2,6 +2,7 @@ import { validateThemeDraft } from '../../../src/lib/assistantValidation'
 import type { AppearanceSettings, AppearanceTheme } from '../../../src/types/appearanceTheme'
 import { LOCKED_APPEARANCE_COLORS } from '../../../src/types/appearanceTheme'
 import * as store from '../../store'
+import type { LookupQueryField, LookupQueryRecord } from '../lookupQuery'
 import { nullable, type AssistantActionName, type AssistantCandidate, type AssistantEntity, type AssistantFillContext, type AssistantJsonSchema, type AssistantValidationIssue } from '../types'
 
 function liveAppearanceSettings(): AppearanceSettings {
@@ -87,5 +88,24 @@ export const themeEntity: AssistantEntity<AppearanceTheme> = {
 
   async listAll(): Promise<AppearanceSettings> {
     return liveAppearanceSettings()
+  },
+
+  async lookupQueryFields(): Promise<LookupQueryField[]> {
+    return [
+      { key: 'isActive', label: 'Currently active', type: 'boolean', description: 'Whether this is the theme currently shown on the screens right now.' },
+      { key: 'fonts', label: 'Fonts', type: 'string', description: 'Body/heading/subheading font names, as text.' },
+    ]
+  },
+
+  async listQueryableRecords(): Promise<LookupQueryRecord[]> {
+    const { themes, activeThemeId } = liveAppearanceSettings()
+    return themes.map((theme) => ({
+      id: theme.id,
+      label: theme.name,
+      fields: {
+        isActive: theme.id === activeThemeId,
+        fonts: `Body: ${theme.fonts.body}, Heading: ${theme.fonts.heading}, Subheading: ${theme.fonts.subheading}`,
+      },
+    }))
   },
 }

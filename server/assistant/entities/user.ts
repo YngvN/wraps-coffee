@@ -1,6 +1,7 @@
 import { validateUserDraft } from '../../../src/lib/assistantValidation'
 import { DASHBOARD_SECTIONS, type DashboardSection } from '../../../src/types/sync'
 import * as store from '../../store'
+import type { LookupQueryField, LookupQueryRecord } from '../lookupQuery'
 import { nullable, type AssistantCandidate, type AssistantEntity, type AssistantFillContext, type AssistantJsonSchema, type AssistantValidationIssue } from '../types'
 
 /**
@@ -93,5 +94,25 @@ export const userEntity: AssistantEntity<AssistantUserDraft> = {
   // `password`) — never swap this for a lower-level accessor.
   async listAll() {
     return store.listUsers()
+  },
+
+  async lookupQueryFields(): Promise<LookupQueryField[]> {
+    return [
+      { key: 'role', label: 'Role', type: 'enum', enumValues: ['admin', 'subadmin', 'limited'] },
+      { key: 'hasLimitedSections', label: 'Has restricted sections', type: 'boolean', description: 'Only meaningful for a "limited" role — whether it has any dashboard sections it can access at all.' },
+      { key: 'allowedSections', label: 'Allowed sections', type: 'string', description: 'Comma-separated list of dashboard sections this account can access — only meaningful for a "limited" role.' },
+    ]
+  },
+
+  async listQueryableRecords(): Promise<LookupQueryRecord[]> {
+    return store.listUsers().map((user) => ({
+      id: user.id,
+      label: `${user.username} (${user.role})`,
+      fields: {
+        role: user.role,
+        hasLimitedSections: (user.allowedSections?.length ?? 0) > 0,
+        allowedSections: (user.allowedSections ?? []).join(', '),
+      },
+    }))
   },
 }

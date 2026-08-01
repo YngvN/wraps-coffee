@@ -110,9 +110,13 @@
   .admin-dashboard__sidebar--mobile {
     display: block;
     position: fixed;
-    top: 0;
+    // Below `AdminTopNavbar.scss`'s own 56px height/z-index:30 — same reasoning as
+    // `.admin-dashboard__sidebar--desktop`'s own `top`/`height` above. Without this, the overlay's
+    // `top: 0` placed it directly behind the sticky navbar (which paints above it, z-index 30 > 25),
+    // hiding whichever item(s) sit at the very top of the list underneath the navbar.
+    top: 56px;
     left: 0;
-    bottom: 0;
+    height: calc(100vh - 56px);
     z-index: 25;
     width: min(280px, 80vw);
   }

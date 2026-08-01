@@ -9,7 +9,7 @@ import type { WindowLaunchSettings } from '../src/types/windowLaunch'
 import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
 import * as assistantSteps from './assistant/steps'
-import { pullOllamaModel, testOllamaConnection } from './assistant/ollamaClient'
+import { deleteOllamaModel, ensureOllamaRunning, listOllamaModels, pullOllamaModel, testOllamaConnection } from './assistant/ollamaClient'
 import { AssistantLocalProviderError, AssistantNotConfiguredError, type AssistantActionName } from './assistant/types'
 import * as backup from './backup'
 import { handleDepartures, handleLookup, handleStopSearch, handleWeather } from './integrations'
@@ -671,7 +671,14 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { message, uiLanguage, model, history, provider } = body as { message?: string; uiLanguage?: 'no' | 'en'; model?: store.AssistantModel; history?: string; provider?: store.AssistantProvider }
+        const { message, uiLanguage, model, history, provider, localModel } = body as {
+          message?: string
+          uiLanguage?: 'no' | 'en'
+          model?: store.AssistantModel
+          history?: string
+          provider?: store.AssistantProvider
+          localModel?: string
+        }
         if (!message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing message or uiLanguage' })
           return
@@ -687,6 +694,7 @@ const httpServer = createServer((req, res) => {
               isAssistantModel(model) ? model : undefined,
               typeof history === 'string' ? history : undefined,
               isAssistantProvider(provider) ? provider : undefined,
+              typeof localModel === 'string' ? localModel : undefined,
             ),
           )
         } catch (error) {
@@ -705,7 +713,7 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, action, message, searchText, uiLanguage, priorItemID, model, historyContext, provider } = body as {
+        const { entity, action, message, searchText, uiLanguage, priorItemID, model, historyContext, provider, localModel } = body as {
           entity?: string
           action?: AssistantActionName
           message?: string
@@ -715,6 +723,7 @@ const httpServer = createServer((req, res) => {
           model?: store.AssistantModel
           historyContext?: string
           provider?: store.AssistantProvider
+          localModel?: string
         }
         if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, action, message, or uiLanguage' })
@@ -735,6 +744,7 @@ const httpServer = createServer((req, res) => {
               isAssistantModel(model) ? model : undefined,
               typeof historyContext === 'string' ? historyContext : undefined,
               isAssistantProvider(provider) ? provider : undefined,
+              typeof localModel === 'string' ? localModel : undefined,
             ),
           )
         } catch (error) {
@@ -753,7 +763,13 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { transcriptText, uiLanguage, model, provider } = body as { transcriptText?: string; uiLanguage?: 'no' | 'en'; model?: store.AssistantModel; provider?: store.AssistantProvider }
+        const { transcriptText, uiLanguage, model, provider, localModel } = body as {
+          transcriptText?: string
+          uiLanguage?: 'no' | 'en'
+          model?: store.AssistantModel
+          provider?: store.AssistantProvider
+          localModel?: string
+        }
         if (!transcriptText || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing transcriptText or uiLanguage' })
           return
@@ -762,7 +778,13 @@ const httpServer = createServer((req, res) => {
           sendJson(
             res,
             200,
-            await assistantSteps.generateTitle(transcriptText, uiLanguage, isAssistantModel(model) ? model : undefined, isAssistantProvider(provider) ? provider : undefined),
+            await assistantSteps.generateTitle(
+              transcriptText,
+              uiLanguage,
+              isAssistantModel(model) ? model : undefined,
+              isAssistantProvider(provider) ? provider : undefined,
+              typeof localModel === 'string' ? localModel : undefined,
+            ),
           )
         } catch (error) {
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
@@ -780,7 +802,7 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { message, uiLanguage, entities, model, chunkSizePreference, customChunkRecordCount, historyContext, provider, itemSearchText } = body as {
+        const { message, uiLanguage, entities, model, chunkSizePreference, customChunkRecordCount, historyContext, provider, itemSearchText, localModel } = body as {
           message?: string
           uiLanguage?: 'no' | 'en'
           entities?: string[]
@@ -790,6 +812,7 @@ const httpServer = createServer((req, res) => {
           historyContext?: string
           provider?: store.AssistantProvider
           itemSearchText?: string
+          localModel?: string
         }
         if (!message || (uiLanguage !== 'no' && uiLanguage !== 'en') || !Array.isArray(entities)) {
           sendJson(res, 400, { error: 'Missing message, uiLanguage, or entities' })
@@ -810,6 +833,7 @@ const httpServer = createServer((req, res) => {
               typeof historyContext === 'string' ? historyContext : undefined,
               isAssistantProvider(provider) ? provider : undefined,
               typeof itemSearchText === 'string' ? itemSearchText : undefined,
+              typeof localModel === 'string' ? localModel : undefined,
             ),
           )
         } catch (error) {
@@ -832,7 +856,7 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, itemID, message, uiLanguage, historyContext, model, provider } = body as {
+        const { entity, itemID, message, uiLanguage, historyContext, model, provider, localModel } = body as {
           entity?: string
           itemID?: string
           message?: string
@@ -840,6 +864,7 @@ const httpServer = createServer((req, res) => {
           historyContext?: string
           model?: store.AssistantModel
           provider?: store.AssistantProvider
+          localModel?: string
         }
         if (!entity || !itemID || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, itemID, message, or uiLanguage' })
@@ -858,6 +883,7 @@ const httpServer = createServer((req, res) => {
               typeof historyContext === 'string' ? historyContext : undefined,
               isAssistantModel(model) ? model : undefined,
               isAssistantProvider(provider) ? provider : undefined,
+              typeof localModel === 'string' ? localModel : undefined,
             ),
           )
         } catch (error) {
@@ -876,7 +902,7 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields, model, history, historyContext, provider } = body as {
+        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields, model, history, historyContext, provider, localModel } = body as {
           entity?: string
           action?: AssistantActionName
           itemID?: string
@@ -889,6 +915,7 @@ const httpServer = createServer((req, res) => {
           history?: string
           historyContext?: string
           provider?: store.AssistantProvider
+          localModel?: string
         }
         if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, action, message, or uiLanguage' })
@@ -905,6 +932,7 @@ const httpServer = createServer((req, res) => {
               resolvedFields,
               modelOverride: isAssistantModel(model) ? model : undefined,
               providerOverride: isAssistantProvider(provider) ? provider : undefined,
+              localModelOverride: typeof localModel === 'string' ? localModel : undefined,
               history: typeof history === 'string' ? history : undefined,
               historyContext: typeof historyContext === 'string' ? historyContext : undefined,
             }),
@@ -1013,6 +1041,51 @@ const httpServer = createServer((req, res) => {
     return
   }
 
+  // Full list of every model tag actually pulled on the configured Ollama host (not just the two
+  // configured vision/thinking roles) — backs the Integrations page's own model manager submenu.
+  if (req.method === 'GET' && url.pathname === '/assistant/ollama-models') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view the assistant configuration' })
+      return
+    }
+    listOllamaModels()
+      .then((result) => sendJson(res, result.ok ? 200 : 502, result))
+      .catch(() => sendJson(res, 502, { ok: false, error: 'Could not reach the Ollama host.' }))
+    return
+  }
+
+  // Deletes a model tag from the configured Ollama host — backs the model manager's own "Delete"
+  // button. Same admin/subadmin-only posture as the pull route above.
+  if (req.method === 'POST' && url.pathname === '/assistant/ollama-delete') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can delete assistant models' })
+      return
+    }
+    readJsonBody(req)
+      .then(async (body) => {
+        const { tag } = body as { tag?: string }
+        if (!tag) {
+          sendJson(res, 400, { error: 'Missing tag' })
+          return
+        }
+        console.log(`[assistant] ${session.username} deleted Ollama model "${tag}"`)
+        const result = await deleteOllamaModel(tag)
+        sendJson(res, result.ok ? 200 : 502, result)
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
   // Generic "just read this photo" mode — see assistant/steps.ts's
   // transcribeAttachment doc comment. Open to any authenticated session,
   // same posture as the five step routes above; never writes app data.
@@ -1024,12 +1097,13 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { message, uiLanguage, image, model, provider } = body as {
+        const { message, uiLanguage, image, model, provider, localModel } = body as {
           message?: string
           uiLanguage?: 'no' | 'en'
           image?: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string }
           model?: store.AssistantModel
           provider?: store.AssistantProvider
+          localModel?: string
         }
         if (uiLanguage !== 'no' && uiLanguage !== 'en') {
           sendJson(res, 400, { error: 'Missing uiLanguage' })
@@ -1043,7 +1117,14 @@ const httpServer = createServer((req, res) => {
           sendJson(
             res,
             200,
-            await assistantSteps.transcribeAttachment(message ?? '', uiLanguage, image, isAssistantModel(model) ? model : undefined, isAssistantProvider(provider) ? provider : undefined),
+            await assistantSteps.transcribeAttachment(
+              message ?? '',
+              uiLanguage,
+              image,
+              isAssistantModel(model) ? model : undefined,
+              isAssistantProvider(provider) ? provider : undefined,
+              typeof localModel === 'string' ? localModel : undefined,
+            ),
           )
         } catch (error) {
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
@@ -1564,6 +1645,9 @@ process.on('unhandledRejection', (error) => {
 
 backup.restoreFromSiblingBackupIfFresh()
 store.load()
+// Best-effort, never blocks server startup — see ensureOllamaRunning's own doc comment for why
+// this doesn't need to be awaited here.
+void ensureOllamaRunning()
 neonBridge.start(applyUpdate, broadcastError)
 woltPoller.start(applyUpdate)
 foodoraPoller.start(applyUpdate)

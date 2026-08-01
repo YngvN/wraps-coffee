@@ -4,6 +4,10 @@
   display: flex;
   align-items: center;
   gap: $spacing-unit;
+  // Harmless wherever there's plenty of room (e.g. above the login form) — only actually
+  // truncates once a container this sits in (e.g. `.admin-top-navbar` on mobile) is tight enough
+  // to force it, since `text-overflow: ellipsis` below never kicks in before that.
+  min-width: 0;
 }
 
 .store-brand-header__logo {
@@ -11,10 +15,15 @@
   height: 32px;
   object-fit: contain;
   border-radius: 6px;
+  flex-shrink: 0;
 }
 
 .store-brand-header__name {
   font-weight: 700;
   font-size: 1rem;
   color: $color-text;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

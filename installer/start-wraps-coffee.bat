@@ -41,6 +41,7 @@ if /i "%ROLE%"=="display" goto display_role
 set "WRAPS_COFFEE_URL=http://localhost:4173/admin/login"
 
 echo Starting Wraps ^& Coffee...
+call :start_ollama
 call :start_server
 
 echo Waiting for the local server to respond...
@@ -167,6 +168,22 @@ if /i "%LAUNCH_METHOD%"=="edge" (
   echo Electron isn't installed - opening a kiosk browser window instead.
 )
 start "" msedge --kiosk "%~1" --edge-kiosk-type=fullscreen --no-first-run --disable-session-crashed-bubble
+goto :eof
+
+:start_ollama
+rem Best-effort top-up alongside the app server itself: most Windows Ollama
+rem installs already auto-start their own tray app at logon, but that's a
+rem separate app-level guarantee this script doesn't control (and this
+rem scheduled task can fire before the interactive logon session that
+rem Startup-folder entry depends on) - so make sure it's actually up too,
+rem not just assumed. Silently skipped if Ollama isn't installed at all -
+rem a Claude-only setup has no use for it.
+powershell -NoProfile -Command "try { Invoke-WebRequest -Uri 'http://localhost:11434/api/tags' -UseBasicParsing -TimeoutSec 2 | Out-Null; exit 0 } catch { exit 1 }" >nul 2>&1
+if not errorlevel 1 goto :eof
+where ollama >nul 2>&1
+if errorlevel 1 goto :eof
+echo Starting Ollama...
+start "WrapsCoffeeOllama" /min cmd /c "ollama serve >> logs\ollama.log 2>&1"
 goto :eof
 
 :start_server

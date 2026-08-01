@@ -329,6 +329,97 @@
   flex-wrap: wrap;
 }
 
+// A lighter-weight nested submenu (see `.integration-submenu` above, which this deliberately
+// doesn't reuse — that one's bold 1.125rem summary/thick border is sized for a top-level card, not
+// a sub-section already inside one) for the Ollama card's own model manager.
+.integrations-view__model-manager {
+  border: 1px solid $color-border;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.integrations-view__model-manager-summary {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  padding: calc($spacing-unit * 0.75) $spacing-unit;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.875rem;
+  user-select: none;
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+    }
+  }
+}
+
+.integrations-view__model-manager-chevron {
+  margin-left: auto;
+  color: $color-text-muted;
+  transition: transform 0.15s ease;
+}
+
+.integrations-view__model-manager[data-open='true'] .integrations-view__model-manager-chevron {
+  transform: rotate(90deg);
+}
+
+.integrations-view__model-manager-body {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  padding: 0 $spacing-unit $spacing-unit;
+}
+
+.integrations-view__model-list {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.integrations-view__model-list-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  border: 1px solid $color-border;
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.integrations-view__model-list-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: $color-text;
+}
+
+.integrations-view__model-list-size {
+  color: $color-text-muted;
+  white-space: nowrap;
+}
+
+.integrations-view__model-manager-add {
+  display: flex;
+  align-items: flex-end;
+  gap: $spacing-unit;
+
+  > *:first-child {
+    flex: 1;
+  }
+}
+
 .integrations-view__mode-icons {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));

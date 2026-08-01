@@ -486,10 +486,14 @@ export interface OllamaConfig {
   thinkingModel: string
 }
 
+// Gemma 3 4B (Q4 — Ollama's own default quantization for the bare `gemma3:4b` tag) is a single
+// multimodal model capable of both roles at once, so it's the out-of-the-box default for a fresh
+// install on both — see `IntegrationsView.tsx`'s own "Small" tier, which still offers Qwen2.5(-VL)
+// there too as an alternative, not a replacement.
 const DEFAULT_OLLAMA_CONFIG: OllamaConfig = {
   baseUrl: 'http://localhost:11434',
-  visionModel: 'qwen2.5vl:3b',
-  thinkingModel: 'qwen2.5:3b-instruct',
+  visionModel: 'gemma3:4b',
+  thinkingModel: 'gemma3:4b',
 }
 
 export function getOllamaConfig(): OllamaConfig {

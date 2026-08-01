@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, LayoutGroup, motion } from 'framer-motion'
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Alert, Badge, Button, Checkbox, ChevronLeftIcon, ClockIcon, CopyIcon, ImageUploadField, Input, KebabIcon, NewChatIcon, NumberInput, Spinner } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
@@ -19,6 +19,7 @@ import { useStoreSettings } from '../../../hooks/useStoreSettings'
 import { useLanguage } from '../../../i18n'
 import { createUser, deleteUser, getAssistantCredentialStatus, getOllamaConfig, resetUserPassword, SessionExpiredError, type AssistantModel, type AssistantProvider, type ChunkSizePreference } from '../../../lib/localServer'
 import { dismissUpload, startUpload, useUpload } from '../../../lib/uploadManager'
+import { findOllamaTier, OLLAMA_THINKING_TIERS } from '../integrations/ollamaModelTiers'
 import type { AppearanceTheme, AppearanceThemeColor } from '../../../types/appearanceTheme'
 import type { Catalogue, Category } from '../../../types/category'
 import type { ContactInfo } from '../../../types/contactInfo'
@@ -29,6 +30,7 @@ import { NEWS_SOURCES } from '../../../types/news'
 import type { Price, Product } from '../../../types/product'
 import type { StoreSettings } from '../../../types/storeSettings'
 import type { AdminRole, DashboardSection } from '../../../types/sync'
+import { copyToClipboard } from '../../../utils/clipboard'
 import { formatDateTime } from '../../../utils/clockFormat'
 import { resolveProductCatalogue } from '../../../utils/productCatalogue'
 import { EventForm } from '../events/EventForm'
@@ -78,6 +80,12 @@ const IMAGE_FIELD: Partial<Record<AssistantEntityKey, string>> = {
 
 /** Same three models Settings → Integrations' own "Claude" model picker offers (see `IntegrationsView.tsx`) — reused here for the per-chat override menu's own option list and i18n labels (`admin.integrations.assistantModel.<model>.label`), rather than duplicating fresh copy for the same three names. */
 const MODEL_OVERRIDE_OPTIONS: AssistantModel[] = ['claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-opus-4-5']
+
+/** The Local model `<select>`'s own sentinel value for "not one of the curated tiers" — same convention as `IntegrationsView.tsx`'s own `OLLAMA_CUSTOM_TIER_VALUE`; a real Ollama tag never contains a space, so this can't collide with one. */
+const LOCAL_MODEL_CUSTOM_VALUE = '__custom__'
+
+/** Sentinel values for the top-level provider `<select>` — `providerOverride` itself is `null` for "Standard", so this just gives that `null` case a string a `<select>`'s `value` can hold. */
+const PROVIDER_SELECT_STANDARD_VALUE = 'standard'
 
 const CHUNK_SIZE_OPTIONS: ChunkSizePreference[] = ['auto', 'small', 'medium', 'large', 'custom']
 
@@ -171,14 +179,21 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   // Settings) — never written back to it, so switching providers here never affects any other
   // admin/device.
   const [providerOverride, setProviderOverride] = useLocalStorage<AssistantProvider | null>('admin.assistantProviderOverride', null)
-  // Same per-device, never-synced posture as `modelOverride` above — controls how much data a
+  // Same per-device, never-synced posture as `modelOverride` above, but for which Ollama *tag*
+  // answers this chat's local calls — independently selectable from `modelOverride`/`providerOverride`
+  // in the same kebab menu. `null` means "Standard" (no override, use the shared, admin-configured
+  // `ollamaConfig.thinkingModel`); a Small/Medium/Large tier tag, or any other string typed into the
+  // "Custom" field, pins that tag for this device's chat instead. Never written back to the shared
+  // Ollama config in Settings → Integrations.
+  const [localModelOverride, setLocalModelOverride] = useLocalStorage<string | null>('admin.assistantLocalModelOverride', null)
+  // Same per-device, never-synced posture as `chunkSizePreference` below — controls how much data a
   // lookup answer (e.g. "how many products are over 100kr?") processes per call at once. `'auto'`
   // just means "use the active model/provider's own default"; `customChunkRecordCount` is only
   // read when the preference is `'custom'`, letting an admin on unusually capable (or unusually
   // constrained) hardware set an exact records-per-batch value the fixed presets don't cover.
   const [chunkSizePreference, setChunkSizePreference] = useLocalStorage<ChunkSizePreference>('admin.assistantChunkSizePreference', 'auto')
   const [customChunkRecordCount, setCustomChunkRecordCount] = useLocalStorage<number | null>('admin.assistantChunkSizeCustomValue', null)
-  const flow = useAssistantFlow(modelOverride ?? undefined, chunkSizePreference, customChunkRecordCount ?? undefined, providerOverride ?? undefined)
+  const flow = useAssistantFlow(modelOverride ?? undefined, chunkSizePreference, customChunkRecordCount ?? undefined, providerOverride ?? undefined, localModelOverride?.trim() ? localModelOverride : undefined)
   const [clockFormat] = useClockFormatPreference()
   const [dateFormat] = useDateFormatPreference()
   // Slides in from the right over the chat, same as `logView` below — see the model-menu
@@ -843,18 +858,30 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   // Reuses `MODEL_OVERRIDE_OPTIONS`' own translated label rather than a separate short-name key —
   // every one of those labels is "<name> — <descriptor>", so the name alone is everything before it.
   const activeModel = modelOverride ?? defaultModel
-  // "Local (<the actual configured thinking model tag>)" once it's loaded (see the fetch above),
-  // falling back to the generic "Local (Ollama)" label for the brief window before it resolves —
-  // named the same way `activeModel`'s own label names a specific Claude model, rather than the
-  // provider name alone.
-  const localModelLabel = ollamaThinkingModel ? t('admin.assistant.modelLocalWithNameOption', { model: ollamaThinkingModel }) : t('admin.assistant.modelLocalOption').split(' — ')[0]
+  // "Local (<the tag actually answering this chat>)" — this device's own `localModelOverride` if
+  // it picked one, otherwise the shared Ollama config's own `thinkingModel` once it's loaded (see
+  // the fetch above), falling back to the generic "Local (Ollama)" label for the brief window
+  // before either resolves — named the same way `activeModel`'s own label names a specific Claude
+  // model, rather than the provider name alone.
+  const effectiveLocalModel = (localModelOverride?.trim() || null) ?? ollamaThinkingModel
+  const localModelLabel = effectiveLocalModel ? t('admin.assistant.modelLocalWithNameOption', { model: effectiveLocalModel }) : t('admin.assistant.modelLocalOption').split(' — ')[0]
+  // Which curated tier (if any) the current override tag belongs to — `undefined` is the "Custom"
+  // case, the same way `IntegrationsView.tsx`'s own thinking-model picker works (this reuses that
+  // exact same tier data — see `ollamaModelTiers.ts` — so the two never silently drift apart on
+  // which models exist, the way they once did when Gemma 3 4B was added to one but not the other).
+  const localModelTierMatch = localModelOverride !== null ? findOllamaTier(OLLAMA_THINKING_TIERS, localModelOverride) : undefined
+  // Selected once the admin has picked "Custom…" in the Local model sub-list below (or typed
+  // something that no longer matches a curated tier) — `localModelOverride === ''` is the
+  // "just clicked Custom, nothing typed yet" state, kept distinct from `null` ("Standard").
+  const isCustomLocalModel = localModelOverride !== null && !localModelTierMatch
   const modelSubtitle =
     flow.allowedEntities.length > 0 ? (effectiveProvider === 'local' ? localModelLabel : activeModel ? t(`admin.integrations.assistantModel.${activeModel}.label`).split(' — ')[0] : undefined) : undefined
 
   /** Copies the whole current conversation (every message, every thought step's raw trace, and the model that answered it) as plain text — see `buildConversationClipboardText`. */
   const handleCopyConversation = () => {
     const modelLabel = effectiveProvider === 'local' ? localModelLabel : activeModel ? t(`admin.integrations.assistantModel.${activeModel}.label`) : null
-    navigator.clipboard.writeText(buildConversationClipboardText(flow.transcript, modelLabel, t)).then(() => {
+    copyToClipboard(buildConversationClipboardText(flow.transcript, modelLabel, t)).then((succeeded) => {
+      if (!succeeded) return
       setConversationCopied(true)
       setTimeout(() => setConversationCopied(false), 2000)
     })
@@ -875,9 +902,23 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
     </button>
   )
 
+  // A brand-new (or just-reset) conversation has nothing to reset again — "New chat" hides
+  // itself in that case rather than sitting there as a no-op button. `layout` on the log button
+  // below animates it sliding into the freed-up space (or back out again) instead of the header
+  // snapping to a new width instantly.
+  const isChatEmpty = flow.transcript.length === 0
+
   const headerActions = flow.allowedEntities.length > 0 && (
-    <>
-      <button
+    // `LayoutGroup` is what actually makes the log button's own `layout` animation run at all
+    // here — without it, a `layout`-animated element sitting *outside* an `AnimatePresence` never
+    // joins that AnimatePresence's own exit/enter layout batch, so it was snapping straight to its
+    // new position instead of sliding. `popLayout` additionally takes the exiting new-chat button
+    // out of flow immediately (rather than only once its own exit animation finishes), so the log
+    // button's slide plays in sync with that fade-out instead of only starting after it.
+    <LayoutGroup>
+      <motion.button
+        layout
+        transition={{ layout: { duration: 0.25, ease: 'easeOut' } }}
         type="button"
         className="admin-right-panel__header-action"
         onClick={() => {
@@ -888,22 +929,34 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
         title={t('admin.assistant.conversationLog')}
       >
         <ClockIcon />
-      </button>
-      <button
-        type="button"
-        className="admin-right-panel__header-action"
-        onClick={() => {
-          flow.newChat()
-          setLogView(null)
-          setModelMenuOpen(false)
-          setChatKey((key) => key + 1)
-        }}
-        aria-label={t('admin.assistant.newChat')}
-        title={t('admin.assistant.newChat')}
-      >
-        <NewChatIcon />
-      </button>
-    </>
+      </motion.button>
+      <AnimatePresence mode="popLayout">
+        {!isChatEmpty && (
+          <motion.button
+            key="new-chat"
+            layout
+            type="button"
+            className="admin-right-panel__header-action"
+            onClick={() => {
+              flow.newChat()
+              setLogView(null)
+              setModelMenuOpen(false)
+              setChatKey((key) => key + 1)
+            }}
+            aria-label={t('admin.assistant.newChat')}
+            title={t('admin.assistant.newChat')}
+            initial={{ opacity: 0, scale: 0.6 }}
+            // Delayed to start only once the log button's own slide (above) has finished — the
+            // button reveals into the space that slide just freed up, rather than popping in
+            // while the header is still visibly reflowing.
+            animate={{ opacity: 1, scale: 1, transition: { delay: 0.25, duration: 0.2, ease: 'easeOut' } }}
+            exit={{ opacity: 0, scale: 0.6, transition: { duration: 0.15, ease: 'easeOut' } }}
+          >
+            <NewChatIcon />
+          </motion.button>
+        )}
+      </AnimatePresence>
+    </LayoutGroup>
   )
 
   return (
@@ -939,72 +992,132 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                 <div className="assistant-panel__log-entry-header">
                   <span className="assistant-panel__log-title">{t('admin.assistant.modelMenuTitle')}</span>
                 </div>
-                <ul className="assistant-panel__log-list">
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setModelOverride(null)
+                <div className="assistant-panel__model-select-field">
+                  <select
+                    id="assistant-provider-select"
+                    value={providerOverride ?? PROVIDER_SELECT_STANDARD_VALUE}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      setModelOverride(null)
+                      setLocalModelOverride(null)
+                      if (value === PROVIDER_SELECT_STANDARD_VALUE) {
                         setProviderOverride(null)
+                        setModelMenuOpen(false)
+                        return
+                      }
+                      // "Claude"/"Local" leave the menu open so the model `<select>` revealed just
+                      // below has something to pick — closing immediately here would hide it again
+                      // before the admin had a chance to use it.
+                      setProviderOverride(value as AssistantProvider)
+                    }}
+                  >
+                    <option value={PROVIDER_SELECT_STANDARD_VALUE}>{t('admin.assistant.modelDefaultOption')}</option>
+                    <option value="claude">{t('admin.assistant.providerClaudeOption')}</option>
+                    <option value="local">{t('admin.assistant.modelLocalOption').split(' — ')[0]}</option>
+                  </select>
+                </div>
+
+                {providerOverride === 'claude' && (
+                  <div className="assistant-panel__model-select-field">
+                    <select
+                      id="assistant-claude-model-select"
+                      value={modelOverride ?? PROVIDER_SELECT_STANDARD_VALUE}
+                      onChange={(event) => {
+                        const value = event.target.value
+                        setModelOverride(value === PROVIDER_SELECT_STANDARD_VALUE ? null : (value as AssistantModel))
                         setModelMenuOpen(false)
                       }}
                     >
-                      <span className={`assistant-panel__log-title${modelOverride === null && providerOverride === null ? ' assistant-panel__model-menu-option--selected' : ''}`}>
-                        {t('admin.assistant.modelDefaultOption')}
-                      </span>
-                    </button>
-                  </li>
-                  {MODEL_OVERRIDE_OPTIONS.map((model) => (
-                    <li key={model}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setModelOverride(model)
-                          setProviderOverride('claude')
+                      <option value={PROVIDER_SELECT_STANDARD_VALUE}>{t('admin.assistant.modelDefaultOption')}</option>
+                      {MODEL_OVERRIDE_OPTIONS.map((model) => (
+                        <option key={model} value={model}>
+                          {t(`admin.integrations.assistantModel.${model}.label`)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {providerOverride === 'local' && (
+                  <div className="assistant-panel__model-select-field">
+                    <select
+                      id="assistant-local-model-select"
+                      value={localModelOverride === null ? PROVIDER_SELECT_STANDARD_VALUE : isCustomLocalModel ? LOCAL_MODEL_CUSTOM_VALUE : localModelTierMatch!.labelKey}
+                      onChange={(event) => {
+                        const value = event.target.value
+                        if (value === LOCAL_MODEL_CUSTOM_VALUE) {
+                          setLocalModelOverride('')
+                          return
+                        }
+                        if (value === PROVIDER_SELECT_STANDARD_VALUE) {
+                          setLocalModelOverride(null)
+                          setModelMenuOpen(false)
+                          return
+                        }
+                        const tier = OLLAMA_THINKING_TIERS.find((candidate) => candidate.labelKey === value)
+                        if (tier) setLocalModelOverride(tier.models[0].tag)
+                        setModelMenuOpen(false)
+                      }}
+                    >
+                      <option value={PROVIDER_SELECT_STANDARD_VALUE}>{t('admin.assistant.modelDefaultOption')}</option>
+                      {OLLAMA_THINKING_TIERS.map((tier) => (
+                        <option key={tier.labelKey} value={tier.labelKey}>
+                          {t(tier.labelKey)}
+                        </option>
+                      ))}
+                      <option value={LOCAL_MODEL_CUSTOM_VALUE}>{t('admin.integrations.ollamaCustomTierOption')}</option>
+                    </select>
+                    {localModelTierMatch && localModelTierMatch.models.length > 1 && (
+                      <select
+                        id="assistant-local-model-choice-select"
+                        aria-label={t('admin.integrations.ollamaModelChoiceLabel')}
+                        value={localModelOverride ?? ''}
+                        onChange={(event) => {
+                          setLocalModelOverride(event.target.value)
                           setModelMenuOpen(false)
                         }}
                       >
-                        <span className={`assistant-panel__log-title${modelOverride === model && effectiveProvider === 'claude' ? ' assistant-panel__model-menu-option--selected' : ''}`}>
-                          {t(`admin.integrations.assistantModel.${model}.label`)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProviderOverride('local')
-                        setModelMenuOpen(false)
-                      }}
-                    >
-                      <span className={`assistant-panel__log-title${effectiveProvider === 'local' ? ' assistant-panel__model-menu-option--selected' : ''}`}>{t('admin.assistant.modelLocalOption')}</span>
-                    </button>
-                  </li>
-                </ul>
+                        {localModelTierMatch.models.map((model) => (
+                          <option key={model.tag} value={model.tag}>
+                            {model.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {isCustomLocalModel && (
+                      <Input
+                        id="assistant-local-model-custom"
+                        label={t('admin.integrations.ollamaThinkingModelLabel')}
+                        value={localModelOverride ?? ''}
+                        onChange={(event) => setLocalModelOverride(event.target.value)}
+                        placeholder="qwen2.5:3b-instruct"
+                      />
+                    )}
+                  </div>
+                )}
 
                 <div className="assistant-panel__log-entry-header">
                   <span className="assistant-panel__log-title">{t('admin.assistant.chunkSizeMenuTitle')}</span>
                 </div>
                 <p className="assistant-panel__model-menu-description">{t('admin.assistant.chunkSizeDescription')}</p>
-                <ul className="assistant-panel__log-list">
-                  {CHUNK_SIZE_OPTIONS.map((option) => (
-                    <li key={option}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setChunkSizePreference(option)
-                          // "Custom" needs the menu to stay open so the numeric field below is reachable — every other option closes it, same as the model list above.
-                          if (option !== 'custom') setModelMenuOpen(false)
-                        }}
-                      >
-                        <span className={`assistant-panel__log-title${chunkSizePreference === option ? ' assistant-panel__model-menu-option--selected' : ''}`}>
-                          {t(`admin.assistant.chunkSizeOption.${option}`)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <div className="assistant-panel__model-select-field">
+                  <select
+                    id="assistant-chunk-size-select"
+                    value={chunkSizePreference}
+                    onChange={(event) => {
+                      const option = event.target.value as ChunkSizePreference
+                      setChunkSizePreference(option)
+                      // "Custom" needs the menu to stay open so the numeric field below is reachable — every other option closes it.
+                      if (option !== 'custom') setModelMenuOpen(false)
+                    }}
+                  >
+                    {CHUNK_SIZE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {t(`admin.assistant.chunkSizeOption.${option}`)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 {chunkSizePreference === 'custom' && (
                   <NumberInput
                     id="assistant-chunk-size-custom"
@@ -1067,22 +1180,30 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                       )}
                     </div>
                   </>
-                ) : flow.conversationLog.entries.length === 0 ? (
-                  <Alert variant="info">{t('admin.assistant.noConversations')}</Alert>
                 ) : (
-                  <ul className="assistant-panel__log-list">
-                    {flow.conversationLog.entries.map((entry) => (
-                      <li key={entry.id}>
-                        <button type="button" onClick={() => setLogView({ mode: 'entry', id: entry.id })}>
-                          <span className="assistant-panel__log-title-row">
-                            <span className="assistant-panel__log-title">{entry.title}</span>
-                            {entry.hadError && <Badge variant="error">{t('admin.assistant.conversationErrorTag')}</Badge>}
-                          </span>
-                          <span className="assistant-panel__log-date">{formatDateTime(new Date(entry.createdAt), language, clockFormat, dateFormat)}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  <>
+                    <button type="button" className="assistant-panel__log-back" onClick={() => setLogView(null)}>
+                      <ChevronLeftIcon />
+                      {t('admin.common.back')}
+                    </button>
+                    {flow.conversationLog.entries.length === 0 ? (
+                      <Alert variant="info">{t('admin.assistant.noConversations')}</Alert>
+                    ) : (
+                      <ul className="assistant-panel__log-list">
+                        {flow.conversationLog.entries.map((entry) => (
+                          <li key={entry.id}>
+                            <button type="button" onClick={() => setLogView({ mode: 'entry', id: entry.id })}>
+                              <span className="assistant-panel__log-title-row">
+                                <span className="assistant-panel__log-title">{entry.title}</span>
+                                {entry.hadError && <Badge variant="error">{t('admin.assistant.conversationErrorTag')}</Badge>}
+                              </span>
+                              <span className="assistant-panel__log-date">{formatDateTime(new Date(entry.createdAt), language, clockFormat, dateFormat)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
                 )}
               </motion.div>
             ) : (

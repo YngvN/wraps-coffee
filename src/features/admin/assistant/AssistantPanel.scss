@@ -35,6 +35,33 @@
   line-height: 1.4;
 }
 
+// The model-menu's own provider/model `<select>` dropdowns — same field shape as
+// `IntegrationsView.scss`'s own `.integrations-view__ollama-field`, kept as a local copy since
+// there's no shared `<Select>` component in this codebase to reuse instead (see that file for
+// the precedent this mirrors).
+.assistant-panel__model-select-field {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  padding: 0 calc($spacing-unit / 4);
+  margin-bottom: $spacing-unit;
+
+  label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: $color-text-muted;
+  }
+
+  select {
+    padding: calc($spacing-unit / 2) $spacing-unit;
+    border: 1px solid $color-border;
+    border-radius: 6px;
+    background: $color-surface;
+    color: $color-text;
+    font-size: 0.9rem;
+  }
+}
+
 .assistant-panel__transcript {
   flex: 1;
   min-height: 0;

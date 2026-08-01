@@ -69,6 +69,11 @@ function isTextLine(line: TranscriptLine): line is Extract<TranscriptLine, { tex
   return 'text' in line
 }
 
+/** Whether `error` is a `fetch` rejection caused by `AbortController.abort()` (see `cancel`) — these should never surface as a reported failure, since `cancel` itself already appended a "cancelled" line and reset state. */
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
 /** Plain-text rendering of a transcript, trimmed to the most recent lines/characters so an unusually long back-and-forth doesn't balloon a call's token usage. Used both for `generateTitle` and as the raw `history` sent on whichever call is first for a turn/continuation (see `sendMessage`'s own `resolveHistoryContext`-fed calls) — either way, `'thought'` lines are excluded entirely: trace JSON has no place in either prompt. */
 function transcriptToText(transcript: TranscriptLine[]): string {
   return transcript
@@ -206,9 +211,21 @@ export type AssistantImageMode = 'fillForm' | 'transcribeOnly'
  * default) when omitted. `chunkSizePreference`/`customChunkRecordCount` are
  * the same kind of per-device override, threaded only into the lookup call
  * (see `sendMessage`'s own `lookupEntities` branch) — see `AssistantPanel`'s
- * kebab-menu chunk-size setting.
+ * kebab-menu chunk-size setting. `localModelOverride` is the same per-device,
+ * never-persisted posture as `modelOverride` but for which Ollama *tag*
+ * answers a `providerOverride: 'local'` chat — independently selectable from
+ * `modelOverride`/`providerOverride` in that same kebab menu (a Small/Medium/
+ * Large tier pick, or a free-text custom tag). Falls back to
+ * `server/store.ts`'s `getOllamaConfig().thinkingModel` (the shared,
+ * admin-configured default) when omitted; ignored entirely on the Claude path.
  */
-export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePreference?: ChunkSizePreference, customChunkRecordCount?: number, providerOverride?: AssistantProvider) {
+export function useAssistantFlow(
+  modelOverride?: AssistantModel,
+  chunkSizePreference?: ChunkSizePreference,
+  customChunkRecordCount?: number,
+  providerOverride?: AssistantProvider,
+  localModelOverride?: string,
+) {
   const { session } = useAdminSession()
   const { language, t } = useLanguage()
   const [transcript, setTranscript] = useState<TranscriptLine[]>([])
@@ -321,12 +338,12 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
 
     const id = conversationLog.archive(linesToArchive, fallbackConversationTitle(linesToArchive), hadError)
     if (!session) return
-    assistantGenerateTitle(session.token, transcriptToText(linesToArchive), language, modelOverride, providerOverride)
+    assistantGenerateTitle(session.token, transcriptToText(linesToArchive), language, modelOverride, providerOverride, localModelOverride)
       .then((result) => conversationLog.updateTitle(id, result.title))
       .catch(() => {
         // Keep the plain-text fallback title — a failed/unconfigured assistant shouldn't block browsing the log.
       })
-  }, [transcript, session, language, conversationLog, setState, modelOverride, providerOverride])
+  }, [transcript, session, language, conversationLog, setState, modelOverride, providerOverride, localModelOverride])
 
   const runFillFields = useCallback(
     async (
@@ -339,20 +356,25 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
       if (!session) return
       beginBusy('thinking')
       try {
-        const result = await assistantFillFields(session.token, {
-          entity,
-          action,
-          message,
-          uiLanguage: language,
-          itemID,
-          image: options.image,
-          priorDraft: options.priorDraft,
-          resolvedFields: options.resolvedFields,
-          model: modelOverride,
-          provider: providerOverride,
-          history: options.history,
-          historyContext: options.historyContext,
-        })
+        const result = await assistantFillFields(
+          session.token,
+          {
+            entity,
+            action,
+            message,
+            uiLanguage: language,
+            itemID,
+            image: options.image,
+            priorDraft: options.priorDraft,
+            resolvedFields: options.resolvedFields,
+            model: modelOverride,
+            provider: providerOverride,
+            localModel: localModelOverride,
+            history: options.history,
+            historyContext: options.historyContext,
+          },
+          abortRef.current?.signal,
+        )
         recordTrace(result.trace)
         if (result.status === 'clarify') {
           finalizeThought()
@@ -371,10 +393,11 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
         finalizeThought()
         setState({ status: 'reviewingForm', entity, action, itemID, draft: result.draft, issues: result.issues })
       } catch (error) {
+        if (isAbortError(error)) return
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride],
+    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride],
   )
 
   /** Delete still runs `fillFields` (an empty schema for every destructible entity — see each adapter's own `fillFieldsSchema`) purely to get a real `validate()` pass: that's the only path that surfaces a delete-time soft warning (e.g. "N products would be orphaned") or hard guard (e.g. "can't delete the active theme") before the typed-confirmation screen, rather than skipping straight to an empty-issues review. */
@@ -390,18 +413,23 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
       if (!session) return
       beginBusy('thinking')
       try {
-        const result = await assistantFillFields(session.token, {
-          entity,
-          action,
-          message,
-          uiLanguage: language,
-          itemID,
-          resolvedFields: options.resolvedFields,
-          model: modelOverride,
-          provider: providerOverride,
-          history: options.history,
-          historyContext: options.historyContext,
-        })
+        const result = await assistantFillFields(
+          session.token,
+          {
+            entity,
+            action,
+            message,
+            uiLanguage: language,
+            itemID,
+            resolvedFields: options.resolvedFields,
+            model: modelOverride,
+            provider: providerOverride,
+            localModel: localModelOverride,
+            history: options.history,
+            historyContext: options.historyContext,
+          },
+          abortRef.current?.signal,
+        )
         recordTrace(result.trace)
         if (result.status === 'clarify') {
           finalizeThought()
@@ -421,10 +449,11 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
         finalizeThought()
         setState({ status: 'reviewingDestructive', entity, action, itemID, draft: result.draft, issues: result.issues, label })
       } catch (error) {
+        if (isAbortError(error)) return
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride],
+    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride],
   )
 
   const proceedWithItem = useCallback(
@@ -451,16 +480,21 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
       }
       beginBusy('thinking')
       try {
-        const result = await assistantSelectItem(session.token, {
-          entity,
-          action,
-          message,
-          searchText,
-          uiLanguage: language,
-          model: modelOverride,
-          provider: providerOverride,
-          historyContext: historyContext ?? undefined,
-        })
+        const result = await assistantSelectItem(
+          session.token,
+          {
+            entity,
+            action,
+            message,
+            searchText,
+            uiLanguage: language,
+            model: modelOverride,
+            provider: providerOverride,
+            localModel: localModelOverride,
+            historyContext: historyContext ?? undefined,
+          },
+          abortRef.current?.signal,
+        )
         recordTrace(result.trace)
         if (result.candidates.length === 0) {
           reportNoMatch()
@@ -473,15 +507,17 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
         }
         setState({ status: 'confirmItem', entity, action, message, candidates: result.candidates, pickedId: result.itemID, showAll: false, historyContext })
       } catch (error) {
+        if (isAbortError(error)) return
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, runFillFields, beginBusy, recordTrace, finalizeThought, reportNoMatch, reportError, modelOverride, providerOverride],
+    [session, language, runFillFields, beginBusy, recordTrace, finalizeThought, reportNoMatch, reportError, modelOverride, providerOverride, localModelOverride],
   )
 
   const sendMessage = useCallback(
     async (message: string, image?: AttachedImage, imageMode: AssistantImageMode = 'fillForm') => {
       if (!session || !message.trim()) return
+      abortRef.current = new AbortController()
       // Snapshot before appending this new line below — this is the "recent history" whichever
       // branch below sends as `history`, and it must not include the message it's building context for.
       const historyText = transcriptToText(transcript)
@@ -494,12 +530,17 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
       if (image && imageMode === 'transcribeOnly') {
         beginBusy('thinking')
         try {
-          const result = await assistantTranscribeAttachment(session.token, { message, uiLanguage: language, image, model: modelOverride, provider: providerOverride })
+          const result = await assistantTranscribeAttachment(
+            session.token,
+            { message, uiLanguage: language, image, model: modelOverride, provider: providerOverride, localModel: localModelOverride },
+            abortRef.current.signal,
+          )
           recordTrace(result.trace)
           finalizeThought()
           appendLine('assistant', result.text)
           setState({ status: 'idle' })
         } catch (error) {
+          if (isAbortError(error)) return
           reportError(error instanceof Error ? error.message : 'Something went wrong')
         }
         return
@@ -529,7 +570,16 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
 
       beginBusy('thinking')
       try {
-        const result: AssistantIntentResult = await assistantSelectIntent(session.token, message, language, modelOverride, historyText || undefined, providerOverride)
+        const result: AssistantIntentResult = await assistantSelectIntent(
+          session.token,
+          message,
+          language,
+          modelOverride,
+          historyText || undefined,
+          providerOverride,
+          localModelOverride,
+          abortRef.current.signal,
+        )
         recordTrace(result.trace)
 
         // General question/greeting/etc. — answered directly, never routed
@@ -540,17 +590,22 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
           if (result.lookupEntities && result.lookupEntities.length > 0) {
             // A factual question about the cafe's own current data — hand off to `answerLookup`
             // instead of a plain conversational reply (see `selectIntent`'s own doc comment).
-            const lookup = await assistantAnswerLookup(session.token, {
-              message,
-              uiLanguage: language,
-              entities: result.lookupEntities,
-              model: modelOverride,
-              provider: providerOverride,
-              chunkSizePreference,
-              customChunkRecordCount,
-              historyContext: result.historyContext ?? undefined,
-              itemSearchText: result.searchText ?? undefined,
-            })
+            const lookup = await assistantAnswerLookup(
+              session.token,
+              {
+                message,
+                uiLanguage: language,
+                entities: result.lookupEntities,
+                model: modelOverride,
+                provider: providerOverride,
+                localModel: localModelOverride,
+                chunkSizePreference,
+                customChunkRecordCount,
+                historyContext: result.historyContext ?? undefined,
+                itemSearchText: result.searchText ?? undefined,
+              },
+              abortRef.current?.signal,
+            )
             recordTrace(lookup.trace)
             if (lookup.status === 'clarifyItem') {
               finalizeThought()
@@ -574,6 +629,7 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
         }
         await startOperation(entity, result.action, message, result.searchText ?? '', result.historyContext)
       } catch (error) {
+        if (isAbortError(error)) return
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
@@ -592,6 +648,7 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
       reportError,
       modelOverride,
       providerOverride,
+      localModelOverride,
       chunkSizePreference,
       customChunkRecordCount,
       transcript,
@@ -602,6 +659,7 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
     if (state.status !== 'confirmItem') return
     const candidate = state.candidates.find((c) => c.id === state.pickedId)
     if (!candidate) return
+    abortRef.current = new AbortController()
     await proceedWithItem(state.entity, state.action, candidate.id, candidate.label, state.message, state.historyContext)
   }, [state, proceedWithItem])
 
@@ -610,6 +668,7 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
       if (state.status !== 'confirmItem') return
       const candidate = state.candidates.find((c) => c.id === id)
       if (!candidate) return
+      abortRef.current = new AbortController()
       await proceedWithItem(state.entity, state.action, candidate.id, candidate.label, state.message, state.historyContext)
     },
     [state, proceedWithItem],
@@ -630,6 +689,7 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
         setState({ ...state, resolvedFields })
         return
       }
+      abortRef.current = new AbortController()
       if (state.label !== undefined && state.itemID) {
         await runFillFieldsForDelete(state.entity, state.action, state.message, state.itemID, state.label, { resolvedFields, historyContext: state.historyContext ?? undefined })
       } else {
@@ -645,26 +705,33 @@ export function useAssistantFlow(modelOverride?: AssistantModel, chunkSizePrefer
       if (state.status !== 'clarifyingLookupItem') return
       if (!session) return
       const { entityKey, message, historyContext } = state
+      abortRef.current = new AbortController()
       beginBusy('thinking')
       try {
-        const result = await assistantAnswerLookupForItem(session.token, {
-          entity: entityKey,
-          itemID,
-          message,
-          uiLanguage: language,
-          historyContext: historyContext ?? undefined,
-          model: modelOverride,
-          provider: providerOverride,
-        })
+        const result = await assistantAnswerLookupForItem(
+          session.token,
+          {
+            entity: entityKey,
+            itemID,
+            message,
+            uiLanguage: language,
+            historyContext: historyContext ?? undefined,
+            model: modelOverride,
+            provider: providerOverride,
+            localModel: localModelOverride,
+          },
+          abortRef.current.signal,
+        )
         recordTrace(result.trace)
         finalizeThought()
         appendLine('assistant', result.reply)
         setState({ status: 'idle' })
       } catch (error) {
+        if (isAbortError(error)) return
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [state, session, language, modelOverride, providerOverride, beginBusy, recordTrace, finalizeThought, appendLine, reportError],
+    [state, session, language, modelOverride, providerOverride, localModelOverride, beginBusy, recordTrace, finalizeThought, appendLine, reportError],
   )
 
   /** Called by the review UI once the real, existing save/delete path has actually committed the write — the assistant itself never does (see the plan's hard invariant). */

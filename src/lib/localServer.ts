@@ -489,11 +489,14 @@ export async function assistantSelectIntent(
   model?: AssistantModel,
   history?: string,
   provider?: AssistantProvider,
+  localModel?: string,
+  signal?: AbortSignal,
 ): Promise<AssistantIntentResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/intent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message, uiLanguage, model, history, provider }),
+    body: JSON.stringify({ message, uiLanguage, model, history, provider, localModel }),
+    signal,
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (!response.ok) {
@@ -523,12 +526,15 @@ export async function assistantSelectItem(
     model?: AssistantModel
     historyContext?: string
     provider?: AssistantProvider
+    localModel?: string
   },
+  signal?: AbortSignal,
 ): Promise<AssistantSelectItemResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/select-item`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(input),
+    signal,
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (!response.ok) {
@@ -571,12 +577,15 @@ export async function assistantFillFields(
     history?: string
     historyContext?: string
     provider?: AssistantProvider
+    localModel?: string
   },
+  signal?: AbortSignal,
 ): Promise<AssistantFillFieldsResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/fill-fields`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(input),
+    signal,
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (!response.ok) {
@@ -593,11 +602,14 @@ export async function assistantGenerateTitle(
   uiLanguage: 'no' | 'en',
   model?: AssistantModel,
   provider?: AssistantProvider,
+  localModel?: string,
+  signal?: AbortSignal,
 ): Promise<{ title: string }> {
   const response = await fetch(`${serverBaseUrl()}/assistant/title`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ transcriptText, uiLanguage, model, provider }),
+    body: JSON.stringify({ transcriptText, uiLanguage, model, provider, localModel }),
+    signal,
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (!response.ok) {
@@ -636,12 +648,15 @@ export async function assistantAnswerLookup(
     historyContext?: string
     provider?: AssistantProvider
     itemSearchText?: string
+    localModel?: string
   },
+  signal?: AbortSignal,
 ): Promise<AssistantLookupResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/lookup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(input),
+    signal,
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (!response.ok) {
@@ -654,12 +669,14 @@ export async function assistantAnswerLookup(
 /** The continuation call once the admin has picked one specific candidate off an `assistantAnswerLookup` `'clarifyItem'` result — answers directly from that one, now-unambiguous record. Never searches or picks anything itself. */
 export async function assistantAnswerLookupForItem(
   token: string,
-  input: { entity: string; itemID: string; message: string; uiLanguage: 'no' | 'en'; historyContext?: string; model?: AssistantModel; provider?: AssistantProvider },
+  input: { entity: string; itemID: string; message: string; uiLanguage: 'no' | 'en'; historyContext?: string; model?: AssistantModel; provider?: AssistantProvider; localModel?: string },
+  signal?: AbortSignal,
 ): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
   const response = await fetch(`${serverBaseUrl()}/assistant/lookup-item`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(input),
+    signal,
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (!response.ok) {
@@ -719,7 +736,7 @@ export async function testOllamaConnection(token: string, draft?: Partial<Ollama
   return response.json() as Promise<OllamaConnectionTestResult>
 }
 
-/** Pulls a model tag onto the configured Ollama host — backs the Integrations page's "Download missing model" button. First pulls are a one-time few-GB download, so this can take several minutes. `admin`/`subadmin` only. */
+/** Pulls a model tag onto the configured Ollama host — backs the Integrations page's "Download missing model" button and its own model manager's "Add a model" field. First pulls are a one-time few-GB download, so this can take several minutes. `admin`/`subadmin` only. */
 export async function pullOllamaModel(token: string, tag: string): Promise<{ ok: boolean; error?: string }> {
   const response = await fetch(`${serverBaseUrl()}/assistant/ollama-pull`, {
     method: 'POST',
@@ -734,6 +751,36 @@ export async function pullOllamaModel(token: string, tag: string): Promise<{ ok:
   return response.json() as Promise<{ ok: boolean; error?: string }>
 }
 
+export interface OllamaModelInfo {
+  name: string
+  /** Bytes on disk — shown as a human-readable size by the model manager. */
+  size: number
+}
+
+/** Every model tag actually pulled on the configured Ollama host, not just the two configured vision/thinking roles — backs the Integrations page's own model manager submenu. `admin`/`subadmin` only. */
+export async function listOllamaModels(token: string): Promise<{ ok: boolean; models?: OllamaModelInfo[]; error?: string }> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/ollama-models`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 403) throw new Error('Only admin/subadmin accounts can view the assistant configuration')
+  if (!response.ok) throw new Error('Could not load the list of installed Ollama models')
+  return response.json() as Promise<{ ok: boolean; models?: OllamaModelInfo[]; error?: string }>
+}
+
+/** Removes a model tag from the configured Ollama host — backs the model manager's own "Delete" button. `admin`/`subadmin` only. */
+export async function deleteOllamaModel(token: string, tag: string): Promise<{ ok: boolean; error?: string }> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/ollama-delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ tag }),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? `Could not delete "${tag}"`)
+  }
+  return response.json() as Promise<{ ok: boolean; error?: string }>
+}
+
 /** The generic "just read this photo" mode (see `AssistantPanel`'s image-mode toggle) — reads any photographed document (not just this cafe's own data) and returns a transcription, with no draft/review step at all. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only (Claude path only — the Ollama path routes deterministically by call shape). */
 export async function assistantTranscribeAttachment(
   token: string,
@@ -743,12 +790,15 @@ export async function assistantTranscribeAttachment(
     image: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string }
     model?: AssistantModel
     provider?: AssistantProvider
+    localModel?: string
   },
+  signal?: AbortSignal,
 ): Promise<{ text: string; trace: AssistantTraceEntry[] }> {
   const response = await fetch(`${serverBaseUrl()}/assistant/transcribe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(input),
+    signal,
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (!response.ok) {

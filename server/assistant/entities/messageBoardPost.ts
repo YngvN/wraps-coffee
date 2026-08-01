@@ -2,7 +2,13 @@ import { validateMessageBoardPostDraft } from '../../../src/lib/assistantValidat
 import type { MessageBoard, MessageBoardPost } from '../../../src/types/messageBoard'
 import { MESSAGE_BOARD_BODY_MAX_LENGTH, MESSAGE_BOARD_TITLE_MAX_LENGTH } from '../../../src/types/messageBoard'
 import * as store from '../../store'
+import type { LookupQueryField, LookupQueryRecord } from '../lookupQuery'
 import { nullable, type AssistantCandidate, type AssistantEntity, type AssistantFillContext, type AssistantJsonSchema, type AssistantValidationIssue } from '../types'
+
+/** A post's own expiry, computed here rather than left to the model — same "a date comparison shouldn't be re-derived per call" reasoning as `event.ts`'s own `hasOccurred`. */
+function isExpired(post: MessageBoardPost): boolean {
+  return Boolean(post.expiresAt) && new Date(post.expiresAt as string).getTime() < Date.now()
+}
 
 function livePosts(): MessageBoardPost[] {
   return (store.get('admin.messageBoardPosts')?.value as MessageBoardPost[] | undefined) ?? []
@@ -100,5 +106,33 @@ export const messageBoardPostEntity: AssistantEntity<MessageBoardPost> = {
 
   async listAll(): Promise<MessageBoardPost[]> {
     return livePosts()
+  },
+
+  async lookupQueryFields(): Promise<LookupQueryField[]> {
+    return [
+      { key: 'pinned', label: 'Pinned', type: 'boolean' },
+      { key: 'isExpired', label: 'Expired', type: 'boolean', description: 'Whether this post\'s own expiry date has already passed — already computed for you, never work this out yourself from `expiresAt`.' },
+      { key: 'boardName', label: 'Board', type: 'string' },
+      { key: 'body', label: 'Body text', type: 'string' },
+      { key: 'expiresAt', label: 'Expires at', type: 'string' },
+    ]
+  },
+
+  async listQueryableRecords(): Promise<LookupQueryRecord[]> {
+    const boards = liveBoards()
+    return livePosts().map((post) => {
+      const boardName = boards.find((board) => board.id === post.boardId)?.name ?? post.boardId
+      return {
+        id: post.id,
+        label: `${post.title} (${boardName})`,
+        fields: {
+          pinned: Boolean(post.pinned),
+          isExpired: isExpired(post),
+          boardName,
+          body: post.body,
+          expiresAt: post.expiresAt ?? null,
+        },
+      }
+    })
   },
 }

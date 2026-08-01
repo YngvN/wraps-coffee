@@ -1,4 +1,5 @@
 import type { AdminRole, DashboardSection, SyncedKey } from '../../src/types/sync'
+import type { LookupQueryField, LookupQueryRecord } from './lookupQuery'
 
 /** The subset of a server session that the assistant engine needs — matches `store.ts`'s own (unexported) `SessionInfo` shape. */
 export interface AssistantSession {
@@ -142,6 +143,26 @@ export interface AssistantEntity<TDraft> {
    * surfacing.
    */
   datasetSummary?(context: AssistantFillContext): Promise<string>
+  /**
+   * Which of this entity's fields can be filtered/reported on for a lookup
+   * question — see `lookupQuery.ts`'s own module doc comment for why this
+   * exists: it turns "does this record match the filter" from a model
+   * judgment call (the `lookup_batch` classifier's job, shown by real testing
+   * to be unreliable even at 7B) into a small enum pick the model makes,
+   * executed deterministically in code (`steps.ts`'s `buildEntityQueryDataBlock`).
+   * Omit entirely for an entity with nothing worth exposing this way (e.g.
+   * `messageBoard`, whose only field is a plain name) — it then keeps using
+   * the existing `listAll`-based batch/full-dump path unchanged. Always
+   * implemented together with `listQueryableRecords` below.
+   */
+  lookupQueryFields?(context: AssistantFillContext): Promise<LookupQueryField[]>
+  /**
+   * The flattened rows `lookupQueryFields` above filters/reports over —
+   * independent of whatever shape `listAll` returns (e.g. `theme`'s `listAll`
+   * returns a settings object, not a flat array; this still exposes one row
+   * per theme). Only ever consulted by the query engine, never the CRUD flow.
+   */
+  listQueryableRecords?(context: AssistantFillContext): Promise<LookupQueryRecord[]>
 }
 
 /** A `SyncedKey`-backed entity's own commit descriptor — informational only; the actual write still goes through the normal WS `write` path from the browser (see the plan's "hard invariant" — this server module never writes app data itself). */

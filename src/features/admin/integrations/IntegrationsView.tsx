@@ -14,10 +14,12 @@ import { useWoltOrders } from '../../../hooks/useWoltOrders'
 import { useLanguage } from '../../../i18n'
 import { goBack } from '../../../lib/backStack'
 import {
+  deleteOllamaModel,
   getAssistantCredentialStatus,
   getFoodoraCredentials,
   getOllamaConfig,
   getWoltCredentials,
+  listOllamaModels,
   lookupAddress,
   pullOllamaModel,
   searchStops,
@@ -29,9 +31,11 @@ import {
   triggerFoodoraSync,
   triggerWoltSync,
   type AssistantModel,
+  type OllamaModelInfo,
 } from '../../../lib/localServer'
 import type { IntegrationsConfig, NearbyStop, WeatherLocation } from '../../../types/integrations'
 import { NEWS_SOURCES } from '../../../types/news'
+import { findOllamaTier, OLLAMA_THINKING_TIERS, OLLAMA_VISION_TIERS } from './ollamaModelTiers'
 import { TransitModeIcon } from '../../screens/TransitModeIcon'
 import { WeatherSymbolIcon } from '../../screens/WeatherSymbolIcon'
 import { formatDateTime } from '../../../utils/clockFormat'
@@ -90,27 +94,15 @@ function computeWeatherStatus(config: IntegrationsConfig): WeatherStatus {
   return 'live'
 }
 
-/**
- * Curated preset tags for the Ollama card's vision/thinking model pickers —
- * a convenience layer over `OllamaConfig`'s two plain free-text fields, never
- * a hard restriction (see the "Custom" option rendered alongside these in
- * the JSX below). "Small" is the pre-selected default for both roles, sized
- * to run on a Raspberry Pi (8GB RAM) alongside the Node server and a kiosk
- * display process on the same machine; "Medium"/"Large" are for admins
- * running this on a more powerful, non-Pi server. Ollama only ever keeps one
- * model resident at a time (it swaps per request), so picking a bigger tier
- * for one role never adds to the other role's own RAM cost.
- */
-const OLLAMA_VISION_TIERS: { tag: string; labelKey: string }[] = [
-  { tag: 'qwen2.5vl:3b', labelKey: 'admin.integrations.ollamaTierSmall' },
-  { tag: 'qwen2.5vl:7b', labelKey: 'admin.integrations.ollamaTierMedium' },
-  { tag: 'qwen2.5vl:32b', labelKey: 'admin.integrations.ollamaTierLarge' },
-]
-const OLLAMA_THINKING_TIERS: { tag: string; labelKey: string }[] = [
-  { tag: 'qwen2.5:3b-instruct', labelKey: 'admin.integrations.ollamaTierSmall' },
-  { tag: 'qwen2.5:7b-instruct', labelKey: 'admin.integrations.ollamaTierMedium' },
-  { tag: 'deepseek-r1:32b', labelKey: 'admin.integrations.ollamaTierLarge' },
-]
+/** Plain byte count → "2.3 GB"-style text for the model manager's own list — Ollama's `/api/tags` reports size in raw bytes, never pre-formatted. */
+function formatModelSize(bytes: number): string {
+  if (bytes <= 0) return '—'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const value = bytes / 1024 ** exponent
+  return `${exponent === 0 ? value : value.toFixed(1)} ${units[exponent]}`
+}
+
 /** The tier `<select>`'s own sentinel value for "not one of the curated presets" — a real Ollama tag never contains a space, so this can't collide with one. */
 const OLLAMA_CUSTOM_TIER_VALUE = '__custom__'
 
@@ -208,6 +200,16 @@ export function IntegrationsView() {
   const [ollamaTestResult, setOllamaTestResult] = useState<Awaited<ReturnType<typeof testOllamaConnection>> | null>(null)
   const [downloadingOllamaTag, setDownloadingOllamaTag] = useState<string | null>(null)
   const [ollamaDownloadError, setOllamaDownloadError] = useState<string | null>(null)
+  // The model manager's own nested submenu — every tag actually pulled on the host (not just the
+  // two configured vision/thinking roles), with an "Add a model" field (reusing `handleDownloadOllamaModel`
+  // below) and a per-row "Delete" button. Loaded lazily, only once this submenu is first opened.
+  const [ollamaModelManagerOpen, setOllamaModelManagerOpen] = useState(false)
+  const [ollamaModels, setOllamaModels] = useState<OllamaModelInfo[]>([])
+  const [isLoadingOllamaModels, setIsLoadingOllamaModels] = useState(false)
+  const [ollamaModelsError, setOllamaModelsError] = useState<string | null>(null)
+  const [newOllamaModelTag, setNewOllamaModelTag] = useState('')
+  const [deletingOllamaTag, setDeletingOllamaTag] = useState<string | null>(null)
+  const [ollamaDeleteError, setOllamaDeleteError] = useState<string | null>(null)
   const [isLookingUp, setIsLookingUp] = useState(false)
   const [lookupError, setLookupError] = useState<string | null>(null)
   const [lookingUpLocationId, setLookingUpLocationId] = useState<string | null>(null)
@@ -457,10 +459,59 @@ export function IntegrationsView() {
           return
         }
         // Re-test so the "missing model" state clears once the pull actually lands.
-        return testOllamaConnection(session.token, { baseUrl: ollamaBaseUrlDraft.trim(), visionModel: ollamaVisionModelDraft.trim(), thinkingModel: ollamaThinkingModelDraft.trim() }).then(setOllamaTestResult)
+        return testOllamaConnection(session.token, { baseUrl: ollamaBaseUrlDraft.trim(), visionModel: ollamaVisionModelDraft.trim(), thinkingModel: ollamaThinkingModelDraft.trim() })
+          .then(setOllamaTestResult)
+          .then(() => {
+            // Also picks up a tag just added via the model manager's own "Add a model" field below.
+            if (ollamaModelManagerOpen) refreshOllamaModels()
+          })
       })
       .catch(() => setOllamaDownloadError(t('admin.integrations.ollamaDownloadError')))
       .finally(() => setDownloadingOllamaTag(null))
+  }
+
+  // Loads the full list of models actually pulled on the host — separate from `ollamaTestResult`
+  // above, which only ever checks the two configured vision/thinking role tags. Re-callable (not
+  // just a `useEffect`) so a successful add/delete below can refresh the list in place.
+  const refreshOllamaModels = () => {
+    if (!session) return
+    setIsLoadingOllamaModels(true)
+    setOllamaModelsError(null)
+    listOllamaModels(session.token)
+      .then((result) => {
+        if (result.ok) setOllamaModels(result.models ?? [])
+        else setOllamaModelsError(result.error ?? t('admin.integrations.ollamaModelManagerLoadError'))
+      })
+      .catch(() => setOllamaModelsError(t('admin.integrations.ollamaModelManagerLoadError')))
+      .finally(() => setIsLoadingOllamaModels(false))
+  }
+
+  useEffect(() => {
+    if (ollamaModelManagerOpen) refreshOllamaModels()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the submenu actually opening should re-trigger this, not every render `refreshOllamaModels` itself is recreated on.
+  }, [session, ollamaModelManagerOpen])
+
+  const handleAddOllamaModel = () => {
+    const tag = newOllamaModelTag.trim()
+    if (!tag) return
+    handleDownloadOllamaModel(tag)
+    setNewOllamaModelTag('')
+  }
+
+  const handleDeleteOllamaModel = (tag: string) => {
+    if (!session || !window.confirm(t('admin.integrations.ollamaDeleteModelConfirm', { tag }))) return
+    setDeletingOllamaTag(tag)
+    setOllamaDeleteError(null)
+    deleteOllamaModel(session.token, tag)
+      .then((result) => {
+        if (!result.ok) {
+          setOllamaDeleteError(result.error ?? t('admin.integrations.ollamaDeleteError'))
+          return
+        }
+        refreshOllamaModels()
+      })
+      .catch(() => setOllamaDeleteError(t('admin.integrations.ollamaDeleteError')))
+      .finally(() => setDeletingOllamaTag(null))
   }
 
   // Loads the saved Foodora credentials once a session exists — same
@@ -1195,24 +1246,29 @@ export function IntegrationsView() {
   // (unlike the Claude card's API key), so this card is always considered
   // "configured" — its own status dot instead reflects the last connection
   // test's result.
-  const ollamaVisionTierMatch = OLLAMA_VISION_TIERS.find((tier) => tier.tag === ollamaVisionModelDraft)
-  const ollamaVisionSelectValue = ollamaVisionTierMatch ? ollamaVisionTierMatch.tag : OLLAMA_CUSTOM_TIER_VALUE
-  const ollamaThinkingTierMatch = OLLAMA_THINKING_TIERS.find((tier) => tier.tag === ollamaThinkingModelDraft)
-  const ollamaThinkingSelectValue = ollamaThinkingTierMatch ? ollamaThinkingTierMatch.tag : OLLAMA_CUSTOM_TIER_VALUE
+  const ollamaVisionTierMatch = findOllamaTier(OLLAMA_VISION_TIERS, ollamaVisionModelDraft)
+  const ollamaVisionSelectValue = ollamaVisionTierMatch ? ollamaVisionTierMatch.labelKey : OLLAMA_CUSTOM_TIER_VALUE
+  const ollamaThinkingTierMatch = findOllamaTier(OLLAMA_THINKING_TIERS, ollamaThinkingModelDraft)
+  const ollamaThinkingSelectValue = ollamaThinkingTierMatch ? ollamaThinkingTierMatch.labelKey : OLLAMA_CUSTOM_TIER_VALUE
 
-  const handleOllamaVisionTierChange = (value: string) => {
-    if (value === OLLAMA_CUSTOM_TIER_VALUE) {
+  // Picking a tier (rather than a specific model within it) pre-selects that tier's own first
+  // model — the second "which model" `<select>` below (only shown once a tier with more than one
+  // option is picked) is what actually lets the admin change that pick within the tier.
+  const handleOllamaVisionTierChange = (labelKey: string) => {
+    if (labelKey === OLLAMA_CUSTOM_TIER_VALUE) {
       if (ollamaVisionTierMatch) setOllamaVisionModelDraft('')
       return
     }
-    setOllamaVisionModelDraft(value)
+    const tier = OLLAMA_VISION_TIERS.find((candidate) => candidate.labelKey === labelKey)
+    if (tier) setOllamaVisionModelDraft(tier.models[0].tag)
   }
-  const handleOllamaThinkingTierChange = (value: string) => {
-    if (value === OLLAMA_CUSTOM_TIER_VALUE) {
+  const handleOllamaThinkingTierChange = (labelKey: string) => {
+    if (labelKey === OLLAMA_CUSTOM_TIER_VALUE) {
       if (ollamaThinkingTierMatch) setOllamaThinkingModelDraft('')
       return
     }
-    setOllamaThinkingModelDraft(value)
+    const tier = OLLAMA_THINKING_TIERS.find((candidate) => candidate.labelKey === labelKey)
+    if (tier) setOllamaThinkingModelDraft(tier.models[0].tag)
   }
 
   const ollamaSubmenu = (
@@ -1248,12 +1304,26 @@ export function IntegrationsView() {
           <label htmlFor="integrations-ollama-vision-tier">{t('admin.integrations.ollamaVisionModelLabel')}</label>
           <select id="integrations-ollama-vision-tier" value={ollamaVisionSelectValue} onChange={(event) => handleOllamaVisionTierChange(event.target.value)}>
             {OLLAMA_VISION_TIERS.map((tier) => (
-              <option key={tier.tag} value={tier.tag}>
-                {t(tier.labelKey)} — {tier.tag}
+              <option key={tier.labelKey} value={tier.labelKey}>
+                {t(tier.labelKey)}
               </option>
             ))}
             <option value={OLLAMA_CUSTOM_TIER_VALUE}>{t('admin.integrations.ollamaCustomTierOption')}</option>
           </select>
+          {ollamaVisionTierMatch && ollamaVisionTierMatch.models.length > 1 && (
+            <select
+              id="integrations-ollama-vision-model"
+              aria-label={t('admin.integrations.ollamaModelChoiceLabel')}
+              value={ollamaVisionModelDraft}
+              onChange={(event) => setOllamaVisionModelDraft(event.target.value)}
+            >
+              {ollamaVisionTierMatch.models.map((model) => (
+                <option key={model.tag} value={model.tag}>
+                  {model.name} — {model.tag}
+                </option>
+              ))}
+            </select>
+          )}
           {ollamaVisionSelectValue === OLLAMA_CUSTOM_TIER_VALUE && (
             <Input id="integrations-ollama-vision-custom" value={ollamaVisionModelDraft} onChange={(event) => setOllamaVisionModelDraft(event.target.value)} placeholder="qwen2.5vl:3b" />
           )}
@@ -1269,12 +1339,26 @@ export function IntegrationsView() {
           <label htmlFor="integrations-ollama-thinking-tier">{t('admin.integrations.ollamaThinkingModelLabel')}</label>
           <select id="integrations-ollama-thinking-tier" value={ollamaThinkingSelectValue} onChange={(event) => handleOllamaThinkingTierChange(event.target.value)}>
             {OLLAMA_THINKING_TIERS.map((tier) => (
-              <option key={tier.tag} value={tier.tag}>
-                {t(tier.labelKey)} — {tier.tag}
+              <option key={tier.labelKey} value={tier.labelKey}>
+                {t(tier.labelKey)}
               </option>
             ))}
             <option value={OLLAMA_CUSTOM_TIER_VALUE}>{t('admin.integrations.ollamaCustomTierOption')}</option>
           </select>
+          {ollamaThinkingTierMatch && ollamaThinkingTierMatch.models.length > 1 && (
+            <select
+              id="integrations-ollama-thinking-model"
+              aria-label={t('admin.integrations.ollamaModelChoiceLabel')}
+              value={ollamaThinkingModelDraft}
+              onChange={(event) => setOllamaThinkingModelDraft(event.target.value)}
+            >
+              {ollamaThinkingTierMatch.models.map((model) => (
+                <option key={model.tag} value={model.tag}>
+                  {model.name} — {model.tag}
+                </option>
+              ))}
+            </select>
+          )}
           {ollamaThinkingSelectValue === OLLAMA_CUSTOM_TIER_VALUE && (
             <Input id="integrations-ollama-thinking-custom" value={ollamaThinkingModelDraft} onChange={(event) => setOllamaThinkingModelDraft(event.target.value)} placeholder="qwen2.5:3b-instruct" />
           )}
@@ -1298,6 +1382,64 @@ export function IntegrationsView() {
             {isTestingOllama ? t('admin.integrations.ollamaTestingButton') : t('admin.integrations.ollamaTestConnectionButton')}
           </Button>
         </div>
+
+        <AnimatedDetails
+          className="integrations-view__model-manager"
+          summaryClassName="integrations-view__model-manager-summary"
+          bodyClassName="integrations-view__model-manager-body"
+          open={ollamaModelManagerOpen}
+          onToggle={() => setOllamaModelManagerOpen((current) => !current)}
+          summary={
+            <>
+              <span>{t('admin.integrations.ollamaModelManagerTitle')}</span>
+              <span className="integrations-view__model-manager-chevron" aria-hidden="true">
+                ▸
+              </span>
+            </>
+          }
+        >
+          <p className="integrations-view__hint">{t('admin.integrations.ollamaModelManagerHint')}</p>
+
+          {isLoadingOllamaModels ? (
+            <p className="integrations-view__hint">{t('admin.integrations.ollamaModelManagerLoading')}</p>
+          ) : ollamaModelsError ? (
+            <Alert variant="error">{ollamaModelsError}</Alert>
+          ) : ollamaModels.length === 0 ? (
+            <p className="integrations-view__hint">{t('admin.integrations.ollamaNoModelsInstalled')}</p>
+          ) : (
+            <ul className="integrations-view__model-list">
+              {ollamaModels.map((model) => (
+                <li key={model.name} className="integrations-view__model-list-row">
+                  <span className="integrations-view__model-list-name">{model.name}</span>
+                  <span className="integrations-view__model-list-size">{formatModelSize(model.size)}</span>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => handleDeleteOllamaModel(model.name)}
+                    disabled={deletingOllamaTag !== null || downloadingOllamaTag !== null}
+                  >
+                    {deletingOllamaTag === model.name ? t('admin.integrations.ollamaDeletingButton') : t('admin.integrations.ollamaDeleteButton')}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {ollamaDeleteError && <Alert variant="error">{ollamaDeleteError}</Alert>}
+
+          <div className="integrations-view__model-manager-add">
+            <Input
+              id="integrations-ollama-add-model"
+              label={t('admin.integrations.ollamaAddModelLabel')}
+              value={newOllamaModelTag}
+              onChange={(event) => setNewOllamaModelTag(event.target.value)}
+              placeholder="gemma3:4b"
+            />
+            <Button type="button" variant="secondary" onClick={handleAddOllamaModel} disabled={!newOllamaModelTag.trim() || downloadingOllamaTag !== null}>
+              {downloadingOllamaTag === newOllamaModelTag.trim() ? t('admin.integrations.ollamaDownloadingButton') : t('admin.integrations.ollamaAddModelButton')}
+            </Button>
+          </div>
+        </AnimatedDetails>
       </AnimatedDetails>
     </div>
   )

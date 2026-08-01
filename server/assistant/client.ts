@@ -60,6 +60,8 @@ export interface ToolCallInput {
   model?: store.AssistantModel
   /** Per-device override of which *provider* answers this one call — same kebab-menu, never-persisted posture as `model` above, but independently selectable (picking "Local (Ollama)" there sets this without touching `model`, and vice versa). Falls back to `store.getAssistantProvider()` (the shared, admin-configured default) when omitted. */
   provider?: store.AssistantProvider
+  /** Per-device override of which Ollama *tag* answers this one call on the local path — same kebab-menu posture as `model`/`provider` above (a Small/Medium/Large tier pick, or a free-text custom tag), but only ever consulted by `ollamaClient.ts`; ignored entirely on the Claude path. Falls back to `store.getOllamaConfig().thinkingModel` (the shared, admin-configured default) when omitted. Never applied to the *vision* model — that routing stays deterministic by call shape regardless of this override, see `ollamaClient.ts`'s own `resolveOllamaModel`. */
+  localModel?: string
   /** When provided, this call's own timing/input/output/token-usage is pushed onto it — see `AssistantTraceEntry`. Omitted entirely for calls with nothing to attach a trace to (e.g. `generateTitle`, which has no visible "thinking" UI). */
   trace?: AssistantTraceEntry[]
   /** Only meaningful alongside `trace` — tags which `generateThenVerify` pass this call is, so the UI can label them. Never set for a `callToolOnce` call. */
@@ -106,6 +108,8 @@ export async function generateThenVerify<T>(input: {
   model?: store.AssistantModel
   /** See `ToolCallInput.provider` — applied to both the draft and verify pass. */
   provider?: store.AssistantProvider
+  /** See `ToolCallInput.localModel` — applied to both the draft and verify pass. */
+  localModel?: string
   /** See `ToolCallInput.trace` — both the draft and verify pass push their own entry onto it, tagged `pass: 'draft'`/`'verify'` respectively. */
   trace?: AssistantTraceEntry[]
 }): Promise<T> {
@@ -118,6 +122,7 @@ export async function generateThenVerify<T>(input: {
     schema: input.schema,
     model: input.model,
     provider: input.provider,
+    localModel: input.localModel,
     trace: input.trace,
     pass: 'draft',
   })
@@ -141,6 +146,7 @@ export async function generateThenVerify<T>(input: {
     schema: input.schema,
     model: input.model,
     provider: input.provider,
+    localModel: input.localModel,
     trace: input.trace,
     pass: 'verify',
   })

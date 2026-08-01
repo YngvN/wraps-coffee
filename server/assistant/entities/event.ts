@@ -2,6 +2,7 @@ import { validateEventDraft } from '../../../src/lib/assistantValidation'
 import type { EventRecord } from '../../../src/types/event'
 import { isEventPast, toDateTime } from '../../../src/utils/events'
 import * as store from '../../store'
+import type { LookupQueryField, LookupQueryRecord } from '../lookupQuery'
 import { nullable, type AssistantCandidate, type AssistantEntity, type AssistantFillContext, type AssistantJsonSchema, type AssistantValidationIssue } from '../types'
 
 function liveEvents(): EventRecord[] {
@@ -180,5 +181,36 @@ export const eventEntity: AssistantEntity<EventRecord> = {
     const events = liveEvents()
     const recurringCount = events.filter((event) => event.recurring).length
     return `Of the ${events.length} events in total, ${recurringCount} repeat on a weekly schedule (\`recurring: true\`) and ${events.length - recurringCount} are one-off.`
+  },
+
+  /** See `lookupQuery.ts`'s own module doc comment — `hasOccurred`/`recurring` are already computed above; exposing them here lets `answerLookup` skip the `lookup_batch` classifier (which real testing showed can't reliably re-derive a plain date comparison across batches) for `event` questions entirely. */
+  async lookupQueryFields(): Promise<LookupQueryField[]> {
+    return [
+      { key: 'hasOccurred', label: 'Already happened', type: 'boolean', description: 'Whether the event has already taken place as of right now — correctly accounts for cancelled/postponed status, never derive this yourself from the raw date.' },
+      { key: 'recurring', label: 'Repeats weekly', type: 'boolean' },
+      { key: 'status', label: 'Status', type: 'enum', enumValues: ['scheduled', 'postponed', 'cancelled'] },
+      { key: 'capacity', label: 'Capacity', type: 'number' },
+      { key: 'price', label: 'Price', type: 'number' },
+      { key: 'date', label: 'Date', type: 'string', description: 'ISO date, yyyy-mm-dd — the event\'s own original date, not accounting for a postponement.' },
+      { key: 'time', label: 'Start time', type: 'string' },
+      { key: 'locationAddress', label: 'Address', type: 'string' },
+    ]
+  },
+
+  async listQueryableRecords(context: AssistantFillContext): Promise<LookupQueryRecord[]> {
+    return liveEvents().map((event) => ({
+      id: event.eventID,
+      label: `${event.title[context.uiLanguage]} (${event.date})`,
+      fields: {
+        hasOccurred: hasOccurred(event),
+        recurring: event.recurring,
+        status: event.status,
+        capacity: event.capacity,
+        price: event.price,
+        date: event.date,
+        time: event.time,
+        locationAddress: event.location.address,
+      },
+    }))
   },
 }
