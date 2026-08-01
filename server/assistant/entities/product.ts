@@ -378,4 +378,6 @@ export const productEntity: AssistantEntity<Product> = {
       }
     })
   },
+
+  countLabel: { no: { singular: 'produkt', plural: 'produkter' }, en: { singular: 'product', plural: 'products' } },
 }

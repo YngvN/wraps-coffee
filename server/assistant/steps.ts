@@ -41,6 +41,60 @@ const ENTITY_DESCRIPTIONS: Record<string, string> = {
   integrationToggle: 'turning an integration (weather/transit/entur/news) on or off',
 }
 
+/**
+ * Norwegian/English nouns that unambiguously name each entity for a general
+ * filter/count/list question (e.g. "hvor mange **produkter**..."). Used only
+ * by `detectEntitiesFromKeywords` below, itself only used by the local
+ * cascade's own `'question'` branch (see `selectIntentCascaded`) — real
+ * testing showed the same question ("Hvor mange produkter har vi?", with the
+ * entity noun literally in the message) resolved `lookupEntities: ["product"]`
+ * on one run and `lookupEntities: []` on another, the second time falling
+ * through to a hard "I'm not sure what you mean" — a single bad sample from a
+ * 3B model turning a trivially-answerable question into a dead end. A plain
+ * keyword match removes that variance for the common case entirely; the
+ * existing `selectLookupTarget` LLM call is still the fallback whenever no
+ * keyword matches (a genuinely ambiguous question, or a language this table
+ * doesn't cover a phrasing for).
+ *
+ * Deliberately not exhaustive of every entity — `categoryCustomField`/
+ * `appearanceThemeColor` (sub-resources) and `contactInfo`/`storeSettings`
+ * (singletons rarely asked about by a generic noun) are omitted, same
+ * "opt-in per entity" convention `lookupGuidance`/`lookupQueryFields` already
+ * use elsewhere. Trivially extensible by adding another entry.
+ */
+const ENTITY_KEYWORDS: Partial<Record<string, { no: string[]; en: string[] }>> = {
+  product: { no: ['produkt', 'produkter', 'vare', 'varer'], en: ['product', 'products'] },
+  event: { no: ['arrangement', 'arrangementer', 'hendelse', 'hendelser'], en: ['event', 'events'] },
+  category: { no: ['kategori', 'kategorier'], en: ['category', 'categories'] },
+  catalogue: { no: ['katalog', 'kataloger', 'meny', 'menyer'], en: ['catalogue', 'catalog', 'menu', 'menus'] },
+  user: { no: ['bruker', 'brukere', 'ansatt', 'ansatte'], en: ['user', 'users', 'staff'] },
+  messageBoard: { no: ['oppslagstavle', 'oppslagstavler'], en: ['message board', 'message boards'] },
+  messageBoardPost: { no: ['innlegg'], en: ['post', 'posts'] },
+  theme: { no: ['tema', 'temaer'], en: ['theme', 'themes'] },
+  integrationToggle: { no: ['integrasjon', 'integrasjoner'], en: ['integration', 'integrations'] },
+}
+
+/**
+ * Plain substring matching, not exhaustive word-boundary regex — deliberately
+ * simple, since a false *miss* here just falls through to the existing (and
+ * already mostly-working) `selectLookupTarget` LLM call, never a false
+ * failure. A false *extra* match (e.g. a compound word containing another
+ * entity's keyword as a substring) can at worst add an extra entity to a
+ * multi-entity lookup, which the existing `MAX_LOOKUP_ENTITIES` cap and
+ * per-entity data blocks already handle safely — never a hard failure.
+ */
+function detectEntitiesFromKeywords(message: string, allowedEntityKeys: string[], uiLanguage: 'no' | 'en'): string[] {
+  const lower = message.toLowerCase()
+  return allowedEntityKeys.filter((key) => ENTITY_KEYWORDS[key]?.[uiLanguage]?.some((word) => lower.includes(word)))
+}
+
+/** "hvor mange"/"how many" is a near-100% signal for a plain count question in both languages — used by `buildEntityQueryDataBlock` to decide whether it can phrase the reply itself (see `AssistantEntity.countLabel`) instead of handing it to the final `answer_lookup` compose call, which real testing showed can invent a filter nobody asked for (context bleed from an earlier, unrelated question) even when the query step itself resolved correctly. */
+const COUNT_QUESTION_PATTERNS: Record<'no' | 'en', RegExp> = { no: /hvor mange/i, en: /how many/i }
+
+function isCountQuestion(message: string, uiLanguage: 'no' | 'en'): boolean {
+  return COUNT_QUESTION_PATTERNS[uiLanguage].test(message)
+}
+
 /** Defensive re-clamp of whatever `history` text a caller sent — the client itself already caps this (see `useAssistantFlow.ts`'s own `transcriptToText`, last 20 lines/4000 chars), but a client-supplied string is never trusted as-is, same posture as `customChunkRecordCount` below. */
 const HISTORY_CHAR_CAP = 4000
 
@@ -586,6 +640,16 @@ async function selectIntentCascaded(
   }
 
   if (messageType === 'question') {
+    // Try a deterministic keyword match before ever calling the model — see `detectEntitiesFromKeywords`'s
+    // own doc comment for the exact failure this removes. `searchText` stays `null` here: a generic
+    // "how many X" question naming only the entity noun (not one specific item) has nothing to search
+    // for, and a single-item question ("how much does Kylling Fajitas cost") won't contain a bare
+    // entity noun in the first place, so it's untouched and still falls through to the LLM below.
+    const keywordEntities = detectEntitiesFromKeywords(message, entityKeys, uiLanguage)
+    if (keywordEntities.length > 0) {
+      return { entity: 'chat', action: null, searchText: null, reply: null, lookupEntities: keywordEntities }
+    }
+
     const { lookupEntities, searchText } = await selectLookupTarget(entityKeys, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
     if (lookupEntities.length === 0) {
       // Shouldn't happen given `classifyMessageType` already committed to "question", but never
@@ -1050,28 +1114,41 @@ async function buildEntityDataBlock(
  * returns, so `answerLookup`'s own final compose call/prompt/schema is
  * completely unaware of which builder produced it.
  */
+interface EntityDataBlockResult {
+  dataBlock: string
+  /**
+   * Set only by the query engine below, only for a plain count question with
+   * no specific field requested (see `isCountQuestion`/`AssistantEntity.countLabel`)
+   * — when present, `answerLookup` returns this directly instead of running
+   * its own final compose call at all.
+   */
+  templatedReply?: string
+}
+
 async function buildEntityQueryDataBlock(
   entity: AssistantEntity<unknown>,
   context: AssistantFillContext,
   message: string,
   uiLanguage: 'no' | 'en',
   useVerifyPass: boolean,
-  historyContext: string | null,
   modelOverride: store.AssistantModel | undefined,
   providerOverride: store.AssistantProvider | undefined,
   localModelOverride: string | undefined,
   trace: AssistantTraceEntry[],
-): Promise<string> {
+): Promise<EntityDataBlockResult> {
   const fields = await entity.lookupQueryFields!(context)
   const schema = buildLookupQuerySchema(fields)
   const datasetSummary = (await entity.datasetSummary?.(context)) ?? ''
 
+  // No `historyContextPromptLine` here (unlike most other steps) — by the time this runs, which
+  // entity to query is already a settled fact (resolved upstream, before this is even called); real
+  // testing showed a local model reaching into an earlier, unrelated exchange's own topic here
+  // instead of just building a query for the question actually asked (see the plan behind this fix).
   const systemPrompt = [
     languageInstruction(uiLanguage),
     currentDateInstruction(),
     `You're building a structured query to answer a factual question about "${entity.key}" records from the Wraps & Coffee admin dashboard — pick filters only from the fields you're given below, never invent a field, and never add a condition the admin's question doesn't actually ask for.`,
     entity.lookupGuidance ?? '',
-    historyContextPromptLine(historyContext),
     `Admin's question: ${message}`,
   ]
     .filter(Boolean)
@@ -1094,6 +1171,17 @@ async function buildEntityQueryDataBlock(
   const matches = executeLookupQuery(records, spec, fields)
   const matchingNames = matches.map((record) => record.label)
 
+  // A plain count question ("hvor mange produkter har vi?") with no specific field requested can be
+  // answered exactly in code — `matches.length` already reflects any filters that were applied —
+  // rather than handing a fluent-but-hallucination-prone compose call a data block it might
+  // misread (see the plan behind this fix, and `AssistantEntity.countLabel`'s own doc comment).
+  if (spec.reportField === null && isCountQuestion(message, uiLanguage) && entity.countLabel) {
+    const label = entity.countLabel[uiLanguage]
+    const noun = matches.length === 1 ? label.singular : label.plural
+    const templatedReply = uiLanguage === 'no' ? `Vi har ${matches.length} ${noun}.` : `We have ${matches.length} ${noun}.`
+    return { dataBlock: '', templatedReply }
+  }
+
   let reportBlock = ''
   const reportField = spec.reportField ? fields.find((field) => field.key === spec.reportField) : undefined
   if (reportField) {
@@ -1106,7 +1194,7 @@ async function buildEntityQueryDataBlock(
   // verbatim instead of composing its own answer.
   const resultSummary = `"${entity.key}" data (${records.length} total records) — already fully, exactly filtered against the admin's question ("${message}"); this is the complete, final result, not a sample.\nmatchingCount: ${matches.length}\nmatchingNames: ${JSON.stringify(matchingNames)}`
 
-  return [datasetSummary, resultSummary, reportBlock].filter(Boolean).join('\n\n')
+  return { dataBlock: [datasetSummary, resultSummary, reportBlock].filter(Boolean).join('\n\n') }
 }
 
 /**
@@ -1269,19 +1357,34 @@ export async function answerLookup(
   // as a fallback for an oversized dataset. Only engaged for a single-entity question: a multi-entity
   // lookup keeps using the legacy path below unchanged, same constraint the single-item fast path
   // above already applies.
-  const dataBlocks = await Promise.all(
-    entities.map((entity) =>
+  const dataBlockResults = await Promise.all(
+    entities.map((entity): Promise<EntityDataBlockResult> =>
       entities.length === 1 && entity.lookupQueryFields && entity.listQueryableRecords
-        ? buildEntityQueryDataBlock(entity, context, message, uiLanguage, capability.useVerifyPass, historyContext ?? null, modelOverride, providerOverride, localModelOverride, trace)
-        : buildEntityDataBlock(entity, context, message, uiLanguage, recordsPerBatch, capability.chunkCharBudget, capability.useVerifyPass, historyContext ?? null, modelOverride, providerOverride, localModelOverride, trace),
+        ? buildEntityQueryDataBlock(entity, context, message, uiLanguage, capability.useVerifyPass, modelOverride, providerOverride, localModelOverride, trace)
+        : buildEntityDataBlock(entity, context, message, uiLanguage, recordsPerBatch, capability.chunkCharBudget, capability.useVerifyPass, historyContext ?? null, modelOverride, providerOverride, localModelOverride, trace).then(
+            (dataBlock) => ({ dataBlock }),
+          ),
     ),
   )
+
+  // A plain count question the query engine could answer exactly in code (see
+  // `buildEntityQueryDataBlock`'s own `templatedReply` — only ever set for a single-entity query-engine
+  // lookup) skips this function's own compose call entirely: zero hallucination surface, zero latency,
+  // for both providers.
+  if (dataBlockResults.length === 1 && dataBlockResults[0].templatedReply) {
+    return { status: 'ready', reply: dataBlockResults[0].templatedReply, trace }
+  }
 
   const lookupGuidance = entities
     .map((entity) => entity.lookupGuidance)
     .filter(Boolean)
     .join('\n')
 
+  // No `historyContextPromptLine` here — this is exactly where a local model was observed
+  // inventing "på tilbud" for an unrelated count question, pattern-matching onto a *previous*
+  // exchange's own topic; the data block below already contains everything a correct reply needs
+  // (see the plan behind this fix — this is a scoping correction, not a small-model-only
+  // workaround, so it applies to both providers).
   const systemPrompt = [
     languageInstruction(uiLanguage),
     currentDateInstruction(),
@@ -1292,8 +1395,7 @@ export async function answerLookup(
     "If the data below genuinely doesn't contain what's needed to answer, say so honestly rather than guessing.",
     'A "matchingCount"/"matchingNames" data block only tells you whether each record matched the question and its name — never any other field (price, discount, stock, allergens, etc.) by itself. When exactly one match was found, a separate "Full record for the one match found above" block may also be present below with that record\'s real field data — check for it and use it if the question needs a specific field value. If the question asks for a specific field value (e.g. "how much does it cost?", "what\'s the discount amount?") and that value genuinely isn\'t present anywhere in the data below (no such full-record block, or it\'s missing the needed field), say you don\'t have that specific detail rather than inventing a plausible-sounding number — a fabricated price is far worse than admitting the data below doesn\'t include it.',
     lookupGuidance,
-    historyContextPromptLine(historyContext ?? null),
-    dataBlocks.join('\n\n'),
+    dataBlockResults.map((result) => result.dataBlock).join('\n\n'),
   ]
     .filter(Boolean)
     .join('\n\n')

@@ -108,4 +108,6 @@ export const themeEntity: AssistantEntity<AppearanceTheme> = {
       },
     }))
   },
+
+  countLabel: { no: { singular: 'tema', plural: 'temaer' }, en: { singular: 'theme', plural: 'themes' } },
 }

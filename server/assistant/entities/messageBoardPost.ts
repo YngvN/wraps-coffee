@@ -135,4 +135,6 @@ export const messageBoardPostEntity: AssistantEntity<MessageBoardPost> = {
       }
     })
   },
+
+  countLabel: { no: { singular: 'innlegg', plural: 'innlegg' }, en: { singular: 'post', plural: 'posts' } },
 }

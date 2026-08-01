@@ -867,8 +867,8 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   const localModelLabel = effectiveLocalModel ? t('admin.assistant.modelLocalWithNameOption', { model: effectiveLocalModel }) : t('admin.assistant.modelLocalOption').split(' — ')[0]
   // Which curated tier (if any) the current override tag belongs to — `undefined` is the "Custom"
   // case, the same way `IntegrationsView.tsx`'s own thinking-model picker works (this reuses that
-  // exact same tier data — see `ollamaModelTiers.ts` — so the two never silently drift apart on
-  // which models exist, the way they once did when Gemma 3 4B was added to one but not the other).
+  // exact same tier data — see `ollamaModelTiers.ts` — so the two can never silently drift apart on
+  // which models exist).
   const localModelTierMatch = localModelOverride !== null ? findOllamaTier(OLLAMA_THINKING_TIERS, localModelOverride) : undefined
   // Selected once the admin has picked "Custom…" in the Local model sub-list below (or typed
   // something that no longer matches a curated tier) — `localModelOverride === ''` is the

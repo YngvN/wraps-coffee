@@ -213,4 +213,6 @@ export const eventEntity: AssistantEntity<EventRecord> = {
       },
     }))
   },
+
+  countLabel: { no: { singular: 'arrangement', plural: 'arrangementer' }, en: { singular: 'event', plural: 'events' } },
 }

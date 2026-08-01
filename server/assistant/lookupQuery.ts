@@ -78,7 +78,7 @@ export function buildLookupQuerySchema(fields: LookupQueryField[]): AssistantJso
         type: 'string',
         enum: fieldKeys,
         description:
-          'Set this when the question asks for a specific field\'s real value (e.g. "how much does it cost", "when is it") — never null in that case. Its actual value is looked up and reported for you; you never compute or guess it. Leave null for a plain "which"/"how many" question with nothing further to report.',
+          'Set this ONLY when the question explicitly asks for one specific field\'s real value (e.g. "how much does it cost" → a price field, "when is it" → a date field). Its actual value is looked up and reported for you; you never compute or guess it. Leave this null for a plain count/"which"/"how many" question — do not guess a field just because one exists in the list above. For example, "how many products do we have" must get reportField: null, never a guessed field like "hasDiscount" or "available" that the question never mentioned.',
       }),
     },
     required: ['filters', 'reportField'],

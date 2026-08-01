@@ -217,4 +217,6 @@ export const categoryEntity: AssistantEntity<AssistantCategoryDraft> = {
       })),
     )
   },
+
+  countLabel: { no: { singular: 'kategori', plural: 'kategorier' }, en: { singular: 'category', plural: 'categories' } },
 }

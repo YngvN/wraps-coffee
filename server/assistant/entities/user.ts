@@ -115,4 +115,6 @@ export const userEntity: AssistantEntity<AssistantUserDraft> = {
       },
     }))
   },
+
+  countLabel: { no: { singular: 'bruker', plural: 'brukere' }, en: { singular: 'user', plural: 'users' } },
 }

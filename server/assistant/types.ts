@@ -163,6 +163,19 @@ export interface AssistantEntity<TDraft> {
    * per theme). Only ever consulted by the query engine, never the CRUD flow.
    */
   listQueryableRecords?(context: AssistantFillContext): Promise<LookupQueryRecord[]>
+  /**
+   * Singular/plural noun for this entity, in both languages — lets
+   * `steps.ts`'s `buildEntityQueryDataBlock` phrase a plain count question
+   * ("hvor mange produkter har vi?"/"how many products do we have?")
+   * entirely in code once `executeLookupQuery` already knows the count,
+   * skipping the final `answer_lookup` compose call altogether: real testing
+   * showed that call inventing a filter nobody asked for (context bleed from
+   * an earlier, unrelated question) even when the query step itself resolved
+   * correctly. Only implemented for entities `listQueryableRecords` above
+   * already covers — omit for anything else, same "opt-in per entity"
+   * convention as `lookupQueryFields`.
+   */
+  countLabel?: { no: { singular: string; plural: string }; en: { singular: string; plural: string } }
 }
 
 /** A `SyncedKey`-backed entity's own commit descriptor — informational only; the actual write still goes through the normal WS `write` path from the browser (see the plan's "hard invariant" — this server module never writes app data itself). */

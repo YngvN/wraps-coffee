@@ -467,7 +467,7 @@ GET /assistant/ollama-config       (Authorization: Bearer <token>, admin/subadmi
 → 200 { "baseUrl": string, "visionModel": string, "thinkingModel": string }   (nothing secret in here, unlike the Claude key above, but still admin/subadmin-gated since it configures the same feature)
 
 POST /assistant/ollama-config      (Authorization: Bearer <token>, admin/subadmin only)
-{ "baseUrl"?: string, "visionModel"?: string, "thinkingModel"?: string }   (any field independently updatable; defaults to "http://localhost:11434" / "gemma3:4b" / "gemma3:4b" until changed — see server/store.ts's DEFAULT_OLLAMA_CONFIG)
+{ "baseUrl"?: string, "visionModel"?: string, "thinkingModel"?: string }   (any field independently updatable; defaults to "http://localhost:11434" / "qwen2.5vl:3b" / "qwen2.5:3b-instruct" until changed)
 → 200 { "baseUrl": string, "visionModel": string, "thinkingModel": string }
 
 POST /assistant/ollama-test        (Authorization: Bearer <token>, admin/subadmin only)

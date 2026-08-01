@@ -103,4 +103,6 @@ export const catalogueEntity: AssistantEntity<Catalogue> = {
       },
     }))
   },
+
+  countLabel: { no: { singular: 'katalog', plural: 'kataloger' }, en: { singular: 'catalogue', plural: 'catalogues' } },
 }

@@ -1433,7 +1433,7 @@ export function IntegrationsView() {
               label={t('admin.integrations.ollamaAddModelLabel')}
               value={newOllamaModelTag}
               onChange={(event) => setNewOllamaModelTag(event.target.value)}
-              placeholder="gemma3:4b"
+              placeholder="llama3.2"
             />
             <Button type="button" variant="secondary" onClick={handleAddOllamaModel} disabled={!newOllamaModelTag.trim() || downloadingOllamaTag !== null}>
               {downloadingOllamaTag === newOllamaModelTag.trim() ? t('admin.integrations.ollamaDownloadingButton') : t('admin.integrations.ollamaAddModelButton')}

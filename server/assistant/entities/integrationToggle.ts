@@ -109,4 +109,6 @@ export const integrationToggleEntity: AssistantEntity<AssistantIntegrationToggle
       },
     }))
   },
+
+  countLabel: { no: { singular: 'integrasjon', plural: 'integrasjoner' }, en: { singular: 'integration', plural: 'integrations' } },
 }
