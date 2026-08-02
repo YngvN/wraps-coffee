@@ -12,6 +12,7 @@ import {
   type AssistantIntentResult,
   type AssistantModel,
   type AssistantProvider,
+  type AssistantReplyList,
   type AssistantTraceEntry,
   type ChunkSizePreference,
 } from '../../../lib/localServer'
@@ -59,9 +60,14 @@ export interface AssistantClarification {
  * that led to whatever comes right after it (see `finalizeThought`) —
  * collapsed by default behind a "Thought for Xs" toggle in the UI
  * (`AssistantThoughtTrace`), never itself a stand-in for a real reply.
+ * `list`, like `variant`, is only ever meaningful on an `'assistant'` line —
+ * a structured list of matched records built entirely in code (see
+ * `answerLookup`'s own `AssistantReplyList` doc comment), rendered by
+ * `AssistantPanel` as a real bullet list beneath the bubble rather than
+ * folded into `text` as prose.
  */
 export type TranscriptLine =
-  | { id: string; role: 'user' | 'assistant'; text: string; variant?: 'error' }
+  | { id: string; role: 'user' | 'assistant'; text: string; variant?: 'error'; list?: AssistantReplyList }
   | { id: string; role: 'thought'; trace: AssistantTraceEntry[]; durationMs: number }
 
 /** Narrows away `'thought'` lines (no `.text` of their own) wherever a plain chat transcript is needed — `Array.prototype.find`/`filter` only narrow their return type given an explicit type predicate like this one. */
@@ -74,12 +80,20 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
 }
 
-/** Plain-text rendering of a transcript, trimmed to the most recent lines/characters so an unusually long back-and-forth doesn't balloon a call's token usage. Used both for `generateTitle` and as the raw `history` sent on whichever call is first for a turn/continuation (see `sendMessage`'s own `resolveHistoryContext`-fed calls) — either way, `'thought'` lines are excluded entirely: trace JSON has no place in either prompt. */
+/** Flattens a structured list reply attachment back into plain "- label (sublabel)" text lines — used everywhere a transcript line's `list` needs folding into plain text instead of its own structured rendering: `transcriptToText` (so a follow-up question's prompt still has every matched name to resolve "hvem av dem…" against) and `buildConversationClipboardText` (`AssistantPanel.tsx`, copying a conversation as plain text). */
+export function formatReplyListAsText(list: AssistantReplyList): string {
+  return list.items.map((item) => `- ${item.label}${item.sublabel ? ` (${item.sublabel})` : ''}`).join('\n')
+}
+
+/** Plain-text rendering of a transcript, trimmed to the most recent lines/characters so an unusually long back-and-forth doesn't balloon a call's token usage. Used both for `generateTitle` and as the raw `history` sent on whichever call is first for a turn/continuation (see `sendMessage`'s own `resolveHistoryContext`-fed calls) — either way, `'thought'` lines are excluded entirely: trace JSON has no place in either prompt. A `list`-bearing assistant line has its items flattened right after its own `text`, so a follow-up question still has every matched name available as plain history context (see `formatReplyListAsText`). */
 function transcriptToText(transcript: TranscriptLine[]): string {
   return transcript
     .filter(isTextLine)
     .slice(-20)
-    .map((line) => `${line.role === 'user' ? 'Admin' : 'Assistant'}: ${line.text}`)
+    .map((line) => {
+      const prefix = `${line.role === 'user' ? 'Admin' : 'Assistant'}: ${line.text}`
+      return line.role === 'assistant' && line.list ? `${prefix}\n${formatReplyListAsText(line.list)}` : prefix
+    })
     .join('\n')
     .slice(-4000)
 }
@@ -218,6 +232,11 @@ export type AssistantImageMode = 'fillForm' | 'transcribeOnly'
  * Large tier pick, or a free-text custom tag). Falls back to
  * `server/store.ts`'s `getOllamaConfig().thinkingModel` (the shared,
  * admin-configured default) when omitted; ignored entirely on the Claude path.
+ * `localVisionModelOverride` is the same per-device posture as
+ * `localModelOverride` but for the Ollama *vision* role — only ever consulted
+ * by the two calls below that can carry an attached image (`runFillFields`,
+ * the transcribe-only branch of `sendMessage`); falls back to
+ * `server/store.ts`'s `getOllamaConfig().visionModel` when omitted.
  */
 export function useAssistantFlow(
   modelOverride?: AssistantModel,
@@ -225,6 +244,7 @@ export function useAssistantFlow(
   customChunkRecordCount?: number,
   providerOverride?: AssistantProvider,
   localModelOverride?: string,
+  localVisionModelOverride?: string,
 ) {
   const { session } = useAdminSession()
   const { language, t } = useLanguage()
@@ -235,6 +255,12 @@ export function useAssistantFlow(
   // whether *any* operation within it ever hit an error, even one the admin went on to resolve
   // successfully, so the conversation log can flag the entry (see `newChat`'s own `hadError` archive param).
   const hadErrorRef = useRef(false)
+  // This chat's own id, sent on every lookup-related call so the server can key its own ephemeral
+  // per-conversation `DialogFocus` (pronoun resolution — see `resolvePronounFocus`) by something
+  // stable across turns. Purely a cache key from this hook's own perspective — never read back,
+  // never persisted itself (a plain ref, regenerated in `newChat` below, same lifecycle as
+  // `transcript`: lost on refresh, never meant to survive one).
+  const conversationIdRef = useRef(generateId())
 
   // Accumulates the current operation's own trace (see `AssistantTraceEntry`) across however many
   // sequential network calls it takes (`selectIntent` → `selectItem` → `fillFields`, etc.) — a ref
@@ -282,8 +308,8 @@ export function useAssistantFlow(
     setTranscript((current) => [...current, { id: generateId(), role: 'thought', trace: entries, durationMs }])
   }, [])
 
-  const appendLine = useCallback((role: 'user' | 'assistant', text: string, variant?: 'error') => {
-    setTranscript((current) => [...current, { id: generateId(), role, text, variant }])
+  const appendLine = useCallback((role: 'user' | 'assistant', text: string, variant?: 'error', list?: AssistantReplyList) => {
+    setTranscript((current) => [...current, { id: generateId(), role, text, variant, list }])
   }, [])
 
   /** Persists a real failure as a normal (if visually flagged) transcript line instead of transient `flow.state` — see the plan behind this: an error used to vanish the instant the next message was sent, since it was never part of the permanent transcript. */
@@ -330,6 +356,9 @@ export function useAssistantFlow(
     setState({ status: 'idle' })
     setTranscript([])
     hadErrorRef.current = false
+    // A fresh conversation gets a fresh id — the old one's server-side `DialogFocus` entry (if any)
+    // simply ages out via that store's own TTL sweep rather than needing an explicit delete call.
+    conversationIdRef.current = generateId()
     // Nothing to finalize into — the whole transcript is gone regardless.
     traceRef.current = []
     busyStartRef.current = null
@@ -370,6 +399,7 @@ export function useAssistantFlow(
             model: modelOverride,
             provider: providerOverride,
             localModel: localModelOverride,
+            localVisionModel: localVisionModelOverride,
             history: options.history,
             historyContext: options.historyContext,
           },
@@ -397,7 +427,7 @@ export function useAssistantFlow(
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride],
+    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride, localVisionModelOverride],
   )
 
   /** Delete still runs `fillFields` (an empty schema for every destructible entity — see each adapter's own `fillFieldsSchema`) purely to get a real `validate()` pass: that's the only path that surfaces a delete-time soft warning (e.g. "N products would be orphaned") or hard guard (e.g. "can't delete the active theme") before the typed-confirmation screen, rather than skipping straight to an empty-issues review. */
@@ -532,7 +562,7 @@ export function useAssistantFlow(
         try {
           const result = await assistantTranscribeAttachment(
             session.token,
-            { message, uiLanguage: language, image, model: modelOverride, provider: providerOverride, localModel: localModelOverride },
+            { message, uiLanguage: language, image, model: modelOverride, provider: providerOverride, localModel: localModelOverride, localVisionModel: localVisionModelOverride },
             abortRef.current.signal,
           )
           recordTrace(result.trace)
@@ -578,6 +608,7 @@ export function useAssistantFlow(
           historyText || undefined,
           providerOverride,
           localModelOverride,
+          conversationIdRef.current,
           abortRef.current.signal,
         )
         recordTrace(result.trace)
@@ -603,6 +634,8 @@ export function useAssistantFlow(
                 customChunkRecordCount,
                 historyContext: result.historyContext ?? undefined,
                 itemSearchText: result.searchText ?? undefined,
+                baseFilters: result.baseFilters,
+                conversationId: conversationIdRef.current,
               },
               abortRef.current?.signal,
             )
@@ -613,7 +646,7 @@ export function useAssistantFlow(
               return
             }
             finalizeThought()
-            appendLine('assistant', lookup.reply)
+            appendLine('assistant', lookup.reply, undefined, lookup.list)
           } else {
             finalizeThought()
             appendLine('assistant', result.reply ?? "I'm not sure how to help with that — try describing what you'd like to create, update, or delete.")
@@ -649,6 +682,7 @@ export function useAssistantFlow(
       modelOverride,
       providerOverride,
       localModelOverride,
+      localVisionModelOverride,
       chunkSizePreference,
       customChunkRecordCount,
       transcript,
@@ -704,7 +738,7 @@ export function useAssistantFlow(
     async (itemID: string) => {
       if (state.status !== 'clarifyingLookupItem') return
       if (!session) return
-      const { entityKey, message, historyContext } = state
+      const { entityKey, message, historyContext, candidates } = state
       abortRef.current = new AbortController()
       beginBusy('thinking')
       try {
@@ -719,6 +753,8 @@ export function useAssistantFlow(
             model: modelOverride,
             provider: providerOverride,
             localModel: localModelOverride,
+            label: candidates.find((candidate) => candidate.id === itemID)?.label,
+            conversationId: conversationIdRef.current,
           },
           abortRef.current.signal,
         )

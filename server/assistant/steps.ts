@@ -1,6 +1,9 @@
 import * as store from '../store'
 import { type AssistantImageInput, type AssistantTraceEntry, callToolOnce, currentDateInstruction, generateThenVerify, languageInstruction } from './client'
-import { buildLookupQuerySchema, executeLookupQuery, type LookupQuerySpec } from './lookupQuery'
+import { combineCompoundReplies, combineFocusUpdates, splitCompoundQuestion, type LookupHalfResult } from './compoundSplit'
+import { focusFromUpdate, getDialogFocus, setDialogFocus, type DialogFocusUpdate } from './dialogFocus'
+import { buildLookupQuerySchema, executeLookupQuery, type LookupQueryField, type LookupQueryFilterInput, type LookupQueryRecord, type LookupQuerySpec } from './lookupQuery'
+import { resolvePronounFocus } from './pronounPrefilter'
 import { allowedEntitiesFor, findEntity } from './registry'
 import {
   nullable,
@@ -9,6 +12,8 @@ import {
   type AssistantEntity,
   type AssistantFillContext,
   type AssistantJsonSchema,
+  type AssistantListItem,
+  type AssistantReplyList,
   type AssistantSession,
   type AssistantValidationIssue,
 } from './types'
@@ -86,6 +91,26 @@ const ENTITY_KEYWORDS: Partial<Record<string, { no: string[]; en: string[] }>> =
 function detectEntitiesFromKeywords(message: string, allowedEntityKeys: string[], uiLanguage: 'no' | 'en'): string[] {
   const lower = message.toLowerCase()
   return allowedEntityKeys.filter((key) => ENTITY_KEYWORDS[key]?.[uiLanguage]?.some((word) => lower.includes(word)))
+}
+
+/**
+ * "alle"/"all" combined with a known entity noun (see `detectEntitiesFromKeywords`) is a stronger,
+ * safer signal than a bare interrogative — unlike the entity-keyword prefilter above (only ever
+ * replaces `selectLookupTarget`, never `classifyMessageType`, since real ambiguity remained there),
+ * this specific combination is safe to skip `classifyMessageType` for entirely: you never "create
+ * all products," and you'd never say "all" referring to your own previous reply, so there's no
+ * command/meta case this could misroute. Added after real testing showed "Gi meg en liste over alle
+ * produkter" ("Give me a list of all products") got classified as a `create` command, and its
+ * `fill_fields_product` verify pass then fabricated an entire fake product from the empty draft —
+ * see `fillFields`'s own empty-draft guard below for the second, independent layer against that
+ * same failure. Checked at the very top of `selectIntentCascaded`, before any model call at all.
+ */
+const BULK_LIST_WORDS: Record<'no' | 'en', string[]> = { no: ['alle'], en: ['all'] }
+
+function detectBulkListQuestion(message: string, allowedEntityKeys: string[], uiLanguage: 'no' | 'en'): string[] {
+  const lower = message.toLowerCase()
+  if (!BULK_LIST_WORDS[uiLanguage].some((word) => lower.includes(word))) return []
+  return detectEntitiesFromKeywords(message, allowedEntityKeys, uiLanguage)
 }
 
 /** "hvor mange"/"how many" is a near-100% signal for a plain count question in both languages — used by `buildEntityQueryDataBlock` to decide whether it can phrase the reply itself (see `AssistantEntity.countLabel`) instead of handing it to the final `answer_lookup` compose call, which real testing showed can invent a filter nobody asked for (context bleed from an earlier, unrelated question) even when the query step itself resolved correctly. */
@@ -217,6 +242,16 @@ export interface IntentResult {
    * model itself put in both fields.
    */
   lookupEntities: string[] | null
+  /**
+   * Only ever set by the deterministic pronoun prefilter (see `pronounPrefilter.ts`) when a
+   * plural referring pronoun ("de"/"dem"/"disse") resolved against the conversation's own
+   * `DialogFocus.lastSet` — the filter that set was itself narrowed by, composed (AND'd) with
+   * whatever filter this turn's own `lookup_query` call resolves, so a follow-up like "hvor mange
+   * av dem koster over 100 kr" doesn't lose the prior turn's own scope. The client threads this
+   * straight through to `answerLookup`, same posture as `historyContext`/`searchText`. `null`/
+   * `undefined` for every other case (nothing to compose).
+   */
+  baseFilters?: LookupQueryFilterInput[] | null
   /** This turn's resolved conversation context (see `resolveHistoryContext`), or `null` if there was none yet — the client threads this straight through to `selectItem`/`fillFields`/`answerLookup` for the rest of this same turn, never re-resolving it. */
   historyContext: string | null
   /** Every real Claude API call this step made — see `AssistantTraceEntry`; always exactly one entry (this step is single-pass), plus one more if `resolveHistoryContext` had to call `compactHistory`. */
@@ -242,6 +277,8 @@ export async function selectIntent(
   history?: string,
   providerOverride?: store.AssistantProvider,
   localModelOverride?: string,
+  /** This chat's own id (see `useAssistantFlow.ts`) — only ever consulted by the local cascade's pronoun prefilter (see `selectIntentCascaded`/`resolvePronounFocus`) to look up this conversation's `DialogFocus`. Never touched on the Claude path. */
+  conversationId?: string,
 ): Promise<IntentResult> {
   const entities = allowedEntitiesFor(session)
   if (entities.length === 0) throw new Error('No assistant actions are available to this account.')
@@ -252,7 +289,7 @@ export async function selectIntent(
   const provider = providerOverride ?? store.getAssistantProvider()
   const raw =
     provider === 'local'
-      ? await selectIntentCascaded(entities, message, uiLanguage, modelOverride, providerOverride, localModelOverride, history, historyContext, trace)
+      ? await selectIntentCascaded(entities, message, uiLanguage, modelOverride, providerOverride, localModelOverride, history, historyContext, trace, conversationId)
       : await selectIntentSinglePass(entities, message, uiLanguage, modelOverride, providerOverride, historyContext, trace)
 
   // Never trust the model to have kept `entity`/`action`/`reply`/`lookupEntities` mutually
@@ -621,8 +658,26 @@ async function selectIntentCascaded(
   historyRaw: string | undefined,
   historyContext: string | null,
   trace: AssistantTraceEntry[],
+  conversationId: string | undefined,
 ): Promise<RawIntentResult> {
   const entityKeys = entities.map((entity) => entity.key)
+
+  // Checked before any model call at all — see `detectBulkListQuestion`'s own doc comment for why
+  // this exact combination is safe to skip `classifyMessageType` for entirely, unlike the plain
+  // entity-keyword prefilter below (which only ever replaces `selectLookupTarget`).
+  const bulkListEntities = detectBulkListQuestion(message, entityKeys, uiLanguage)
+  if (bulkListEntities.length > 0) {
+    return { entity: 'chat', action: null, searchText: null, reply: null, lookupEntities: bulkListEntities }
+  }
+
+  // Same "unambiguous signal, skip the LLM entirely" precedent as the bulk-list check above — a
+  // referring pronoun ("den"/"de"/"dem"/"disse") resolved against this conversation's own
+  // `DialogFocus` (see `pronounPrefilter.ts`) means there's nothing left for `classifyMessageType`/
+  // `selectLookupTarget` to guess at. Returns `null` (falls through unchanged) for a message with no
+  // referring pronoun, or one whose matching focus slot is empty — never a guessed referent.
+  const pronounResult = resolvePronounFocus(message, uiLanguage, getDialogFocus(conversationId))
+  if (pronounResult) return pronounResult
+
   const entityListForPrompt = entities.map((entity) => `${entity.key} (${ENTITY_DESCRIPTIONS[entity.key] ?? ''})`).join(', ')
   const hasUserEntity = entityKeys.includes('user')
   const lastAssistantReply = extractLastAssistantLine(historyRaw)
@@ -757,6 +812,11 @@ export type FillFieldsResult =
   | { status: 'ready'; draft: unknown; issues: AssistantValidationIssue[]; trace: AssistantTraceEntry[] }
   | { status: 'clarify'; clarifications: FillFieldsClarification[]; trace: AssistantTraceEntry[]; historyContext: string | null }
 
+/** Every field the model proposed came back empty — nothing to extract from the message at all. Used both to skip `fillFields`'s own verify pass (see `generateThenVerify`'s `skipVerifyIf`) and, on a `create`, to abort before staging a draft with nothing real behind it. */
+function isEmptyFieldsObject(fields: Record<string, unknown>): boolean {
+  return Object.values(fields).every((value) => value === null || value === undefined)
+}
+
 /** Step 3 — generate-then-verify field extraction, merged onto the current item (update/resetPassword) or empty defaults (create), then run through the entity's own `validate()`. Never writes anything — see the plan's hard invariant; the caller only ever receives a staged draft to review. */
 export async function fillFields(
   entityKey: string,
@@ -772,6 +832,8 @@ export async function fillFields(
     modelOverride?: store.AssistantModel
     providerOverride?: store.AssistantProvider
     localModelOverride?: string
+    /** See `ToolCallInput.localVisionModel` — only consulted when `image` above is set. */
+    localVisionModelOverride?: string
     /** Raw recent-transcript text — only sent when this call is itself the first of its turn/continuation (the `reviewingForm`-correction path, which bypasses `selectIntent`). Mutually exclusive with `historyContext`. */
     history?: string
     /** An already-resolved value from an earlier call in the same turn (usually `selectIntent`'s). Mutually exclusive with `history`. */
@@ -820,11 +882,24 @@ export async function fillFields(
     model: options.modelOverride,
     provider: options.providerOverride,
     localModel: options.localModelOverride,
+    localVisionModel: options.localVisionModelOverride,
     trace,
+    skipVerifyIf: isEmptyFieldsObject,
   })
 
   // The admin's own answers to a prior clarifying round are authoritative — they override whatever the model itself proposed (or failed to) for that same field.
   const fields = { ...rawFields, ...options.resolvedFields }
+
+  // A `create` with nothing extractable at all (checked *after* merging any clarifying-round
+  // answers above, so a create that already resolved e.g. its category isn't wrongly aborted here)
+  // means the command classification itself was almost certainly wrong — proceeding would stage a
+  // draft with nothing real behind it, which is exactly what let a local model's own `fillFields`
+  // verify pass fabricate an entire fake product from an empty draft in real testing. `update`/
+  // `resetPassword` are exempt: an empty draft there just means "no changes mentioned," which is a
+  // harmless no-op once merged onto the existing record, not a fabrication risk.
+  if (action === 'create' && isEmptyFieldsObject(fields)) {
+    throw new Error(`Couldn't find anything to create from your message — try describing what you'd like to add.`)
+  }
 
   // The entity itself decides which fields (if any) are still genuinely unresolved, given everything the model already proposed — see `clarifiableFields`'s own doc comment.
   const unresolved = (await entity.clarifiableFields?.(action, context, fields)) ?? []
@@ -1117,12 +1192,32 @@ async function buildEntityDataBlock(
 interface EntityDataBlockResult {
   dataBlock: string
   /**
-   * Set only by the query engine below, only for a plain count question with
-   * no specific field requested (see `isCountQuestion`/`AssistantEntity.countLabel`)
-   * — when present, `answerLookup` returns this directly instead of running
-   * its own final compose call at all.
+   * Set only by the query engine below, either for a plain count question
+   * (see `isCountQuestion`/`AssistantEntity.countLabel`) or a plain
+   * "which/list" question with no specific field requested — when present,
+   * `answerLookup` returns this directly instead of running its own final
+   * compose call at all. For a "list" question with 2+ matches, this is just
+   * the intro sentence; the matches themselves are in `templatedList`.
    */
   templatedReply?: string
+  /** Set alongside `templatedReply` only for a "list" question with 2+ matches — see `templatedReply`'s own doc comment. */
+  templatedList?: AssistantReplyList
+  /** Set for a `'count'`/`'list'` shape (never `'report'`) — see `DialogFocusUpdate`'s own doc comment for how `answerLookup` applies this to the conversation's `DialogFocus`. */
+  focusUpdate?: DialogFocusUpdate
+}
+
+/** `record.label` alongside its `sublabel` (if any), reconstructed as the single combined string every compose-LLM-facing prompt (`matchingNames`, a report's per-match line) has always used — kept byte-identical to before `sublabel` existed as its own field, so splitting `label`/`sublabel` for the new deterministic list reply (see `AssistantReplyList`) never changes what any LLM-facing prompt sees. */
+function recordDisplayName(record: LookupQueryRecord): string {
+  return record.sublabel ? `${record.label} (${record.sublabel})` : record.label
+}
+
+/** Turns `spec.filters` into a short natural-language suffix for the deterministic list-shape reply below (e.g. " på tilbud") — purely display text, built from each field's own opt-in `filterPhrase` (see `LookupQueryField`), never sent to or asked of the model. A filter whose field has no `filterPhrase` (or whose value has no natural phrase) is silently omitted rather than guessed at; an empty result just means the reply names no filter at all. */
+function buildFilterSuffix(filters: LookupQueryFilterInput[], fields: LookupQueryField[], uiLanguage: 'no' | 'en'): string {
+  const phrases = filters
+    .map((filter) => fields.find((field) => field.key === filter.field)?.filterPhrase?.(filter.value, uiLanguage) ?? null)
+    .filter((phrase): phrase is string => Boolean(phrase))
+  if (phrases.length === 0) return ''
+  return ` ${phrases.join(uiLanguage === 'no' ? ' og ' : ' and ')}`
 }
 
 async function buildEntityQueryDataBlock(
@@ -1134,6 +1229,8 @@ async function buildEntityQueryDataBlock(
   modelOverride: store.AssistantModel | undefined,
   providerOverride: store.AssistantProvider | undefined,
   localModelOverride: string | undefined,
+  /** A prior turn's own `DialogFocus.lastSet.filter`, resolved by the pronoun prefilter (see `resolvePronounFocus`) — AND'd onto whatever filter this call's own `lookup_query` resolves, so a follow-up like "hvor mange av dem koster over 100 kr" composes with the set the admin was already looking at instead of starting over. `undefined`/empty for an ordinary, non-follow-up question. */
+  baseFilters: LookupQueryFilterInput[] | undefined,
   trace: AssistantTraceEntry[],
 ): Promise<EntityDataBlockResult> {
   const fields = await entity.lookupQueryFields!(context)
@@ -1166,32 +1263,78 @@ async function buildEntityQueryDataBlock(
     trace,
   }
   const spec = useVerifyPass ? await generateThenVerify<LookupQuerySpec>(callArgs) : await callToolOnce<LookupQuerySpec>(callArgs)
+  // Composed in code, never asked of the model — see `baseFilters`' own doc comment above.
+  const filters = [...(baseFilters ?? []), ...spec.filters]
+
+  // Debug-only tag (see `AssistantTraceEntry.shape`) — derived from the same signals the branches
+  // below use, never asked of the model. A count question with no `countLabel` on this entity still
+  // falls through to the plain "list" behavior below, same as it always has.
+  const shape: 'count' | 'list' | 'report' = spec.reportField !== null ? 'report' : isCountQuestion(message, uiLanguage) && entity.countLabel ? 'count' : 'list'
+  trace.filter((entry) => entry.toolName === 'lookup_query').forEach((entry) => {
+    entry.shape = shape
+  })
 
   const records = await entity.listQueryableRecords!(context)
-  const matches = executeLookupQuery(records, spec, fields)
-  const matchingNames = matches.map((record) => record.label)
+  const matches = executeLookupQuery(records, { filters, reportField: spec.reportField }, fields)
+  // A filtered/counted result that happens to narrow to exactly one record behaves like a named
+  // single item for a follow-up singular pronoun ("er den...") — see `DialogFocusUpdate`'s own doc
+  // comment. Computed once, shared by both the count and list branches below.
+  const singleMatchFocusUpdate: DialogFocusUpdate | undefined =
+    matches.length === 1 ? { kind: 'item', entity: entity.key, id: matches[0].id, label: recordDisplayName(matches[0]) } : undefined
 
   // A plain count question ("hvor mange produkter har vi?") with no specific field requested can be
   // answered exactly in code — `matches.length` already reflects any filters that were applied —
   // rather than handing a fluent-but-hallucination-prone compose call a data block it might
   // misread (see the plan behind this fix, and `AssistantEntity.countLabel`'s own doc comment).
-  if (spec.reportField === null && isCountQuestion(message, uiLanguage) && entity.countLabel) {
-    const label = entity.countLabel[uiLanguage]
+  // Every non-single-match count/list reply focuses the conversation on the whole matched set — see
+  // `DialogFocusUpdate`'s own doc comment. Computed once, shared by both branches below.
+  const setFocusUpdate: DialogFocusUpdate = { kind: 'set', entity: entity.key, filter: filters, ids: matches.map((record) => record.id), label: entity.countLabel?.[uiLanguage]?.plural ?? entity.key }
+
+  if (shape === 'count') {
+    const label = entity.countLabel![uiLanguage]
     const noun = matches.length === 1 ? label.singular : label.plural
     const templatedReply = uiLanguage === 'no' ? `Vi har ${matches.length} ${noun}.` : `We have ${matches.length} ${noun}.`
-    return { dataBlock: '', templatedReply }
+    return { dataBlock: '', templatedReply, focusUpdate: singleMatchFocusUpdate ?? setFocusUpdate }
   }
 
-  let reportBlock = ''
-  const reportField = spec.reportField ? fields.find((field) => field.key === spec.reportField) : undefined
-  if (reportField) {
-    const reported = matches.slice(0, 50).map((record) => `${record.label}: ${JSON.stringify(record.fields[reportField.key])}`)
-    reportBlock = `Real "${reportField.label}" value for each match below — read it directly from here, never compute/guess it:\n${reported.join('\n')}`
+  // A plain "which/list" question ("hvilke produkter er på tilbud?", "gi meg en liste over alle
+  // produkter") with no specific field requested — same reasoning as the count case above: the
+  // matches are already the exact, correct answer, so there's nothing left for a compose call to
+  // contribute except cost and a fresh place to hallucinate (real testing showed exactly that: a
+  // regenerated list with a duplicated tail entry). Phrased and, for 2+ matches, listed entirely in
+  // code instead.
+  if (shape === 'list') {
+    const filterSuffix = buildFilterSuffix(filters, fields, uiLanguage)
+    const noun = entity.countLabel?.[uiLanguage]
+    const nounPlural = noun?.plural ?? entity.key
+
+    if (matches.length === 0) {
+      const templatedReply = uiLanguage === 'no' ? `Ingen ${nounPlural}${filterSuffix}.` : `No ${nounPlural}${filterSuffix}.`
+      return { dataBlock: '', templatedReply, focusUpdate: setFocusUpdate }
+    }
+    if (matches.length === 1) {
+      const item = matches[0]
+      const sublabelPart = item.sublabel ? ` (${item.sublabel})` : ''
+      const templatedReply =
+        uiLanguage === 'no' ? `Det er bare ${item.label}${sublabelPart}${filterSuffix}.` : `There's only ${item.label}${sublabelPart}${filterSuffix}.`
+      return { dataBlock: '', templatedReply, focusUpdate: singleMatchFocusUpdate }
+    }
+    const templatedReply = uiLanguage === 'no' ? `Her er ${matches.length} ${nounPlural}${filterSuffix}:` : `Here are ${matches.length} ${nounPlural}${filterSuffix}:`
+    const items: AssistantListItem[] = matches.map((record) => ({ label: record.label, sublabel: record.sublabel }))
+    return { dataBlock: '', templatedReply, templatedList: { style: 'bullet', items }, focusUpdate: setFocusUpdate }
   }
+
+  // From here on, `shape === 'report'` — the question asked for one specific field's real value
+  // across the matches, which still needs the final `answer_lookup` compose call to phrase (see
+  // `answerLookup`) since there's genuine prose synthesis left to do, not just a plain listing.
+  const reportField = fields.find((field) => field.key === spec.reportField)!
+  const reported = matches.slice(0, 50).map((record) => `${recordDisplayName(record)}: ${JSON.stringify(record.fields[reportField.key])}`)
+  const reportBlock = `Real "${reportField.label}" value for each match below — read it directly from here, never compute/guess it:\n${reported.join('\n')}`
 
   // Same "plain labeled facts, nothing quotable" shape as `buildEntityDataBlock`'s own
   // `batchedResultSummary` — real testing showed a model will otherwise copy a ready-made sentence
   // verbatim instead of composing its own answer.
+  const matchingNames = matches.map((record) => recordDisplayName(record))
   const resultSummary = `"${entity.key}" data (${records.length} total records) — already fully, exactly filtered against the admin's question ("${message}"); this is the complete, final result, not a sample.\nmatchingCount: ${matches.length}\nmatchingNames: ${JSON.stringify(matchingNames)}`
 
   return { dataBlock: [datasetSummary, resultSummary, reportBlock].filter(Boolean).join('\n\n') }
@@ -1261,7 +1404,81 @@ async function answerFromRecord(
  * The caller shows `candidates` as a plain pick-one list and re-answers via
  * `answerLookupForItem` once the admin picks.
  */
-export type AnswerLookupResult = { status: 'ready'; reply: string; trace: AssistantTraceEntry[] } | { status: 'clarifyItem'; entityKey: string; candidates: AssistantCandidate[]; trace: AssistantTraceEntry[] }
+export type AnswerLookupResult =
+  | { status: 'ready'; reply: string; list?: AssistantReplyList; trace: AssistantTraceEntry[] }
+  | { status: 'clarifyItem'; entityKey: string; candidates: AssistantCandidate[]; trace: AssistantTraceEntry[] }
+
+/**
+ * Resolves one single-entity, query-engine-capable lookup question — either the whole message
+ * (the ordinary case), or one half of a compound question (see `answerLookup`'s own
+ * `splitCompoundQuestion` branch). Factored out purely so both cases share the exact same
+ * "try the deterministic query engine, fall back to the `answer_lookup` compose call" logic
+ * without duplicating the compose prompt/schema — a compound question's halves must each be
+ * capable of the *same* fallback a single ordinary question already has.
+ */
+async function resolveSingleEntityLookup(
+  entity: AssistantEntity<unknown>,
+  context: AssistantFillContext,
+  message: string,
+  uiLanguage: 'no' | 'en',
+  capability: AssistantModelCapability,
+  modelOverride: store.AssistantModel | undefined,
+  providerOverride: store.AssistantProvider | undefined,
+  localModelOverride: string | undefined,
+  baseFilters: LookupQueryFilterInput[] | undefined,
+  trace: AssistantTraceEntry[],
+): Promise<LookupHalfResult> {
+  const dataBlockResult = await buildEntityQueryDataBlock(entity, context, message, uiLanguage, capability.useVerifyPass, modelOverride, providerOverride, localModelOverride, baseFilters, trace)
+
+  if (dataBlockResult.templatedReply) {
+    return { reply: dataBlockResult.templatedReply, list: dataBlockResult.templatedList, focusUpdate: dataBlockResult.focusUpdate }
+  }
+
+  // Same compose prompt/schema `answerLookup` itself used before this was extracted — scoped to
+  // this one entity's own data block/guidance, since a compound half is always single-entity by
+  // construction (see `answerLookup`'s own `entities.length === 1` gate).
+  const systemPrompt = [
+    languageInstruction(uiLanguage),
+    currentDateInstruction(),
+    "You are answering a factual question about the Wraps & Coffee admin dashboard's own current data, using only the data provided below — never use outside/general knowledge, and never invent a fact the data doesn't support.",
+    'An empty list, a zero count, or "no matches" in the data below is itself a complete, valid answer (e.g. "there are currently none") — do not treat it as missing information to hedge about.',
+    'A data block below with a "matchingCount"/"matchingNames" pair has already been fully, completely checked against that exact question, record by record — that count and name list are the final answer, not a sample or a subset needing further detail. Report the count as a definite fact (e.g. "there are 7") — never hedge with "I only have example data" or "I\'d need more detail (like dates) to know for sure" when that checking has already been done for you.',
+    'Write your own complete sentence in the admin\'s own language — never literally copy a label or phrase straight out of the data block below (e.g. never answer with something like "7 record(s) satisfy it"). If the question asks "which"/"what" ones (not just a count), your sentence must actually name every one of them from "matchingNames" — a bare count alone does not answer a "which" question.',
+    "If the data below genuinely doesn't contain what's needed to answer, say so honestly rather than guessing.",
+    'A "matchingCount"/"matchingNames" data block only tells you whether each record matched the question and its name — never any other field (price, discount, stock, allergens, etc.) by itself. When exactly one match was found, a separate "Full record for the one match found above" block may also be present below with that record\'s real field data — check for it and use it if the question needs a specific field value. If the question asks for a specific field value (e.g. "how much does it cost?", "what\'s the discount amount?") and that value genuinely isn\'t present anywhere in the data below (no such full-record block, or it\'s missing the needed field), say you don\'t have that specific detail rather than inventing a plausible-sounding number — a fabricated price is far worse than admitting the data below doesn\'t include it.',
+    entity.lookupGuidance ?? '',
+    dataBlockResult.dataBlock,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+
+  const schema: AssistantJsonSchema = {
+    type: 'object',
+    properties: {
+      reply: {
+        type: 'string',
+        description:
+          "A short, direct answer to the admin's question, in their own language, based only on the data above — your own complete sentence, never a phrase copied verbatim from the data block. If the question asks which/what items match, name them (from \"matchingNames\"), not just a bare count.",
+      },
+    },
+    required: ['reply'],
+    additionalProperties: false,
+  }
+
+  const callArgs = {
+    systemPrompt,
+    userText: message,
+    toolName: 'answer_lookup',
+    toolDescription: 'Answer the question using the provided data.',
+    schema,
+    model: modelOverride,
+    provider: providerOverride,
+    localModel: localModelOverride,
+    trace,
+  }
+  const result = capability.useVerifyPass ? await generateThenVerify<{ reply: string }>(callArgs) : await callToolOnce<{ reply: string }>(callArgs)
+  return { reply: result.reply }
+}
 
 /**
  * Answers a factual question about the cafe's own current dashboard data —
@@ -1283,6 +1500,10 @@ export async function answerLookup(
   /** Set by `selectIntent` (the same `searchText` field the update/delete flow uses to find a target item) when the question is actually about one specific, already-named item (e.g. "how much does the Chicken Fajitas wrap cost?") rather than a filter/count across many records — see the single-item fast path below. `undefined` for an ordinary filter/count/list question. */
   itemSearchText?: string,
   localModelOverride?: string,
+  /** See `buildEntityQueryDataBlock`'s own `baseFilters` doc comment — set by `selectIntent`'s pronoun prefilter, threaded straight through. */
+  baseFilters?: LookupQueryFilterInput[] | null,
+  /** This chat's own id (see `useAssistantFlow.ts`) — used only to write this turn's resolved `DialogFocus` once a final reply is known (see the single-item fast path and the query-engine branch below). Never touched by the legacy multi-entity path. */
+  conversationId?: string,
 ): Promise<AnswerLookupResult> {
   // Never trust the model's/client's own entity list — re-filter through the same session-scoped gate every other step uses, then drop anything with no `listAll` implemented (a sub-resource, or an entity that simply doesn't support lookup), then bound the total count regardless.
   const allowed = allowedEntitiesFor(session)
@@ -1331,6 +1552,7 @@ export async function answerLookup(
         if (record) {
           const trace: AssistantTraceEntry[] = [...selection.trace]
           const result = await answerFromRecord(singleEntity, record, matchedLabel, message, uiLanguage, historyContext, modelOverride, providerOverride, localModelOverride, capability, trace)
+          setDialogFocus(conversationId, focusFromUpdate({ kind: 'item', entity: singleEntity.key, id: selection.itemID, label: matchedLabel ?? itemSearchText }))
           return { status: 'ready', ...result }
         }
         console.log(`[assistant] answerLookup: single-item fast path resolved itemID "${selection.itemID}" but getCurrent found no record — falling back to the full batch scan`)
@@ -1348,32 +1570,47 @@ export async function answerLookup(
     }
   }
 
-  const recordsPerBatch = resolveRecordsPerBatch(capability, chunkSizePreference, customChunkRecordCount)
-
   const trace: AssistantTraceEntry[] = [...fastPathTrace]
+
   // The deterministic query engine (see `buildEntityQueryDataBlock`) is strictly better than the
   // batch classifier whenever it's available — faster (no batch loop) and immune to the
   // over-inclusion failure mode real testing found even at 7B — so it's preferred outright, not just
   // as a fallback for an oversized dataset. Only engaged for a single-entity question: a multi-entity
   // lookup keeps using the legacy path below unchanged, same constraint the single-item fast path
-  // above already applies.
+  // above already applies. This is also the only branch compound-question splitting applies to —
+  // see `splitCompoundQuestion`'s own doc comment for why (both providers were observed dropping
+  // half of "hvor mange produkter har vi og hvem er på tilbud?", since `LookupQuerySpec` can't
+  // represent two independent questions in one call).
+  if (entities.length === 1 && entities[0].lookupQueryFields && entities[0].listQueryableRecords) {
+    const [entity] = entities
+    const halves = splitCompoundQuestion(message, uiLanguage)
+    const resolveHalf = (text: string) => resolveSingleEntityLookup(entity, context, text, uiLanguage, capability, modelOverride, providerOverride, localModelOverride, baseFilters ?? undefined, trace)
+
+    let result: { reply: string; list?: AssistantReplyList }
+    let focusUpdate: DialogFocusUpdate | undefined
+    if (halves) {
+      const [a, b] = await Promise.all(halves.map(resolveHalf))
+      result = combineCompoundReplies(a, b)
+      focusUpdate = combineFocusUpdates(a, b)
+    } else {
+      const single = await resolveHalf(message)
+      result = single
+      focusUpdate = single.focusUpdate
+    }
+
+    if (focusUpdate) setDialogFocus(conversationId, focusFromUpdate(focusUpdate))
+    return { status: 'ready', reply: result.reply, list: result.list, trace }
+  }
+
+  const recordsPerBatch = resolveRecordsPerBatch(capability, chunkSizePreference, customChunkRecordCount)
+
   const dataBlockResults = await Promise.all(
-    entities.map((entity): Promise<EntityDataBlockResult> =>
-      entities.length === 1 && entity.lookupQueryFields && entity.listQueryableRecords
-        ? buildEntityQueryDataBlock(entity, context, message, uiLanguage, capability.useVerifyPass, modelOverride, providerOverride, localModelOverride, trace)
-        : buildEntityDataBlock(entity, context, message, uiLanguage, recordsPerBatch, capability.chunkCharBudget, capability.useVerifyPass, historyContext ?? null, modelOverride, providerOverride, localModelOverride, trace).then(
-            (dataBlock) => ({ dataBlock }),
-          ),
+    entities.map((entity) =>
+      buildEntityDataBlock(entity, context, message, uiLanguage, recordsPerBatch, capability.chunkCharBudget, capability.useVerifyPass, historyContext ?? null, modelOverride, providerOverride, localModelOverride, trace).then(
+        (dataBlock) => ({ dataBlock }),
+      ),
     ),
   )
-
-  // A plain count question the query engine could answer exactly in code (see
-  // `buildEntityQueryDataBlock`'s own `templatedReply` — only ever set for a single-entity query-engine
-  // lookup) skips this function's own compose call entirely: zero hallucination surface, zero latency,
-  // for both providers.
-  if (dataBlockResults.length === 1 && dataBlockResults[0].templatedReply) {
-    return { status: 'ready', reply: dataBlockResults[0].templatedReply, trace }
-  }
 
   const lookupGuidance = entities
     .map((entity) => entity.lookupGuidance)
@@ -1444,6 +1681,10 @@ export async function answerLookupForItem(
   modelOverride?: store.AssistantModel,
   providerOverride?: store.AssistantProvider,
   localModelOverride?: string,
+  /** The picked candidate's own label (the client already has this from the `clarifyItem` candidate list it rendered) — used both to tell `answerFromRecord` which record this is and to write this turn's `DialogFocus`. */
+  label?: string,
+  /** This chat's own id (see `useAssistantFlow.ts`) — used only to write this turn's resolved `DialogFocus` once the reply is ready. */
+  conversationId?: string,
 ): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
   const entity = requireAccessibleEntity(entityKey, session)
   if (!entity.getCurrent) throw new Error(`"${entityKey}" has nothing to look up.`)
@@ -1451,7 +1692,9 @@ export async function answerLookupForItem(
   const record = await entity.getCurrent(itemID, context)
   if (!record) throw new Error("Couldn't find that item anymore — it may have been deleted.")
   const capability = resolveModelCapability(modelOverride, providerOverride)
-  return answerFromRecord(entity, record, undefined, message, uiLanguage, historyContext, modelOverride, providerOverride, localModelOverride, capability, [])
+  const result = await answerFromRecord(entity, record, label, message, uiLanguage, historyContext, modelOverride, providerOverride, localModelOverride, capability, [])
+  setDialogFocus(conversationId, focusFromUpdate({ kind: 'item', entity: entityKey, id: itemID, label: label ?? itemID }))
+  return result
 }
 
 /**
@@ -1473,6 +1716,7 @@ export async function transcribeAttachment(
   modelOverride?: store.AssistantModel,
   providerOverride?: store.AssistantProvider,
   localModelOverride?: string,
+  localVisionModelOverride?: string,
 ): Promise<{ text: string; trace: AssistantTraceEntry[] }> {
   const schema: AssistantJsonSchema = {
     type: 'object',
@@ -1503,6 +1747,7 @@ export async function transcribeAttachment(
     model: modelOverride,
     provider: providerOverride,
     localModel: localModelOverride,
+    localVisionModel: localVisionModelOverride,
     trace,
   })
   return { ...result, trace }

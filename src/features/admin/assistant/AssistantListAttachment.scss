@@ -1,0 +1,27 @@
+@use '../../../styles/variables' as *;
+
+// Sits as its own flex child directly after the assistant bubble it belongs to (see
+// `AssistantPanel.tsx`), inside the same `.assistant-panel__transcript` flex column — deliberately
+// has no background/border of its own so it reads as attached data, not another chat bubble.
+.assistant-list-attachment {
+  align-self: flex-start;
+  max-width: 85%;
+  margin: calc($spacing-unit / -4) 0 0;
+  padding: 0 $spacing-unit;
+  list-style: disc;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: $color-text;
+
+  li {
+    margin: 0;
+  }
+}
+
+.assistant-list-attachment__label {
+  font-weight: 500;
+}
+
+.assistant-list-attachment__sublabel {
+  color: $color-text-muted;
+}

@@ -5,17 +5,16 @@ import type { ToolCallInput } from './client'
 
 /**
  * Which Ollama model a call uses. The vision-vs-thinking split is
- * deterministic by call shape (see the plan's "two independent roles" note),
- * never an admin/per-message choice — Ollama only keeps one model resident at
- * a time anyway, so there's no simultaneous-RAM cost to this split. `override`
- * (see `ToolCallInput.localModel`) lets one device's chat pin a specific tag
- * for the *thinking* role only — a per-chat model choice makes no sense for
- * vision, since which image-capable model to use isn't something a text
- * conversation ever has a reason to override mid-chat.
+ * deterministic by call shape (see the plan's "two independent roles" note) —
+ * Ollama only keeps one model resident at a time anyway, so there's no
+ * simultaneous-RAM cost to this split. `thinkingOverride`/`visionOverride`
+ * (see `ToolCallInput.localModel`/`localVisionModel`) let one device's chat
+ * pin a specific tag for whichever role a given call actually uses; only one
+ * of the two is ever consulted per call, since a single call is never both.
  */
-function resolveOllamaModel(hasImage: boolean, config: store.OllamaConfig, override: string | undefined): string {
-  if (hasImage) return config.visionModel
-  return override || config.thinkingModel
+function resolveOllamaModel(hasImage: boolean, config: store.OllamaConfig, thinkingOverride: string | undefined, visionOverride: string | undefined): string {
+  if (hasImage) return visionOverride || config.visionModel
+  return thinkingOverride || config.thinkingModel
 }
 
 /** Ollama's `/api/chat` `format` field accepts a plain JSON Schema object for grammar-constrained decoding — this schema shape is already close to that (see `AssistantJsonSchema`'s own doc comment), the index signature is only for the Anthropic SDK's benefit, so passing it straight through is fine. */
@@ -102,7 +101,7 @@ async function ollamaChat(config: store.OllamaConfig, model: string, systemPromp
  */
 export async function ollamaCallTool<T>(input: ToolCallInput): Promise<T> {
   const config = store.getOllamaConfig()
-  const model = resolveOllamaModel(Boolean(input.image), config, input.localModel)
+  const model = resolveOllamaModel(Boolean(input.image), config, input.localModel, input.localVisionModel)
   if (!config.baseUrl || !model) throw new AssistantNotConfiguredError("The Ollama host/models haven't been configured yet — check the Integrations page.")
 
   const systemPrompt = [input.systemPrompt, schemaInstructionBlock(input.toolDescription, input.schema)].join('\n\n')

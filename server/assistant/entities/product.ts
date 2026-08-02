@@ -344,8 +344,21 @@ export const productEntity: AssistantEntity<Product> = {
   /** See `lookupQuery.ts`'s own module doc comment — `hasDiscount`/`price` are the exact fields behind the on-sale/price bugs real testing found in the old `lookup_batch` classifier; exposing them here lets `answerLookup` skip that classifier entirely for `product` questions. */
   async lookupQueryFields(): Promise<LookupQueryField[]> {
     return [
+      {
+        key: 'name',
+        label: 'Name',
+        type: 'string',
+        description:
+          'The product\'s own name — use "contains" for a keyword that\'s part of the name (e.g. "kylling"/"chicken" in "Kylling Fajitas"), which is what a request for "all chicken products" actually means. Never confuse a word from the product\'s own name with its category/catalogue ("locationLabel" below) — those are frequently different (e.g. a chicken product filed under a "Wraps" category).',
+      },
       { key: 'available', label: 'Available', type: 'boolean', description: 'Whether the product is currently marked available for sale.' },
-      { key: 'hasDiscount', label: 'On sale', type: 'boolean', description: 'True only when the product has an active discount set — the one real signal for "on sale"/"discounted"/"på tilbud".' },
+      {
+        key: 'hasDiscount',
+        label: 'On sale',
+        type: 'boolean',
+        description: 'True only when the product has an active discount set — the one real signal for "on sale"/"discounted"/"på tilbud".',
+        filterPhrase: (value, uiLanguage) => (value === 'true' ? (uiLanguage === 'no' ? 'på tilbud' : 'on sale') : null),
+      },
       { key: 'outOfStock', label: 'Out of stock', type: 'boolean' },
       { key: 'trackStock', label: 'Stock tracked', type: 'boolean', description: 'Whether stock quantity is tracked for this product at all.' },
       { key: 'locationLabel', label: 'Category/catalogue', type: 'string', description: 'Which category (or, if none, catalogue) the product belongs to.' },
@@ -362,8 +375,10 @@ export const productEntity: AssistantEntity<Product> = {
       const effective = resolveProductEffectivePrice(product)
       return {
         id: product.itemID,
-        label: `${product.name[context.uiLanguage]} (${productLocationLabel(product, context.uiLanguage)})`,
+        label: product.name[context.uiLanguage],
+        sublabel: productLocationLabel(product, context.uiLanguage),
         fields: {
+          name: product.name[context.uiLanguage],
           available: product.available,
           hasDiscount: product.discount != null,
           outOfStock: Boolean(product.outOfStock),

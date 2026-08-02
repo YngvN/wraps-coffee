@@ -429,6 +429,20 @@ export interface AssistantTraceEntry {
   usage?: { inputTokens: number; outputTokens: number; estimatedCostUsd?: number }
   /** The literal model that actually answered this one call (a Claude model id or an Ollama tag) — read from the real request itself, not a separately-fetched config value. See `server/assistant/client.ts`'s own `AssistantTraceEntry` doc comment. */
   model?: string
+  /** Debug-only tag identifying which deterministic reply branch a `lookup_query` call's own result fed into — see `server/assistant/client.ts`'s own `AssistantTraceEntry` doc comment. Never read by any functional code path. */
+  shape?: 'count' | 'list' | 'report'
+}
+
+/** One row of a structured list reply attachment — client-side mirror of `server/assistant/types.ts`'s own `AssistantListItem`. */
+export interface AssistantListItem {
+  label: string
+  sublabel?: string
+}
+
+/** A structured list of matched records attached to a lookup reply — client-side mirror of `server/assistant/types.ts`'s own `AssistantReplyList`. See that file's doc comment for why this exists instead of the model regenerating the list as prose. */
+export interface AssistantReplyList {
+  style: 'bullet'
+  items: AssistantListItem[]
 }
 
 export interface AssistantCredentialStatus {
@@ -464,6 +478,13 @@ export async function setAssistantCredentials(
   return response.json() as Promise<AssistantCredentialStatus>
 }
 
+/** One filter condition for the deterministic lookup query engine — client-side mirror of `server/assistant/lookupQuery.ts`'s own `LookupQueryFilterInput`. Only ever produced by the server (a prior turn's own resolved filter, round-tripped via `AssistantIntentResult.baseFilters`); the client never builds one itself. */
+export interface AssistantLookupFilter {
+  field: string
+  op: string
+  value: string
+}
+
 export interface AssistantIntentResult {
   /** A real entity key, or `'chat'` for a general question/greeting that isn't a specific create/update/delete request — see `reply`/`lookupEntities`. */
   entity: string
@@ -475,13 +496,15 @@ export interface AssistantIntentResult {
   reply: string | null
   /** Only set when `entity === 'chat'` and the message was a factual question about the cafe's own current data — which entity keys to fetch via `assistantAnswerLookup`. Mutually exclusive with `reply` (the server normalizes this). */
   lookupEntities: string[] | null
+  /** Only ever set by the server's own pronoun prefilter, when a plural referring pronoun ("de"/"dem"/"disse") resolved against the conversation's prior lookup scope — pass it straight through as `assistantAnswerLookup`'s own `baseFilters`, same posture as `historyContext`/`searchText`. `null`/`undefined` otherwise. */
+  baseFilters?: AssistantLookupFilter[] | null
   /** This turn's resolved conversation context (see `server/assistant/steps.ts`'s `resolveHistoryContext`), or `null` if there was none yet — pass this straight through to `assistantSelectItem`/`assistantFillFields`/`assistantAnswerLookup` for the rest of this same turn, never re-resolving it client-side. */
   historyContext: string | null
   /** See `AssistantTraceEntry` — always exactly one entry (this step is single-pass), plus one more if history had to be summarized. */
   trace: AssistantTraceEntry[]
 }
 
-/** Step 1 of the assistant flow (see `useAssistantFlow`) — routes free text to an entity + action. Never writes anything; see `server/assistant/types.ts`'s own module doc comment. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. `history` is raw recent-transcript text, only sent when this call is the first of its turn (see `useAssistantFlow`'s own `transcriptToText`). `provider` pins this one call (and, via `useAssistantFlow`, this whole device's chat) to a specific backend regardless of the shared, admin-configured default — same kebab-menu override as `model`, but selectable independently of it (picking "Local (Ollama)" makes `model` a no-op, since that provider routes by call shape instead). */
+/** Step 1 of the assistant flow (see `useAssistantFlow`) — routes free text to an entity + action. Never writes anything; see `server/assistant/types.ts`'s own module doc comment. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. `history` is raw recent-transcript text, only sent when this call is the first of its turn (see `useAssistantFlow`'s own `transcriptToText`). `provider` pins this one call (and, via `useAssistantFlow`, this whole device's chat) to a specific backend regardless of the shared, admin-configured default — same kebab-menu override as `model`, but selectable independently of it (picking "Local (Ollama)" makes `model` a no-op, since that provider routes by call shape instead). `conversationId` is this chat's own id (see `useAssistantFlow`'s own `conversationIdRef`) — only ever consulted server-side by the local provider's pronoun prefilter, to look up this conversation's own dialog focus. */
 export async function assistantSelectIntent(
   token: string,
   message: string,
@@ -490,12 +513,13 @@ export async function assistantSelectIntent(
   history?: string,
   provider?: AssistantProvider,
   localModel?: string,
+  conversationId?: string,
   signal?: AbortSignal,
 ): Promise<AssistantIntentResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/intent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message, uiLanguage, model, history, provider, localModel }),
+    body: JSON.stringify({ message, uiLanguage, model, history, provider, localModel, conversationId }),
     signal,
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
@@ -578,6 +602,7 @@ export async function assistantFillFields(
     historyContext?: string
     provider?: AssistantProvider
     localModel?: string
+    localVisionModel?: string
   },
   signal?: AbortSignal,
 ): Promise<AssistantFillFieldsResult> {
@@ -632,7 +657,7 @@ export type ChunkSizePreference = 'auto' | 'small' | 'medium' | 'large' | 'custo
  * silently guessing.
  */
 export type AssistantLookupResult =
-  | { status: 'ready'; reply: string; trace: AssistantTraceEntry[] }
+  | { status: 'ready'; reply: string; list?: AssistantReplyList; trace: AssistantTraceEntry[] }
   | { status: 'clarifyItem'; entityKey: string; candidates: { id: string; label: string }[]; trace: AssistantTraceEntry[] }
 
 /** Answers a factual question about the cafe's own current dashboard data — called when `assistantSelectIntent` returns a non-empty `lookupEntities` instead of a plain `reply`. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only; `chunkSizePreference`/`customChunkRecordCount` override how much data is processed per call at once — see `AssistantPanel`'s kebab menu for both. `historyContext` is this turn's already-resolved conversation context (from `assistantSelectIntent`'s own result). `itemSearchText` (`assistantSelectIntent`'s own `searchText`) engages the server's single-item fast path when the question named one specific item, skipping the batch scan entirely for it — see `AssistantLookupResult`'s own doc comment for what happens when that's still ambiguous. */
@@ -649,6 +674,8 @@ export async function assistantAnswerLookup(
     provider?: AssistantProvider
     itemSearchText?: string
     localModel?: string
+    baseFilters?: AssistantLookupFilter[] | null
+    conversationId?: string
   },
   signal?: AbortSignal,
 ): Promise<AssistantLookupResult> {
@@ -669,7 +696,18 @@ export async function assistantAnswerLookup(
 /** The continuation call once the admin has picked one specific candidate off an `assistantAnswerLookup` `'clarifyItem'` result — answers directly from that one, now-unambiguous record. Never searches or picks anything itself. */
 export async function assistantAnswerLookupForItem(
   token: string,
-  input: { entity: string; itemID: string; message: string; uiLanguage: 'no' | 'en'; historyContext?: string; model?: AssistantModel; provider?: AssistantProvider; localModel?: string },
+  input: {
+    entity: string
+    itemID: string
+    message: string
+    uiLanguage: 'no' | 'en'
+    historyContext?: string
+    model?: AssistantModel
+    provider?: AssistantProvider
+    localModel?: string
+    label?: string
+    conversationId?: string
+  },
   signal?: AbortSignal,
 ): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
   const response = await fetch(`${serverBaseUrl()}/assistant/lookup-item`, {
@@ -781,7 +819,7 @@ export async function deleteOllamaModel(token: string, tag: string): Promise<{ o
   return response.json() as Promise<{ ok: boolean; error?: string }>
 }
 
-/** The generic "just read this photo" mode (see `AssistantPanel`'s image-mode toggle) — reads any photographed document (not just this cafe's own data) and returns a transcription, with no draft/review step at all. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only (Claude path only — the Ollama path routes deterministically by call shape). */
+/** The generic "just read this photo" mode (see `AssistantPanel`'s image-mode toggle) — reads any photographed document (not just this cafe's own data) and returns a transcription, with no draft/review step at all. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only (Claude path only). `localVisionModel` is the Ollama-path equivalent — see `AssistantPanel`'s model-picker menu. */
 export async function assistantTranscribeAttachment(
   token: string,
   input: {
@@ -791,6 +829,7 @@ export async function assistantTranscribeAttachment(
     model?: AssistantModel
     provider?: AssistantProvider
     localModel?: string
+    localVisionModel?: string
   },
   signal?: AbortSignal,
 ): Promise<{ text: string; trace: AssistantTraceEntry[] }> {

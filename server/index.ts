@@ -9,6 +9,7 @@ import type { WindowLaunchSettings } from '../src/types/windowLaunch'
 import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
 import * as assistantSteps from './assistant/steps'
+import type { LookupQueryFilterInput } from './assistant/lookupQuery'
 import { deleteOllamaModel, ensureOllamaRunning, listOllamaModels, pullOllamaModel, testOllamaConnection } from './assistant/ollamaClient'
 import { AssistantLocalProviderError, AssistantNotConfiguredError, type AssistantActionName } from './assistant/types'
 import * as backup from './backup'
@@ -671,13 +672,14 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { message, uiLanguage, model, history, provider, localModel } = body as {
+        const { message, uiLanguage, model, history, provider, localModel, conversationId } = body as {
           message?: string
           uiLanguage?: 'no' | 'en'
           model?: store.AssistantModel
           history?: string
           provider?: store.AssistantProvider
           localModel?: string
+          conversationId?: string
         }
         if (!message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing message or uiLanguage' })
@@ -695,6 +697,7 @@ const httpServer = createServer((req, res) => {
               typeof history === 'string' ? history : undefined,
               isAssistantProvider(provider) ? provider : undefined,
               typeof localModel === 'string' ? localModel : undefined,
+              typeof conversationId === 'string' ? conversationId : undefined,
             ),
           )
         } catch (error) {
@@ -802,7 +805,7 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { message, uiLanguage, entities, model, chunkSizePreference, customChunkRecordCount, historyContext, provider, itemSearchText, localModel } = body as {
+        const { message, uiLanguage, entities, model, chunkSizePreference, customChunkRecordCount, historyContext, provider, itemSearchText, localModel, baseFilters, conversationId } = body as {
           message?: string
           uiLanguage?: 'no' | 'en'
           entities?: string[]
@@ -813,6 +816,8 @@ const httpServer = createServer((req, res) => {
           provider?: store.AssistantProvider
           itemSearchText?: string
           localModel?: string
+          baseFilters?: LookupQueryFilterInput[] | null
+          conversationId?: string
         }
         if (!message || (uiLanguage !== 'no' && uiLanguage !== 'en') || !Array.isArray(entities)) {
           sendJson(res, 400, { error: 'Missing message, uiLanguage, or entities' })
@@ -834,6 +839,8 @@ const httpServer = createServer((req, res) => {
               isAssistantProvider(provider) ? provider : undefined,
               typeof itemSearchText === 'string' ? itemSearchText : undefined,
               typeof localModel === 'string' ? localModel : undefined,
+              Array.isArray(baseFilters) ? baseFilters : undefined,
+              typeof conversationId === 'string' ? conversationId : undefined,
             ),
           )
         } catch (error) {
@@ -856,7 +863,7 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, itemID, message, uiLanguage, historyContext, model, provider, localModel } = body as {
+        const { entity, itemID, message, uiLanguage, historyContext, model, provider, localModel, label, conversationId } = body as {
           entity?: string
           itemID?: string
           message?: string
@@ -865,6 +872,8 @@ const httpServer = createServer((req, res) => {
           model?: store.AssistantModel
           provider?: store.AssistantProvider
           localModel?: string
+          label?: string
+          conversationId?: string
         }
         if (!entity || !itemID || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, itemID, message, or uiLanguage' })
@@ -884,6 +893,8 @@ const httpServer = createServer((req, res) => {
               isAssistantModel(model) ? model : undefined,
               isAssistantProvider(provider) ? provider : undefined,
               typeof localModel === 'string' ? localModel : undefined,
+              typeof label === 'string' ? label : undefined,
+              typeof conversationId === 'string' ? conversationId : undefined,
             ),
           )
         } catch (error) {
@@ -902,7 +913,7 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields, model, history, historyContext, provider, localModel } = body as {
+        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields, model, history, historyContext, provider, localModel, localVisionModel } = body as {
           entity?: string
           action?: AssistantActionName
           itemID?: string
@@ -916,6 +927,7 @@ const httpServer = createServer((req, res) => {
           historyContext?: string
           provider?: store.AssistantProvider
           localModel?: string
+          localVisionModel?: string
         }
         if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, action, message, or uiLanguage' })
@@ -933,6 +945,7 @@ const httpServer = createServer((req, res) => {
               modelOverride: isAssistantModel(model) ? model : undefined,
               providerOverride: isAssistantProvider(provider) ? provider : undefined,
               localModelOverride: typeof localModel === 'string' ? localModel : undefined,
+              localVisionModelOverride: typeof localVisionModel === 'string' ? localVisionModel : undefined,
               history: typeof history === 'string' ? history : undefined,
               historyContext: typeof historyContext === 'string' ? historyContext : undefined,
             }),
@@ -1097,13 +1110,14 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { message, uiLanguage, image, model, provider, localModel } = body as {
+        const { message, uiLanguage, image, model, provider, localModel, localVisionModel } = body as {
           message?: string
           uiLanguage?: 'no' | 'en'
           image?: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string }
           model?: store.AssistantModel
           provider?: store.AssistantProvider
           localModel?: string
+          localVisionModel?: string
         }
         if (uiLanguage !== 'no' && uiLanguage !== 'en') {
           sendJson(res, 400, { error: 'Missing uiLanguage' })
@@ -1124,6 +1138,7 @@ const httpServer = createServer((req, res) => {
               isAssistantModel(model) ? model : undefined,
               isAssistantProvider(provider) ? provider : undefined,
               typeof localModel === 'string' ? localModel : undefined,
+              typeof localVisionModel === 'string' ? localVisionModel : undefined,
             ),
           )
         } catch (error) {

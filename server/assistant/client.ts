@@ -38,6 +38,14 @@ export interface AssistantTraceEntry {
    * client-side config state, not the real per-call request.
    */
   model?: string
+  /**
+   * Debug-only tag stamped after the fact by `steps.ts`'s `buildEntityQueryDataBlock`
+   * onto its own `lookup_query` trace entries, once it knows which deterministic
+   * reply branch fired (count template, list template, or a genuine `answer_lookup`
+   * report-field compose call) — never read by any functional code path, purely
+   * so a list-shape turn is identifiable when inspecting the trace.
+   */
+  shape?: 'count' | 'list' | 'report'
 }
 
 export interface ToolCallInput {
@@ -60,8 +68,10 @@ export interface ToolCallInput {
   model?: store.AssistantModel
   /** Per-device override of which *provider* answers this one call — same kebab-menu, never-persisted posture as `model` above, but independently selectable (picking "Local (Ollama)" there sets this without touching `model`, and vice versa). Falls back to `store.getAssistantProvider()` (the shared, admin-configured default) when omitted. */
   provider?: store.AssistantProvider
-  /** Per-device override of which Ollama *tag* answers this one call on the local path — same kebab-menu posture as `model`/`provider` above (a Small/Medium/Large tier pick, or a free-text custom tag), but only ever consulted by `ollamaClient.ts`; ignored entirely on the Claude path. Falls back to `store.getOllamaConfig().thinkingModel` (the shared, admin-configured default) when omitted. Never applied to the *vision* model — that routing stays deterministic by call shape regardless of this override, see `ollamaClient.ts`'s own `resolveOllamaModel`. */
+  /** Per-device override of which Ollama *tag* answers this one call's *thinking* role on the local path — same kebab-menu posture as `model`/`provider` above, but only ever consulted by `ollamaClient.ts`; ignored entirely on the Claude path. Falls back to `store.getOllamaConfig().thinkingModel` (the shared, admin-configured default) when omitted. Ignored when this call carries an `image` — see `localVisionModel` below, and `ollamaClient.ts`'s own `resolveOllamaModel`. */
   localModel?: string
+  /** Same per-device posture as `localModel` above, but for this call's *vision* role — only ever consulted when `image` is set. Falls back to `store.getOllamaConfig().visionModel` when omitted. */
+  localVisionModel?: string
   /** When provided, this call's own timing/input/output/token-usage is pushed onto it — see `AssistantTraceEntry`. Omitted entirely for calls with nothing to attach a trace to (e.g. `generateTitle`, which has no visible "thinking" UI). */
   trace?: AssistantTraceEntry[]
   /** Only meaningful alongside `trace` — tags which `generateThenVerify` pass this call is, so the UI can label them. Never set for a `callToolOnce` call. */
@@ -110,8 +120,19 @@ export async function generateThenVerify<T>(input: {
   provider?: store.AssistantProvider
   /** See `ToolCallInput.localModel` — applied to both the draft and verify pass. */
   localModel?: string
+  /** See `ToolCallInput.localVisionModel` — applied to both the draft and verify pass. */
+  localVisionModel?: string
   /** See `ToolCallInput.trace` — both the draft and verify pass push their own entry onto it, tagged `pass: 'draft'`/`'verify'` respectively. */
   trace?: AssistantTraceEntry[]
+  /**
+   * Skips the verify pass entirely when it returns `true` for the draft — verify's whole mechanism
+   * is "show the model its own draft plus extra grounding and ask it to double-check," and against
+   * a draft with nothing worth double-checking, there is nothing to *correct*, only room to *add*.
+   * Real testing showed exactly that: `fillFields`'s own all-null draft (a `create` request that
+   * actually named nothing to create) came back from verify with an entire fabricated record. Not
+   * fill-fields-specific — any caller can use this for its own "nothing here to verify" case.
+   */
+  skipVerifyIf?: (draft: T) => boolean
 }): Promise<T> {
   const draft = await callTool<T>({
     systemPrompt: input.systemPrompt,
@@ -123,9 +144,12 @@ export async function generateThenVerify<T>(input: {
     model: input.model,
     provider: input.provider,
     localModel: input.localModel,
+    localVisionModel: input.localVisionModel,
     trace: input.trace,
     pass: 'draft',
   })
+
+  if (input.skipVerifyIf?.(draft)) return draft
 
   const verifyText = [
     input.userText,
@@ -147,6 +171,7 @@ export async function generateThenVerify<T>(input: {
     model: input.model,
     provider: input.provider,
     localModel: input.localModel,
+    localVisionModel: input.localVisionModel,
     trace: input.trace,
     pass: 'verify',
   })

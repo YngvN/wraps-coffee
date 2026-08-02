@@ -20,16 +20,30 @@ export interface LookupQueryField {
   /** Only meaningful for `type: 'enum'`. */
   enumValues?: string[]
   description?: string
+  /**
+   * Human-language phrase describing this field pinned to a specific filter
+   * value (e.g. `"på tilbud"` for `hasDiscount` pinned to `true`) — used only
+   * by `steps.ts`'s deterministic list-shape reply to build its filter-suffix
+   * wording ("Her er 3 produkter på tilbud:"), never sent to the model.
+   * Receives the filter's raw (pre-coercion) string value, so a boolean field
+   * can return a different phrase per value, or return `null` for values with
+   * no natural phrase. Omit entirely for a field with nothing worth naming —
+   * the suffix then just omits any mention of that filter rather than
+   * guessing one.
+   */
+  filterPhrase?: (rawValue: string, uiLanguage: 'no' | 'en') => string | null
 }
 
 /** A flattened row an entity exposes for querying — independent of whatever shape its own `listAll()` returns (e.g. `theme`/`integrationToggle`, whose `listAll()` returns a settings object, not a flat array). */
 export interface LookupQueryRecord {
   id: string
   label: string
+  /** A secondary line for this record (e.g. a product's category) — only ever consulted by `steps.ts`'s deterministic list-shape reply, to render as muted text under `label` rather than concatenated into it. Omitted entirely for an entity with nothing worth splitting out; its list items then just render `label` alone. */
+  sublabel?: string
   fields: Record<string, string | number | boolean | string[] | null>
 }
 
-interface LookupQueryFilterInput {
+export interface LookupQueryFilterInput {
   field: string
   op: string
   value: string

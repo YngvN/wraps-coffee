@@ -38,6 +38,27 @@ export interface AssistantCandidate {
   label: string
 }
 
+/** One row of a structured list reply attachment — see `AssistantReplyList`. */
+export interface AssistantListItem {
+  label: string
+  sublabel?: string
+}
+
+/**
+ * A structured list of matched records attached to a lookup reply, built
+ * entirely in code (`steps.ts`'s `buildEntityQueryDataBlock`) from records
+ * `executeLookupQuery` already resolved — never authored by the model. Lets
+ * the client render real bullet points instead of asking a small model to
+ * regenerate the same list as prose, which real testing showed hallucinating
+ * duplicate/malformed entries for no benefit. `style` is a plain `'bullet'`
+ * today; `'numbered'` is reserved for a future rendering mode, not yet
+ * implemented on the client.
+ */
+export interface AssistantReplyList {
+  style: 'bullet'
+  items: AssistantListItem[]
+}
+
 /** Everything a `fillFieldsSchema`/`validate` call needs beyond the draft itself — built fresh, server-side, on every call (see `steps.ts`), never trusted from the client. */
 export interface AssistantFillContext {
   uiLanguage: 'no' | 'en'

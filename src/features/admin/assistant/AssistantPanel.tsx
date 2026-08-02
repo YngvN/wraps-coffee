@@ -1,5 +1,5 @@
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion'
-import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Alert, Badge, Button, Checkbox, ChevronLeftIcon, ClockIcon, CopyIcon, ImageUploadField, Input, KebabIcon, NewChatIcon, NumberInput, Spinner } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useAppearanceThemes } from '../../../hooks/useAppearanceThemes'
@@ -17,9 +17,8 @@ import { useMessageBoards } from '../../../hooks/useMessageBoards'
 import { useProducts } from '../../../hooks/useProducts'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
 import { useLanguage } from '../../../i18n'
-import { createUser, deleteUser, getAssistantCredentialStatus, getOllamaConfig, resetUserPassword, SessionExpiredError, type AssistantModel, type AssistantProvider, type ChunkSizePreference } from '../../../lib/localServer'
+import { createUser, deleteUser, getAssistantCredentialStatus, getOllamaConfig, listOllamaModels, resetUserPassword, SessionExpiredError, type AssistantModel, type AssistantProvider, type ChunkSizePreference, type OllamaModelInfo } from '../../../lib/localServer'
 import { dismissUpload, startUpload, useUpload } from '../../../lib/uploadManager'
-import { findOllamaTier, OLLAMA_THINKING_TIERS } from '../integrations/ollamaModelTiers'
 import type { AppearanceTheme, AppearanceThemeColor } from '../../../types/appearanceTheme'
 import type { Catalogue, Category } from '../../../types/category'
 import type { ContactInfo } from '../../../types/contactInfo'
@@ -45,6 +44,7 @@ import { ThemeColorListEditor } from '../store/ThemeColorListEditor'
 import { ThemeEditorForm } from '../store/ThemeEditorForm'
 import { ResetPasswordForm } from '../users/ResetPasswordForm'
 import { UserForm } from '../users/UserForm'
+import { AssistantListAttachment } from './AssistantListAttachment'
 import { AssistantReviewSummary } from './AssistantReviewSummary'
 import { AssistantThoughtTrace } from './AssistantThoughtTrace'
 import { formatCostUsd, formatThoughtDuration, sumUsage, traceStepLabel } from './assistantTraceFormat'
@@ -62,7 +62,7 @@ import {
   buildStoreSettingsChangeRows,
   buildThemeChangeRows,
 } from './reviewChangeRows'
-import { type AssistantEntityKey, type AssistantImageMode, type TranscriptLine, useAssistantFlow } from './useAssistantFlow'
+import { type AssistantEntityKey, type AssistantImageMode, formatReplyListAsText, type TranscriptLine, useAssistantFlow } from './useAssistantFlow'
 import './AssistantPanel.scss'
 
 interface AssistantPanelProps {
@@ -80,9 +80,6 @@ const IMAGE_FIELD: Partial<Record<AssistantEntityKey, string>> = {
 
 /** Same three models Settings → Integrations' own "Claude" model picker offers (see `IntegrationsView.tsx`) — reused here for the per-chat override menu's own option list and i18n labels (`admin.integrations.assistantModel.<model>.label`), rather than duplicating fresh copy for the same three names. */
 const MODEL_OVERRIDE_OPTIONS: AssistantModel[] = ['claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-opus-4-5']
-
-/** The Local model `<select>`'s own sentinel value for "not one of the curated tiers" — same convention as `IntegrationsView.tsx`'s own `OLLAMA_CUSTOM_TIER_VALUE`; a real Ollama tag never contains a space, so this can't collide with one. */
-const LOCAL_MODEL_CUSTOM_VALUE = '__custom__'
 
 /** Sentinel values for the top-level provider `<select>` — `providerOverride` itself is `null` for "Standard", so this just gives that `null` case a string a `<select>`'s `value` can hold. */
 const PROVIDER_SELECT_STANDARD_VALUE = 'standard'
@@ -139,7 +136,8 @@ function buildConversationClipboardText(transcript: TranscriptLine[], modelLabel
         return [summary, ...steps].join('\n')
       }
       const speaker = line.role === 'user' ? 'Admin' : 'Assistant'
-      return `${speaker}${line.variant === 'error' ? ' (error)' : ''}: ${line.text}`
+      const base = `${speaker}${line.variant === 'error' ? ' (error)' : ''}: ${line.text}`
+      return line.role === 'assistant' && line.list ? `${base}\n${formatReplyListAsText(line.list)}` : base
     })
     .join('\n\n')
 
@@ -180,12 +178,16 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   // admin/device.
   const [providerOverride, setProviderOverride] = useLocalStorage<AssistantProvider | null>('admin.assistantProviderOverride', null)
   // Same per-device, never-synced posture as `modelOverride` above, but for which Ollama *tag*
-  // answers this chat's local calls — independently selectable from `modelOverride`/`providerOverride`
-  // in the same kebab menu. `null` means "Standard" (no override, use the shared, admin-configured
-  // `ollamaConfig.thinkingModel`); a Small/Medium/Large tier tag, or any other string typed into the
-  // "Custom" field, pins that tag for this device's chat instead. Never written back to the shared
+  // answers this chat's local *thinking* calls — independently selectable from `modelOverride`/
+  // `providerOverride` in the same kebab menu. `null` means "Default" (no override, use the shared,
+  // admin-configured `ollamaConfig.thinkingModel`); any other value is a real installed model name
+  // picked from `installedOllamaModels` below — never free-typed. Never written back to the shared
   // Ollama config in Settings → Integrations.
   const [localModelOverride, setLocalModelOverride] = useLocalStorage<string | null>('admin.assistantLocalModelOverride', null)
+  // Same per-device posture as `localModelOverride` above, but for this chat's local *vision*
+  // calls (only ever consulted when an image is attached — see `ollamaClient.ts`'s own
+  // `resolveOllamaModel`). `null` means "Default" (use the shared `ollamaConfig.visionModel`).
+  const [localVisionModelOverride, setLocalVisionModelOverride] = useLocalStorage<string | null>('admin.assistantLocalVisionModelOverride', null)
   // Same per-device, never-synced posture as `chunkSizePreference` below — controls how much data a
   // lookup answer (e.g. "how many products are over 100kr?") processes per call at once. `'auto'`
   // just means "use the active model/provider's own default"; `customChunkRecordCount` is only
@@ -193,7 +195,14 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   // constrained) hardware set an exact records-per-batch value the fixed presets don't cover.
   const [chunkSizePreference, setChunkSizePreference] = useLocalStorage<ChunkSizePreference>('admin.assistantChunkSizePreference', 'auto')
   const [customChunkRecordCount, setCustomChunkRecordCount] = useLocalStorage<number | null>('admin.assistantChunkSizeCustomValue', null)
-  const flow = useAssistantFlow(modelOverride ?? undefined, chunkSizePreference, customChunkRecordCount ?? undefined, providerOverride ?? undefined, localModelOverride?.trim() ? localModelOverride : undefined)
+  const flow = useAssistantFlow(
+    modelOverride ?? undefined,
+    chunkSizePreference,
+    customChunkRecordCount ?? undefined,
+    providerOverride ?? undefined,
+    localModelOverride?.trim() ? localModelOverride : undefined,
+    localVisionModelOverride?.trim() ? localVisionModelOverride : undefined,
+  )
   const [clockFormat] = useClockFormatPreference()
   const [dateFormat] = useDateFormatPreference()
   // Slides in from the right over the chat, same as `logView` below — see the model-menu
@@ -233,6 +242,23 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
       .then((config) => setOllamaThinkingModel(config.thinkingModel))
       .catch(() => {
         // Expected for a `limited` account — leave the local-provider label at its generic fallback.
+      })
+  }, [session])
+  // Every model tag actually pulled on the configured Ollama host (see `IntegrationsView.tsx`'s own
+  // model manager, which uses this same client call) — backs both the thinking and vision `<select>`s
+  // below with real installed names instead of the old curated Small/Medium/Large tiers, so an admin
+  // can only ever pick a model that's actually usable right now. Same admin/subadmin-only,
+  // 403-for-`limited` posture as the fetches above; an empty/failed result just leaves both
+  // dropdowns showing their "Default" option alone.
+  const [installedOllamaModels, setInstalledOllamaModels] = useState<OllamaModelInfo[]>([])
+  useEffect(() => {
+    if (!session) return
+    listOllamaModels(session.token)
+      .then((result) => {
+        if (result.ok && result.models) setInstalledOllamaModels(result.models)
+      })
+      .catch(() => {
+        // Expected for a `limited` account, or an unreachable Ollama host — leave the list empty.
       })
   }, [session])
   // `null` means the live chat is showing; `{ mode: 'list' }` is the conversation log's own
@@ -865,15 +891,6 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   // model, rather than the provider name alone.
   const effectiveLocalModel = (localModelOverride?.trim() || null) ?? ollamaThinkingModel
   const localModelLabel = effectiveLocalModel ? t('admin.assistant.modelLocalWithNameOption', { model: effectiveLocalModel }) : t('admin.assistant.modelLocalOption').split(' — ')[0]
-  // Which curated tier (if any) the current override tag belongs to — `undefined` is the "Custom"
-  // case, the same way `IntegrationsView.tsx`'s own thinking-model picker works (this reuses that
-  // exact same tier data — see `ollamaModelTiers.ts` — so the two can never silently drift apart on
-  // which models exist).
-  const localModelTierMatch = localModelOverride !== null ? findOllamaTier(OLLAMA_THINKING_TIERS, localModelOverride) : undefined
-  // Selected once the admin has picked "Custom…" in the Local model sub-list below (or typed
-  // something that no longer matches a curated tier) — `localModelOverride === ''` is the
-  // "just clicked Custom, nothing typed yet" state, kept distinct from `null` ("Standard").
-  const isCustomLocalModel = localModelOverride !== null && !localModelTierMatch
   const modelSubtitle =
     flow.allowedEntities.length > 0 ? (effectiveProvider === 'local' ? localModelLabel : activeModel ? t(`admin.integrations.assistantModel.${activeModel}.label`).split(' — ')[0] : undefined) : undefined
 
@@ -1000,6 +1017,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                       const value = event.target.value
                       setModelOverride(null)
                       setLocalModelOverride(null)
+                      setLocalVisionModelOverride(null)
                       if (value === PROVIDER_SELECT_STANDARD_VALUE) {
                         setProviderOverride(null)
                         setModelMenuOpen(false)
@@ -1040,59 +1058,40 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
 
                 {providerOverride === 'local' && (
                   <div className="assistant-panel__model-select-field">
+                    <label htmlFor="assistant-local-thinking-model-select">{t('admin.integrations.ollamaThinkingModelLabel')}</label>
                     <select
-                      id="assistant-local-model-select"
-                      value={localModelOverride === null ? PROVIDER_SELECT_STANDARD_VALUE : isCustomLocalModel ? LOCAL_MODEL_CUSTOM_VALUE : localModelTierMatch!.labelKey}
+                      id="assistant-local-thinking-model-select"
+                      value={localModelOverride ?? PROVIDER_SELECT_STANDARD_VALUE}
                       onChange={(event) => {
                         const value = event.target.value
-                        if (value === LOCAL_MODEL_CUSTOM_VALUE) {
-                          setLocalModelOverride('')
-                          return
-                        }
-                        if (value === PROVIDER_SELECT_STANDARD_VALUE) {
-                          setLocalModelOverride(null)
-                          setModelMenuOpen(false)
-                          return
-                        }
-                        const tier = OLLAMA_THINKING_TIERS.find((candidate) => candidate.labelKey === value)
-                        if (tier) setLocalModelOverride(tier.models[0].tag)
+                        setLocalModelOverride(value === PROVIDER_SELECT_STANDARD_VALUE ? null : value)
                         setModelMenuOpen(false)
                       }}
                     >
                       <option value={PROVIDER_SELECT_STANDARD_VALUE}>{t('admin.assistant.modelDefaultOption')}</option>
-                      {OLLAMA_THINKING_TIERS.map((tier) => (
-                        <option key={tier.labelKey} value={tier.labelKey}>
-                          {t(tier.labelKey)}
+                      {installedOllamaModels.map((model) => (
+                        <option key={model.name} value={model.name}>
+                          {model.name}
                         </option>
                       ))}
-                      <option value={LOCAL_MODEL_CUSTOM_VALUE}>{t('admin.integrations.ollamaCustomTierOption')}</option>
                     </select>
-                    {localModelTierMatch && localModelTierMatch.models.length > 1 && (
-                      <select
-                        id="assistant-local-model-choice-select"
-                        aria-label={t('admin.integrations.ollamaModelChoiceLabel')}
-                        value={localModelOverride ?? ''}
-                        onChange={(event) => {
-                          setLocalModelOverride(event.target.value)
-                          setModelMenuOpen(false)
-                        }}
-                      >
-                        {localModelTierMatch.models.map((model) => (
-                          <option key={model.tag} value={model.tag}>
-                            {model.name}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                    {isCustomLocalModel && (
-                      <Input
-                        id="assistant-local-model-custom"
-                        label={t('admin.integrations.ollamaThinkingModelLabel')}
-                        value={localModelOverride ?? ''}
-                        onChange={(event) => setLocalModelOverride(event.target.value)}
-                        placeholder="qwen2.5:3b-instruct"
-                      />
-                    )}
+                    <label htmlFor="assistant-local-vision-model-select">{t('admin.integrations.ollamaVisionModelLabel')}</label>
+                    <select
+                      id="assistant-local-vision-model-select"
+                      value={localVisionModelOverride ?? PROVIDER_SELECT_STANDARD_VALUE}
+                      onChange={(event) => {
+                        const value = event.target.value
+                        setLocalVisionModelOverride(value === PROVIDER_SELECT_STANDARD_VALUE ? null : value)
+                        setModelMenuOpen(false)
+                      }}
+                    >
+                      <option value={PROVIDER_SELECT_STANDARD_VALUE}>{t('admin.assistant.modelDefaultOption')}</option>
+                      {installedOllamaModels.map((model) => (
+                        <option key={model.name} value={model.name}>
+                          {model.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
 
@@ -1173,9 +1172,10 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                         line.role === 'thought' ? (
                           <AssistantThoughtTrace key={line.id} trace={line.trace} durationMs={line.durationMs} />
                         ) : (
-                          <div key={line.id} className={`assistant-panel__line assistant-panel__line--${line.role}${line.variant ? ` assistant-panel__line--${line.variant}` : ''}`}>
-                            {line.text}
-                          </div>
+                          <Fragment key={line.id}>
+                            <div className={`assistant-panel__line assistant-panel__line--${line.role}${line.variant ? ` assistant-panel__line--${line.variant}` : ''}`}>{line.text}</div>
+                            {line.role === 'assistant' && line.list && <AssistantListAttachment list={line.list} />}
+                          </Fragment>
                         ),
                       )}
                     </div>
@@ -1224,15 +1224,17 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                         <AssistantThoughtTrace trace={line.trace} durationMs={line.durationMs} />
                       </motion.div>
                     ) : (
-                      <motion.div
-                        key={line.id}
-                        className={`assistant-panel__line assistant-panel__line--${line.role}${line.variant ? ` assistant-panel__line--${line.variant}` : ''}`}
-                        initial={{ opacity: 0, y: 16 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.2, ease: 'easeOut' }}
-                      >
-                        {line.text}
-                      </motion.div>
+                      <Fragment key={line.id}>
+                        <motion.div
+                          className={`assistant-panel__line assistant-panel__line--${line.role}${line.variant ? ` assistant-panel__line--${line.variant}` : ''}`}
+                          initial={{ opacity: 0, y: 16 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.2, ease: 'easeOut' }}
+                        >
+                          {line.text}
+                        </motion.div>
+                        {line.role === 'assistant' && line.list && <AssistantListAttachment list={line.list} />}
+                      </Fragment>
                     ),
                   )}
 
