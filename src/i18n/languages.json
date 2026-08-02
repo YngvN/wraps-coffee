@@ -530,6 +530,12 @@
           "review": {
             "noChanges": "No changes to review."
           },
+          "ingest": {
+            "fillIn": "Fill this in",
+            "inferredHint": "AI assumed this — double-check it",
+            "clarificationUnclear": "I didn't quite catch that — try tapping an option above, or rephrase.",
+            "clarificationPartial": "Got it — answer the rest above too."
+          },
           "clarify": {
             "productCategory": "Which category should this product go in?",
             "categoryCatalogue": "Which catalogue should this category belong to?",
@@ -2501,6 +2507,12 @@
           "answerClarificationFirst": "Svar på spørsmålet over, eller avbryt.",
           "review": {
             "noChanges": "Ingen endringer å se over."
+          },
+          "ingest": {
+            "fillIn": "Fyll inn",
+            "inferredHint": "KI antok dette — dobbeltsjekk det",
+            "clarificationUnclear": "Jeg fikk ikke helt tak i det — prøv å trykke på et alternativ over, eller omformuler.",
+            "clarificationPartial": "Skjønner — svar på resten over også."
           },
           "clarify": {
             "productCategory": "Hvilken kategori skal dette produktet være i?",

@@ -366,7 +366,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
 
   const renderReview = () => {
     if (flow.state.status === 'reviewingForm') {
-      const { entity, action, itemID, draft, issues } = flow.state
+      const { entity, action, itemID, draft, issues, fieldConfidence } = flow.state
       const imageField = IMAGE_FIELD[entity]
       const uploadedUrl = tracked?.status === 'ready' ? tracked.result?.url : undefined
       const draftWithImage = imageField && uploadedUrl ? { ...(draft as Record<string, unknown>), [imageField]: uploadedUrl } : draft
@@ -384,7 +384,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
             <>
               {renderIssues(issues)}
               <AssistantReviewSummary
-                rows={buildProductChangeRows(t, reviewLanguage, currentProduct, productDraft, allCategories, catalogues)}
+                rows={buildProductChangeRows(t, reviewLanguage, currentProduct, productDraft, allCategories, catalogues, fieldConfidence)}
                 onConfirm={() => saveProduct(productDraft)}
                 onEdit={() => setIsEditingDraft(true)}
                 onCancel={flow.cancel}
@@ -498,7 +498,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
             <>
               {renderIssues(issues)}
               <AssistantReviewSummary
-                rows={buildCatalogueChangeRows(t, reviewLanguage, currentCatalogue, catalogueDraft)}
+                rows={buildCatalogueChangeRows(t, reviewLanguage, currentCatalogue, catalogueDraft, fieldConfidence)}
                 onConfirm={() => saveCatalogue(catalogueDraft)}
                 onEdit={() => setIsEditingDraft(true)}
                 onCancel={flow.cancel}
@@ -538,7 +538,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
             <>
               {renderIssues(issues)}
               <AssistantReviewSummary
-                rows={buildCategoryChangeRows(t, reviewLanguage, currentCategory, categoryDraft, currentDefaultPrice)}
+                rows={buildCategoryChangeRows(t, reviewLanguage, currentCategory, categoryDraft, currentDefaultPrice, fieldConfidence)}
                 onConfirm={() => saveCategory(categoryDraft)}
                 onEdit={() => setIsEditingDraft(true)}
                 onCancel={flow.cancel}

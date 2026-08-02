@@ -52,6 +52,27 @@
   font-weight: 600;
 }
 
+// AI-inferred (not literal in the admin's own message) — a subtle warning treatment so it stands
+// out enough to double-check without reading as an error. See `ReviewChangeRow.confidence`.
+.assistant-review-summary__new--inferred {
+  padding: 0 4px;
+  border-radius: 4px;
+  background: $color-warning-bg;
+  border: 1px solid $color-warning-border;
+  color: $color-warning;
+}
+
+// Left entirely unset by the AI — an empty, dashed placeholder rather than a blank space, so the
+// admin notices there's something to fill in without needing to open the full form first.
+.assistant-review-summary__new--unknown {
+  padding: 0 4px;
+  border-radius: 4px;
+  border: 1px dashed $color-border;
+  color: $color-text-muted;
+  font-weight: 400;
+  font-style: italic;
+}
+
 .assistant-review-summary__empty {
   margin: 0;
   color: $color-text-muted;

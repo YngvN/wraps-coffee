@@ -574,6 +574,9 @@ export interface AssistantFillFieldsClarification {
   options: { id: string; label: string }[]
 }
 
+/** How sure a staged draft's own field value is — client-side mirror of `server/assistant/fieldConfidence.ts`'s own `FieldConfidence`. Drives `AssistantReviewSummary`'s confidence styling. */
+export type FieldConfidence = 'verbatim' | 'inferred' | 'unknown'
+
 /**
  * `'clarify'` — one or more fields worth asking about (see
  * `server/assistant/types.ts`'s `AssistantEntity.clarifiableFields`) came
@@ -582,7 +585,7 @@ export interface AssistantFillFieldsClarification {
  * draft, same shape as before this was a union.
  */
 export type AssistantFillFieldsResult =
-  | { status: 'ready'; draft: unknown; issues: { code: string; params?: Record<string, string> }[]; trace: AssistantTraceEntry[] }
+  | { status: 'ready'; draft: unknown; issues: { code: string; params?: Record<string, string> }[]; fieldConfidence: Record<string, FieldConfidence>; trace: AssistantTraceEntry[] }
   | { status: 'clarify'; clarifications: AssistantFillFieldsClarification[]; trace: AssistantTraceEntry[]; historyContext: string | null }
 
 /** Step 3 of the assistant flow — proposes (never writes) a draft for `entity`/`action`, merged onto the current item (`itemID`) or empty defaults. `image` is the vision-extraction input (see `AssistantPanel`'s attach flow); `priorDraft` is set when this call is a correction from the review step; `resolvedFields` carries the admin's own answers to a prior `'clarify'` result; `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. `history` (raw recent-transcript text) is only sent when this call is itself the first of its turn/continuation (the `reviewingForm`-correction path, which bypasses `assistantSelectIntent`); `historyContext` is an already-resolved value from an earlier call in the same turn. Mutually exclusive. */
@@ -618,6 +621,33 @@ export async function assistantFillFields(
     throw new Error(body.error ?? 'Could not draft that change')
   }
   return response.json() as Promise<AssistantFillFieldsResult>
+}
+
+/** Resolves one or more outstanding `assistantFillFields` clarifications from a free-text chat reply instead of a tap — see `useAssistantFlow.ts`'s `answerClarificationFromChat`. Never writes anything; the model only ever picks from the given closed set of option ids per question, or leaves one unresolved. */
+export async function assistantResolveClarification(
+  token: string,
+  input: {
+    clarifications: AssistantFillFieldsClarification[]
+    message: string
+    uiLanguage: 'no' | 'en'
+    model?: AssistantModel
+    provider?: AssistantProvider
+    localModel?: string
+  },
+  signal?: AbortSignal,
+): Promise<{ resolvedFields: Record<string, string>; trace: AssistantTraceEntry[] }> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/resolve-clarification`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+    signal,
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? "Couldn't resolve that")
+  }
+  return response.json() as Promise<{ resolvedFields: Record<string, string>; trace: AssistantTraceEntry[] }>
 }
 
 /** Names a just-finished conversation for the admin's own conversation log (see `useAssistantConversationLog`) — `transcriptText` is a plain-text rendering of the chat, not structured data. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. */

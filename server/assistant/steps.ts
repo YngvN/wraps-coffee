@@ -2,6 +2,7 @@ import * as store from '../store'
 import { type AssistantImageInput, type AssistantTraceEntry, callToolOnce, currentDateInstruction, generateThenVerify, languageInstruction } from './client'
 import { combineCompoundReplies, combineFocusUpdates, splitCompoundQuestion, type LookupHalfResult } from './compoundSplit'
 import { focusFromUpdate, getDialogFocus, setDialogFocus, type DialogFocusUpdate } from './dialogFocus'
+import { inferFieldConfidence, type FieldConfidence } from './fieldConfidence'
 import { buildLookupQuerySchema, executeLookupQuery, type LookupQueryField, type LookupQueryFilterInput, type LookupQueryRecord, type LookupQuerySpec } from './lookupQuery'
 import { resolvePronounFocus } from './pronounPrefilter'
 import { allowedEntitiesFor, findEntity } from './registry'
@@ -809,7 +810,7 @@ export interface FillFieldsClarification {
  * merged or validated. `'ready'` — the normal staged-draft result.
  */
 export type FillFieldsResult =
-  | { status: 'ready'; draft: unknown; issues: AssistantValidationIssue[]; trace: AssistantTraceEntry[] }
+  | { status: 'ready'; draft: unknown; issues: AssistantValidationIssue[]; fieldConfidence: Record<string, FieldConfidence>; trace: AssistantTraceEntry[] }
   | { status: 'clarify'; clarifications: FillFieldsClarification[]; trace: AssistantTraceEntry[]; historyContext: string | null }
 
 /** Every field the model proposed came back empty — nothing to extract from the message at all. Used both to skip `fillFields`'s own verify pass (see `generateThenVerify`'s `skipVerifyIf`) and, on a `create`, to abort before staging a draft with nothing real behind it. */
@@ -912,7 +913,97 @@ export async function fillFields(
 
   const draft = entity.mergeDraft(action, current, fields, context)
   const issues = entity.validate(action, draft, context)
-  return { status: 'ready', draft, issues, trace }
+
+  // Computed against the merged `fields`, not the raw model output alone — a field the admin
+  // resolved via a clarification (tap or chat) is always `'verbatim'` regardless of the heuristic,
+  // since it's admin-confirmed this turn, not an AI guess (see `inferFieldConfidence`'s own doc
+  // comment for why this is derived in code rather than asked of the model).
+  const fieldConfidence: Record<string, FieldConfidence> = {}
+  for (const key of Object.keys(fields)) {
+    fieldConfidence[key] = key in (options.resolvedFields ?? {}) ? 'verbatim' : inferFieldConfidence(fields[key], message)
+  }
+
+  return { status: 'ready', draft, issues, fieldConfidence, trace }
+}
+
+/**
+ * Resolves one or more outstanding `clarifiableFields` questions from a free-text chat reply
+ * instead of a tap — the chat-fallback path for the `'clarifying'` state (see
+ * `useAssistantFlow.ts`'s `answerClarificationFromChat`). The model's only job here is
+ * classification (map free text onto one of the given closed-set option ids, or `null` for a
+ * question the message doesn't address) — it can never invent an option that wasn't offered,
+ * same guardrail as every other enum-pick step in this file. Tries a deterministic substring match
+ * first (skips the model entirely when the message plainly names one option's own label) and only
+ * asks the model about whichever clarifications that couldn't resolve.
+ */
+export async function resolveClarificationChat(
+  clarifications: FillFieldsClarification[],
+  message: string,
+  uiLanguage: 'no' | 'en',
+  modelOverride?: store.AssistantModel,
+  providerOverride?: store.AssistantProvider,
+  localModelOverride?: string,
+): Promise<{ resolvedFields: Record<string, string>; trace: AssistantTraceEntry[] }> {
+  const trace: AssistantTraceEntry[] = []
+  const resolvedFields: Record<string, string> = {}
+  const lower = message.toLowerCase()
+
+  const remaining: FillFieldsClarification[] = []
+  for (const clarification of clarifications) {
+    const substringMatches = clarification.options.filter((option) => lower.includes(option.label.toLowerCase()))
+    if (substringMatches.length === 1) {
+      resolvedFields[clarification.field] = substringMatches[0].id
+    } else {
+      remaining.push(clarification)
+    }
+  }
+
+  if (remaining.length === 0) return { resolvedFields, trace }
+
+  const schema: AssistantJsonSchema = {
+    type: 'object',
+    properties: Object.fromEntries(
+      remaining.map((clarification) => [
+        clarification.field,
+        nullable({
+          type: 'string',
+          enum: clarification.options.map((option) => option.id),
+          description: `Which option the admin's message picks for this question — one of the given ids, or null if the message doesn't address this particular question at all.`,
+        }),
+      ]),
+    ),
+    required: remaining.map((clarification) => clarification.field),
+    additionalProperties: false,
+  }
+
+  const systemPrompt = [
+    languageInstruction(uiLanguage),
+    "The admin is answering one or more outstanding questions from a staged draft, in free text rather than by tapping an option. For each question below, pick the one option the message clearly means, or null if the message doesn't address it — never invent an option outside the given list.",
+    remaining
+      .map((clarification) => `Question "${clarification.field}" — options: ${clarification.options.map((option) => `${option.id} = "${option.label}"`).join('; ')}`)
+      .join('\n'),
+  ].join('\n\n')
+
+  const result = await callToolOnce<Record<string, string | null>>({
+    systemPrompt,
+    userText: message,
+    toolName: 'resolve_clarification',
+    toolDescription: "Map the admin's free-text reply onto the given closed set of options, per outstanding question.",
+    schema,
+    model: modelOverride,
+    provider: providerOverride,
+    localModel: localModelOverride,
+    trace,
+  })
+
+  for (const clarification of remaining) {
+    const picked = result[clarification.field]
+    if (picked && clarification.options.some((option) => option.id === picked)) {
+      resolvedFields[clarification.field] = picked
+    }
+  }
+
+  return { resolvedFields, trace }
 }
 
 /**

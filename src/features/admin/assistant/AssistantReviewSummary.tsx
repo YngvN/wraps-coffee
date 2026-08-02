@@ -17,6 +17,11 @@ interface AssistantReviewSummaryProps {
  * for whoever wants to hand-edit a value instead of just confirming. A row
  * with `oldValue: null` (a brand-new record, or one newly-appended item in
  * an append-only list like theme colors) renders without an arrow.
+ *
+ * `row.confidence` (only ever set for an ingestion draft — see `reviewChangeRows.ts`'s own doc
+ * comment) adds a visual marker on top of that: `'unknown'` renders an empty, dashed "fill this
+ * in" placeholder instead of a blank value; `'inferred'` gets a subtle warning treatment on the
+ * filled value; `'verbatim'`/absent renders exactly as before this existed.
  */
 export function AssistantReviewSummary({ rows, onConfirm, onEdit, onCancel }: AssistantReviewSummaryProps) {
   const { t } = useLanguage()
@@ -38,7 +43,16 @@ export function AssistantReviewSummary({ rows, onConfirm, onEdit, onCancel }: As
                     </span>
                   </>
                 )}
-                <span className="assistant-review-summary__new">{row.newValue}</span>
+                {row.confidence === 'unknown' ? (
+                  <span className="assistant-review-summary__new assistant-review-summary__new--unknown">{t('admin.assistant.ingest.fillIn')}</span>
+                ) : (
+                  <span
+                    className={`assistant-review-summary__new${row.confidence === 'inferred' ? ' assistant-review-summary__new--inferred' : ''}`}
+                    title={row.confidence === 'inferred' ? t('admin.assistant.ingest.inferredHint') : undefined}
+                  >
+                    {row.newValue}
+                  </span>
+                )}
               </span>
             </li>
           ))}

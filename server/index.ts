@@ -958,6 +958,50 @@ const httpServer = createServer((req, res) => {
     return
   }
 
+  // Resolves one or more outstanding fillFields clarifications from a free-text chat reply instead
+  // of a tap — see assistantSteps.resolveClarificationChat's own doc comment. Never writes
+  // anything; same posture as every other assistant route.
+  if (req.method === 'POST' && url.pathname === '/assistant/resolve-clarification') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    readJsonBody(req)
+      .then(async (body) => {
+        const { clarifications, message, uiLanguage, model, provider, localModel } = body as {
+          clarifications?: assistantSteps.FillFieldsClarification[]
+          message?: string
+          uiLanguage?: 'no' | 'en'
+          model?: store.AssistantModel
+          provider?: store.AssistantProvider
+          localModel?: string
+        }
+        if (!Array.isArray(clarifications) || clarifications.length === 0 || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
+          sendJson(res, 400, { error: 'Missing clarifications, message, or uiLanguage' })
+          return
+        }
+        try {
+          sendJson(
+            res,
+            200,
+            await assistantSteps.resolveClarificationChat(
+              clarifications,
+              message,
+              uiLanguage,
+              isAssistantModel(model) ? model : undefined,
+              isAssistantProvider(provider) ? provider : undefined,
+              typeof localModel === 'string' ? localModel : undefined,
+            ),
+          )
+        } catch (error) {
+          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
+        }
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
   // Ollama (local assistant provider) config — same admin/subadmin-only
   // posture as /assistant/credentials above, since it's the same kind of
   // settings blob (see server/store.ts's getOllamaConfig/setOllamaConfig).

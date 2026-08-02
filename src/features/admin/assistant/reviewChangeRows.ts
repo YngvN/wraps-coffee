@@ -1,4 +1,5 @@
 import type { LanguageCode } from '../../../i18n'
+import type { FieldConfidence } from '../../../lib/localServer'
 import type { AppearanceTheme, AppearanceThemeColor } from '../../../types/appearanceTheme'
 import type { Catalogue, Category } from '../../../types/category'
 import type { ContactInfo, DayHours } from '../../../types/contactInfo'
@@ -12,24 +13,47 @@ import { formatPrice } from '../../../utils/price'
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string
 
-/** One line of the compact AI-review summary — `oldValue: null` renders without an arrow (a brand-new record, or a newly-appended item in an append-only list). See `AssistantReviewSummary.tsx`. */
+/** One line of the compact AI-review summary — `oldValue: null` renders without an arrow (a brand-new record, or a newly-appended item in an append-only list). `confidence` (only ever set for the ingestion entities — product/category/catalogue — that pass a `fieldConfidence` map into their own row builder) drives `AssistantReviewSummary`'s confidence styling; omitted entirely for every other entity, same as before this existed. See `AssistantReviewSummary.tsx`. */
 export interface ReviewChangeRow {
   label: string
   oldValue: string | null
   newValue: string
+  confidence?: FieldConfidence
 }
 
 const EMPTY_VALUE = '—'
 
-/** Adds one row, but only when there's actually something worth showing: on `update` (`oldRaw` not `null`) only if the value actually changed; on `create` (`oldRaw === null`) only if a real value was proposed. Empty-but-changed values (a field cleared out) still show, as `EMPTY_VALUE`. */
-function pushRow(rows: ReviewChangeRow[], label: string, oldRaw: string | null, newRaw: string): void {
+/**
+ * Adds one row, but only when there's actually something worth showing: on `update` (`oldRaw` not
+ * `null`) only if the value actually changed; on `create` (`oldRaw === null`) only if a real value
+ * was proposed *or* `confidence` is explicitly `'unknown'` — an ingestion draft's own genuinely
+ * unset field still gets a row (rendered as an empty "fill this in" placeholder, see
+ * `AssistantReviewSummary.tsx`) rather than silently vanishing, so the admin can see it exists.
+ * Every caller that never passes `confidence` keeps today's exact drop-silently behavior — zero
+ * change for the non-ingestion entities.
+ */
+function pushRow(rows: ReviewChangeRow[], label: string, oldRaw: string | null, newRaw: string, confidence?: FieldConfidence): void {
   if (oldRaw === null) {
-    if (newRaw.trim() === '') return
-    rows.push({ label, oldValue: null, newValue: newRaw })
+    if (newRaw.trim() === '') {
+      if (confidence !== 'unknown') return
+      rows.push({ label, oldValue: null, newValue: '', confidence })
+      return
+    }
+    rows.push({ label, oldValue: null, newValue: newRaw, confidence })
     return
   }
   if (oldRaw === newRaw) return
-  rows.push({ label, oldValue: oldRaw.trim() === '' ? EMPTY_VALUE : oldRaw, newValue: newRaw.trim() === '' ? EMPTY_VALUE : newRaw })
+  rows.push({ label, oldValue: oldRaw.trim() === '' ? EMPTY_VALUE : oldRaw, newValue: newRaw.trim() === '' ? EMPTY_VALUE : newRaw, confidence })
+}
+
+/** Combines the confidence of several underlying schema fields that together produce one displayed row (e.g. a product's price is built from `priceMode` + `flatPrice`/`takeawayPrice`/`eatInPrice`) — worst-of-the-set, so a row showing any unknown/inferred contributor never reads as fully verbatim. `undefined` (no styling) when `fieldConfidence` itself wasn't passed, or none of the given keys are in it. */
+function worstConfidence(fieldConfidence: Record<string, FieldConfidence> | undefined, ...keys: string[]): FieldConfidence | undefined {
+  if (!fieldConfidence) return undefined
+  const values = keys.map((key) => fieldConfidence[key]).filter((value): value is FieldConfidence => value !== undefined)
+  if (values.length === 0) return undefined
+  if (values.includes('unknown')) return 'unknown'
+  if (values.includes('inferred')) return 'inferred'
+  return 'verbatim'
 }
 
 function bilingual(value: { no: string; en: string } | undefined, language: LanguageCode): string {
@@ -79,26 +103,59 @@ export function buildProductChangeRows(
   draft: Product,
   categories: Category[],
   catalogues: Catalogue[],
+  /** Only ever set for an ingestion draft (see `steps.ts`'s `fillFields`) — keyed by the raw `ProductFields` schema property names, not this file's own row labels. Omitted for a manually-edited draft, same as before this existed. */
+  fieldConfidence?: Record<string, FieldConfidence>,
 ): ReviewChangeRow[] {
   const rows: ReviewChangeRow[] = []
   const isCreate = current === null
 
-  pushRow(rows, t('admin.products.nameLabel'), isCreate ? null : bilingual(current.name, reviewLanguage), bilingual(draft.name, reviewLanguage))
-  pushRow(rows, t('admin.products.descriptionLabel'), isCreate ? null : bilingual(current.description, reviewLanguage), bilingual(draft.description, reviewLanguage))
+  pushRow(rows, t('admin.products.nameLabel'), isCreate ? null : bilingual(current.name, reviewLanguage), bilingual(draft.name, reviewLanguage), fieldConfidence?.name)
+  pushRow(
+    rows,
+    t('admin.products.descriptionLabel'),
+    isCreate ? null : bilingual(current.description, reviewLanguage),
+    bilingual(draft.description, reviewLanguage),
+    fieldConfidence?.description,
+  )
   pushRow(
     rows,
     t('admin.products.categoryLabel'),
     isCreate ? null : formatProductLocation(current, categories, catalogues, reviewLanguage),
     formatProductLocation(draft, categories, catalogues, reviewLanguage),
+    fieldConfidence?.location,
   )
-  pushRow(rows, t('admin.products.priceLabel'), isCreate ? null : formatPriceValue(t, current.price), formatPriceValue(t, draft.price))
-  pushRow(rows, t('admin.products.discountLabel'), isCreate ? null : formatDiscountValue(t, current.discount), formatDiscountValue(t, draft.discount))
-  pushRow(rows, t('admin.products.allergensLabel'), isCreate ? null : formatAllergens(t, current.allergens), formatAllergens(t, draft.allergens))
-  pushRow(rows, t('admin.products.dietaryTagsLabel'), isCreate ? null : formatDietaryTags(t, current.dietaryTags), formatDietaryTags(t, draft.dietaryTags))
-  pushRow(rows, t('admin.products.availableLabel'), isCreate ? null : formatBoolean(t, current.available), formatBoolean(t, draft.available))
-  pushRow(rows, t('admin.products.outOfStockLabel'), isCreate ? null : formatBoolean(t, current.outOfStock), formatBoolean(t, draft.outOfStock))
-  pushRow(rows, t('admin.products.trackStockLabel'), isCreate ? null : formatBoolean(t, current.trackStock), formatBoolean(t, draft.trackStock))
-  pushRow(rows, t('admin.products.stockQuantityLabel'), isCreate ? null : String(current.stockQuantity ?? ''), String(draft.stockQuantity ?? ''))
+  pushRow(
+    rows,
+    t('admin.products.priceLabel'),
+    isCreate ? null : formatPriceValue(t, current.price),
+    formatPriceValue(t, draft.price),
+    worstConfidence(fieldConfidence, 'priceMode', 'flatPrice', 'takeawayPrice', 'eatInPrice'),
+  )
+  pushRow(
+    rows,
+    t('admin.products.discountLabel'),
+    isCreate ? null : formatDiscountValue(t, current.discount),
+    formatDiscountValue(t, draft.discount),
+    worstConfidence(fieldConfidence, 'discountMode', 'discountPercentage', 'discountAmount'),
+  )
+  pushRow(rows, t('admin.products.allergensLabel'), isCreate ? null : formatAllergens(t, current.allergens), formatAllergens(t, draft.allergens), fieldConfidence?.allergens)
+  pushRow(
+    rows,
+    t('admin.products.dietaryTagsLabel'),
+    isCreate ? null : formatDietaryTags(t, current.dietaryTags),
+    formatDietaryTags(t, draft.dietaryTags),
+    fieldConfidence?.dietaryTags,
+  )
+  pushRow(rows, t('admin.products.availableLabel'), isCreate ? null : formatBoolean(t, current.available), formatBoolean(t, draft.available), fieldConfidence?.available)
+  pushRow(rows, t('admin.products.outOfStockLabel'), isCreate ? null : formatBoolean(t, current.outOfStock), formatBoolean(t, draft.outOfStock), fieldConfidence?.outOfStock)
+  pushRow(rows, t('admin.products.trackStockLabel'), isCreate ? null : formatBoolean(t, current.trackStock), formatBoolean(t, draft.trackStock), fieldConfidence?.trackStock)
+  pushRow(
+    rows,
+    t('admin.products.stockQuantityLabel'),
+    isCreate ? null : String(current.stockQuantity ?? ''),
+    String(draft.stockQuantity ?? ''),
+    fieldConfidence?.stockQuantity,
+  )
 
   const owningCategory = categories.find((category) => category.id === draft.category)
   for (const field of owningCategory?.customFields ?? []) {
@@ -145,11 +202,24 @@ export function buildEventChangeRows(t: Translate, reviewLanguage: LanguageCode,
   return rows
 }
 
-export function buildCatalogueChangeRows(t: Translate, reviewLanguage: LanguageCode, current: Catalogue | null, draft: Catalogue): ReviewChangeRow[] {
+export function buildCatalogueChangeRows(
+  t: Translate,
+  reviewLanguage: LanguageCode,
+  current: Catalogue | null,
+  draft: Catalogue,
+  /** Only ever set for an ingestion draft — keyed by the raw catalogue schema property names (`name`/`priceMode`/`flatPrice`). Omitted for a manually-edited draft. */
+  fieldConfidence?: Record<string, FieldConfidence>,
+): ReviewChangeRow[] {
   const rows: ReviewChangeRow[] = []
   const isCreate = current === null
-  pushRow(rows, t('admin.products.catalogueNameLabel'), isCreate ? null : bilingual(current.name, reviewLanguage), bilingual(draft.name, reviewLanguage))
-  pushRow(rows, t('admin.products.cataloguePriceLabel'), isCreate ? null : formatPriceValue(t, current.price), formatPriceValue(t, draft.price))
+  pushRow(rows, t('admin.products.catalogueNameLabel'), isCreate ? null : bilingual(current.name, reviewLanguage), bilingual(draft.name, reviewLanguage), fieldConfidence?.name)
+  pushRow(
+    rows,
+    t('admin.products.cataloguePriceLabel'),
+    isCreate ? null : formatPriceValue(t, current.price),
+    formatPriceValue(t, draft.price),
+    worstConfidence(fieldConfidence, 'priceMode', 'flatPrice'),
+  )
   return rows
 }
 
@@ -159,19 +229,28 @@ export function buildCategoryChangeRows(
   current: Category | null,
   draft: Category & { defaultPrice?: Price },
   currentDefaultPrice: Price | undefined,
+  /** Only ever set for an ingestion draft — keyed by the raw category schema property names (`name`/`description`/`priceMode`/`flatPrice`/`takeawayPrice`/`eatInPrice`). Omitted for a manually-edited draft. */
+  fieldConfidence?: Record<string, FieldConfidence>,
 ): ReviewChangeRow[] {
   const rows: ReviewChangeRow[] = []
   const isCreate = current === null
 
-  pushRow(rows, t('admin.products.categoryNameLabel'), isCreate ? null : bilingual(current.name, reviewLanguage), bilingual(draft.name, reviewLanguage))
+  pushRow(rows, t('admin.products.categoryNameLabel'), isCreate ? null : bilingual(current.name, reviewLanguage), bilingual(draft.name, reviewLanguage), fieldConfidence?.name)
   pushRow(
     rows,
     t('admin.products.categoryDescriptionLabel'),
     isCreate ? null : bilingual(current.description, reviewLanguage),
     bilingual(draft.description, reviewLanguage),
+    fieldConfidence?.description,
   )
   if (draft.defaultPrice !== undefined) {
-    pushRow(rows, t('admin.products.categoryPriceLabel'), isCreate ? null : formatPriceValue(t, currentDefaultPrice), formatPriceValue(t, draft.defaultPrice))
+    pushRow(
+      rows,
+      t('admin.products.categoryPriceLabel'),
+      isCreate ? null : formatPriceValue(t, currentDefaultPrice),
+      formatPriceValue(t, draft.defaultPrice),
+      worstConfidence(fieldConfidence, 'priceMode', 'flatPrice', 'takeawayPrice', 'eatInPrice'),
+    )
   }
   if (isCreate) {
     for (const field of draft.customFields ?? []) {

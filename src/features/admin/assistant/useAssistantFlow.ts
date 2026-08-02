@@ -6,6 +6,7 @@ import {
   assistantAnswerLookupForItem,
   assistantFillFields,
   assistantGenerateTitle,
+  assistantResolveClarification,
   assistantSelectIntent,
   assistantSelectItem,
   assistantTranscribeAttachment,
@@ -15,6 +16,7 @@ import {
   type AssistantReplyList,
   type AssistantTraceEntry,
   type ChunkSizePreference,
+  type FieldConfidence,
 } from '../../../lib/localServer'
 import type { DashboardSection } from '../../../types/sync'
 import { generateId } from '../../../utils/id'
@@ -164,7 +166,7 @@ type FlowState =
       /** This operation's own already-resolved conversation-context blurb (see `server/assistant/steps.ts`'s `resolveHistoryContext`/the compute-once-per-turn plan) — carried forward so `answerClarification`'s resumed `fillFields` call never re-resolves it. */
       historyContext: string | null
     }
-  | { status: 'reviewingForm'; entity: AssistantEntityKey; action: AssistantActionName; itemID?: string; draft: unknown; issues: AssistantValidationIssue[] }
+  | { status: 'reviewingForm'; entity: AssistantEntityKey; action: AssistantActionName; itemID?: string; draft: unknown; issues: AssistantValidationIssue[]; fieldConfidence: Record<string, FieldConfidence> }
   | {
       status: 'reviewingDestructive'
       entity: AssistantEntityKey
@@ -173,6 +175,7 @@ type FlowState =
       draft: unknown
       issues: AssistantValidationIssue[]
       label: string
+      fieldConfidence: Record<string, FieldConfidence>
     }
   /**
    * A factual question named one specific item, but `answerLookup` couldn't confidently narrow it
@@ -421,7 +424,7 @@ export function useAssistantFlow(
           return
         }
         finalizeThought()
-        setState({ status: 'reviewingForm', entity, action, itemID, draft: result.draft, issues: result.issues })
+        setState({ status: 'reviewingForm', entity, action, itemID, draft: result.draft, issues: result.issues, fieldConfidence: result.fieldConfidence })
       } catch (error) {
         if (isAbortError(error)) return
         reportError(error instanceof Error ? error.message : 'Something went wrong')
@@ -477,13 +480,65 @@ export function useAssistantFlow(
           return
         }
         finalizeThought()
-        setState({ status: 'reviewingDestructive', entity, action, itemID, draft: result.draft, issues: result.issues, label })
+        setState({ status: 'reviewingDestructive', entity, action, itemID, draft: result.draft, issues: result.issues, label, fieldConfidence: result.fieldConfidence })
       } catch (error) {
         if (isAbortError(error)) return
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
     [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride],
+  )
+
+  /**
+   * Chat-fallback for an outstanding clarification — resolves free text against the clarifications'
+   * own option lists (see `assistantResolveClarification`) instead of requiring a tap. Merges
+   * whatever it manages to resolve into `resolvedFields` exactly the same way `answerClarification`
+   * does (same map shape, `field -> optionId`), auto-submitting once every question has an answer.
+   * Never invents an option outside what was already offered — the model's own job server-side is
+   * classification, not free composition (see `resolveClarificationChat`'s own doc comment).
+   */
+  const answerClarificationFromChat = useCallback(
+    async (message: string) => {
+      if (state.status !== 'clarifying') return
+      if (!session) return
+      const clarifyingState = state
+      abortRef.current = new AbortController()
+      beginBusy('thinking')
+      try {
+        const result = await assistantResolveClarification(
+          session.token,
+          { clarifications: clarifyingState.clarifications, message, uiLanguage: language, model: modelOverride, provider: providerOverride, localModel: localModelOverride },
+          abortRef.current.signal,
+        )
+        recordTrace(result.trace)
+        if (Object.keys(result.resolvedFields).length === 0) {
+          finalizeThought()
+          appendLine('assistant', t('admin.assistant.ingest.clarificationUnclear'))
+          setState(clarifyingState)
+          return
+        }
+        const resolvedFields = { ...clarifyingState.resolvedFields, ...result.resolvedFields }
+        const allAnswered = clarifyingState.clarifications.every((clarification) => clarification.field in resolvedFields)
+        if (!allAnswered) {
+          finalizeThought()
+          appendLine('assistant', t('admin.assistant.ingest.clarificationPartial'))
+          setState({ ...clarifyingState, resolvedFields })
+          return
+        }
+        if (clarifyingState.label !== undefined && clarifyingState.itemID) {
+          await runFillFieldsForDelete(clarifyingState.entity, clarifyingState.action, clarifyingState.message, clarifyingState.itemID, clarifyingState.label, {
+            resolvedFields,
+            historyContext: clarifyingState.historyContext ?? undefined,
+          })
+        } else {
+          await runFillFields(clarifyingState.entity, clarifyingState.action, clarifyingState.message, clarifyingState.itemID, { resolvedFields, historyContext: clarifyingState.historyContext ?? undefined })
+        }
+      } catch (error) {
+        if (isAbortError(error)) return
+        reportError(error instanceof Error ? error.message : 'Something went wrong')
+      }
+    },
+    [state, session, language, modelOverride, providerOverride, localModelOverride, beginBusy, recordTrace, finalizeThought, appendLine, t, runFillFields, runFillFieldsForDelete, reportError],
   )
 
   const proceedWithItem = useCallback(
@@ -590,7 +645,7 @@ export function useAssistantFlow(
         return
       }
       if (state.status === 'clarifying') {
-        appendLine('assistant', t('admin.assistant.answerClarificationFirst'))
+        await answerClarificationFromChat(message)
         return
       }
       if (state.status === 'clarifyingLookupItem') {
@@ -674,6 +729,7 @@ export function useAssistantFlow(
       allowedEntities,
       appendLine,
       runFillFields,
+      answerClarificationFromChat,
       startOperation,
       beginBusy,
       recordTrace,
