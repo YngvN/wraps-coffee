@@ -113,9 +113,12 @@ export const eventEntity: AssistantEntity<EventRecord> = {
 
   mergeDraft(_action, current, rawFields, context: AssistantFillContext): EventRecord {
     const fields = rawFields as EventFields
+    // `crypto.randomUUID()`, not `Date.now()` — a batch create (see `fillFieldsBatch`) calls this
+    // synchronously once per record in one tight loop, and millisecond resolution alone is nowhere
+    // near enough to keep several records' ids distinct within that loop.
     const base: EventRecord =
       current ?? {
-        eventID: `${Date.now()}`,
+        eventID: `event-${crypto.randomUUID()}`,
         title: { no: '', en: '' },
         category: '',
         date: '',

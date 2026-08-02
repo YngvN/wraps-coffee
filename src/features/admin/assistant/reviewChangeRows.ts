@@ -176,28 +176,89 @@ const EVENT_STATUS_LABEL_KEYS: Record<EventRecord['status'], string> = {
   cancelled: 'admin.events.statusCancelledLabel',
 }
 
-export function buildEventChangeRows(t: Translate, reviewLanguage: LanguageCode, current: EventRecord | null, draft: EventRecord): ReviewChangeRow[] {
+export function buildEventChangeRows(
+  t: Translate,
+  reviewLanguage: LanguageCode,
+  current: EventRecord | null,
+  draft: EventRecord,
+  /** Only ever set for an ingestion draft — keyed by the raw `EventFields` schema property names (`title`/`description`/`category`/`date`/`time`/`endTime`/`locationAddress`/`capacity`/`price`/`repeatsWeekly`/`dayOfWeek`/`status`/`postponedNewDate`/`postponedNewTime`/`postponedNewEndTime`) — every row here maps 1:1 onto one of those, unlike product's merged `location`/price fields. Omitted for a manually-edited draft. */
+  fieldConfidence?: Record<string, FieldConfidence>,
+): ReviewChangeRow[] {
   const rows: ReviewChangeRow[] = []
   const isCreate = current === null
 
-  pushRow(rows, t('admin.events.titleLabel'), isCreate ? null : bilingual(current.title, reviewLanguage), bilingual(draft.title, reviewLanguage))
-  pushRow(rows, t('admin.events.descriptionLabel'), isCreate ? null : bilingual(current.description, reviewLanguage), bilingual(draft.description, reviewLanguage))
-  pushRow(rows, t('admin.events.categoryLabel'), isCreate ? null : current.category, draft.category)
-  pushRow(rows, t('admin.events.dateLabel'), isCreate ? null : current.date, draft.date)
-  pushRow(rows, t('admin.events.timeLabel'), isCreate ? null : current.time, draft.time)
-  pushRow(rows, t('admin.events.endTimeLabel'), isCreate ? null : current.endTime, draft.endTime)
-  pushRow(rows, t('admin.events.locationAddressLabel'), isCreate ? null : current.location.address, draft.location.address)
-  pushRow(rows, t('admin.events.capacityLabel'), isCreate ? null : String(current.capacity), String(draft.capacity))
-  pushRow(rows, t('admin.events.priceLabel'), isCreate ? null : t('menu.price', { price: current.price }), t('menu.price', { price: draft.price }))
-  pushRow(rows, t('admin.events.repeatsWeeklyLabel'), isCreate ? null : formatBoolean(t, current.recurring), formatBoolean(t, draft.recurring))
+  pushRow(rows, t('admin.events.titleLabel'), isCreate ? null : bilingual(current.title, reviewLanguage), bilingual(draft.title, reviewLanguage), fieldConfidence?.title)
+  pushRow(
+    rows,
+    t('admin.events.descriptionLabel'),
+    isCreate ? null : bilingual(current.description, reviewLanguage),
+    bilingual(draft.description, reviewLanguage),
+    fieldConfidence?.description,
+  )
+  pushRow(rows, t('admin.events.categoryLabel'), isCreate ? null : current.category, draft.category, fieldConfidence?.category)
+  pushRow(rows, t('admin.events.dateLabel'), isCreate ? null : current.date, draft.date, fieldConfidence?.date)
+  pushRow(rows, t('admin.events.timeLabel'), isCreate ? null : current.time, draft.time, fieldConfidence?.time)
+  pushRow(rows, t('admin.events.endTimeLabel'), isCreate ? null : current.endTime, draft.endTime, fieldConfidence?.endTime)
+  pushRow(
+    rows,
+    t('admin.events.locationAddressLabel'),
+    isCreate ? null : current.location.address,
+    draft.location.address,
+    fieldConfidence?.locationAddress,
+  )
+  pushRow(rows, t('admin.events.capacityLabel'), isCreate ? null : String(current.capacity), String(draft.capacity), fieldConfidence?.capacity)
+  pushRow(
+    rows,
+    t('admin.events.priceLabel'),
+    isCreate ? null : t('menu.price', { price: current.price }),
+    t('menu.price', { price: draft.price }),
+    fieldConfidence?.price,
+  )
+  pushRow(
+    rows,
+    t('admin.events.repeatsWeeklyLabel'),
+    isCreate ? null : formatBoolean(t, current.recurring),
+    formatBoolean(t, draft.recurring),
+    fieldConfidence?.repeatsWeekly,
+  )
   if (draft.recurring || current?.recurring) {
-    pushRow(rows, t('admin.events.dayOfWeekLabel'), isCreate ? null : String(current.recurrence?.dayOfWeek ?? ''), String(draft.recurrence?.dayOfWeek ?? ''))
+    pushRow(
+      rows,
+      t('admin.events.dayOfWeekLabel'),
+      isCreate ? null : String(current.recurrence?.dayOfWeek ?? ''),
+      String(draft.recurrence?.dayOfWeek ?? ''),
+      fieldConfidence?.dayOfWeek,
+    )
   }
-  pushRow(rows, t('admin.events.statusLabel'), isCreate ? null : t(EVENT_STATUS_LABEL_KEYS[current.status]), t(EVENT_STATUS_LABEL_KEYS[draft.status]))
+  pushRow(
+    rows,
+    t('admin.events.statusLabel'),
+    isCreate ? null : t(EVENT_STATUS_LABEL_KEYS[current.status]),
+    t(EVENT_STATUS_LABEL_KEYS[draft.status]),
+    fieldConfidence?.status,
+  )
   if (draft.status === 'postponed') {
-    pushRow(rows, t('admin.events.postponedNewDateLabel'), isCreate ? null : current.postponedDetails.newDate ?? '', draft.postponedDetails.newDate ?? '')
-    pushRow(rows, t('admin.events.postponedNewTimeLabel'), isCreate ? null : current.postponedDetails.newTime ?? '', draft.postponedDetails.newTime ?? '')
-    pushRow(rows, t('admin.events.postponedNewEndTimeLabel'), isCreate ? null : current.postponedDetails.newEndTime ?? '', draft.postponedDetails.newEndTime ?? '')
+    pushRow(
+      rows,
+      t('admin.events.postponedNewDateLabel'),
+      isCreate ? null : current.postponedDetails.newDate ?? '',
+      draft.postponedDetails.newDate ?? '',
+      fieldConfidence?.postponedNewDate,
+    )
+    pushRow(
+      rows,
+      t('admin.events.postponedNewTimeLabel'),
+      isCreate ? null : current.postponedDetails.newTime ?? '',
+      draft.postponedDetails.newTime ?? '',
+      fieldConfidence?.postponedNewTime,
+    )
+    pushRow(
+      rows,
+      t('admin.events.postponedNewEndTimeLabel'),
+      isCreate ? null : current.postponedDetails.newEndTime ?? '',
+      draft.postponedDetails.newEndTime ?? '',
+      fieldConfidence?.postponedNewEndTime,
+    )
   }
   return rows
 }

@@ -623,6 +623,55 @@ export async function assistantFillFields(
   return response.json() as Promise<AssistantFillFieldsResult>
 }
 
+/** Client-side mirror of `server/assistant/steps.ts`'s own `FillFieldsBatchClarification`. */
+export interface AssistantFillFieldsBatchClarification {
+  field: string
+  questionKey: string
+  options: { id: string; label: string }[]
+  recordIndices: number[]
+}
+
+/**
+ * `'clarify'` — same meaning as `AssistantFillFieldsResult`'s own `'clarify'`, but one question can
+ * cover several of the eventual records at once (see `AssistantFillFieldsBatchClarification.recordIndices`).
+ * `recordCount` lets the caller (`useAssistantFlow.ts`) collapse straight into the existing
+ * single-record `'clarifying'` flow when the batch turns out to describe exactly one record.
+ * `'ready'` carries one draft per record, in the order the model proposed them.
+ */
+export type AssistantFillFieldsBatchResult =
+  | { status: 'clarify'; clarifications: AssistantFillFieldsBatchClarification[]; recordCount: number; trace: AssistantTraceEntry[]; historyContext: string | null }
+  | { status: 'ready'; drafts: { draft: unknown; issues: { code: string; params?: Record<string, string> }[]; fieldConfidence: Record<string, FieldConfidence> }[]; trace: AssistantTraceEntry[] }
+
+/** Batch sibling of `assistantFillFields` — `create` only, one or more staged records from a single message (e.g. "10 new coffee variants"). See `server/assistant/steps.ts`'s own `fillFieldsBatch` doc comment for why there's no separate "how many records" step. */
+export async function assistantFillFieldsBatch(
+  token: string,
+  input: {
+    entity: string
+    message: string
+    uiLanguage: 'no' | 'en'
+    resolvedFields?: Record<string, string>
+    model?: AssistantModel
+    history?: string
+    historyContext?: string
+    provider?: AssistantProvider
+    localModel?: string
+  },
+  signal?: AbortSignal,
+): Promise<AssistantFillFieldsBatchResult> {
+  const response = await fetch(`${serverBaseUrl()}/assistant/fill-fields-batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(input),
+    signal,
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not draft that change')
+  }
+  return response.json() as Promise<AssistantFillFieldsBatchResult>
+}
+
 /** Resolves one or more outstanding `assistantFillFields` clarifications from a free-text chat reply instead of a tap — see `useAssistantFlow.ts`'s `answerClarificationFromChat`. Never writes anything; the model only ever picks from the given closed set of option ids per question, or leaves one unresolved. */
 export async function assistantResolveClarification(
   token: string,

@@ -5,11 +5,13 @@ import {
   assistantAnswerLookup,
   assistantAnswerLookupForItem,
   assistantFillFields,
+  assistantFillFieldsBatch,
   assistantGenerateTitle,
   assistantResolveClarification,
   assistantSelectIntent,
   assistantSelectItem,
   assistantTranscribeAttachment,
+  type AssistantFillFieldsBatchClarification,
   type AssistantIntentResult,
   type AssistantModel,
   type AssistantProvider,
@@ -130,6 +132,9 @@ const ENTITY_SECTIONS: Record<AssistantEntityKey, DashboardSection | null> = {
 /** Entities with exactly one record — no `listCandidates` to pick from, so `startOperation` skips straight to `fillFields` with the fixed `itemID: 'singleton'` each singleton entity's own `getCurrent` expects (see `storeSettings.ts`/`contactInfo.ts`). */
 const SINGLETON_ENTITIES: ReadonlySet<AssistantEntityKey> = new Set(['storeSettings', 'contactInfo'])
 
+/** Entities `startOperation` routes a `create` message through `runFillFieldsBatch` for, rather than the single-record `runFillFields` — see `fillFieldsBatch`'s own doc comment for why every other entity's create is deliberately left untouched (ingestion is scoped to these four for now). */
+const BATCH_CAPABLE_ENTITIES: ReadonlySet<AssistantEntityKey> = new Set(['product', 'category', 'catalogue', 'event'])
+
 /** Actions that need an existing item picked before fields can be filled — everything except `create`. `trigger` is included because every `trigger` action registered so far (theme's own "make active") targets one specific existing item, unlike a fire-and-forget action with nothing to pick. */
 function actionNeedsItem(action: AssistantActionName): boolean {
   return action === 'update' || action === 'delete' || action === 'resetPassword' || action === 'trigger'
@@ -165,6 +170,8 @@ type FlowState =
       clarifications: AssistantClarification[]
       /** This operation's own already-resolved conversation-context blurb (see `server/assistant/steps.ts`'s `resolveHistoryContext`/the compute-once-per-turn plan) — carried forward so `answerClarification`'s resumed `fillFields` call never re-resolves it. */
       historyContext: string | null
+      /** Whether resuming (once every clarification has an answer) should re-call `fillFields` (`'single'`, the only case before batch ingestion existed) or `fillFieldsBatch` (`'batch'` — this clarification came from a create message that turned out to describe exactly one record, so it collapsed into this same state/UI unchanged, but still needs to resume via the batch step). Defaults to `'single'` everywhere else in this file. */
+      resumeVia?: 'single' | 'batch'
     }
   | { status: 'reviewingForm'; entity: AssistantEntityKey; action: AssistantActionName; itemID?: string; draft: unknown; issues: AssistantValidationIssue[]; fieldConfidence: Record<string, FieldConfidence> }
   | {
@@ -176,6 +183,35 @@ type FlowState =
       issues: AssistantValidationIssue[]
       label: string
       fieldConfidence: Record<string, FieldConfidence>
+    }
+  /**
+   * A `create` message that described 2+ records at once (see `fillFieldsBatch`'s own doc
+   * comment) has one or more shared clarifying questions outstanding — same "batch every question
+   * into one screen" posture as the single-record `'clarifying'` state, just with each question
+   * possibly covering several of the eventual records (`AssistantFillFieldsBatchClarification.recordIndices`).
+   * Only ever entered for `action: 'create'` and only for `BATCH_CAPABLE_ENTITIES`.
+   */
+  | {
+      status: 'clarifyingBatch'
+      entity: AssistantEntityKey
+      message: string
+      resolvedFields: Record<string, string>
+      clarifications: AssistantFillFieldsBatchClarification[]
+      historyContext: string | null
+    }
+  /**
+   * 2+ staged `create` drafts from one message (see `fillFieldsBatch`) — a 1-draft result always
+   * collapses into the plain `'reviewingForm'` state above instead, so this never needs to handle
+   * that case. `removedIndices` tracks per-record "remove from batch" (nothing has been written
+   * yet, so this is never a real destructive action); `editingIndex` tracks which single record (if
+   * any) currently has its real form open for hand-editing.
+   */
+  | {
+      status: 'reviewingBatch'
+      entity: AssistantEntityKey
+      drafts: { draft: unknown; issues: AssistantValidationIssue[]; fieldConfidence: Record<string, FieldConfidence> }[]
+      removedIndices: number[]
+      editingIndex: number | null
     }
   /**
    * A factual question named one specific item, but `answerLookup` couldn't confidently narrow it
@@ -490,6 +526,75 @@ export function useAssistantFlow(
   )
 
   /**
+   * Batch sibling of `runFillFields` — see `fillFieldsBatch`'s own doc comment. Only ever called for
+   * `action: 'create'` on `BATCH_CAPABLE_ENTITIES` (see `startOperation`). A 1-record result
+   * collapses straight into the existing `'reviewingForm'`/`'clarifying'` states (tagging the latter
+   * `resumeVia: 'batch'` so answering it still resumes through this function, not `runFillFields`)
+   * so the single-record flow never needs to change for this to exist; only a genuine 2+-record
+   * result engages the new `'clarifyingBatch'`/`'reviewingBatch'` states.
+   */
+  const runFillFieldsBatch = useCallback(
+    async (entity: AssistantEntityKey, message: string, options: { resolvedFields?: Record<string, string>; history?: string; historyContext?: string } = {}) => {
+      if (!session) return
+      beginBusy('thinking')
+      try {
+        const result = await assistantFillFieldsBatch(
+          session.token,
+          {
+            entity,
+            message,
+            uiLanguage: language,
+            resolvedFields: options.resolvedFields,
+            model: modelOverride,
+            provider: providerOverride,
+            localModel: localModelOverride,
+            history: options.history,
+            historyContext: options.historyContext,
+          },
+          abortRef.current?.signal,
+        )
+        recordTrace(result.trace)
+        if (result.status === 'clarify') {
+          finalizeThought()
+          if (result.recordCount === 1) {
+            setState({
+              status: 'clarifying',
+              entity,
+              action: 'create',
+              message,
+              resolvedFields: options.resolvedFields ?? {},
+              clarifications: result.clarifications.map(({ field, questionKey, options: clarificationOptions }) => ({ field, questionKey, options: clarificationOptions })),
+              historyContext: result.historyContext,
+              resumeVia: 'batch',
+            })
+            return
+          }
+          setState({
+            status: 'clarifyingBatch',
+            entity,
+            message,
+            resolvedFields: options.resolvedFields ?? {},
+            clarifications: result.clarifications,
+            historyContext: result.historyContext,
+          })
+          return
+        }
+        finalizeThought()
+        if (result.drafts.length === 1) {
+          const [{ draft, issues, fieldConfidence }] = result.drafts
+          setState({ status: 'reviewingForm', entity, action: 'create', draft, issues, fieldConfidence })
+          return
+        }
+        setState({ status: 'reviewingBatch', entity, drafts: result.drafts, removedIndices: [], editingIndex: null })
+      } catch (error) {
+        if (isAbortError(error)) return
+        reportError(error instanceof Error ? error.message : 'Something went wrong')
+      }
+    },
+    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride],
+  )
+
+  /**
    * Chat-fallback for an outstanding clarification — resolves free text against the clarifications'
    * own option lists (see `assistantResolveClarification`) instead of requiring a tap. Merges
    * whatever it manages to resolve into `resolvedFields` exactly the same way `answerClarification`
@@ -530,6 +635,8 @@ export function useAssistantFlow(
             resolvedFields,
             historyContext: clarifyingState.historyContext ?? undefined,
           })
+        } else if (clarifyingState.resumeVia === 'batch') {
+          await runFillFieldsBatch(clarifyingState.entity, clarifyingState.message, { resolvedFields, historyContext: clarifyingState.historyContext ?? undefined })
         } else {
           await runFillFields(clarifyingState.entity, clarifyingState.action, clarifyingState.message, clarifyingState.itemID, { resolvedFields, historyContext: clarifyingState.historyContext ?? undefined })
         }
@@ -538,7 +645,61 @@ export function useAssistantFlow(
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [state, session, language, modelOverride, providerOverride, localModelOverride, beginBusy, recordTrace, finalizeThought, appendLine, t, runFillFields, runFillFieldsForDelete, reportError],
+    [state, session, language, modelOverride, providerOverride, localModelOverride, beginBusy, recordTrace, finalizeThought, appendLine, t, runFillFields, runFillFieldsBatch, runFillFieldsForDelete, reportError],
+  )
+
+  /** Batch sibling of `answerClarification` — same "batch every question, any order, auto-submit once all answered" posture, just against `'clarifyingBatch'` and resuming into `runFillFieldsBatch`. */
+  const answerBatchClarification = useCallback(
+    async (field: string, optionId: string) => {
+      if (state.status !== 'clarifyingBatch') return
+      const resolvedFields = { ...state.resolvedFields, [field]: optionId }
+      const allAnswered = state.clarifications.every((clarification) => clarification.field in resolvedFields)
+      if (!allAnswered) {
+        setState({ ...state, resolvedFields })
+        return
+      }
+      abortRef.current = new AbortController()
+      await runFillFieldsBatch(state.entity, state.message, { resolvedFields, historyContext: state.historyContext ?? undefined })
+    },
+    [state, runFillFieldsBatch],
+  )
+
+  /** Batch sibling of `answerClarificationFromChat` — see its own doc comment; identical logic against `FillFieldsBatchClarification[]`, resuming into `runFillFieldsBatch`. */
+  const answerBatchClarificationFromChat = useCallback(
+    async (message: string) => {
+      if (state.status !== 'clarifyingBatch') return
+      if (!session) return
+      const clarifyingState = state
+      abortRef.current = new AbortController()
+      beginBusy('thinking')
+      try {
+        const result = await assistantResolveClarification(
+          session.token,
+          { clarifications: clarifyingState.clarifications, message, uiLanguage: language, model: modelOverride, provider: providerOverride, localModel: localModelOverride },
+          abortRef.current.signal,
+        )
+        recordTrace(result.trace)
+        if (Object.keys(result.resolvedFields).length === 0) {
+          finalizeThought()
+          appendLine('assistant', t('admin.assistant.ingest.clarificationUnclear'))
+          setState(clarifyingState)
+          return
+        }
+        const resolvedFields = { ...clarifyingState.resolvedFields, ...result.resolvedFields }
+        const allAnswered = clarifyingState.clarifications.every((clarification) => clarification.field in resolvedFields)
+        if (!allAnswered) {
+          finalizeThought()
+          appendLine('assistant', t('admin.assistant.ingest.clarificationPartial'))
+          setState({ ...clarifyingState, resolvedFields })
+          return
+        }
+        await runFillFieldsBatch(clarifyingState.entity, clarifyingState.message, { resolvedFields, historyContext: clarifyingState.historyContext ?? undefined })
+      } catch (error) {
+        if (isAbortError(error)) return
+        reportError(error instanceof Error ? error.message : 'Something went wrong')
+      }
+    },
+    [state, session, language, modelOverride, providerOverride, localModelOverride, beginBusy, recordTrace, finalizeThought, appendLine, t, runFillFieldsBatch, reportError],
   )
 
   const proceedWithItem = useCallback(
@@ -560,6 +721,10 @@ export function useAssistantFlow(
         return
       }
       if (!actionNeedsItem(action)) {
+        if (action === 'create' && BATCH_CAPABLE_ENTITIES.has(entity)) {
+          await runFillFieldsBatch(entity, message, { historyContext: historyContext ?? undefined })
+          return
+        }
         await runFillFields(entity, action, message, undefined, { historyContext: historyContext ?? undefined })
         return
       }
@@ -596,7 +761,7 @@ export function useAssistantFlow(
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, runFillFields, beginBusy, recordTrace, finalizeThought, reportNoMatch, reportError, modelOverride, providerOverride, localModelOverride],
+    [session, language, runFillFields, runFillFieldsBatch, beginBusy, recordTrace, finalizeThought, reportNoMatch, reportError, modelOverride, providerOverride, localModelOverride],
   )
 
   const sendMessage = useCallback(
@@ -646,6 +811,14 @@ export function useAssistantFlow(
       }
       if (state.status === 'clarifying') {
         await answerClarificationFromChat(message)
+        return
+      }
+      if (state.status === 'clarifyingBatch') {
+        await answerBatchClarificationFromChat(message)
+        return
+      }
+      if (state.status === 'reviewingBatch') {
+        appendLine('assistant', t('admin.assistant.ingest.batchReviewFirst'))
         return
       }
       if (state.status === 'clarifyingLookupItem') {
@@ -730,6 +903,7 @@ export function useAssistantFlow(
       appendLine,
       runFillFields,
       answerClarificationFromChat,
+      answerBatchClarificationFromChat,
       startOperation,
       beginBusy,
       recordTrace,
@@ -782,11 +956,13 @@ export function useAssistantFlow(
       abortRef.current = new AbortController()
       if (state.label !== undefined && state.itemID) {
         await runFillFieldsForDelete(state.entity, state.action, state.message, state.itemID, state.label, { resolvedFields, historyContext: state.historyContext ?? undefined })
+      } else if (state.resumeVia === 'batch') {
+        await runFillFieldsBatch(state.entity, state.message, { resolvedFields, historyContext: state.historyContext ?? undefined })
       } else {
         await runFillFields(state.entity, state.action, state.message, state.itemID, { resolvedFields, historyContext: state.historyContext ?? undefined })
       }
     },
-    [state, runFillFields, runFillFieldsForDelete, setState],
+    [state, runFillFields, runFillFieldsBatch, runFillFieldsForDelete, setState],
   )
 
   /** Resolves a `'clarifyingLookupItem'` question — the admin's pick of which specific item a factual question meant (see the state's own doc comment) — by re-answering directly from that one, now-unambiguous record via `assistantAnswerLookupForItem`. Read-only, same as every other lookup path; never writes anything. */
@@ -832,6 +1008,38 @@ export function useAssistantFlow(
     setState({ status: 'idle' })
   }, [appendLine, setState])
 
+  /** Which record (by its original index into `state.drafts`) currently has its real form open for hand-editing — `null` shows the plain batch review list. */
+  const setBatchEditingIndex = useCallback(
+    (index: number | null) => {
+      if (state.status !== 'reviewingBatch') return
+      setState({ ...state, editingIndex: index })
+    },
+    [state],
+  )
+
+  /**
+   * Removes one record from the batch review — called both after that record's own real
+   * write has actually committed (`committed: true`, same "the assistant never writes itself"
+   * posture `onCommitted` already has, just per-record) and for a plain "remove from batch,
+   * nothing written" discard (`committed: false`). Once every record has been committed or
+   * discarded, finishes the whole operation exactly like `onCommitted` does (a "done" line only
+   * when at least this last one was actually committed, never for a batch emptied purely by
+   * discarding).
+   */
+  const removeBatchRecord = useCallback(
+    (index: number, committed: boolean) => {
+      if (state.status !== 'reviewingBatch') return
+      const removedIndices = [...state.removedIndices, index]
+      if (removedIndices.length >= state.drafts.length) {
+        if (committed) appendLine('assistant', 'done')
+        setState({ status: 'idle' })
+        return
+      }
+      setState({ ...state, removedIndices, editingIndex: null })
+    },
+    [state, appendLine],
+  )
+
   return {
     transcript,
     state,
@@ -842,10 +1050,13 @@ export function useAssistantFlow(
     pickCandidate,
     showOtherCandidates,
     answerClarification,
+    answerBatchClarification,
     pickLookupItem,
     cancel,
     newChat,
     conversationLog,
     onCommitted,
+    setBatchEditingIndex,
+    removeBatchRecord,
   }
 }

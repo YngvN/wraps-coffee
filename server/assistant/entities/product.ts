@@ -277,7 +277,10 @@ export const productEntity: AssistantEntity<Product> = {
     const parsedLocation = parseLocation(fields.location)
     const base: Product =
       current ?? {
-        itemID: `${parsedLocation?.category ?? parsedLocation?.catalogueId ?? 'uncategorized'}-${Date.now()}`,
+        // `crypto.randomUUID()`, not `Date.now()` — a batch create (see `fillFieldsBatch`) calls
+        // this synchronously once per record in one tight loop, and millisecond resolution alone
+        // is nowhere near enough to keep several records' ids distinct within that loop.
+        itemID: `${parsedLocation?.category ?? parsedLocation?.catalogueId ?? 'uncategorized'}-${crypto.randomUUID()}`,
         name: { no: '', en: '' },
         description: { no: '', en: '' },
         allergens: [],

@@ -534,7 +534,14 @@
             "fillIn": "Fill this in",
             "inferredHint": "AI assumed this — double-check it",
             "clarificationUnclear": "I didn't quite catch that — try tapping an option above, or rephrase.",
-            "clarificationPartial": "Got it — answer the rest above too."
+            "clarificationPartial": "Got it — answer the rest above too.",
+            "batchCount": "{{count}} records ready to review",
+            "batchAffectsCount": "affects {{count}} of them",
+            "batchCancelAll": "Cancel all",
+            "batchConfirmAll": "Confirm all",
+            "batchConfirmAllDisabledHint": "Fix the issues on every record below before confirming all at once.",
+            "batchRemoveOne": "Remove",
+            "batchReviewFirst": "Use Confirm, Edit, or Remove on the records above, or Confirm all / Cancel all."
           },
           "clarify": {
             "productCategory": "Which category should this product go in?",
@@ -2512,7 +2519,14 @@
             "fillIn": "Fyll inn",
             "inferredHint": "KI antok dette — dobbeltsjekk det",
             "clarificationUnclear": "Jeg fikk ikke helt tak i det — prøv å trykke på et alternativ over, eller omformuler.",
-            "clarificationPartial": "Skjønner — svar på resten over også."
+            "clarificationPartial": "Skjønner — svar på resten over også.",
+            "batchCount": "{{count}} poster klare til gjennomgang",
+            "batchAffectsCount": "gjelder {{count}} av dem",
+            "batchCancelAll": "Avbryt alt",
+            "batchConfirmAll": "Bekreft alle",
+            "batchConfirmAllDisabledHint": "Rett opp problemene på hver post under før du bekrefter alle samtidig.",
+            "batchRemoveOne": "Fjern",
+            "batchReviewFirst": "Bruk Bekreft, Rediger eller Fjern på postene over, eller Bekreft alle / Avbryt alt."
           },
           "clarify": {
             "productCategory": "Hvilken kategori skal dette produktet være i?",

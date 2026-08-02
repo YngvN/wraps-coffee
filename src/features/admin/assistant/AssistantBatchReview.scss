@@ -1,0 +1,28 @@
+@use '../../../styles/variables' as *;
+
+.assistant-batch-review {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+}
+
+.assistant-batch-review__count {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: $color-text-muted;
+}
+
+.assistant-batch-review__cards {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.assistant-batch-review__card {
+  border: 1px solid $color-border;
+  border-radius: 10px;
+  padding: calc($spacing-unit / 2);
+}

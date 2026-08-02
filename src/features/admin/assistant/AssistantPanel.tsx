@@ -44,6 +44,7 @@ import { ThemeColorListEditor } from '../store/ThemeColorListEditor'
 import { ThemeEditorForm } from '../store/ThemeEditorForm'
 import { ResetPasswordForm } from '../users/ResetPasswordForm'
 import { UserForm } from '../users/UserForm'
+import { AssistantBatchReview, type AssistantBatchReviewCard } from './AssistantBatchReview'
 import { AssistantListAttachment } from './AssistantListAttachment'
 import { AssistantReviewSummary } from './AssistantReviewSummary'
 import { AssistantThoughtTrace } from './AssistantThoughtTrace'
@@ -421,7 +422,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
             <>
               {renderIssues(issues)}
               <AssistantReviewSummary
-                rows={buildEventChangeRows(t, reviewLanguage, currentEvent, eventDraft)}
+                rows={buildEventChangeRows(t, reviewLanguage, currentEvent, eventDraft, fieldConfidence)}
                 onConfirm={() => saveEvent(eventDraft)}
                 onEdit={() => setIsEditingDraft(true)}
                 onCancel={flow.cancel}
@@ -870,6 +871,189 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
     return null
   }
 
+  /**
+   * The 2+ record ingestion review (`'reviewingBatch'`, see `useAssistantFlow.ts`'s own doc
+   * comment) — scoped to product/category/catalogue only, matching `BATCH_CAPABLE_ENTITIES`.
+   * `editingIndex` swaps the whole view to that one record's real form (unchanged component,
+   * same as the single-record `renderReview`'s own "Edit" swap) — saving from it commits that
+   * record directly (same "the real form's own Save button is a direct commit" precedent the
+   * single-record flow already has), never staging it back into the batch. Otherwise renders the
+   * list-of-cards via `AssistantBatchReview`.
+   */
+  const renderBatchReview = () => {
+    if (flow.state.status !== 'reviewingBatch') return null
+    const { entity, drafts, removedIndices, editingIndex } = flow.state
+    const removedSet = new Set(removedIndices)
+    const activeIndices = drafts.map((_, index) => index).filter((index) => !removedSet.has(index))
+
+    if (editingIndex !== null) {
+      const { draft } = drafts[editingIndex]
+      const onCancelEdit = () => flow.setBatchEditingIndex(null)
+
+      if (entity === 'product') {
+        const productDraft = draft as Product
+        return (
+          <ProductForm
+            product={productDraft}
+            catalogueId={resolveProductCatalogue(productDraft, catalogues)?.catalogue.id ?? catalogues[0]?.id ?? ''}
+            defaultCategoryId={productDraft.category || (allCategories[0]?.id ?? '')}
+            catalogueCategories={allCategories}
+            forceLanguage={reviewLanguage}
+            onSave={(product) => {
+              setProducts([...products, product])
+              flow.removeBatchRecord(editingIndex, true)
+            }}
+            onCancel={onCancelEdit}
+          />
+        )
+      }
+      if (entity === 'catalogue') {
+        return (
+          <CatalogueForm
+            catalogue={draft as Catalogue}
+            forceLanguage={reviewLanguage}
+            onSave={(catalogue) => {
+              setCatalogues([...catalogues, catalogue])
+              flow.removeBatchRecord(editingIndex, true)
+            }}
+            onCancel={onCancelEdit}
+          />
+        )
+      }
+      if (entity === 'category') {
+        const categoryDraft = draft as Category & { catalogueId: string; defaultPrice?: Price }
+        return (
+          <CategoryForm
+            category={categoryDraft}
+            forceLanguage={reviewLanguage}
+            onSave={(category) => {
+              setCatalogues(
+                catalogues.map((catalogue) =>
+                  catalogue.id === categoryDraft.catalogueId ? { ...catalogue, categories: [...catalogue.categories, category] } : catalogue,
+                ),
+              )
+              flow.removeBatchRecord(editingIndex, true)
+            }}
+            onCancel={onCancelEdit}
+          />
+        )
+      }
+      if (entity === 'event') {
+        return (
+          <EventForm
+            event={draft as EventRecord}
+            forceLanguage={reviewLanguage}
+            onSave={(event) => {
+              setEvents([...events, event])
+              flow.removeBatchRecord(editingIndex, true)
+            }}
+            onCancel={onCancelEdit}
+          />
+        )
+      }
+      return null
+    }
+
+    const cards: AssistantBatchReviewCard[] = activeIndices.flatMap((index) => {
+      const { draft, issues, fieldConfidence } = drafts[index]
+      const key = String(index)
+      const onDelete = () => flow.removeBatchRecord(index, false)
+      const onEdit = () => flow.setBatchEditingIndex(index)
+
+      if (entity === 'product') {
+        const productDraft = draft as Product
+        return [
+          {
+            key,
+            rows: buildProductChangeRows(t, reviewLanguage, null, productDraft, allCategories, catalogues, fieldConfidence),
+            hasBlockingIssues: issues.length > 0,
+            onConfirm: () => {
+              setProducts([...products, productDraft])
+              flow.removeBatchRecord(index, true)
+            },
+            onEdit,
+            onDelete,
+          },
+        ]
+      }
+      if (entity === 'catalogue') {
+        const catalogueDraft = draft as Catalogue
+        return [
+          {
+            key,
+            rows: buildCatalogueChangeRows(t, reviewLanguage, null, catalogueDraft, fieldConfidence),
+            hasBlockingIssues: issues.length > 0,
+            onConfirm: () => {
+              setCatalogues([...catalogues, catalogueDraft])
+              flow.removeBatchRecord(index, true)
+            },
+            onEdit,
+            onDelete,
+          },
+        ]
+      }
+      if (entity === 'category') {
+        const categoryDraft = draft as Category & { catalogueId: string; defaultPrice?: Price }
+        return [
+          {
+            key,
+            rows: buildCategoryChangeRows(t, reviewLanguage, null, categoryDraft, undefined, fieldConfidence),
+            hasBlockingIssues: issues.length > 0,
+            onConfirm: () => {
+              setCatalogues(
+                catalogues.map((catalogue) =>
+                  catalogue.id === categoryDraft.catalogueId ? { ...catalogue, categories: [...catalogue.categories, categoryDraft] } : catalogue,
+                ),
+              )
+              flow.removeBatchRecord(index, true)
+            },
+            onEdit,
+            onDelete,
+          },
+        ]
+      }
+      if (entity === 'event') {
+        const eventDraft = draft as EventRecord
+        return [
+          {
+            key,
+            rows: buildEventChangeRows(t, reviewLanguage, null, eventDraft, fieldConfidence),
+            hasBlockingIssues: issues.length > 0,
+            onConfirm: () => {
+              setEvents([...events, eventDraft])
+              flow.removeBatchRecord(index, true)
+            },
+            onEdit,
+            onDelete,
+          },
+        ]
+      }
+      return []
+    })
+
+    const onConfirmAll = () => {
+      const newDrafts = activeIndices.map((index) => drafts[index].draft)
+      if (entity === 'product') {
+        setProducts([...products, ...(newDrafts as Product[])])
+      } else if (entity === 'catalogue') {
+        setCatalogues([...catalogues, ...(newDrafts as Catalogue[])])
+      } else if (entity === 'category') {
+        const newCategories = newDrafts as (Category & { catalogueId: string })[]
+        setCatalogues(
+          catalogues.map((catalogue) => {
+            const toAdd = newCategories.filter((categoryDraft) => categoryDraft.catalogueId === catalogue.id)
+            return toAdd.length > 0 ? { ...catalogue, categories: [...catalogue.categories, ...toAdd] } : catalogue
+          }),
+        )
+      } else if (entity === 'event') {
+        setEvents([...events, ...(newDrafts as EventRecord[])])
+      }
+      flow.onCommitted()
+    }
+
+    return <AssistantBatchReview cards={cards} onConfirmAll={onConfirmAll} onCancelAll={flow.cancel} />
+  }
+
   const selectedLogEntry = logView?.mode === 'entry' ? flow.conversationLog.entries.find((entry) => entry.id === logView.id) : undefined
 
   // The provider actually answering this chat right now: this device's own override if it has one
@@ -1289,6 +1473,35 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                     </div>
                   )}
 
+                  {flow.state.status === 'clarifyingBatch' && (
+                    <div className="assistant-panel__confirm-item">
+                      {flow.state.clarifications.map((clarification) => (
+                        <div key={clarification.field}>
+                          <p>
+                            {t(clarification.questionKey)}
+                            {clarification.recordIndices.length > 1 && ` (${t('admin.assistant.ingest.batchAffectsCount', { count: clarification.recordIndices.length })})`}
+                          </p>
+                          <ul>
+                            {clarification.options.map((option) => {
+                              const selected = flow.state.status === 'clarifyingBatch' && flow.state.resolvedFields[clarification.field] === option.id
+                              return (
+                                <li key={option.id}>
+                                  <button
+                                    type="button"
+                                    className={selected ? 'assistant-panel__clarify-option--selected' : undefined}
+                                    onClick={() => void flow.answerBatchClarification(clarification.field, option.id)}
+                                  >
+                                    {option.label}
+                                  </button>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {flow.state.status === 'clarifyingLookupItem' && (
                     <div className="assistant-panel__confirm-item">
                       <p>{t('admin.assistant.clarifyLookupItemQuestion')}</p>
@@ -1305,6 +1518,8 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                   )}
 
                   {(flow.state.status === 'reviewingForm' || flow.state.status === 'reviewingDestructive') && <div className="assistant-panel__review">{renderReview()}</div>}
+
+                  {flow.state.status === 'reviewingBatch' && <div className="assistant-panel__review">{renderBatchReview()}</div>}
 
                   {isBusy && (
                     <AssistantThoughtTrace

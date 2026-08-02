@@ -8,6 +8,8 @@ interface AssistantReviewSummaryProps {
   onConfirm: () => void
   onEdit: () => void
   onCancel: () => void
+  /** Overrides the "Cancel" button's own label — used by `AssistantBatchReview`, where this button removes just one record from a still-staged batch rather than cancelling a whole single-record operation. Omitted everywhere else, unchanged. */
+  cancelLabel?: string
 }
 
 /**
@@ -23,7 +25,7 @@ interface AssistantReviewSummaryProps {
  * in" placeholder instead of a blank value; `'inferred'` gets a subtle warning treatment on the
  * filled value; `'verbatim'`/absent renders exactly as before this existed.
  */
-export function AssistantReviewSummary({ rows, onConfirm, onEdit, onCancel }: AssistantReviewSummaryProps) {
+export function AssistantReviewSummary({ rows, onConfirm, onEdit, onCancel, cancelLabel }: AssistantReviewSummaryProps) {
   const { t } = useLanguage()
   return (
     <div className="assistant-review-summary">
@@ -60,7 +62,7 @@ export function AssistantReviewSummary({ rows, onConfirm, onEdit, onCancel }: As
       )}
       <div className="assistant-panel__actions">
         <Button type="button" variant="secondary" onClick={onCancel}>
-          {t('admin.assistant.cancel')}
+          {cancelLabel ?? t('admin.assistant.cancel')}
         </Button>
         <Button type="button" variant="secondary" onClick={onEdit}>
           {t('admin.common.edit')}

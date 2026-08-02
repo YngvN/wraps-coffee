@@ -58,7 +58,10 @@ export const catalogueEntity: AssistantEntity<Catalogue> = {
 
   mergeDraft(_action, current, rawFields, context: AssistantFillContext): Catalogue {
     const fields = rawFields as CatalogueFields
-    const base: Catalogue = current ?? { id: `catalogue-${Date.now()}`, name: { no: '', en: '' }, categories: [] }
+    // `crypto.randomUUID()`, not `Date.now()` — a batch create (see `fillFieldsBatch`) calls this
+    // synchronously once per record in one tight loop, and millisecond resolution alone is nowhere
+    // near enough to keep several records' ids distinct within that loop.
+    const base: Catalogue = current ?? { id: `catalogue-${crypto.randomUUID()}`, name: { no: '', en: '' }, categories: [] }
     const price = fields.priceMode === 'none' ? undefined : fields.priceMode === 'flat' && fields.flatPrice !== null ? fields.flatPrice : base.price
     return {
       ...base,

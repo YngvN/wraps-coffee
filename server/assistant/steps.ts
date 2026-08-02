@@ -926,6 +926,145 @@ export async function fillFields(
   return { status: 'ready', draft, issues, fieldConfidence, trace }
 }
 
+export interface FillFieldsBatchClarification {
+  field: string
+  questionKey: string
+  options: AssistantCandidate[]
+  /** Which of the eventual records (by index into the array the model proposed) this shared question actually determines — display-only hint ("this affects 3 items"). The merge itself (see `fillFieldsBatch`) never overwrites a record that already had its own value for this field, regardless of this list. */
+  recordIndices: number[]
+}
+
+/**
+ * `'clarify'` — same shape/meaning as `FillFieldsResult`'s own `'clarify'`, but one question can
+ * cover several records at once (see `FillFieldsBatchClarification.recordIndices`) — `recordCount`
+ * lets the caller collapse straight into the existing single-record `'clarifying'` flow when the
+ * batch turns out to describe exactly one record, never engaging any new batch-specific UI for
+ * that case. `'ready'` carries one `{draft, issues, fieldConfidence}` per record, in the same order
+ * the model proposed them.
+ */
+export type FillFieldsBatchResult =
+  | { status: 'clarify'; clarifications: FillFieldsBatchClarification[]; recordCount: number; trace: AssistantTraceEntry[]; historyContext: string | null }
+  | { status: 'ready'; drafts: { draft: unknown; issues: AssistantValidationIssue[]; fieldConfidence: Record<string, FieldConfidence> }[]; trace: AssistantTraceEntry[] }
+
+/**
+ * Batch sibling of `fillFields`, `create` only (an update/delete always targets one already-real
+ * record — batch has nothing to offer there, and bulk edit is a separate, already-deferred
+ * pipeline). Reuses the entity's own existing `fillFieldsSchema('create', context)` unchanged as
+ * one array item's shape — no entity file needs any change to support this. Rather than adding a
+ * separate "how many records" classification step (more LLM surface, one more place to be wrong),
+ * every call simply asks for an array (min length 1) and lets the count that comes back decide the
+ * rest — the caller (`useAssistantFlow.ts`) collapses a 1-element result straight into the existing
+ * single-record flow, so that flow never needs to change or be re-tested for this.
+ */
+export async function fillFieldsBatch(
+  entityKey: string,
+  session: AssistantSession,
+  message: string,
+  uiLanguage: 'no' | 'en',
+  options: {
+    resolvedFields?: Record<string, string>
+    modelOverride?: store.AssistantModel
+    providerOverride?: store.AssistantProvider
+    localModelOverride?: string
+    history?: string
+    historyContext?: string
+  } = {},
+): Promise<FillFieldsBatchResult> {
+  const entity = requireAccessibleEntity(entityKey, session)
+  const context: AssistantFillContext = { uiLanguage, session }
+  const recordSchema = entity.fillFieldsSchema('create', context)
+
+  const schema: AssistantJsonSchema = {
+    type: 'object',
+    properties: {
+      records: {
+        type: 'array',
+        items: recordSchema,
+        description: 'One entry per distinct record the message describes — a single-element array if it only describes one.',
+      },
+    },
+    required: ['records'],
+    additionalProperties: false,
+  }
+
+  const trace: AssistantTraceEntry[] = []
+  const historyContext = await resolveHistoryContext(
+    { history: options.history, historyContext: options.historyContext },
+    uiLanguage,
+    options.modelOverride,
+    options.providerOverride,
+    options.localModelOverride,
+    trace,
+  )
+
+  const systemPrompt = [
+    languageInstruction(uiLanguage),
+    currentDateInstruction(),
+    `Extract field values for one or more "${entityKey}" records to create from the admin's message — one array entry per distinct record it describes (most messages describe just one). Only fill fields the message actually addresses for each; leave everything else null. Never invent values the message doesn't support, and never invent extra records it doesn't describe.`,
+    historyContextPromptLine(historyContext),
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+
+  const result = await generateThenVerify<{ records: Record<string, unknown>[] }>({
+    systemPrompt,
+    userText: message,
+    toolName: `fill_fields_batch_${entityKey}`,
+    toolDescription: `Propose field values for one or more "${entityKey}" records to create.`,
+    schema,
+    model: options.modelOverride,
+    provider: options.providerOverride,
+    localModel: options.localModelOverride,
+    trace,
+    skipVerifyIf: (draft) => draft.records.every(isEmptyFieldsObject),
+  })
+
+  const rawRecords = (result.records ?? []).filter((record) => !isEmptyFieldsObject(record))
+  if (rawRecords.length === 0) {
+    throw new Error(`Couldn't find anything to create from your message — try describing what you'd like to add.`)
+  }
+
+  // Same "the entity itself decides which fields are still unresolved" call `fillFields` makes,
+  // just once per record — grouped afterward by field name into one shared question per field
+  // (options are always the same live-candidate list regardless of which record is asking, so
+  // grouping by field name alone is sound within one entity/one call).
+  const clarificationsByField = new Map<string, FillFieldsBatchClarification>()
+  for (const [index, fields] of rawRecords.entries()) {
+    const unresolved = (await entity.clarifiableFields?.('create', context, fields)) ?? []
+    for (const candidate of unresolved) {
+      if (candidate.options.length === 1) {
+        fields[candidate.field] = candidate.options[0].id
+        continue
+      }
+      const existing = clarificationsByField.get(candidate.field)
+      if (existing) existing.recordIndices.push(index)
+      else clarificationsByField.set(candidate.field, { field: candidate.field, questionKey: candidate.questionKey, options: candidate.options, recordIndices: [index] })
+    }
+  }
+  if (clarificationsByField.size > 0) {
+    return { status: 'clarify', clarifications: [...clarificationsByField.values()], recordCount: rawRecords.length, trace, historyContext }
+  }
+
+  const drafts = rawRecords.map((rawFields) => {
+    // Only fills in a shared clarification answer where the record itself left the field unset —
+    // never overwrites a record that already resolved its own (possibly different) value, which is
+    // what keeps a batch mixing e.g. two different named categories correct.
+    const fields = { ...rawFields }
+    for (const [field, optionId] of Object.entries(options.resolvedFields ?? {})) {
+      if (fields[field] == null) fields[field] = optionId
+    }
+    const draft = entity.mergeDraft('create', null, fields, context)
+    const issues = entity.validate('create', draft, context)
+    const fieldConfidence: Record<string, FieldConfidence> = {}
+    for (const key of Object.keys(fields)) {
+      fieldConfidence[key] = key in (options.resolvedFields ?? {}) ? 'verbatim' : inferFieldConfidence(fields[key], message)
+    }
+    return { draft, issues, fieldConfidence }
+  })
+
+  return { status: 'ready', drafts, trace }
+}
+
 /**
  * Resolves one or more outstanding `clarifiableFields` questions from a free-text chat reply
  * instead of a tap — the chat-fallback path for the `'clarifying'` state (see

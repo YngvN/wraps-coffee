@@ -147,8 +147,11 @@ export const categoryEntity: AssistantEntity<AssistantCategoryDraft> = {
 
   mergeDraft(action, current, rawFields, context: AssistantFillContext): AssistantCategoryDraft {
     const fields = rawFields as CategoryFields
+    // `crypto.randomUUID()`, not `Date.now()` — a batch create (see `fillFieldsBatch`) calls this
+    // synchronously once per record in one tight loop, and millisecond resolution alone is nowhere
+    // near enough to keep several records' ids distinct within that loop.
     const base: AssistantCategoryDraft =
-      current ?? { id: `category-${Date.now()}`, name: { no: '', en: '' }, catalogueId: fields.catalogueId ?? '' }
+      current ?? { id: `category-${crypto.randomUUID()}`, name: { no: '', en: '' }, catalogueId: fields.catalogueId ?? '' }
 
     const price: Price | undefined =
       fields.priceMode === 'none'

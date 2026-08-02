@@ -958,6 +958,52 @@ const httpServer = createServer((req, res) => {
     return
   }
 
+  // Batch sibling of /assistant/fill-fields — create only, see assistantSteps.fillFieldsBatch's own
+  // doc comment. Never writes anything; same posture as every other assistant route.
+  if (req.method === 'POST' && url.pathname === '/assistant/fill-fields-batch') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    readJsonBody(req)
+      .then(async (body) => {
+        const { entity, message, uiLanguage, resolvedFields, model, history, historyContext, provider, localModel } = body as {
+          entity?: string
+          message?: string
+          uiLanguage?: 'no' | 'en'
+          resolvedFields?: Record<string, string>
+          model?: store.AssistantModel
+          history?: string
+          historyContext?: string
+          provider?: store.AssistantProvider
+          localModel?: string
+        }
+        if (!entity || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
+          sendJson(res, 400, { error: 'Missing entity, message, or uiLanguage' })
+          return
+        }
+        try {
+          sendJson(
+            res,
+            200,
+            await assistantSteps.fillFieldsBatch(entity, session, message, uiLanguage, {
+              resolvedFields,
+              modelOverride: isAssistantModel(model) ? model : undefined,
+              providerOverride: isAssistantProvider(provider) ? provider : undefined,
+              localModelOverride: typeof localModel === 'string' ? localModel : undefined,
+              history: typeof history === 'string' ? history : undefined,
+              historyContext: typeof historyContext === 'string' ? historyContext : undefined,
+            }),
+          )
+        } catch (error) {
+          sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
+        }
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
   // Resolves one or more outstanding fillFields clarifications from a free-text chat reply instead
   // of a tap — see assistantSteps.resolveClarificationChat's own doc comment. Never writes
   // anything; same posture as every other assistant route.
