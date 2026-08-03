@@ -1,6 +1,9 @@
+<!-- Template version: 3 (updated after the qwen3:8b test-cycle retrospective — added the harness-fixes-already-applied list, known-carried-forward app bugs, and the required-harness-helpers rule, so the next cycle inherits this run's fixes instead of re-discovering the same gaps). Record which version a plan was written against in its own header, so a template change doesn't silently make old plans/reports look inconsistent with new ones. -->
+
 # Test plan: [what's being tested — e.g. "re-run the assistant QA pass on &lt;model&gt;, fresh-session-by-default"]
 
 **Status:** Plan only — not executed. Do not run any Playwright/browser automation from this plan without asking first (per this repo's CLAUDE.md).
+**Template version:** 3
 
 **Source scenarios:** `[most recent report in QA/Reports/]` — reuse its own scenario IDs/phrasing verbatim, don't re-derive wording.
 
@@ -24,14 +27,39 @@
 3. **Retry-once rule — use the app's own retry affordance when one exists, fall back to a fresh session when it doesn't.** There is exactly one in-app retry mechanism today: the Draft-Quality Gate's "Prøv igjen" button (`AssistantDraftQualityGate.tsx`, shown only under Safe/Automatisk posture once a draft has actually reached the gate) — it restores the original message into the composer, in the *same* session, for a real resend. When the failure is specifically "a draft reached the gate but its content looks wrong/low-quality," retry with that button first — it's the faithful, same-session retry a real admin would use. When the failure is that nothing ever reached a testable state at all (no gate, no clarification, no batch, an empty reply, a timeout), there's no button to click — the precondition itself never fired — so retry by starting a fresh session and resending the same message instead. Either way, keep both attempts' notes in the report and only mark the scenario as failed-to-reach-that-state if the retry (whichever kind) also comes up empty.
 4. **Diagnostic addendum (optional, doesn't affect grading).** After the fresh-per-scenario pass, optionally re-run a handful of Section A scenarios back-to-back in one continuous session, purely to check whether this model shows the kind of mid-session tool-call degradation a prior run may have documented for a different model. Label it clearly as not affecting any scenario's PASS/FAIL grade.
 5. **Cleanup policy.** Keep the seed fixture in place at the end (don't tear it down) so a future re-test doesn't need to re-seed from scratch. Only clean up records individual scenarios created on top of it. Verify every "this was created" claim against real data (`server/data/*.json` or the admin UI) before writing it into the cleanup table — a script's own "confirmed=true" flag can be a false positive if it only checked that a review panel existed, not that clicking Confirm actually persisted (a disabled button click is a silent no-op).
-6. **Execution mode.** Headed (visible) Chromium, not headless.
-7. **Known environment gotchas** — carry forward anything discovered in a prior run that will recur: [e.g. iCloud Drive sync conflict-duplicating `QA/scratchpad/` mid-run under heavy concurrent writes — sync noise, not data loss, don't panic-diagnose as a script bug; a stray substring-collision false-positive in a name-`contains` filter; etc. Delete this bracket and list what's actually still relevant.]
+6. **Screenshot retention.** Once this run's report is finished and its own screenshot folder (`QA/assistant-qa-screenshots-<label>/`) is in place, delete the *previous* test cycle's screenshot folder(s) — keep only the most recent test's screenshots, to save disk space. This will leave older reports' own screenshot links dead; that's an accepted tradeoff (the report text stands on its own) rather than an oversight. Don't delete the previous cycle's report `.md`/plan/prompt files themselves, only the image folders.
+7. **Harness-vs-reality cross-check.** The Playwright harness grades most scenarios by reading the DOM (`innerText`, element counts) — trust that as a first pass, not a final verdict. For any scenario the harness marks FAIL where the trace shows the underlying pipeline actually fired correctly (right filter, right entity, right candidate), open the real screenshot before writing the grade down. The harness has already been wrong once this way (a list rendered correctly on screen while a naive `innerText` read of only the first line missed it). If the screenshot disagrees with the harness's own read, the screenshot is truth.
+8. **Root-cause consolidation, not just a symptom count.** When 2+ scenarios show the same underlying failure (e.g. "records keep landing in the wrong catalogue"), don't report them as N separate findings — name the suspected single root cause in the Key Findings section and list every scenario ID that confirms it. This is what actually tells a reader whether follow-up work is one fix or several — see the report template's own Key Findings instructions.
+9. **Known-deferred-scenario carve-out.** Some scenarios test functionality that hasn't shipped yet as of this run's own baseline (check the assistant code's own phase/plan comments, or the source report's own "out of scope"/"diagnostic only" scenarios). List these explicitly (see "Known deferred scenarios" below) and grade them **N/A — pending [feature/phase]**, not FAIL — a report's tally should never make known future work look like a regression.
+10. **Phase attribution.** If the assistant code is being developed in labeled phases (check `server/assistant/*` and prior reports for phase references), tag each scenario in the classification table with which phase it tests. This is what lets a report answer "did anything *shipped* regress?" separately from "what's still pending?" as the phase list grows — a scenario failing could mean the model can't do it, an earlier phase broke, or a later phase simply hasn't landed.
+11. **Execution mode.** Headed (visible) Chromium, not headless.
+12. **Known environment gotchas** — carry forward anything discovered in a prior run that will recur: [e.g. iCloud Drive sync conflict-duplicating `QA/scratchpad/` mid-run under heavy concurrent writes — sync noise, not data loss, don't panic-diagnose as a script bug; a stray substring-collision false-positive in a name-`contains` filter; etc. Delete this bracket and list what's actually still relevant.]
+13. **Reuse `QA/scratchpad/qa/harness.mts` as-is before writing new scenario helpers.** It already carries forward every harness-level fix found across prior cycles (see below) — copy it into the new run's own script alongside a fresh `retest-<model>.mts`, don't hand-roll a page-object layer from scratch. Diff it against `QA/scratchpad 2/qa/harness.mts` (an older, pre-fix iCloud-sync-duplicate copy) if you're ever unsure which is current — the one under plain `QA/scratchpad/qa/` is authoritative.
+14. **Known harness fixes already applied — don't re-discover these:**
+    - `login()` now calls `setDashboardLanguage(page, 'Norsk')` itself. A fresh browser context otherwise defaults to English, and every catalogue/category name this harness matches against (`AutoDeler`, `Dekk`, `Bremser`, ...) is Norwegian-only text with a blank English variant — untangling a script that silently times out on every single catalogue lookup because of this cost real time in the qwen3:8b cycle before the actual cause (missing language default, not a real app issue) was found. Only call `setDashboardLanguage(page, 'English')` explicitly for the handful of scenarios that specifically test the English UI, then switch back.
+    - `sendChat`'s own trace capture now reads the assistant panel's admin-only "Copy conversation to clipboard" export (`captureLatestTraceViaClipboard`) instead of clicking through every collapsible thought/step row in the DOM. This is both faster and more reliable — the export is built from React state, not the rendered DOM, so it includes every step regardless of expand/collapse state, with no risk of a click racing a still-animating transition. Each field is still capped at 500 characters server-side, same as the old DOM read, so nothing is lost. The old click-through version is kept as `captureLatestTraceDOM` for reference only — no current script should call it.
+    - `sendChat`'s own `reply` now also captures the sibling `.assistant-list-attachment` element, not just the text bubble — a "list all products"/bilingual-filter-style reply's actual item list renders as a *sibling* of the bubble, not nested inside it, so reading only the bubble text reliably misses every item (this produced a false "0/3 found" reading for A.9a/A.9b in the qwen3:8b cycle, corrected only by a manual screenshot check).
+    - A new `productExistsInCategory(page, categoryName, productName)` helper properly expands the category section before checking — a raw `.products-view__item-name` count on a still-collapsed section reads 0 even when the product is really there, which caused a scenario to force-create a real duplicate product in the qwen3:8b cycle. Use this for any "seed the target if a prior scenario's create didn't land" fallback instead of rolling an ad hoc check.
+    - A new `reachBatchReview(page)` helper checks for the Draft-Quality Gate first and clicks "Se detaljer" before checking for batch-review cards. Checking `isBatchReviewVisible` directly, without first opening a gate that might be sitting in front of it, produced a false `batch=false` reading across six different scenarios (three different entity types) in the qwen3:8b cycle — the model had staged valid batches every time. Use `reachBatchReview` for any scenario that might produce more than one record, rather than a raw `isBatchReviewVisible()` check after `sendChat`.
+15. **Known, carried-forward app-level findings (not harness bugs) — reproduce and cite, don't re-diagnose from scratch unless this run's own trace looks meaningfully different:**
+    - **Chat-driven update/delete via search stalls silently after correctly resolving the target item** (`select_command`/`select_item` fire correctly, then no reply/review/destructive-confirm UI ever appears) — confirmed across two different models (normistral-it:7b, qwen3:8b) on the exact same two scenarios (update price, delete product), including with zero candidate ambiguity. Strong signal this is a real, model-independent app bug, not a model-quality issue. If a given cycle finds this fixed, that's a genuine, headline-worthy positive — say so explicitly.
+    - **Confirming one card in a multi-card batch review discards the other, still-unconfirmed cards instead of leaving them independently actionable** — reproduced twice in the qwen3:8b cycle (once mid-run, once in an isolated clean retry). The bulk "Bekreft alle"/"Avbryt alt" actions are unaffected (they deliberately act on the whole batch). If testing per-card confirm/edit/remove independence, check `batchCardCount` before and after the first single-card action to confirm whether this is still happening.
+    - **A UI label was renamed from "Diettmerker" to "Kosthold-tagger"** (dietary-tags field, single-record review form) — any check written against the old label text will silently false-negative. Confirm the current label text directly from a screenshot before writing a new automated check against it, rather than trusting a prior report's own wording.
+
+## Known deferred scenarios
+
+*Scenarios in the source report's own list that test functionality not yet shipped as of this run's baseline. They still run for diagnostic value — worth knowing whether a not-yet-shipped feature is at least trending toward working — but are graded N/A-pending, not FAIL, in the final report.*
+
+| ID | Pending on | Why it still runs |
+| --- | --- | --- |
+| [ID] | [feature/phase name] | [what diagnostic value it has anyway, if any — delete the row if it has none and should just be skipped] |
 
 ## Model & vision configuration
 
 - **Thinking model:** `[exact installed tag]`, set via Integrations' "Custom" field (or preset tier if one exists for it).
 - **Vision model:** `[exact installed tag]` — confirm capability first: `ollama show <tag>` should list `vision` under Capabilities before assuming a tag can serve this role. If the thinking-role tag can't also serve vision, decide explicitly (state the choice here, don't silently skip) whether the vision-dependent scenario runs against a different real vision-capable model, or is marked out of scope.
 - **Scope note:** [does any scenario in this run's scenario list actually exercise an image-attach flow? If not, say so — the vision choice is configuration-only and doesn't affect scenario selection.]
+- **Not yet supported by this template:** testing the same scenario battery across multiple model tiers in one cycle (a matrix rather than a single linear result). Today's templates assume one model configuration per cycle; if/when there's a need to check "does the current build work across every model tier we support," that's a real extension to design for deliberately rather than bolt on ad hoc — don't try to force it into the single-model structure below.
 
 ## Environment setup (prerequisite, before any scenario runs)
 
@@ -41,11 +69,11 @@
 
 ## Full scenario classification
 
-*One row per scenario ID from the source report, reused verbatim. Fresh vs. shared + a one-line reason citing the principle above.*
+*One row per scenario ID from the source report, reused verbatim. Fresh vs. shared + a one-line reason citing the principle above. `Phase` is which shipped phase (or "pending") the scenario actually tests — see Methodology #9 and the Known Deferred Scenarios list above; leave the column out entirely if this project isn't using phase labels.*
 
-| ID | Session | Reason |
-| --- | --- | --- |
-| [ID] | Fresh / Shared (with which) | [one line] |
+| ID | Session | Reason | Phase |
+| --- | --- | --- | --- |
+| [ID] | Fresh / Shared (with which) | [one line] | [e.g. Phase 2 / pending] |
 
 ## Run order
 
@@ -61,4 +89,9 @@ Follow `QA/templates/qa-test-report-template.md`. Same PASS/PARTIAL/FAIL/N/A/ERR
 
 - Every ID from the source report's own scenario list appears exactly once in the classification table above.
 - The model/vision decision, environment setup, and report-format sections are all filled in, not left as brackets.
+- Any scenario testing not-yet-shipped functionality is listed under Known Deferred Scenarios, not silently left to fail the tally.
 - Nothing in this plan tells anyone to execute Playwright/browser automation without asking first.
+
+## When to run this cycle
+
+Event-driven — after a labeled phase of assistant work lands, or when evaluating a new model worth benchmarking for a supported tier. Not a fixed schedule.

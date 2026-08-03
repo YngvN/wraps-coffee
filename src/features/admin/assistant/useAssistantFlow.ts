@@ -796,13 +796,23 @@ export function useAssistantFlow(
           setState({ status: 'confirmItem', entity, action, message, candidates: result.candidates, pickedId: result.candidates[0].id, showAll: true, historyContext })
           return
         }
+        if (result.candidates.length === 1) {
+          // Zero real ambiguity — the server's own single-candidate fast path (`selectItem`,
+          // `server/assistant/steps.ts`) already confirmed this is the only possible match. Requiring
+          // an extra "Ja, dette er riktig" tap just to confirm the one thing it could possibly be adds
+          // friction `create` never has (it skips `selectItem`/confirmation entirely, see
+          // `actionNeedsItem` above) — proceed straight to the same fill/destructive-confirm step
+          // `create` reaches directly.
+          await proceedWithItem(entity, action, result.itemID, result.candidates[0].label, message, historyContext)
+          return
+        }
         setState({ status: 'confirmItem', entity, action, message, candidates: result.candidates, pickedId: result.itemID, showAll: false, historyContext })
       } catch (error) {
         if (isAbortError(error)) return
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, runFillFields, runFillFieldsBatch, beginBusy, recordTrace, finalizeThought, reportNoMatch, reportError, modelOverride, providerOverride, localModelOverride],
+    [session, language, runFillFields, runFillFieldsBatch, proceedWithItem, beginBusy, recordTrace, finalizeThought, reportNoMatch, reportError, modelOverride, providerOverride, localModelOverride],
   )
 
   const sendMessage = useCallback(

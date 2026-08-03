@@ -336,13 +336,20 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [flow.transcript, flow.state])
 
+  // Depends on `flow.state.status` only, not the whole `flow.state` object — a same-status partial
+  // update (e.g. `removeBatchRecord` confirming/editing/removing one card while `status` stays
+  // `'reviewingBatch'`) must NOT reset `gateDismissed`, or the view snaps back to the aggregate gate
+  // and hides the other still-unconfirmed cards even though they're still there in `state.drafts` —
+  // see the qwen3:8b QA cycle's own C.3 finding. A genuinely new draft/batch always transitions
+  // through a non-review `status` first (idle, thinking, ...), so keying off `status` alone still
+  // resets correctly for that case.
   useEffect(() => {
     queueMicrotask(() => {
       setConfirmPhrase('')
       setIsEditingDraft(false)
       setGateDismissed(false)
     })
-  }, [flow.state])
+  }, [flow.state.status])
 
   const allCategories = catalogues.flatMap((catalogue) => catalogue.categories)
 

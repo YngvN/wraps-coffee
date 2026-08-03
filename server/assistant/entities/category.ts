@@ -91,7 +91,19 @@ export const categoryEntity: AssistantEntity<AssistantCategoryDraft> = {
       return {
         type: 'object',
         properties: {
-          catalogueId: { type: 'string', enum: catalogueIds, description: 'Which catalogue this new category belongs to.' },
+          // `nullable()`, matching `product.ts`'s own `location` field — without it, the model is
+          // structurally forbidden from ever leaving this unset, so no matter how ambiguous the
+          // request is it must always emit one of the enumerated ids, and with no signal favoring any
+          // particular one it reliably picks the first/most prominent entry (`food-menu`, the seed
+          // catalogue) every time. Confirmed via QA testing: 5/5 category-create scenarios in a
+          // clearly non-default-catalogue conversation still landed in `food-menu`. `clarifiableFields`
+          // below already asks a clarifying question when this is `null` — it just could never fire.
+          catalogueId: nullable({
+            type: 'string',
+            enum: catalogueIds,
+            description:
+              "Which catalogue this new category belongs to — match the admin's own wording (a catalogue name, or context implying one) to the one real option it refers to; leave null if the message doesn't clearly name or imply one. Do not default to the first/default catalogue when it's genuinely ambiguous.",
+          }),
           ...contentProperties,
           customFields: nullable({
             type: 'array',

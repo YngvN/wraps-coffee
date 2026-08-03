@@ -712,7 +712,22 @@ async function selectIntentCascaded(
     // entity noun in the first place, so it's untouched and still falls through to the LLM below.
     const keywordEntities = detectEntitiesFromKeywords(message, entityKeys, uiLanguage)
     if (keywordEntities.length > 0) {
-      return { entity: 'chat', action: null, searchText: null, reply: null, lookupEntities: keywordEntities }
+      // "Hvilke produkter har vi i Bremser-kategorien?" matches both `product` ("produkter") and
+      // `category` ("kategorien") keyword lists — but a category/catalogue noun mentioned alongside
+      // `product` is overwhelmingly a location filter on the product question, not a second, co-equal
+      // lookup target. Narrowing to `product` alone here is what lets this route through the
+      // deterministic `lookup_query` engine below (which already exposes `locationLabel` for exactly
+      // this, see `product.ts`'s own `lookupQueryFields`) instead of falling through to the far less
+      // reliable multi-entity batch-scan path, which real QA testing found hallucinating nonexistent
+      // products and misattributing real ones to the wrong category. Accepted tradeoff: a genuine
+      // compound "how many products AND how many categories do we have" question in one message would
+      // also narrow to product-only here, silently dropping the category-count half — not covered by
+      // this repo's own QA scenario set, and phrasing that specific compound question as two separate
+      // messages sidesteps it entirely.
+      const LOCATION_CONTAINER_ENTITIES = new Set(['category', 'catalogue'])
+      const filteredEntities =
+        keywordEntities.includes('product') && keywordEntities.some((key) => LOCATION_CONTAINER_ENTITIES.has(key)) ? ['product'] : keywordEntities
+      return { entity: 'chat', action: null, searchText: null, reply: null, lookupEntities: filteredEntities }
     }
 
     const { lookupEntities, searchText } = await selectLookupTarget(entityKeys, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
