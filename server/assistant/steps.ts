@@ -8,6 +8,7 @@ import { resolvePronounFocus } from './pronounPrefilter'
 import { allowedEntitiesFor, findEntity } from './registry'
 import {
   nullable,
+  stripSchemaFields,
   type AssistantActionName,
   type AssistantCandidate,
   type AssistantEntity,
@@ -433,7 +434,6 @@ function extractLastAssistantLine(historyRaw: string | undefined): string | null
 async function classifyMessageType(
   entityListForPrompt: string,
   hasUserEntity: boolean,
-  historyContext: string | null,
   lastAssistantReply: string | null,
   message: string,
   uiLanguage: 'no' | 'en',
@@ -456,12 +456,17 @@ async function classifyMessageType(
     additionalProperties: false,
   }
 
+  // No `historyContextPromptLine` here — same reasoning as `buildEntityQueryDataBlock`/`answerLookup`'s
+  // own compose call (see their doc comments): real testing showed a local model's classification
+  // drifting toward an earlier, unrelated exchange's own topic the longer a session ran. The one
+  // legitimate history-derived signal this step's own "meta" bucket needs — the assistant's own most
+  // recent reply — is passed in separately as `lastAssistantReply` below, so dropping the broader
+  // blob doesn't lose that.
   const systemPrompt = [
     languageInstruction(uiLanguage),
     currentDateInstruction(),
     ...assistantIntroLines(entityListForPrompt, hasUserEntity),
     lastAssistantReply ? `Your own last reply in this conversation was: "${lastAssistantReply}" — use this to recognize a "meta" message referring back to it.` : '',
-    historyContextPromptLine(historyContext),
   ]
     .filter(Boolean)
     .join('\n')
@@ -484,7 +489,6 @@ async function classifyMessageType(
 async function selectCommand(
   entities: AssistantEntity<unknown>[],
   entityListForPrompt: string,
-  historyContext: string | null,
   message: string,
   uiLanguage: 'no' | 'en',
   modelOverride: store.AssistantModel | undefined,
@@ -504,13 +508,18 @@ async function selectCommand(
     additionalProperties: false,
   }
 
+  // No `historyContextPromptLine` here — same reasoning as `classifyMessageType`/
+  // `buildEntityQueryDataBlock` above: this call only runs once `classifyMessageType` already
+  // committed to `'command'`, and real testing showed a local model's entity/action choice drifting
+  // toward an earlier, unrelated exchange's own topic the longer a session ran (e.g. a "create a new
+  // tire" message getting routed as an "update" on a completely different entity). A command names
+  // its own target in the message itself; it has no legitimate reference-resolution need for history.
   const systemPrompt = [
     languageInstruction(uiLanguage),
     currentDateInstruction(),
     ...assistantIntroLines(entityListForPrompt, entityKeys.includes('user')),
     "Pick exactly one entity and one action for this create/update/delete request — don't try to handle more than one thing at once. This includes setting up an entirely new kind of product line (e.g. \"I'm going to sell cars, what do I need to do?\") — help them create a catalogue/categories/products for it, never say this dashboard doesn't support what they sell.",
     ACTION_ENUM_LINE,
-    historyContextPromptLine(historyContext),
   ]
     .filter(Boolean)
     .join('\n')
@@ -683,7 +692,7 @@ async function selectIntentCascaded(
   const hasUserEntity = entityKeys.includes('user')
   const lastAssistantReply = extractLastAssistantLine(historyRaw)
 
-  const messageType = await classifyMessageType(entityListForPrompt, hasUserEntity, historyContext, lastAssistantReply, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
+  const messageType = await classifyMessageType(entityListForPrompt, hasUserEntity, lastAssistantReply, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
 
   if (messageType === 'meta') {
     const reply = await composeMetaReply(lastAssistantReply, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
@@ -716,7 +725,7 @@ async function selectIntentCascaded(
   }
 
   // 'command'
-  const commandResult = await selectCommand(entities, entityListForPrompt, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
+  const commandResult = await selectCommand(entities, entityListForPrompt, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
   return { ...commandResult, reply: null, lookupEntities: null }
 }
 
@@ -735,7 +744,50 @@ export interface SelectItemResult {
   trace: AssistantTraceEntry[]
 }
 
-/** Step 2 (only for actions that need an existing item) — generate-then-verify: a first pass picks from a shortlist, a second pass re-checks that pick against the chosen candidate's full record. Deterministic fast paths skip the model entirely when there's nothing (0 candidates) or nothing to decide (exactly 1). */
+/**
+ * Splits a candidate's own label into its base name and disambiguating suffix (if any), using the
+ * two separator conventions `product.ts`/`category.ts`'s own `listCandidates` use to tell two
+ * same-named records apart — " - <suffix>" (e.g. "Frontlys - Interiør") or a trailing "(<suffix>)"
+ * (e.g. "Kylling Fajitas (Wraps)"). `suffix` is `''` when neither separator is present.
+ */
+function splitCandidateLabel(label: string): { base: string; suffix: string } {
+  const dashIndex = label.lastIndexOf(' - ')
+  if (dashIndex !== -1) return { base: label.slice(0, dashIndex).trim(), suffix: label.slice(dashIndex + 3).trim() }
+  const parenIndex = label.lastIndexOf(' (')
+  if (parenIndex !== -1 && label.endsWith(')')) return { base: label.slice(0, parenIndex).trim(), suffix: label.slice(parenIndex + 2, -1).trim() }
+  return { base: label.trim(), suffix: '' }
+}
+
+/**
+ * Deterministic guard against the exact failure real testing found: two real candidates share the
+ * same base name across different categories/locations (e.g. "Frontlys - Interiør" and "Frontlys -
+ * Tilbehør") and the admin's message names neither one's own distinguishing suffix — asking the model
+ * to pick one anyway just invites a confident guess, since its own prompt only ever tells it to
+ * abstain when *none* of the candidates match, never when *several* equally plausible ones do (real
+ * testing showed a weak model picking one of two such candidates on both the draft and verify pass).
+ * Mirrors the 0/1-candidate fast paths right below: when this fires, `selectItem` skips the model
+ * entirely and returns `itemID: null`, routing straight into the same "let the admin pick" UI those
+ * paths already use for a genuinely unresolved case.
+ */
+function hasUnresolvableAmbiguity(candidates: AssistantCandidate[], message: string): boolean {
+  const lowerMessage = message.toLowerCase()
+  const groups = new Map<string, { base: string; suffix: string }[]>()
+  for (const candidate of candidates) {
+    const split = splitCandidateLabel(candidate.label)
+    const key = split.base.toLowerCase()
+    const group = groups.get(key)
+    if (group) group.push(split)
+    else groups.set(key, [split])
+  }
+  for (const group of groups.values()) {
+    if (group.length < 2) continue
+    const distinguishedByMessage = group.some((entry) => entry.suffix && lowerMessage.includes(entry.suffix.toLowerCase()))
+    if (!distinguishedByMessage) return true
+  }
+  return false
+}
+
+/** Step 2 (only for actions that need an existing item) — generate-then-verify: a first pass picks from a shortlist, a second pass re-checks that pick against the chosen candidate's full record. Deterministic fast paths skip the model entirely when there's nothing (0 candidates), nothing to decide (exactly 1), or the candidates are unresolvably ambiguous given the message (see `hasUnresolvableAmbiguity`). */
 export async function selectItem(
   entityKey: string,
   action: AssistantActionName,
@@ -755,6 +807,7 @@ export async function selectItem(
   const candidates = await entity.listCandidates(action, { uiLanguage, session }, searchText)
   if (candidates.length === 0) return { itemID: null, candidates: [], trace: [] }
   if (candidates.length === 1) return { itemID: candidates[0].id, candidates, trace: [] }
+  if (hasUnresolvableAmbiguity(candidates, message)) return { itemID: null, candidates, trace: [] }
 
   const schema: AssistantJsonSchema = {
     type: 'object',
@@ -810,7 +863,7 @@ export interface FillFieldsClarification {
  * merged or validated. `'ready'` — the normal staged-draft result.
  */
 export type FillFieldsResult =
-  | { status: 'ready'; draft: unknown; issues: AssistantValidationIssue[]; fieldConfidence: Record<string, FieldConfidence>; trace: AssistantTraceEntry[] }
+  | { status: 'ready'; draft: unknown; issues: AssistantValidationIssue[]; fieldConfidence: Record<string, FieldConfidence>; posture: 'safe' | 'full'; trace: AssistantTraceEntry[] }
   | { status: 'clarify'; clarifications: FillFieldsClarification[]; trace: AssistantTraceEntry[]; historyContext: string | null }
 
 /** Every field the model proposed came back empty — nothing to extract from the message at all. Used both to skip `fillFields`'s own verify pass (see `generateThenVerify`'s `skipVerifyIf`) and, on a `create`, to abort before staging a draft with nothing real behind it. */
@@ -835,6 +888,8 @@ export async function fillFields(
     localModelOverride?: string
     /** See `ToolCallInput.localVisionModel` — only consulted when `image` above is set. */
     localVisionModelOverride?: string
+    /** The kebab-menu's "Ekstra forsiktig modus" override — see `resolveIngestionPosture`. */
+    postureOverride?: AssistantIngestionPosture
     /** Raw recent-transcript text — only sent when this call is itself the first of its turn/continuation (the `reviewingForm`-correction path, which bypasses `selectIntent`). Mutually exclusive with `historyContext`. */
     history?: string
     /** An already-resolved value from an earlier call in the same turn (usually `selectIntent`'s). Mutually exclusive with `history`. */
@@ -847,6 +902,8 @@ export async function fillFields(
   const current = options.itemID && entity.getCurrent ? await entity.getCurrent(options.itemID, context) : null
   const knownDraft = current ?? options.priorDraft
   const schema = entity.fillFieldsSchema(action, context, knownDraft ?? undefined)
+  const posture = resolveIngestionPosture(options.postureOverride, options.providerOverride)
+  const effectiveSchema = posture === 'safe' ? stripSchemaFields(schema, entity.confabulationRiskFields ?? []) : schema
 
   const userText = options.priorDraft
     ? `The admin said the previously-proposed draft was still wrong. Previous draft: ${JSON.stringify(options.priorDraft)}\n\nCorrection: ${message}`
@@ -873,23 +930,33 @@ export async function fillFields(
     .filter(Boolean)
     .join('\n\n')
 
-  const rawFields = await generateThenVerify<Record<string, unknown>>({
+  const fillFieldsCallArgs = {
     systemPrompt,
     userText,
     image: options.image,
     toolName: `fill_fields_${entityKey}`,
     toolDescription: `Propose field values for this "${entityKey}" ${action}.`,
-    schema,
+    schema: effectiveSchema,
     model: options.modelOverride,
     provider: options.providerOverride,
     localModel: options.localModelOverride,
     localVisionModel: options.localVisionModelOverride,
     trace,
-    skipVerifyIf: isEmptyFieldsObject,
-  })
+  }
+  const rawFields =
+    posture === 'full'
+      ? await generateThenVerify<Record<string, unknown>>({ ...fillFieldsCallArgs, skipVerifyIf: isEmptyFieldsObject })
+      : await callToolOnce<Record<string, unknown>>(fillFieldsCallArgs)
 
   // The admin's own answers to a prior clarifying round are authoritative — they override whatever the model itself proposed (or failed to) for that same field.
   const fields = { ...rawFields, ...options.resolvedFields }
+
+  // Debug-only tag (see `AssistantTraceEntry.resolvedFields`) — never asked of the model.
+  if (options.resolvedFields && Object.keys(options.resolvedFields).length > 0) {
+    trace.filter((entry) => entry.toolName === `fill_fields_${entityKey}`).forEach((entry) => {
+      entry.resolvedFields = options.resolvedFields
+    })
+  }
 
   // A `create` with nothing extractable at all (checked *after* merging any clarifying-round
   // answers above, so a create that already resolved e.g. its category isn't wrongly aborted here)
@@ -923,7 +990,7 @@ export async function fillFields(
     fieldConfidence[key] = key in (options.resolvedFields ?? {}) ? 'verbatim' : inferFieldConfidence(fields[key], message)
   }
 
-  return { status: 'ready', draft, issues, fieldConfidence, trace }
+  return { status: 'ready', draft, issues, fieldConfidence, posture, trace }
 }
 
 export interface FillFieldsBatchClarification {
@@ -944,7 +1011,7 @@ export interface FillFieldsBatchClarification {
  */
 export type FillFieldsBatchResult =
   | { status: 'clarify'; clarifications: FillFieldsBatchClarification[]; recordCount: number; trace: AssistantTraceEntry[]; historyContext: string | null }
-  | { status: 'ready'; drafts: { draft: unknown; issues: AssistantValidationIssue[]; fieldConfidence: Record<string, FieldConfidence> }[]; trace: AssistantTraceEntry[] }
+  | { status: 'ready'; drafts: { draft: unknown; issues: AssistantValidationIssue[]; fieldConfidence: Record<string, FieldConfidence> }[]; posture: 'safe' | 'full'; trace: AssistantTraceEntry[] }
 
 /**
  * Batch sibling of `fillFields`, `create` only (an update/delete always targets one already-real
@@ -966,20 +1033,24 @@ export async function fillFieldsBatch(
     modelOverride?: store.AssistantModel
     providerOverride?: store.AssistantProvider
     localModelOverride?: string
+    /** The kebab-menu's "Ekstra forsiktig modus" override — see `resolveIngestionPosture`. */
+    postureOverride?: AssistantIngestionPosture
     history?: string
     historyContext?: string
   } = {},
 ): Promise<FillFieldsBatchResult> {
   const entity = requireAccessibleEntity(entityKey, session)
   const context: AssistantFillContext = { uiLanguage, session }
+  const posture = resolveIngestionPosture(options.postureOverride, options.providerOverride)
   const recordSchema = entity.fillFieldsSchema('create', context)
+  const effectiveRecordSchema = posture === 'safe' ? stripSchemaFields(recordSchema, entity.confabulationRiskFields ?? []) : recordSchema
 
   const schema: AssistantJsonSchema = {
     type: 'object',
     properties: {
       records: {
         type: 'array',
-        items: recordSchema,
+        items: effectiveRecordSchema,
         description: 'One entry per distinct record the message describes — a single-element array if it only describes one.',
       },
     },
@@ -1006,7 +1077,7 @@ export async function fillFieldsBatch(
     .filter(Boolean)
     .join('\n\n')
 
-  const result = await generateThenVerify<{ records: Record<string, unknown>[] }>({
+  const fillFieldsBatchCallArgs = {
     systemPrompt,
     userText: message,
     toolName: `fill_fields_batch_${entityKey}`,
@@ -1016,11 +1087,35 @@ export async function fillFieldsBatch(
     provider: options.providerOverride,
     localModel: options.localModelOverride,
     trace,
-    skipVerifyIf: (draft) => draft.records.every(isEmptyFieldsObject),
-  })
+  }
+  const result =
+    posture === 'full'
+      ? await generateThenVerify<{ records: Record<string, unknown>[] }>({ ...fillFieldsBatchCallArgs, skipVerifyIf: (draft) => draft.records.every(isEmptyFieldsObject) })
+      : await callToolOnce<{ records: Record<string, unknown>[] }>(fillFieldsBatchCallArgs)
 
-  const rawRecords = (result.records ?? []).filter((record) => !isEmptyFieldsObject(record))
-  if (rawRecords.length === 0) {
+  // Debug-only tag (see `AssistantTraceEntry.resolvedFields`) — never asked of the model.
+  if (options.resolvedFields && Object.keys(options.resolvedFields).length > 0) {
+    trace.filter((entry) => entry.toolName === `fill_fields_batch_${entityKey}`).forEach((entry) => {
+      entry.resolvedFields = options.resolvedFields
+    })
+  }
+
+  // The admin's own answers to a prior clarifying round are merged in per-record right away —
+  // before `clarifiableFields` ever looks at the record — the same "resolved answers are
+  // authoritative" rule `fillFields` applies (see its own `fields` merge above). Only fills in a
+  // record's own field where it's still unset; never overwrites a record that already resolved its
+  // own (possibly different) value, which is what keeps a batch mixing e.g. two different named
+  // categories correct.
+  const records = (result.records ?? [])
+    .filter((record) => !isEmptyFieldsObject(record))
+    .map((rawFields) => {
+      const fields = { ...rawFields }
+      for (const [field, optionId] of Object.entries(options.resolvedFields ?? {})) {
+        if (fields[field] == null) fields[field] = optionId
+      }
+      return fields
+    })
+  if (records.length === 0) {
     throw new Error(`Couldn't find anything to create from your message — try describing what you'd like to add.`)
   }
 
@@ -1029,7 +1124,7 @@ export async function fillFieldsBatch(
   // (options are always the same live-candidate list regardless of which record is asking, so
   // grouping by field name alone is sound within one entity/one call).
   const clarificationsByField = new Map<string, FillFieldsBatchClarification>()
-  for (const [index, fields] of rawRecords.entries()) {
+  for (const [index, fields] of records.entries()) {
     const unresolved = (await entity.clarifiableFields?.('create', context, fields)) ?? []
     for (const candidate of unresolved) {
       if (candidate.options.length === 1) {
@@ -1042,17 +1137,10 @@ export async function fillFieldsBatch(
     }
   }
   if (clarificationsByField.size > 0) {
-    return { status: 'clarify', clarifications: [...clarificationsByField.values()], recordCount: rawRecords.length, trace, historyContext }
+    return { status: 'clarify', clarifications: [...clarificationsByField.values()], recordCount: records.length, trace, historyContext }
   }
 
-  const drafts = rawRecords.map((rawFields) => {
-    // Only fills in a shared clarification answer where the record itself left the field unset —
-    // never overwrites a record that already resolved its own (possibly different) value, which is
-    // what keeps a batch mixing e.g. two different named categories correct.
-    const fields = { ...rawFields }
-    for (const [field, optionId] of Object.entries(options.resolvedFields ?? {})) {
-      if (fields[field] == null) fields[field] = optionId
-    }
+  const drafts = records.map((fields) => {
     const draft = entity.mergeDraft('create', null, fields, context)
     const issues = entity.validate('create', draft, context)
     const fieldConfidence: Record<string, FieldConfidence> = {}
@@ -1062,7 +1150,7 @@ export async function fillFieldsBatch(
     return { draft, issues, fieldConfidence }
   })
 
-  return { status: 'ready', drafts, trace }
+  return { status: 'ready', drafts, posture, trace }
 }
 
 /**
@@ -1187,6 +1275,16 @@ export async function generateTitle(
 /** The admin's own override of how much data `answerLookup` processes per call at once (see `AssistantPanel`'s kebab-menu chunk-size setting) — `'auto'` just means "use the active model/provider's own profile below, unmodified." */
 export type ChunkSizePreference = 'auto' | 'small' | 'medium' | 'large' | 'custom'
 
+/**
+ * The admin's own override of `fillFields`/`fillFieldsBatch`'s ingestion posture (see
+ * `AssistantPanel`'s kebab-menu "Ekstra forsiktig modus" setting) — `'auto'` resolves per the
+ * active provider (see `resolveIngestionPosture`), `'safe'`/`'full'` force one or the other
+ * regardless of provider. Deliberately independent of `AssistantModelCapability`/`useVerifyPass`
+ * above — that flag stays as-is for the lookup/read pipeline; this only ever affects
+ * `fillFields`/`fillFieldsBatch`'s own schema and verify-pass decision.
+ */
+export type AssistantIngestionPosture = 'auto' | 'safe' | 'full'
+
 interface AssistantModelCapability {
   /** The primary, admin-facing unit (see `ChunkSizePreference`'s own "Custom" option, which sets this same value directly) — how many of an entity's live records go into one map-step batch before `answerLookup` needs to chunk at all. */
   recordsPerBatch: number
@@ -1237,6 +1335,23 @@ function resolveModelCapability(modelOverride: store.AssistantModel | undefined,
   const provider = providerOverride ?? store.getAssistantProvider()
   if (provider !== 'claude') return ASSISTANT_MODEL_CAPABILITIES.local
   return ASSISTANT_MODEL_CAPABILITIES[modelOverride ?? store.getAssistantModel()]
+}
+
+/**
+ * `'auto'` resolves per-provider — Claude is reliable enough to leave the full schema in place and
+ * run the verify pass (`'full'`); any non-Claude (local/Ollama) provider gets the stripped schema
+ * and no verify pass (`'safe'`), since real QA testing showed small local models reliably fabricate
+ * values for fields like allergens/discounts/custom fields when they're merely offered in the
+ * schema, and the verify pass has been shown to rewrite an already-good local-model answer
+ * wholesale rather than improve it. `postureOverride` (the kebab-menu's explicit "På"/"Av") always
+ * wins over this per-provider default. Resolves per-*provider* only, not per specific Ollama model
+ * tag — `resolveModelCapability` above has no existing per-tag granularity to build on, so this
+ * doesn't invent any either.
+ */
+function resolveIngestionPosture(postureOverride: AssistantIngestionPosture | undefined, providerOverride: store.AssistantProvider | undefined): 'safe' | 'full' {
+  if (postureOverride === 'safe' || postureOverride === 'full') return postureOverride
+  const provider = providerOverride ?? store.getAssistantProvider()
+  return provider === 'claude' ? 'full' : 'safe'
 }
 
 function resolveRecordsPerBatch(capability: AssistantModelCapability, chunkSizePreference: ChunkSizePreference | undefined, customChunkRecordCount: number | undefined): number {
@@ -1493,8 +1608,23 @@ async function buildEntityQueryDataBlock(
     trace,
   }
   const spec = useVerifyPass ? await generateThenVerify<LookupQuerySpec>(callArgs) : await callToolOnce<LookupQuerySpec>(callArgs)
+
+  // Never trust a filter whose value the admin never actually said — real testing showed a local
+  // model inventing filters wholesale for a "list everything" question (e.g. matching a product's
+  // name against the store's own name, or several unrelated product names that appear nowhere in
+  // the question), with the verify pass rubber-stamping its own invention rather than catching it.
+  // A boolean/number filter's value is a semantic judgment (true/false, a price threshold) rather
+  // than literal text the message would contain, so only string/enum-type filters are checked here.
+  const typeByFieldKey = new Map(fields.map((field) => [field.key, field.type]))
+  const lowerMessage = message.toLowerCase()
+  const groundedFilters = spec.filters.filter((filter) => {
+    const type = typeByFieldKey.get(filter.field)
+    if (type === 'boolean' || type === 'number') return true
+    return lowerMessage.includes(filter.value.toLowerCase())
+  })
+
   // Composed in code, never asked of the model — see `baseFilters`' own doc comment above.
-  const filters = [...(baseFilters ?? []), ...spec.filters]
+  const filters = [...(baseFilters ?? []), ...groundedFilters]
 
   // Debug-only tag (see `AssistantTraceEntry.shape`) — derived from the same signals the branches
   // below use, never asked of the model. A count question with no `countLabel` on this entity still

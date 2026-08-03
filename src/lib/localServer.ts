@@ -431,6 +431,8 @@ export interface AssistantTraceEntry {
   model?: string
   /** Debug-only tag identifying which deterministic reply branch a `lookup_query` call's own result fed into — see `server/assistant/client.ts`'s own `AssistantTraceEntry` doc comment. Never read by any functional code path. */
   shape?: 'count' | 'list' | 'report'
+  /** The admin's tapped/typed answer(s) to a prior clarifying question, keyed by field name, when this call was resuming one — see `server/assistant/client.ts`'s own `AssistantTraceEntry` doc comment. Never read by any functional code path. */
+  resolvedFields?: Record<string, string>
 }
 
 /** One row of a structured list reply attachment — client-side mirror of `server/assistant/types.ts`'s own `AssistantListItem`. */
@@ -585,7 +587,7 @@ export type FieldConfidence = 'verbatim' | 'inferred' | 'unknown'
  * draft, same shape as before this was a union.
  */
 export type AssistantFillFieldsResult =
-  | { status: 'ready'; draft: unknown; issues: { code: string; params?: Record<string, string> }[]; fieldConfidence: Record<string, FieldConfidence>; trace: AssistantTraceEntry[] }
+  | { status: 'ready'; draft: unknown; issues: { code: string; params?: Record<string, string> }[]; fieldConfidence: Record<string, FieldConfidence>; posture: 'safe' | 'full'; trace: AssistantTraceEntry[] }
   | { status: 'clarify'; clarifications: AssistantFillFieldsClarification[]; trace: AssistantTraceEntry[]; historyContext: string | null }
 
 /** Step 3 of the assistant flow — proposes (never writes) a draft for `entity`/`action`, merged onto the current item (`itemID`) or empty defaults. `image` is the vision-extraction input (see `AssistantPanel`'s attach flow); `priorDraft` is set when this call is a correction from the review step; `resolvedFields` carries the admin's own answers to a prior `'clarify'` result; `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. `history` (raw recent-transcript text) is only sent when this call is itself the first of its turn/continuation (the `reviewingForm`-correction path, which bypasses `assistantSelectIntent`); `historyContext` is an already-resolved value from an earlier call in the same turn. Mutually exclusive. */
@@ -606,6 +608,7 @@ export async function assistantFillFields(
     provider?: AssistantProvider
     localModel?: string
     localVisionModel?: string
+    posture?: AssistantIngestionPosture
   },
   signal?: AbortSignal,
 ): Promise<AssistantFillFieldsResult> {
@@ -640,7 +643,7 @@ export interface AssistantFillFieldsBatchClarification {
  */
 export type AssistantFillFieldsBatchResult =
   | { status: 'clarify'; clarifications: AssistantFillFieldsBatchClarification[]; recordCount: number; trace: AssistantTraceEntry[]; historyContext: string | null }
-  | { status: 'ready'; drafts: { draft: unknown; issues: { code: string; params?: Record<string, string> }[]; fieldConfidence: Record<string, FieldConfidence> }[]; trace: AssistantTraceEntry[] }
+  | { status: 'ready'; drafts: { draft: unknown; issues: { code: string; params?: Record<string, string> }[]; fieldConfidence: Record<string, FieldConfidence> }[]; posture: 'safe' | 'full'; trace: AssistantTraceEntry[] }
 
 /** Batch sibling of `assistantFillFields` — `create` only, one or more staged records from a single message (e.g. "10 new coffee variants"). See `server/assistant/steps.ts`'s own `fillFieldsBatch` doc comment for why there's no separate "how many records" step. */
 export async function assistantFillFieldsBatch(
@@ -655,6 +658,7 @@ export async function assistantFillFieldsBatch(
     historyContext?: string
     provider?: AssistantProvider
     localModel?: string
+    posture?: AssistantIngestionPosture
   },
   signal?: AbortSignal,
 ): Promise<AssistantFillFieldsBatchResult> {
@@ -725,6 +729,9 @@ export async function assistantGenerateTitle(
 
 /** The admin's own override of how much data a lookup answer processes per call at once — see `AssistantPanel`'s kebab-menu chunk-size setting. `'auto'` means "use the active model/provider's own default." */
 export type ChunkSizePreference = 'auto' | 'small' | 'medium' | 'large' | 'custom'
+
+/** The admin's own override of `assistantFillFields`/`assistantFillFieldsBatch`'s ingestion posture — see `AssistantPanel`'s kebab-menu "Ekstra forsiktig modus" setting and `server/assistant/steps.ts`'s own `AssistantIngestionPosture` (this is its client-side mirror). `'auto'` resolves per the active provider server-side; `'safe'`/`'full'` force one or the other regardless of provider. */
+export type AssistantIngestionPosture = 'auto' | 'safe' | 'full'
 
 /**
  * `'ready'` — a complete answer. `'clarifyItem'` — the question named one

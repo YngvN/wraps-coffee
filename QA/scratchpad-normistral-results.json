@@ -1,0 +1,1128 @@
+{
+  "results": [
+    {
+      "id": "A.1",
+      "title": "Product count (deterministic lookup)",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Vi har 0 produkter.\". trace uses lookup_query=true, uses answer_lookup=false (expect false for deterministic count path). Verify against current admin-UI product count, not a hardcoded number.",
+      "evidence": {
+        "reply": "Vi har 0 produkter.",
+        "usesAnswerLookup": false,
+        "usesLookupQuery": true
+      },
+      "trace": [
+        "classify_message\n1279 inn / 12 ut\nclassify_message · marksverdhei/normistral-it:7b\n9s\n{\"userText\":\"Hvor mange produkter har vi?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n2010 inn / 41 ut\nlookup_query · marksverdhei/normistral-it:7b\n9s\n{\"userText\":\"Hvor mange produkter har vi?\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1026 inn / 41 ut\nlookup_query · marksverdhei/normistral-it:7b\n5s\n{\"userText\":\"Hvor mange produkter har vi?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"\"}],\"reportField\":null}"
+      ],
+      "screenshot": "001-A-1.png"
+    },
+    {
+      "id": "A.2",
+      "title": "Discounted product count",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Vi har 109 produkter.\" — verify against current active-discount count via admin UI.",
+      "evidence": {
+        "reply": "Vi har 109 produkter."
+      },
+      "trace": [
+        "classify_message\n1280 inn / 12 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Hvor mange produkter er på tilbud?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n2012 inn / 44 ut\nlookup_query · marksverdhei/normistral-it:7b\n9s\n{\"userText\":\"Hvor mange produkter er på tilbud?\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"contains\",\"value\":\"discounted\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1026 inn / 44 ut\nlookup_query · marksverdhei/normistral-it:7b\n5s\n{\"userText\":\"Hvor mange produkter er på tilbud?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"contains\\\",\\\"value\\\":\\\"discounted\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"contains\",\"value\":\"discounted\"}],\"reportField\":null}"
+      ],
+      "screenshot": "002-A-2.png"
+    },
+    {
+      "id": "A.3",
+      "title": "Which product is on sale",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply: \"The operation was aborted due to timeout\" (expect mentions Michelin Vinterdekk).",
+      "evidence": {
+        "reply": "The operation was aborted due to timeout"
+      },
+      "trace": [
+        "classify_message\n1279 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n1s\n{\"userText\":\"Hvilke produkter er på tilbud?\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1586 inn / 27 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Hvilke produkter er på tilbud?\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"offer\"}"
+      ],
+      "screenshot": "003-A-3.png"
+    },
+    {
+      "id": "A.4",
+      "title": "List all products (bullet attachment)",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Her er 109 produkter:...\". DOM <li> count near transcript: 111 (expect a real list, not one run-on sentence or an empty/hallucinated answer).",
+      "evidence": {
+        "reply": "Her er 109 produkter:",
+        "listItemCount": 111
+      },
+      "trace": [
+        "lookup_query\n(draft)\n2012 inn / 44 ut\nlookup_query · marksverdhei/normistral-it:7b\n9s\n{\"userText\":\"Gi meg en liste over alle produkter\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1026 inn / 44 ut\nlookup_query · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Gi meg en liste over alle produkter\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"Wraps\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps\"}],\"reportField\":null}"
+      ],
+      "screenshot": "004-A-4.png"
+    },
+    {
+      "id": "A.5",
+      "title": "Compound imperative+interrogative",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Her er 109 produkter:\nDet er for øyeblikket ingen produkter som er på salg....\"",
+      "evidence": {
+        "reply": "Her er 109 produkter:\nDet er for øyeblikket ingen produkter som er på salg."
+      },
+      "trace": [
+        "lookup_query\n(draft)\n2012 inn / 344 ut\nlookup_query · marksverdhei/normistral-it:7b\n26s\n{\"userText\":\"vis meg hvem som er på tilbud\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps & Coffee\"},{\"field\":\"available\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"outOfStock\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"trackStock\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"locationLabel\",\"op\":\"is\",\"value\":\"Wraps\"},{\"field\":\"price\",\"op\":\"lessThan\",\"value\":\"10.0\"},{\"field\":\"originalPrice\",\"op\":\"greaterThan\",\"value\":\"10.0\"},{\"field\":\"stockQuantity\",\"op\":\"greaterThan\",\"value\":\"10\"},{\"field\":\"allergens\",\"",
+        "lookup_query\n(draft)\n2012 inn / 44 ut\nlookup_query · marksverdhei/normistral-it:7b\n35s\n{\"userText\":\"Gi meg en liste over alle produkter\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1026 inn / 345 ut\nlookup_query · marksverdhei/normistral-it:7b\n26s\n{\"userText\":\"vis meg hvem som er på tilbud\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"Wraps & Coffee\\\"},{\\\"field\\\":\\\"available\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"},{\\\"field\\\":\\\"hasDiscount\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"false\\\"},{\\\"field\\\":\\\"outOfStock\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"false\\\"},{\\\"field\\\":\\\"trackStock\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"false\\\"},{\\\"field\\\":\\\"locationLabel\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"Wraps\\\"},{\\\"field\\\":\\\"price\\\",\\\"op\\\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps  & Coffee\"},{\"field\":\"available\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"outOfStock\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"trackStock\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"locationLabel\",\"op\":\"is\",\"value\":\"Wraps\"},{\"field\":\"price\",\"op\":\"lessThan\",\"value\":\"10.0\"},{\"field\":\"originalPrice\",\"op\":\"greaterThan\",\"value\":\"10.0\"},{\"field\":\"stockQuantity\",\"op\":\"greaterThan\",\"value\":\"10\"},{\"field\":\"allergens\",",
+        "lookup_query\n(verify)\n1026 inn / 44 ut\nlookup_query · marksverdhei/normistral-it:7b\n18s\n{\"userText\":\"Gi meg en liste over alle produkter\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"Wraps\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps\"}],\"reportField\":null}",
+        "Setter sammen svaret\n(draft)\n1439 inn / 21 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n8s\n{\"userText\":\"vis meg hvem som er på tilbud\"}\n{\"reply\":\"Det er for øyeblikket ingen produkter som er på salg.\"}",
+        "Setter sammen svaret\n(verify)\n1545 inn / 21 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n1s\n{\"userText\":\"vis meg hvem som er på tilbud\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"Det er for øyeblikket ingen produkter som er på salg.\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"reply\":\"Det er for øyeblikket ingen produkter som er på salg.\"}"
+      ],
+      "screenshot": "005-A-5.png"
+    },
+    {
+      "id": "A.6",
+      "title": "Compound two-interrogative",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Vi har 109 produkter. Det er for øyeblikket ingen produkter som er på salg.\" — check whether both halves answered or one silently dropped.",
+      "evidence": {
+        "reply": "Vi har 109 produkter. Det er for øyeblikket ingen produkter som er på salg."
+      },
+      "trace": [
+        "classify_message\n1284 inn / 12 ut\nclassify_message · marksverdhei/normistral-it:7b\n9s\n{\"userText\":\"Hvor mange produkter har vi og hvem er på tilbud?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n2008 inn / 47 ut\nlookup_query · marksverdhei/normistral-it:7b\n9s\n{\"userText\":\"Hvor mange produkter har vi\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps & Coffee\"}],\"reportField\":null}",
+        "lookup_query\n(draft)\n2009 inn / 344 ut\nlookup_query · marksverdhei/normistral-it:7b\n30s\n{\"userText\":\"hvem er på tilbud?\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps & Coffee\"},{\"field\":\"available\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"outOfStock\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"trackStock\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"locationLabel\",\"op\":\"is\",\"value\":\"Wraps\"},{\"field\":\"price\",\"op\":\"lessThan\",\"value\":\"10.0\"},{\"field\":\"originalPrice\",\"op\":\"greaterThan\",\"value\":\"10.0\"},{\"field\":\"stockQuantity\",\"op\":\"greaterThan\",\"value\":\"10\"},{\"field\":\"allergens\",\"o",
+        "lookup_query\n(verify)\n1026 inn / 48 ut\nlookup_query · marksverdhei/normistral-it:7b\n26s\n{\"userText\":\"Hvor mange produkter har vi\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"Wraps & Coffee\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps  & Coffee\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1026 inn / 345 ut\nlookup_query · marksverdhei/normistral-it:7b\n22s\n{\"userText\":\"hvem er på tilbud?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"Wraps & Coffee\\\"},{\\\"field\\\":\\\"available\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"},{\\\"field\\\":\\\"hasDiscount\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"false\\\"},{\\\"field\\\":\\\"outOfStock\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"false\\\"},{\\\"field\\\":\\\"trackStock\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"},{\\\"field\\\":\\\"locationLabel\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"Wraps\\\"},{\\\"field\\\":\\\"price\\\",\\\"op\\\":\\\"lessThan\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps  & Coffee\"},{\"field\":\"available\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"outOfStock\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"trackStock\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"locationLabel\",\"op\":\"is\",\"value\":\"Wraps\"},{\"field\":\"price\",\"op\":\"lessThan\",\"value\":\"10.0\"},{\"field\":\"originalPrice\",\"op\":\"greaterThan\",\"value\":\"10.0\"},{\"field\":\"stockQuantity\",\"op\":\"greaterThan\",\"value\":\"10\"},{\"field\":\"allergens\",\"",
+        "Setter sammen svaret\n(draft)\n1437 inn / 21 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"hvem er på tilbud?\"}\n{\"reply\":\"Det er for øyeblikket ingen produkter som er på salg.\"}",
+        "Setter sammen svaret\n(verify)\n1543 inn / 21 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n1s\n{\"userText\":\"hvem er på tilbud?\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"Det er for øyeblikket ingen produkter som er på salg.\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"reply\":\"Det er for øyeblikket ingen produkter som er på salg.\"}"
+      ],
+      "screenshot": "006-A-6.png"
+    },
+    {
+      "id": "A.7",
+      "title": "Non-question phrase must not trigger create",
+      "phase": "A",
+      "status": "FAIL",
+      "notes": "Reply: \"\". gate=true batch=false singleReview=false (all must be false).",
+      "evidence": {
+        "reply": "",
+        "gate": true,
+        "batch": false,
+        "review": false
+      },
+      "trace": [
+        "classify_message\n1280 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"et stort og et lite frontlys\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1587 inn / 39 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"et stort og et lite frontlys\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"et stort og et lite frontlys\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 132 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n9s\n{\"userText\":\"et stort og et lite frontlys\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Frontlykter\",\"description\":\"Ett stort og ett lite frontlys\",\"priceMode\":\"inherit\",\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}]}"
+      ],
+      "screenshot": "007-A-7.png"
+    },
+    {
+      "id": "A.8/A.11",
+      "title": "Ambiguous \"Frontlys\" must clarify",
+      "phase": "A",
+      "status": "FAIL",
+      "notes": "Reply: \"\". clarifying=false options=[] (must list both Frontlys candidates, never silently guess).",
+      "evidence": {
+        "reply": "",
+        "clarifying": false,
+        "options": []
+      },
+      "trace": [
+        "classify_message\n1279 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Hvor mye koster Frontlys?\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1586 inn / 29 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Hvor mye koster Frontlys?\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Frontlys\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 113 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n8s\n{\"userText\":\"Hvor mye koster Frontlys?\"}\n{\"records\":[{\"location\":\"catalogue:food-menu\",\"name\":\"Frontlys\",\"description\":\"A light that is placed at the front of a vehicle to illuminate the road.\",\"priceMode\":\"inherit\",\"flatPrice\":100,\"takeawayPrice\":105,\"eatInPrice\":105,\"available\":true}]}"
+      ],
+      "screenshot": "008-A-8-A-11.png"
+    },
+    {
+      "id": "A.9a",
+      "title": "Bilingual filter — LED products (Norsk UI)",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Her er alle LED-produktene som ble funnet i dataene:\n\n[]\". Found 0/3 LED product names ([]) — regression check for null-Norwegian-variant bilingual filter. Run before A.9b per the run-order note.",
+      "evidence": {
+        "reply": "Her er alle LED-produktene som ble funnet i dataene:\n\n[]",
+        "found": []
+      },
+      "trace": [
+        "lookup_query\n(draft)\n2010 inn / 46 ut\nlookup_query · marksverdhei/normistral-it:7b\n10s\n{\"userText\":\"Vis meg alle LED-produkter\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"LED-produkter\"}],\"reportField\":\"name\"}",
+        "lookup_query\n(verify)\n1026 inn / 46 ut\nlookup_query · marksverdhei/normistral-it:7b\n6s\n{\"userText\":\"Vis meg alle LED-produkter\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"LED-produkter\\\"}],\\\"reportField\\\":\\\"name\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"LED-produkter\"}],\"reportField\":\"name\"}",
+        "Setter sammen svaret\n(draft)\n1437 inn / 28 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Vis meg alle LED-produkter\"}\n{\"reply\":\"Her er alle LED-produktene som ble funnet i dataene:\\n\\n[]\"}",
+        "Setter sammen svaret\n(verify)\n1550 inn / 28 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Vis meg alle LED-produkter\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"Her er alle LED-produktene som ble funnet i dataene:\\\\n\\\\n[]\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"reply\":\"Her er alle LED-produktene som ble funnet i dataene:\\n\\n[]\"}"
+      ],
+      "screenshot": "009-A-9a.png"
+    },
+    {
+      "id": "A.9b",
+      "title": "Bilingual filter — LED products (English UI)",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply (English UI): \"LED Headlight Bulb H7  (Interior), LED Interior Strip, LED Fog Light\". Found 3/3 ([\"LED Headlight Bulb H7\",\"LED Interior Strip\",\"LED Fog Light\"]) — read alongside A.9a's own result per the run-order note (if A.9a itself failed, this isn't an independent English-only regression).",
+      "evidence": {
+        "reply": "LED Headlight Bulb H7  (Interior), LED Interior Strip, LED Fog Light",
+        "found": [
+          "LED Headlight Bulb H7",
+          "LED Interior Strip",
+          "LED Fog Light"
+        ]
+      },
+      "trace": [
+        "lookup_query\n(draft)\n1999 in / 44 out\nlookup_query · marksverdhei/normistral-it:7b\n10s\n{\"userText\":\"Show me all LED products\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"contains\",\"value\":\"LED\"}],\"reportField\":\"name\"}",
+        "lookup_query\n(verify)\n1026 in / 44 out\nlookup_query · marksverdhei/normistral-it:7b\n6s\n{\"userText\":\"Show me all LED products\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"contains\\\",\\\"value\\\":\\\"LED\\\"}],\\\"reportField\\\":\\\"name\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"contains\",\"value\":\"LED\"}],\"reportField\":\"name\"}",
+        "Composing the answer\n(draft)\n1566 in / 32 out\nanswer_lookup · marksverdhei/normistral-it:7b\n7s\n{\"userText\":\"Show me all LED products\"}\n{\"reply\":\"LED Headlight Bulb H7 (Interior), LED Interior Strip, LED Fog Light\"}",
+        "Composing the answer\n(verify)\n1684 in / 33 out\nanswer_lookup · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Show me all LED products\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"LED Headlight Bulb H7 (Interior), LED Interior Strip, LED Fog Light\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"reply\":\"LED Headlight Bulb H7  (Interior), LED Interior Strip, LED Fog Light\"}"
+      ],
+      "screenshot": "010-A-9b.png"
+    },
+    {
+      "id": "A.10",
+      "title": "Pronoun follow-up (own 2-turn continuity, diagnostic)",
+      "phase": "A",
+      "status": "ERROR",
+      "notes": "Harness exception: locator.waitFor: Timeout 180000ms exceeded.\nCall log:\n  - waiting for locator('.assistant-typing-indicator') to be detached\n    360 × locator resolved to visible <div role=\"status\" class=\"assistant-typing-indicator\">…</div>\n\n    at sendChat (/Users/yngve/Desktop/GitHub/wraps-coffee/QA/scratchpad/qa/harness.mts:196:16)\n    at async <anonymous> (/Users/yngve/Desktop/GitHub/wraps-coffee/QA/scratchpad/qa/retest.mts:225:21)\n    at async run (/Users/yngve/Desktop/GitHub/wraps-coffee/QA/scratchpad/qa/retest.mts:61:15)\n    at async main (/Users/yngve/Desktop/GitHub/wraps-coffee/QA/scratchpad/qa/retest.mts:223:5)"
+    },
+    {
+      "id": "A.12a",
+      "title": "Event bilingual display (Norsk UI)",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Q1: \"Det er  1 arrangementer i alt.\". Q2: \"Det er for tiden ingen arrangementer som har hendt.\" — expect \"Bilutstilling på tunet\" title shown.",
+      "evidence": {
+        "q1": "Det er  1 arrangementer i alt.",
+        "q2": "Det er for tiden ingen arrangementer som har hendt."
+      },
+      "trace": [
+        "classify_message\n1279 inn / 12 ut\nclassify_message · marksverdhei/normistral-it:7b\n6s\n{\"userText\":\"Hvor mange arrangementer har vi?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n1746 inn / 52 ut\nlookup_query · marksverdhei/normistral-it:7b\n13s\n{\"userText\":\"Hvor mange arrangementer har vi?\"}\n{\"filters\":[{\"field\":\"hasOccurred\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":\"hasOccurred\"}",
+        "lookup_query\n(verify)\n1883 inn / 52 ut\nlookup_query · marksverdhei/normistral-it:7b\n8s\n{\"userText\":\"Hvor mange arrangementer har vi?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"hasOccurred\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"}],\\\"reportField\\\":\\\"hasOccurred\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"hasOccurred\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":\"hasOccurred\"}",
+        "Setter sammen svaret\n(draft)\n1583 inn / 17 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n12s\n{\"userText\":\"Hvor mange arrangementer har vi?\"}\n{\"reply\":\"Det er 1 arrangementer i alt.\"}",
+        "Setter sammen svaret\n(verify)\n1686 inn / 18 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Hvor mange arrangementer har vi?\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"Det er 1 arrangementer i alt.\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"reply\":\"Det er  1 arrangementer i alt.\"}",
+        "classify_message\n1324 inn / 12 ut\nclassify_message · marksverdhei/normistral-it:7b\n7s\n{\"userText\":\"Hvilke arrangementer har vi?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n1744 inn / 52 ut\nlookup_query · marksverdhei/normistral-it:7b\n12s\n{\"userText\":\"Hvilke arrangementer har vi?\"}\n{\"filters\":[{\"field\":\"hasOccurred\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":\"hasOccurred\"}",
+        "lookup_query\n(verify)\n1881 inn / 52 ut\nlookup_query · marksverdhei/normistral-it:7b\n3s\n{\"userText\":\"Hvilke arrangementer har vi?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"hasOccurred\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"}],\\\"reportField\\\":\\\"hasOccurred\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"hasOccurred\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":\"hasOccurred\"}",
+        "Setter sammen svaret\n(draft)\n1581 inn / 21 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Hvilke arrangementer har vi?\"}\n{\"reply\":\"Det er for tiden ingen arrangementer som har hendt.\"}",
+        "Setter sammen svaret\n(verify)\n1687 inn / 21 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n1s\n{\"userText\":\"Hvilke arrangementer har vi?\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"Det er for tiden ingen arrangementer som har hendt.\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"reply\":\"Det er for tiden ingen arrangementer som har hendt.\"}"
+      ],
+      "screenshot": "011-A-12a.png"
+    },
+    {
+      "id": "A.12b",
+      "title": "Event bilingual display (English UI, no English title)",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "English UI Q1: \"There are 1 events in total, and 0 of them repeat on a weekly schedule.\". Q2: \"There are currently  0 events, and  0 of them repeat on a weekly schedule.\". Events list view text: \"Events\nAdd event\n\nCreate and manage store events, including recurring, postponed and cancelled occurrences.\n\nBilutstilling på tunet\n02.09.2026 · 12:00\nScheduled\nEdit\nDelete\" — title must fall back to Norwegian variant, not render blank.",
+      "evidence": {
+        "q1": "There are 1 events in total, and 0 of them repeat on a weekly schedule.",
+        "q2": "There are currently  0 events, and  0 of them repeat on a weekly schedule.",
+        "eventsViewText": "Events\nAdd event\n\nCreate and manage store events, including recurring, postponed and cancelled occurrences.\n\nBilutstilling på tunet\n02.09.2026 · 12:00\nScheduled\nEdit\nDelete"
+      },
+      "trace": [
+        "classify_message\n1271 in / 12 out\nclassify_message · marksverdhei/normistral-it:7b\n6s\n{\"userText\":\"How many events do we have?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n1739 in / 52 out\nlookup_query · marksverdhei/normistral-it:7b\n8s\n{\"userText\":\"How many events do we have?\"}\n{\"filters\":[{\"field\":\"hasOccurred\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":\"hasOccurred\"}",
+        "lookup_query\n(verify)\n1876 in / 52 out\nlookup_query · marksverdhei/normistral-it:7b\n3s\n{\"userText\":\"How many events do we have?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"hasOccurred\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"}],\\\"reportField\\\":\\\"hasOccurred\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"hasOccurred\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":\"hasOccurred\"}",
+        "Composing the answer\n(draft)\n1576 in / 31 out\nanswer_lookup · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"How many events do we have?\"}\n{\"reply\":\"There are 1 events in total, and 0 of them repeat on a weekly schedule.\"}",
+        "Composing the answer\n(verify)\n1694 in / 33 out\nanswer_lookup · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"How many events do we have?\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"There are 1 events in total, and 0 of them repeat on a weekly schedule.\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"reply\":\"There are 1 events in total, and 0 of them repeat on a weekly schedule.\"}",
+        "classify_message\n1331 in / 12 out\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"What events do we have?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n1738 in / 52 out\nlookup_query · marksverdhei/normistral-it:7b\n6s\n{\"userText\":\"What events do we have?\"}\n{\"filters\":[{\"field\":\"hasOccurred\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":\"hasOccurred\"}",
+        "lookup_query\n(verify)\n1875 in / 52 out\nlookup_query · marksverdhei/normistral-it:7b\n3s\n{\"userText\":\"What events do we have?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"hasOccurred\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"}],\\\"reportField\\\":\\\"hasOccurred\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"hasOccurred\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":\"hasOccurred\"}",
+        "Composing the answer\n(draft)\n1576 in / 33 out\nanswer_lookup · marksverdhei/normistral-it:7b\n3s\n{\"userText\":\"What events do we have?\"}\n{\"reply\":\"There are currently  0 events, and  0 of them repeat on a weekly schedule.\"}",
+        "Composing the answer\n(verify)\n1696 in / 33 out\nanswer_lookup · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"What events do we have?\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"There are currently  0 events, and  0 of them repeat on a weekly schedule.\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"reply\":\"There are currently  0 events, and  0 of them repeat on a weekly schedule.\"}"
+      ],
+      "screenshot": "013-A-12b-events-view.png"
+    },
+    {
+      "id": "A.extra",
+      "title": "Catalogue count and category count",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Catalogues Q: \"Det er 3 kataloger.\" — verify against current catalogue count. Categories Q: \"\" — verify against current category count (incl. any \"Ikke kategorisert\"/blank buckets).",
+      "evidence": {
+        "q1": "Det er 3 kataloger.",
+        "q2": ""
+      },
+      "trace": [
+        "classify_message\n1280 inn / 12 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Hvor mange kataloger har vi?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n1147 inn / 45 ut\nlookup_query · marksverdhei/normistral-it:7b\n6s\n{\"userText\":\"Hvor mange kataloger har vi?\"}\n{\"filters\":[{\"field\":\"hasPrice\",\"op\":\"is\",\"value\":\"\"}],\"reportField\":\"hasPrice\"}",
+        "lookup_query\n(verify)\n1277 inn / 45 ut\nlookup_query · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Hvor mange kataloger har vi?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"hasPrice\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"\\\"}],\\\"reportField\\\":\\\"hasPrice\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"hasPrice\",\"op\":\"is\",\"value\":\"\"}],\"reportField\":\"hasPrice\"}",
+        "Setter sammen svaret\n(draft)\n1254 inn / 16 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Hvor mange kataloger har vi?\"}\n{\"reply\":\"Det er 3 kataloger.\"}",
+        "Setter sammen svaret\n(verify)\n1356 inn / 16 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n1s\n{\"userText\":\"Hvor mange kataloger har vi?\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"Det er 3 kataloger.\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"reply\":\"Det er 3 kataloger.\"}"
+      ],
+      "screenshot": "014-A-extra.png"
+    },
+    {
+      "id": "B.1",
+      "title": "Confidence markers / posture stripping (create tire)",
+      "phase": "B",
+      "status": "CAPTURED",
+      "notes": "Attempt 1 reply: \"\" reachedState=true. gate=true. review has Allergener=false Diettmerker=false (both must be absent). confirmed=true.",
+      "evidence": {
+        "attempt1": "",
+        "gate": true,
+        "hasAllergens": false,
+        "hasDietary": false
+      },
+      "trace": [
+        "classify_message\n1293 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til et nytt dekk som heter Continental Sommerdekk, ca 1200 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1600 inn / 31 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til et nytt dekk som heter Continental Sommerdekk, ca 1200 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Continental Sommerdekk\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 124 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n9s\n{\"userText\":\"Legg til et nytt dekk som heter Continental Sommerdekk, ca 1200 kr\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Continental Sommerdekk\",\"description\":\"Continental Sommerdekk, ca  1200 kr\",\"priceMode\":\"inherit\",\"flatPrice\":1200,\"takeawayPrice\":1200,\"eatInPrice\":1200,\"available\":true}]}"
+      ],
+      "screenshot": "015-B-1.png"
+    },
+    {
+      "id": "B.2/B.3a",
+      "title": "Clarification loop fix — tap to pick catalogue",
+      "phase": "B",
+      "status": "FAIL",
+      "notes": "Attempt 1 reachedState=false. Attempt 2 reachedState=false. clarifying=false options=[] resolved(tap)=false.",
+      "evidence": {
+        "clarifying": false,
+        "options": [],
+        "resolved": false
+      },
+      "trace": [
+        "classify_message\n1282 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til en ny kategori som heter Dekkhotell\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1589 inn / 28 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til en ny kategori som heter Dekkhotell\"}\n{\"entity\":\"category\",\"action\":\"create\",\"searchText\":\"dekkhotell\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_category\n975 inn / 97 ut\nfill_fields_batch_category · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til en ny kategori som heter Dekkhotell\"}\n{\"records\":[{\"catalogueId\":\"catalogue-1785741584197\",\"name\":\"Dekkhotell\",\"description\":\"Lagring av dekk i dekkhotell\",\"priceMode\":\"none\",\"flatPrice\":0,\"takeawayPrice\":0,\"eatInPrice\":0}]}"
+      ],
+      "screenshot": "016-B-2-B-3a.png"
+    },
+    {
+      "id": "B.2/B.3b",
+      "title": "Clarification loop fix — typed chat answer",
+      "phase": "B",
+      "status": "FAIL",
+      "notes": "Attempt 1 reachedState=false. Attempt 2 reachedState=false. clarifying=false options=[]. Typed answer reply: \"\". resolved=false.",
+      "evidence": {
+        "clarifying": false,
+        "options": [],
+        "typedReply": "",
+        "resolved": false
+      },
+      "trace": [
+        "classify_message\n1282 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til en ny kategori som heter Sesonglager\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1589 inn / 29 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til en ny kategori som heter Sesonglager\"}\n{\"entity\":\"category\",\"action\":\"create\",\"searchText\":\"Sesonglager\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_category\n975 inn / 91 ut\nfill_fields_batch_category · marksverdhei/normistral-it:7b\n3s\n{\"userText\":\"Legg til en ny kategori som heter Sesonglager\"}\n{\"records\":[{\"catalogueId\":\"food-menu\",\"name\":\"Sesonglager\",\"description\":\"Sesongbaserte varer som er tilgjengelige i begrenset tid.\",\"priceMode\":\"flat\",\"flatPrice\":10,\"takeawayPrice\":10,\"eatInPrice\":10}]}"
+      ],
+      "screenshot": "017-B-2-B-3b.png"
+    },
+    {
+      "id": "B.4",
+      "title": "Unclear chat answer to clarification",
+      "phase": "B",
+      "status": "N/A",
+      "notes": "Attempt 1 reachedState=false. Attempt 2 reachedState=false. clarifying=false. Unclear answer reply: \"\". stillClarifying=false falselyResolved=false (must not falsely resolve).",
+      "evidence": {
+        "clarifying": false,
+        "unclearReply": "",
+        "stillClarifying": false,
+        "falselyResolved": false
+      },
+      "trace": [
+        "classify_message\n1282 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til en ny kategori som heter Vinterlager\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1589 inn / 28 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til en ny kategori som heter Vinterlager\"}\n{\"entity\":\"category\",\"action\":\"create\",\"searchText\":\"Vinterlager\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_category\n975 inn / 77 ut\nfill_fields_batch_category · marksverdhei/normistral-it:7b\n3s\n{\"userText\":\"Legg til en ny kategori som heter Vinterlager\"}\n{\"records\":[{\"catalogueId\":\"food-menu\",\"name\":\"Vinterlager\",\"description\":\"Vinterlager\",\"priceMode\":\"none\",\"flatPrice\":0,\"takeawayPrice\":0,\"eatInPrice\":0}]}"
+      ],
+      "screenshot": "018-B-4.png"
+    },
+    {
+      "id": "B.5a",
+      "title": "Draft-quality gate — Se detaljer",
+      "phase": "B",
+      "status": "CAPTURED",
+      "notes": "Attempt 1 reachedState=true. gate=true. After \"Se detaljer\", normal review form shown=true.",
+      "evidence": {
+        "gate": true,
+        "reviewShown": true
+      },
+      "trace": [
+        "classify_message\n1291 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk A, ca 500 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1598 inn / 30 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk A, ca 500 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Gate Test Dekk A\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 580 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n25s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk A, ca 500 kr\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Gate Test Dekk A\",\"description\":\"\\\"Gate Test Dekk A\\\"  = Dekk  /   (in catalogue  \\\"AutoDeler\\\");  \\\"catalogue:catalogue-1785741584197\\\"  = directly in catalogue  \\\"AutoDeler  /  \\\", no category;  \\\"category:category-1785741602245\\\"  = Dekk  /   (in catalogue  \\\"AutoDeler\\\");  \\\"category:category-1785741609965\\\"  = Bremser  /   (in catalogue  \\\"AutoDeler\\\");  \\\"category:category-1785741631755\\\"  = Motorolje  /   (in catalogue  \\"
+      ],
+      "screenshot": "019-B-5a.png"
+    },
+    {
+      "id": "B.5b",
+      "title": "Draft-quality gate — Prøv igjen (composer restore)",
+      "phase": "B",
+      "status": "PASS",
+      "notes": "Attempt 1 reachedState=true. gate=true. After \"Prøv igjen\": composer=\"Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr\" (expect exact match to \"Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr\"), focused=true, gate dismissed=true.",
+      "evidence": {
+        "gate": true,
+        "restoredText": "Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr",
+        "expectedText": "Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr",
+        "focused": true,
+        "gateGone": true
+      },
+      "trace": [
+        "classify_message\n1291 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1598 inn / 30 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Gate Test Dekk B\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 111 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Gate Test Dekk B\",\"description\":\"500 kr\",\"priceMode\":\"inherit\",\"flatPrice\":500,\"takeawayPrice\":500,\"eatInPrice\":500,\"available\":true}]}"
+      ],
+      "screenshot": "020-B-5b.png"
+    },
+    {
+      "id": "B.5c",
+      "title": "Draft-quality gate — Avbryt (discard)",
+      "phase": "B",
+      "status": "PASS",
+      "notes": "Attempt 1 reachedState=true. gate=true. After \"Avbryt\": composer=\"\" (expect empty), gate dismissed=true.",
+      "evidence": {
+        "gate": true,
+        "composerAfter": "",
+        "gateGone": true
+      },
+      "trace": [
+        "classify_message\n1291 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk C, ca 500 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1598 inn / 30 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk C, ca 500 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Gate Test Dekk C\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 170 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n6s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk C, ca 500 kr\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Gate Test Dekk C\",\"description\":\"\\\"inherit\\\"  = use the category default description,  \\\"500 kr\\\"  = the product's price,  \\\"directly in catalogue  \\\"  = the product's catalogue entry,  \\\"\\\"  = no catalogue entry\",\"priceMode\":\"inherit\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}]}"
+      ],
+      "screenshot": "021-B-5c.png"
+    },
+    {
+      "id": "B.6 (Confirm path)",
+      "title": "Confirm a staged draft through the gate",
+      "phase": "B",
+      "status": "PASS",
+      "notes": "Attempt 1 reachedState=true. confirmOk=true.",
+      "evidence": {
+        "confirmOk": true
+      },
+      "trace": [
+        "classify_message\n1291 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Confirm Dekk, ca 500 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1598 inn / 30 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Confirm Dekk, ca 500 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Gate Confirm Dekk\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 111 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Confirm Dekk, ca 500 kr\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Gate Confirm Dekk\",\"description\":\"500 kr\",\"priceMode\":\"inherit\",\"flatPrice\":500,\"takeawayPrice\":500,\"eatInPrice\":500,\"available\":true}]}"
+      ],
+      "screenshot": "022-B-6-confirm.png"
+    },
+    {
+      "id": "B.6 (Edit path)",
+      "title": "Edit a staged draft through the gate",
+      "phase": "B",
+      "status": "PASS",
+      "notes": "Attempt 1 reachedState=true. editFormOpened=true.",
+      "evidence": {
+        "editFormOpened": true
+      },
+      "trace": [
+        "classify_message\n1291 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Edit Dekk, ca 500 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1598 inn / 30 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Edit Dekk, ca 500 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Gate Edit Dekk\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 111 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Edit Dekk, ca 500 kr\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Gate Edit Dekk\",\"description\":\"500 kr\",\"priceMode\":\"inherit\",\"flatPrice\":500,\"takeawayPrice\":500,\"eatInPrice\":500,\"available\":true}]}"
+      ],
+      "screenshot": "023-B-6-edit.png"
+    },
+    {
+      "id": "B.7",
+      "title": "Price/discount display fix (invalid discount stripped)",
+      "phase": "B",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". Review text discount line: \"(not found)\" — must show unset (\"Fill this in\"), never a fabricated percentage. confirmed=true.",
+      "evidence": {
+        "reply": "",
+        "reviewText": "Navn\nBrembo Sportbrems\nBeskrivelse\nBrembo Sportbrems\nPris\n2400 kr\nTilgjengelig på menyen\nJa\nUtsolgt\nNei\nFølg lagerbeholdning\nNei\nAvbryt\nRediger\nBekreft"
+      },
+      "trace": [
+        "classify_message\n1299 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til et bremsesett som heter Brembo Sportbrems for 2400 kr med 20% rabatt\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1606 inn / 32 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til et bremsesett som heter Brembo Sportbrems for 2400 kr med 20% rabatt\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Brembo Sportbrems\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 117 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n8s\n{\"userText\":\"Legg til et bremsesett som heter Brembo Sportbrems for 2400 kr med 20% rabatt\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741683097\",\"name\":\"Brembo Sportbrems\",\"description\":\"Brembo Sportbrems\",\"priceMode\":\"flat\",\"flatPrice\":2400,\"takeawayPrice\":2400,\"eatInPrice\":2400,\"available\":true}]}"
+      ],
+      "screenshot": "024-B-7.png"
+    },
+    {
+      "id": "B.8",
+      "title": "Category custom-field fabrication check",
+      "phase": "B",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". Review text: \"Kategorinavn\nVerktøy\nKategoribeskrivelse\nVerktøykategori for mat\nAvbryt\nRediger\nBekreft\" — must show no unrequested custom fields. confirmed=true.",
+      "evidence": {
+        "reply": "",
+        "reviewText": "Kategorinavn\nVerktøy\nKategoribeskrivelse\nVerktøykategori for mat\nAvbryt\nRediger\nBekreft"
+      },
+      "trace": [
+        "classify_message\n1281 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til en ny kategori som heter Verktøy\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1588 inn / 28 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til en ny kategori som heter Verktøy\"}\n{\"entity\":\"category\",\"action\":\"create\",\"searchText\":\"Tools\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_category\n974 inn / 80 ut\nfill_fields_batch_category · marksverdhei/normistral-it:7b\n3s\n{\"userText\":\"Legg til en ny kategori som heter Verktøy\"}\n{\"records\":[{\"catalogueId\":\"food-menu\",\"name\":\"Verktøy\",\"description\":\"Verktøykategori for mat\",\"priceMode\":\"none\",\"flatPrice\":0,\"takeawayPrice\":0,\"eatInPrice\":0}]}"
+      ],
+      "screenshot": "025-B-8.png"
+    },
+    {
+      "id": "B.9",
+      "title": "Update product price via chat",
+      "phase": "B",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". Review text: \"\" — price row should show real old→new values, not \"Fill this in\". confirmed=false. (Target product seeded directly if B.1 hadn't already created it — see notes.)",
+      "evidence": {
+        "reply": "",
+        "reviewText": "",
+        "seededDirectly": true
+      },
+      "trace": [
+        "classify_message\n1289 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Endre prisen på Continental Sommerdekk til 1350 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1596 inn / 31 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Endre prisen på Continental Sommerdekk til 1350 kr\"}\n{\"entity\":\"product\",\"action\":\"update\",\"searchText\":\"Continental Sommerdekk\"}"
+      ],
+      "screenshot": "026-B-9.png"
+    },
+    {
+      "id": "B.10",
+      "title": "Delete product via chat",
+      "phase": "B",
+      "status": "FAIL",
+      "notes": "Reply: \"\". Required confirm phrase read from UI: \"\". deleted=false.",
+      "evidence": {
+        "reply": "",
+        "phrase": "",
+        "deleted": false
+      },
+      "trace": [
+        "classify_message\n1280 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Slett dekket Continental Sommerdekk\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1587 inn / 31 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Slett dekket Continental Sommerdekk\"}\n{\"entity\":\"product\",\"action\":\"delete\",\"searchText\":\"Continental Sommerdekk\"}"
+      ],
+      "screenshot": "028-B-10-after.png"
+    },
+    {
+      "id": "B.11a",
+      "title": "Kebab override — posture Av (full), verify + two trace steps",
+      "phase": "B",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". gate=false (expect false under full posture). Allergener present=false Diettmerker present=false (expect true). trace shows (draft)=true and (verify)=true steps.",
+      "evidence": {
+        "reply": "",
+        "gate": false,
+        "hasAllergens": false,
+        "hasDietary": false,
+        "draftTagged": true,
+        "verifyTagged": true
+      },
+      "trace": [
+        "classify_message\n1291 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til et nytt dekk som heter Full Posture Dekk, ca 500 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1598 inn / 30 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til et nytt dekk som heter Full Posture Dekk, ca 500 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Full Posture Dekk\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n(draft)\n1026 inn / 195 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n11s\n{\"userText\":\"Legg til et nytt dekk som heter Full Posture Dekk, ca 500 kr\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741683097\",\"name\":\"Full Posture Dekk\",\"description\":\"\\\"Full Posture Dekk\\\"  = a product description, in Norwegian.\",\"priceMode\":\"inherit\",\"flatPrice\":500,\"takeawayPrice\":500,\"eatInPrice\":500,\"discountMode\":\"none\",\"discountPercentage\":null,\"discountAmount\":null,\"allergens\":[],\"dietaryTags\":[],\"available\":true,\"trackStock\":true,\"stockQuantity\":null,\"outOfStock\":false}]}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n(verify)\n1026 inn / 195 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n11s\n{\"userText\":\"Legg til et nytt dekk som heter Full Posture Dekk, ca 500 kr\\nHere is what you proposed on the first pass: {\\\"records\\\":[{\\\"location\\\":\\\"catalogue:catalogue-1785741683097\\\",\\\"name\\\":\\\"Full Posture Dekk\\\",\\\"description\\\":\\\"\\\\\\\"Full Posture Dekk\\\\\\\"  = a product description, in Norwegian.\\\",\\\"priceMode\\\":\\\"inherit\\\",\\\"flatPrice\\\":500,\\\"takeawayPrice\\\":500,\\\"eatInPrice\\\":500,\\\"discountMode\\\":\\\"none\\\",\\\"discountPercentage\\\":null,\\\"discountAmount\\\":null,\\\"allergens\\\":[],\\\"dietaryTags\\\":[\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741683097\",\"name\":\"Full Posture Dekk\",\"description\":\"\\\"Full Posture Dekk\\\"   = a product description, in Norwegian.\",\"priceMode\":\"inherit\",\"flatPrice\":500,\"takeawayPrice\":500,\"eatInPrice\":500,\"discountMode\":\"none\",\"discountPercentage\":null,\"discountAmount\":null,\"allergens\":[],\"dietaryTags\":[],\"available\":true,\"trackStock\":true,\"stockQuantity\":null,\"outOfStock\":false}]}"
+      ],
+      "screenshot": "029-B-11a.png"
+    },
+    {
+      "id": "B.11b",
+      "title": "Kebab override — posture back to Automatisk, single untagged step",
+      "phase": "B",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". gate=true (expect true under safe/auto posture, confirming the toggle really reverted). trace (draft) tag=false (verify) tag=false.",
+      "evidence": {
+        "reply": "",
+        "gate": true,
+        "draftTagged": false,
+        "verifyTagged": false
+      },
+      "trace": [
+        "classify_message\n1291 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til et nytt dekk som heter Auto Posture Dekk, ca 500 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1598 inn / 30 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til et nytt dekk som heter Auto Posture Dekk, ca 500 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Auto Posture Dekk\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 118 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n9s\n{\"userText\":\"Legg til et nytt dekk som heter Auto Posture Dekk, ca 500 kr\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Auto Posture Dekk\",\"description\":\"Auto Posture Dekk, ca  500 kr\",\"priceMode\":\"inherit\",\"flatPrice\":500,\"takeawayPrice\":500,\"eatInPrice\":500,\"available\":true}]}"
+      ],
+      "screenshot": "030-B-11b.png"
+    },
+    {
+      "id": "B.12",
+      "title": "Manual product creation unaffected (no AI chrome)",
+      "phase": "B",
+      "status": "PASS",
+      "notes": "Manually created \"Manuell Test Dekk\" via ordinary \"+ Legg til produkt\" form. AI-related chrome detected=false (expect false).",
+      "evidence": {
+        "hasAiChrome": false
+      },
+      "screenshot": "031-B-12.png"
+    },
+    {
+      "id": "C.1a",
+      "title": "Batch phrasing gap — natural non-imperative phrasing",
+      "phase": "C",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". batchShown=false — known gap: likely misclassified as lookup, not itself a Phase 1-3 regression.",
+      "evidence": {
+        "reply": "",
+        "batch": false
+      },
+      "trace": [
+        "classify_message\n1289 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Dekk til 1200 kr med sommer, vinter og pigg\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1596 inn / 27 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Dekk til 1200 kr med sommer, vinter og pigg\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"dekk\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 143 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n10s\n{\"userText\":\"Dekk til 1200 kr med sommer, vinter og pigg\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"catalogue:catalogue-1785741584197\",\"description\":\"Dekk til  1200 kr med sommer, vinter og pigg\",\"priceMode\":\"inherit\",\"flatPrice\":1200,\"takeawayPrice\":1200,\"eatInPrice\":1200,\"available\":true}]}"
+      ],
+      "screenshot": "032-C-1a.png"
+    },
+    {
+      "id": "C.1b",
+      "title": "Batch create — explicit imperative, dual pricing, no fabricated fields",
+      "phase": "C",
+      "status": "FAIL",
+      "notes": "Attempt 1 reachedState=false. Attempt 2 reachedState=false. batch=false cardCount=0 (expect 3). Summaries: []. confirmedNames=[].",
+      "evidence": {
+        "batch": false,
+        "count": 0,
+        "summaries": []
+      },
+      "trace": [
+        "classify_message\n1300 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til tre nye dekk til 1200/1300 kr: sommerdekk, vinterdekk og piggdekk\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1607 inn / 29 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til tre nye dekk til 1200/1300 kr: sommerdekk, vinterdekk og piggdekk\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"vinterdekk\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 336 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n13s\n{\"userText\":\"Legg til tre nye dekk til 1200/1300 kr: sommerdekk, vinterdekk og piggdekk\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"1200/1300 kr\",\"description\":\"Sommerdekk\",\"priceMode\":\"inherit\",\"flatPrice\":1200,\"takeawayPrice\":1200,\"eatInPrice\":1200,\"available\":true},{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"1200/1300 kr\",\"description\":\"Vinterdekk\",\"priceMode\":\"inherit\",\"flatPrice\":1300,\"takeawayPrice\":1300,\"eatInPrice\":1300,\"available\":true},{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"1200/1300 kr\",\"description\":\"Spikes\",\"priceMod"
+      ],
+      "screenshot": "033-C-1b.png"
+    },
+    {
+      "id": "C.2",
+      "title": "Shared clarification across batch cards (fillFieldsBatch)",
+      "phase": "C",
+      "status": "PARTIAL",
+      "notes": "Attempt 1 reachedState=false. Attempt 2 reachedState=false. clarifying=false options=[] resolved=false confirmedNames=[] — note whether options offered are catalogues (expected) or a store-wide category list (the source report's own documented bug).",
+      "evidence": {
+        "clarifying": false,
+        "options": [],
+        "resolved": false
+      },
+      "trace": [
+        "classify_message\n1286 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til to nye kategorier: Skinnhotell og Feltlager\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1593 inn / 29 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til to nye kategorier: Skinnhotell og Feltlager\"}\n{\"entity\":\"category\",\"action\":\"create\",\"searchText\":\"Skinnhotell\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_category\n979 inn / 195 ut\nfill_fields_batch_category · marksverdhei/normistral-it:7b\n8s\n{\"userText\":\"Legg til to nye kategorier: Skinnhotell og Feltlager\"}\n{\"records\":[{\"catalogueId\":\"food-menu\",\"name\":\"Skinnhotell\",\"description\":\"Et hotell for skinn, med ulike rom for ulike typer skinn.\",\"priceMode\":\"flat\",\"flatPrice\":100,\"takeawayPrice\":110,\"eatInPrice\":120},{\"catalogueId\":\"catalogue-1785741584197\",\"name\":\"Feltlager\",\"description\":\"Et lager for felt, med ulike lagerrom for ulike typer felt.\",\"priceMode\":\"flat\",\"flatPrice\":50,\"takeawayPrice\":60,\"eatInPrice\":70}]}"
+      ],
+      "screenshot": "034-C-2.png"
+    },
+    {
+      "id": "C.3",
+      "title": "Per-card actions (confirm/edit/remove independence)",
+      "phase": "C",
+      "status": "FAIL",
+      "notes": "Attempt 1 reachedState=false. Attempt 2 reachedState=false. batch=false count=0. confirmOk=false editOk=false removeOk=false.",
+      "evidence": {
+        "batch": false,
+        "count": 0,
+        "confirmOk": false,
+        "editOk": false,
+        "removeOk": false
+      },
+      "trace": [
+        "classify_message\n1308 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til tre nye batterier: Card Test A for 500 kr, Card Test B for 600 kr, Card Test C for 700 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1615 inn / 29 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til tre nye batterier: Card Test A for 500 kr, Card Test B for 600 kr, Card Test C for 700 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Card Test A\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 300 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n12s\n{\"userText\":\"Legg til tre nye batterier: Card Test A for 500 kr, Card Test B for 600 kr, Card Test C for 700 kr\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Card Test A\",\"description\":\"\",\"priceMode\":\"inherit\",\"flatPrice\":500,\"takeawayPrice\":500,\"eatInPrice\":500,\"available\":true},{\"location\":\"catalogue:catalogue-1785741683097\",\"name\":\"Card Test B\",\"description\":\"\",\"priceMode\":\"inherit\",\"flatPrice\":600,\"takeawayPrice\":600,\"eatInPrice\":600,\"available\":true},{\"location\":\"catalogue:catalogue-1785741683097\",\"name\":\"Card Test C\",\"description\":\"\",\"priceMode\":\"inherit\",\"flatPrice\":700,\"takea"
+      ],
+      "screenshot": "035-C-3.png"
+    },
+    {
+      "id": "C.4",
+      "title": "Invalid discount blocks Confirm all only",
+      "phase": "C",
+      "status": "FAIL",
+      "notes": "Attempt 1 reachedState=false. Attempt 2 reachedState=false. batch=false. Confirm all disabled=false hint=\"null\". Bosch card shows fabricated discount=false (must be false). Summaries: [].",
+      "evidence": {
+        "batch": false,
+        "disabled": false,
+        "hint": null,
+        "boschHasDiscount": false,
+        "summaries": []
+      },
+      "trace": [
+        "classify_message\n1312 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til to nye batterier: Bosch 60Ah for 900 kr, og Varta 70Ah for 1100 kr med 150% rabatt\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1619 inn / 33 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til to nye batterier: Bosch 60Ah for 900 kr, og Varta 70Ah for 1100 kr med 150% rabatt\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Bosch 60Ah\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 219 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n8s\n{\"userText\":\"Legg til to nye batterier: Bosch 60Ah for 900 kr, og Varta 70Ah for 1100 kr med 150% rabatt\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Bosch 60Ah\",\"description\":\"Bosch 60Ah\",\"priceMode\":\"inherit\",\"flatPrice\":900,\"takeawayPrice\":900,\"eatInPrice\":900,\"available\":true},{\"location\":\"catalogue:catalogue-1785741683097\",\"name\":\"Varta 70Ah\",\"description\":\"Varta 70Ah\",\"priceMode\":\"dual\",\"flatPrice\":1100,\"takeawayPrice\":650,\"eatInPrice\":750,\"available\":true}]}"
+      ],
+      "screenshot": "036-C-4.png"
+    },
+    {
+      "id": "C.5",
+      "title": "Confirm all on a clean batch",
+      "phase": "C",
+      "status": "FAIL",
+      "notes": "Attempt 1 reachedState=false. Attempt 2 reachedState=false. batch=false summaries=[] confirmed=false.",
+      "evidence": {
+        "batch": false,
+        "summaries": []
+      },
+      "trace": [
+        "classify_message\n1304 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n3s\n{\"userText\":\"Legg til to nye lydanlegg: Pioneer Høyttaler for 800 kr og Sony Forsterker for 950 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1611 inn / 33 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til to nye lydanlegg: Pioneer Høyttaler for 800 kr og Sony Forsterker for 950 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Pioneer Speaker\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 221 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n8s\n{\"userText\":\"Legg til to nye lydanlegg: Pioneer Høyttaler for 800 kr og Sony Forsterker for 950 kr\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Pioneer Høyttaler\",\"description\":\"Pioneer Høyttaler\",\"priceMode\":\"inherit\",\"flatPrice\":800,\"takeawayPrice\":800,\"eatInPrice\":800,\"available\":true},{\"location\":\"catalogue:catalogue-1785741683097\",\"name\":\"Sony Forsterker\",\"description\":\"Sony Forsterker\",\"priceMode\":\"inherit\",\"flatPrice\":950,\"takeawayPrice\":950,\"eatInPrice\":950,\"available\":true}]}"
+      ],
+      "screenshot": "037-C-5.png"
+    },
+    {
+      "id": "C.6",
+      "title": "Cancel all — nothing created",
+      "phase": "C",
+      "status": "PASS",
+      "notes": "Attempt 1 reachedState=false. Attempt 2 reachedState=false. batch=false cancelledSuccessfully=false. No products should exist either way.",
+      "evidence": {
+        "batch": false,
+        "cancelled": false
+      },
+      "trace": [
+        "classify_message\n1312 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til tre nye interiørprodukter: Cancel Test A for 100 kr, Cancel Test B for 120 kr, Cancel Test C for 140 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1619 inn / 30 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til tre nye interiørprodukter: Cancel Test A for 100 kr, Cancel Test B for 120 kr, Cancel Test C for 140 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Cancel Test A\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 331 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n12s\n{\"userText\":\"Legg til tre nye interiørprodukter: Cancel Test A for 100 kr, Cancel Test B for 120 kr, Cancel Test C for 140 kr\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Cancel Test A\",\"description\":\"This is a description of Cancel Test A.\",\"priceMode\":\"inherit\",\"flatPrice\":100,\"takeawayPrice\":100,\"eatInPrice\":100,\"available\":true},{\"location\":\"catalogue:catalogue-1785741683097\",\"name\":\"Cancel Test B\",\"description\":\"This is a description of Cancel Test B.\",\"priceMode\":\"flat\",\"flatPrice\":120,\"takeawayPrice\":120,\"eatInPrice\":120,\"available\":true},{\"location\":\"catalogue:catalogue-1785741683097\",\"na"
+      ],
+      "screenshot": "038-C-6.png"
+    },
+    {
+      "id": "C.7",
+      "title": "Cross-record contamination check (events batch)",
+      "phase": "C",
+      "status": "N/A",
+      "notes": "Attempt 1 reachedState=false. Attempt 2 reachedState=false. batch=false summaries=[] — check each card's own date/address/category stayed isolated (no bleed) via screenshot. confirmed=false.",
+      "evidence": {
+        "batch": false,
+        "summaries": []
+      },
+      "trace": [
+        "classify_message\n1332 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til to nye arrangementer: Sommertreff 10.06.2026 kl 12-16 adresse Torget 1, og Vintertreff 15.12.2026 kl 12-16 adresse Torget 2\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1639 inn / 29 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til to nye arrangementer: Sommertreff 10.06.2026 kl 12-16 adresse Torget 1, og Vintertreff 15.12.2026 kl 12-16 adresse Torget 2\"}\n{\"entity\":\"event\",\"action\":\"create\",\"searchText\":\"Sommertreff\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_event\n1373 inn / 367 ut\nfill_fields_batch_event · marksverdhei/normistral-it:7b\n14s\n{\"userText\":\"Legg til to nye arrangementer: Sommertreff 10.06.2026 kl 12-16 adresse Torget 1, og Vintertreff 15.12.2026 kl 12-16 adresse Torget 2\"}\n{\"records\":[{\"title\":\"Sommertreff\",\"description\":\"Sommertreff\",\"date\":\"2026-06-10\",\"time\":\"12:00-16:00\",\"endTime\":\"2026-06-10T12:00:00+02:00\",\"locationAddress\":\"Torget 1\",\"capacity\":200,\"price\":100,\"repeatsWeekly\":false,\"dayOfWeek\":0,\"status\":\"scheduled\",\"postponedNewDate\":null,\"postponedNewTime\":null,\"postponedNewEndTime\":null},{\"title\":\"Vintertreff\",\"description\":\"Vintertreff\",\"date\":\"2026-12-15\",\"time\":\"12:00-16:00\",\"endTime\":\"2026-12-15T12:00:00+01:00\",\"locationAddress\":\"Torget 2\",\"capacity\""
+      ],
+      "screenshot": "039-C-7.png"
+    },
+    {
+      "id": "C.8",
+      "title": "No false batch UI for single-record message",
+      "phase": "C",
+      "status": "PASS",
+      "notes": "Reply: \"\". batchShown=false (must be false). gate=true.",
+      "evidence": {
+        "reply": "",
+        "batch": false,
+        "gate": true
+      },
+      "trace": [
+        "classify_message\n1290 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n3s\n{\"userText\":\"Legg til et nytt dekk som heter Test Solo Dekk for 999 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1597 inn / 30 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til et nytt dekk som heter Test Solo Dekk for 999 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Test Solo Dekk\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 113 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n8s\n{\"userText\":\"Legg til et nytt dekk som heter Test Solo Dekk for 999 kr\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Test Solo Dekk\",\"description\":\"Dette er en testbeskrivelse.\",\"priceMode\":\"inherit\",\"flatPrice\":999,\"takeawayPrice\":999,\"eatInPrice\":999,\"available\":true}]}"
+      ],
+      "screenshot": "040-C-8.png"
+    },
+    {
+      "id": "C.9a",
+      "title": "Draft-quality gate, batch (3 records)",
+      "phase": "C",
+      "status": "CAPTURED",
+      "notes": "Attempt 1 reachedState=true. gate=true. Gate text: \"Gate Batch A · AutoDeler\nGate Batch B · AutoDeler\nGate Batch C · AutoDeler\n\n9 felt trenger gjennomgang\n\nSe detaljer\nPrøv igjen\nAvbryt\" — expect 3 per-record summary lines.",
+      "evidence": {
+        "gate": true,
+        "gateText": "Gate Batch A · AutoDeler\nGate Batch B · AutoDeler\nGate Batch C · AutoDeler\n\n9 felt trenger gjennomgang\n\nSe detaljer\nPrøv igjen\nAvbryt"
+      },
+      "trace": [
+        "classify_message\n1303 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Legg til tre nye motoroljer: Gate Batch A, Gate Batch B og Gate Batch C, alle for 150 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1610 inn / 30 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til tre nye motoroljer: Gate Batch A, Gate Batch B og Gate Batch C, alle for 150 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Gate Batch A\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 303 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n15s\n{\"userText\":\"Legg til tre nye motoroljer: Gate Batch A, Gate Batch B og Gate Batch C, alle for 150 kr\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Gate Batch A\",\"description\":\"\",\"priceMode\":\"inherit\",\"flatPrice\":150,\"takeawayPrice\":150,\"eatInPrice\":150,\"available\":true},{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Gate Batch B\",\"description\":\"\",\"priceMode\":\"inherit\",\"flatPrice\":150,\"takeawayPrice\":150,\"eatInPrice\":150,\"available\":true},{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Gate Batch C\",\"description\":\"\",\"priceMode\":\"inherit\",\"flatPrice\":150,\"ta"
+      ],
+      "screenshot": "041-C-9a.png"
+    },
+    {
+      "id": "C.9b",
+      "title": "Draft-quality gate, batch overflow (6+ records)",
+      "phase": "C",
+      "status": "PASS",
+      "notes": "Attempt 1 reachedState=true. gate=true. Gate text: \"Dekk Seks A · AutoDeler\nDekk Seks B\nDekk Seks C\nDekk Seks D\nDekk Seks E\n…og 1 til\n\n13 felt trenger gjennomgang\n\nSe detaljer\nPrøv igjen\nAvbryt\". Overflow line found: \"…og 1 til\" (expect up to 5 lines + \"…og N til\"). No C.8 leftover-draft contamination expected — fresh session.",
+      "evidence": {
+        "gate": true,
+        "gateText": "Dekk Seks A · AutoDeler\nDekk Seks B\nDekk Seks C\nDekk Seks D\nDekk Seks E\n…og 1 til\n\n13 felt trenger gjennomgang\n\nSe detaljer\nPrøv igjen\nAvbryt",
+        "overflowLine": "…og 1 til"
+      },
+      "trace": [
+        "classify_message\n1338 inn / 11 ut\nclassify_message · marksverdhei/normistral-it:7b\n3s\n{\"userText\":\"Legg til seks nye dekk: Dekk Seks A for 100 kr, Dekk Seks B for 110 kr, Dekk Seks C for 120 kr, Dekk Seks D for 130 kr, Dekk Seks E for 140 kr, Dekk Seks F for 150 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1645 inn / 31 ut\nselect_command · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"Legg til seks nye dekk: Dekk Seks A for 100 kr, Dekk Seks B for 110 kr, Dekk Seks C for 120 kr, Dekk Seks D for 130 kr, Dekk Seks E for 140 kr, Dekk Seks F for 150 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Dekk Seks A\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1026 inn / 657 ut\nfill_fields_batch_product · marksverdhei/normistral-it:7b\n28s\n{\"userText\":\"Legg til seks nye dekk: Dekk Seks A for 100 kr, Dekk Seks B for 110 kr, Dekk Seks C for 120 kr, Dekk Seks D for 130 kr, Dekk Seks E for 140 kr, Dekk Seks F for 150 kr\"}\n{\"records\":[{\"location\":\"catalogue:catalogue-1785741584197\",\"name\":\"Dekk Seks A\",\"description\":\"Dekk Seks A for  100 kr\",\"priceMode\":\"inherit\",\"flatPrice\":100,\"takeawayPrice\":100,\"eatInPrice\":100,\"available\":true},{\"location\":\"catalogue:catalogue-1785741683097\",\"name\":\"Dekk Seks B\",\"description\":\"Dekk Seks B for  110 kr\",\"priceMode\":\"inherit\",\"flatPrice\":110,\"takeawayPrice\":110,\"eatInPrice\":110,\"available\":true},{\"location\":\"catalogue:catalogue-1785741683097\",\"name\":\"Dekk Seks C\",\"description\":\""
+      ],
+      "screenshot": "042-C-9b.png"
+    },
+    {
+      "id": "Diagnostic",
+      "title": "A.1-A.6 re-run in ONE continuous session (long-session degradation check)",
+      "phase": "Diagnostic",
+      "status": "CAPTURED",
+      "notes": "Same session, back-to-back: Q1=\"Vi har 0 produkter.\" Q2=\"Vi har 115 produkter.\" Q3=\"Her er 115 produkter:\" Q4=\"The operation was aborted due to timeout\" Q5=\"Her er 115 produkter:\nDet er for øyeblikket ingen produkter som er på salg.\" Q6=\"Vi har 115 produkter. Det er for øyeblikket ingen produkter som er på salg.\". Compare against this same model's own fresh-session A.1-A.6 results above to see whether accuracy degrades purely from turn count. This does NOT affect any scenario's grading.",
+      "evidence": {
+        "q1": "Vi har 0 produkter.",
+        "q2": "Vi har 115 produkter.",
+        "q3": "Her er 115 produkter:",
+        "q4": "The operation was aborted due to timeout",
+        "q5": "Her er 115 produkter:\nDet er for øyeblikket ingen produkter som er på salg.",
+        "q6": "Vi har 115 produkter. Det er for øyeblikket ingen produkter som er på salg."
+      },
+      "trace": [
+        "classify_message\n1279 inn / 12 ut\nclassify_message · marksverdhei/normistral-it:7b\n5s\n{\"userText\":\"Hvor mange produkter har vi?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n2010 inn / 41 ut\nlookup_query · marksverdhei/normistral-it:7b\n9s\n{\"userText\":\"Hvor mange produkter har vi?\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1026 inn / 41 ut\nlookup_query · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Hvor mange produkter har vi?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"\"}],\"reportField\":null}",
+        "classify_message\n1323 inn / 12 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Hvor mange produkter er på tilbud?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n2012 inn / 44 ut\nlookup_query · marksverdhei/normistral-it:7b\n9s\n{\"userText\":\"Hvor mange produkter er på tilbud?\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"contains\",\"value\":\"discounted\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1026 inn / 44 ut\nlookup_query · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Hvor mange produkter er på tilbud?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"contains\\\",\\\"value\\\":\\\"discounted\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"contains\",\"value\":\"discounted\"}],\"reportField\":null}",
+        "classify_message\n1324 inn / 12 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Hvilke produkter er på tilbud?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n2010 inn / 44 ut\nlookup_query · marksverdhei/normistral-it:7b\n9s\n{\"userText\":\"Hvilke produkter er på tilbud?\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"contains\",\"value\":\"Wraps\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1026 inn / 44 ut\nlookup_query · marksverdhei/normistral-it:7b\n5s\n{\"userText\":\"Hvilke produkter er på tilbud?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"contains\\\",\\\"value\\\":\\\"Wraps\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"contains\",\"value\":\"Wraps\"}],\"reportField\":null}",
+        "classify_message\n1324 inn / 12 ut\n",
+        "\n",
+        "\n",
+        "Oppsummerer nylig samtale\n2028 inn / 32 ut\ncompact_history · marksverdhei/normistral-it:7b\n9s\n{\"userText\":\"Admin: Hvor mange produkter har vi?\\nAssistant: Vi har 0 produkter.\\nAdmin: Hvor mange produkter er på tilbud?\\nAssistant: Vi har 115 produkter.\\nAdmin: Hvilke produkter er på tilbud?\\nAssistant: Her er 115 produkter:\\n- Kylling (Wraps)\\n- Tunfisk (Wraps)\\n- Vegetar (Wraps)\\n- Kylling Fajitas (Wraps)\\n- Kylling Feta (Wraps)\\n- Kylling Tzatziki (Wraps)\\n- Kylling Tandoori (Wraps)\\n- Kylling Curry (Wraps)\\n- Kylling Aioli (Wraps)\\n- Pulled Pork (Wraps)\\n- Chipotle Biff (Wraps)\\n- Mexi\n{\"summary\":\"The admin asked for a list of all products, but the operation was aborted due to a timeout.\"}",
+        "lookup_query\n(draft)\n2012 inn / 44 ut\nlookup_query · marksverdhei/normistral-it:7b\n10s\n{\"userText\":\"Gi meg en liste over alle produkter\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps\"}],\"reportField\":null}",
+        "lookup_query\n(draft)\n2012 inn / 344 ut\nlookup_query · marksverdhei/normistral-it:7b\n30s\n{\"userText\":\"vis meg hvem som er på tilbud\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps & Coffee\"},{\"field\":\"available\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"outOfStock\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"trackStock\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"locationLabel\",\"op\":\"is\",\"value\":\"Wraps\"},{\"field\":\"price\",\"op\":\"lessThan\",\"value\":\"10.0\"},{\"field\":\"originalPrice\",\"op\":\"greaterThan\",\"value\":\"10.0\"},{\"field\":\"stockQuantity\",\"op\":\"greaterThan\",\"value\":\"10\"},{\"field\":\"allergens\",\"",
+        "lookup_query\n(verify)\n1026 inn / 44 ut\nlookup_query · marksverdhei/normistral-it:7b\n23s\n{\"userText\":\"Gi meg en liste over alle produkter\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"Wraps\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1026 inn / 345 ut\nlookup_query · marksverdhei/normistral-it:7b\n15s\n{\"userText\":\"vis meg hvem som er på tilbud\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"Wraps & Coffee\\\"},{\\\"field\\\":\\\"available\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"},{\\\"field\\\":\\\"hasDiscount\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"false\\\"},{\\\"field\\\":\\\"outOfStock\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"false\\\"},{\\\"field\\\":\\\"trackStock\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"false\\\"},{\\\"field\\\":\\\"locationLabel\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"Wraps\\\"},{\\\"field\\\":\\\"price\\\",\\\"op\\\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps  & Coffee\"},{\"field\":\"available\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"outOfStock\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"trackStock\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"locationLabel\",\"op\":\"is\",\"value\":\"Wraps\"},{\"field\":\"price\",\"op\":\"lessThan\",\"value\":\"10.0\"},{\"field\":\"originalPrice\",\"op\":\"greaterThan\",\"value\":\"10.0\"},{\"field\":\"stockQuantity\",\"op\":\"greaterThan\",\"value\":\"10\"},{\"field\":\"allergens\",",
+        "Setter sammen svaret\n(draft)\n1439 inn / 21 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n3s\n{\"userText\":\"vis meg hvem som er på tilbud\"}\n{\"reply\":\"Det er for øyeblikket ingen produkter som er på salg.\"}",
+        "Setter sammen svaret\n(verify)\n1545 inn / 21 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n1s\n{\"userText\":\"vis meg hvem som er på tilbud\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"Det er for øyeblikket ingen produkter som er på salg.\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"reply\":\"Det er for øyeblikket ingen produkter som er på salg.\"}",
+        "Oppsummerer nylig samtale\n1026 inn / 14 ut\ncompact_history · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"2 (Lydanlegg)\\n- Lydanlegg Del 3 (Lydanlegg)\\n- Interiør Del 1 (Interiør)\\n- Interiør Del 2 (Interiør)\\n- Interiør Del 3 (Interiør)\\n- Interiør Del 4 (Interiør)\\n- Interiør Del 5 (Interiør)\\n- Interiør Del 6 (Interiør)\\n- Interiør Del 7 (Interiør)\\n- Interiør Del 8 (Interiør)\\n- Interiør Del 9 (Interiør)\\n- Interiør Del 10 (Interiør)\\n- Frontlys (Interiør)\\n- LED Headlight Bulb H7 (Interiør)\\n- LED Interior Strip (Interiør)\\n- Tilbehør Del 1 (Tilbehør)\\n- Frontlys (Tilbehør)\\n- LED \n{\"summary\":\"\"}",
+        "classify_message\n1329 inn / 12 ut\nclassify_message · marksverdhei/normistral-it:7b\n2s\n{\"userText\":\"Hvor mange produkter har vi og hvem er på tilbud?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n2009 inn / 344 ut\nlookup_query · marksverdhei/normistral-it:7b\n20s\n{\"userText\":\"hvem er på tilbud?\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps & Coffee\"},{\"field\":\"available\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"outOfStock\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"trackStock\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"locationLabel\",\"op\":\"is\",\"value\":\"Wraps\"},{\"field\":\"price\",\"op\":\"lessThan\",\"value\":\"10.0\"},{\"field\":\"originalPrice\",\"op\":\"greaterThan\",\"value\":\"10.0\"},{\"field\":\"stockQuantity\",\"op\":\"greaterThan\",\"value\":\"10\"},{\"field\":\"allergens\",\"o",
+        "lookup_query\n(draft)\n2008 inn / 47 ut\nlookup_query · marksverdhei/normistral-it:7b\n30s\n{\"userText\":\"Hvor mange produkter har vi\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps & Coffee\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1026 inn / 345 ut\nlookup_query · marksverdhei/normistral-it:7b\n23s\n{\"userText\":\"hvem er på tilbud?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"Wraps & Coffee\\\"},{\\\"field\\\":\\\"available\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"},{\\\"field\\\":\\\"hasDiscount\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"false\\\"},{\\\"field\\\":\\\"outOfStock\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"false\\\"},{\\\"field\\\":\\\"trackStock\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"},{\\\"field\\\":\\\"locationLabel\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"Wraps\\\"},{\\\"field\\\":\\\"price\\\",\\\"op\\\":\\\"lessThan\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps  & Coffee\"},{\"field\":\"available\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"outOfStock\",\"op\":\"is\",\"value\":\"false\"},{\"field\":\"trackStock\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"locationLabel\",\"op\":\"is\",\"value\":\"Wraps\"},{\"field\":\"price\",\"op\":\"lessThan\",\"value\":\"10.0\"},{\"field\":\"originalPrice\",\"op\":\"greaterThan\",\"value\":\"10.0\"},{\"field\":\"stockQuantity\",\"op\":\"greaterThan\",\"value\":\"10\"},{\"field\":\"allergens\",\"",
+        "lookup_query\n(verify)\n1026 inn / 48 ut\nlookup_query · marksverdhei/normistral-it:7b\n15s\n{\"userText\":\"Hvor mange produkter har vi\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"Wraps & Coffee\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"is\",\"value\":\"Wraps  & Coffee\"}],\"reportField\":null}",
+        "Setter sammen svaret\n(draft)\n1437 inn / 21 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n4s\n{\"userText\":\"hvem er på tilbud?\"}\n{\"reply\":\"Det er for øyeblikket ingen produkter som er på salg.\"}",
+        "Setter sammen svaret\n(verify)\n1543 inn / 21 ut\nanswer_lookup · marksverdhei/normistral-it:7b\n1s\n{\"userText\":\"hvem er på tilbud?\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"Det er for øyeblikket ingen produkter som er på salg.\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"reply\":\"Det er for øyeblikket ingen produkter som er på salg.\"}"
+      ],
+      "screenshot": "043-Diagnostic-A1-A6.png"
+    }
+  ],
+  "created": [
+    {
+      "type": "catalogue",
+      "name": "AutoDeler"
+    },
+    {
+      "type": "category",
+      "name": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 1",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 2",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 3",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 4",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 5",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 6",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 7",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 8",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Michelin Vinterdekk 205/55R16",
+      "note": "Dekk"
+    },
+    {
+      "type": "category",
+      "name": "Bremser"
+    },
+    {
+      "type": "product",
+      "name": "Bremser Del 1",
+      "note": "Bremser"
+    },
+    {
+      "type": "product",
+      "name": "Bremser Del 2",
+      "note": "Bremser"
+    },
+    {
+      "type": "product",
+      "name": "Bremser Del 3",
+      "note": "Bremser"
+    },
+    {
+      "type": "product",
+      "name": "Bremser Del 4",
+      "note": "Bremser"
+    },
+    {
+      "type": "category",
+      "name": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 1",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 2",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 3",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 4",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 5",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 6",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 7",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 8",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 9",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 10",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 11",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 12",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 13",
+      "note": "Motorolje"
+    },
+    {
+      "type": "category",
+      "name": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 1",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 2",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 3",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 4",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 5",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 6",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 7",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 8",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 9",
+      "note": "Batterier"
+    },
+    {
+      "type": "category",
+      "name": "Lydanlegg"
+    },
+    {
+      "type": "product",
+      "name": "Lydanlegg Del 1",
+      "note": "Lydanlegg"
+    },
+    {
+      "type": "product",
+      "name": "Lydanlegg Del 2",
+      "note": "Lydanlegg"
+    },
+    {
+      "type": "product",
+      "name": "Lydanlegg Del 3",
+      "note": "Lydanlegg"
+    },
+    {
+      "type": "category",
+      "name": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 1",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 2",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 3",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 4",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 5",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 6",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 7",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 8",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 9",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 10",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Frontlys",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "LED Headlight Bulb H7",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "LED Interior Strip",
+      "note": "Interiør"
+    },
+    {
+      "type": "category",
+      "name": "Tilbehør"
+    },
+    {
+      "type": "product",
+      "name": "Tilbehør Del 1",
+      "note": "Tilbehør"
+    },
+    {
+      "type": "product",
+      "name": "Frontlys",
+      "note": "Tilbehør"
+    },
+    {
+      "type": "product",
+      "name": "LED Fog Light",
+      "note": "Tilbehør"
+    },
+    {
+      "type": "event",
+      "name": "Bilutstilling på tunet"
+    },
+    {
+      "type": "product",
+      "name": "Continental Sommerdekk",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Gate Confirm Dekk",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Gate Edit Dekk",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Brembo Sportbrems",
+      "note": "Bremser"
+    },
+    {
+      "type": "category",
+      "name": "Verktøy",
+      "note": "AutoDeler"
+    },
+    {
+      "type": "product",
+      "name": "Continental Sommerdekk",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Manuell Test Dekk",
+      "note": "Dekk"
+    }
+  ],
+  "updatedAt": "2026-08-03T07:55:06.529Z"
+}

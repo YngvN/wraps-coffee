@@ -9,6 +9,7 @@ import type { MessageBoard, MessageBoardPost } from '../../../types/messageBoard
 import { NEWS_SOURCES } from '../../../types/news'
 import { ALLERGEN_OPTIONS, DIETARY_TAG_ORDER, type AllergenCode, type DietaryTag, type Discount, type Price, type Product } from '../../../types/product'
 import type { StoreSettings } from '../../../types/storeSettings'
+import { resolveBilingualField } from '../../../utils/bilingual'
 import { formatPrice } from '../../../utils/price'
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string
@@ -46,7 +47,7 @@ function pushRow(rows: ReviewChangeRow[], label: string, oldRaw: string | null, 
   rows.push({ label, oldValue: oldRaw.trim() === '' ? EMPTY_VALUE : oldRaw, newValue: newRaw.trim() === '' ? EMPTY_VALUE : newRaw, confidence })
 }
 
-/** Combines the confidence of several underlying schema fields that together produce one displayed row (e.g. a product's price is built from `priceMode` + `flatPrice`/`takeawayPrice`/`eatInPrice`) — worst-of-the-set, so a row showing any unknown/inferred contributor never reads as fully verbatim. `undefined` (no styling) when `fieldConfidence` itself wasn't passed, or none of the given keys are in it. */
+/** Combines the confidence of several underlying schema fields that together produce one displayed row (e.g. a product's price is built from `priceMode` + `flatPrice`/`takeawayPrice`/`eatInPrice`) — worst-of-the-set, so a row showing any unknown/inferred contributor never reads as fully verbatim. `undefined` (no styling) when `fieldConfidence` itself wasn't passed, or none of the given keys are in it. Callers must only pass keys that are actually active for the mode in play (see `priceConfidenceKeys`/`discountConfidenceKeys`) — an unused sibling field (e.g. `takeawayPrice` in flat-price mode) is legitimately null/`'unknown'` and must never be included, or it drags an otherwise-solid row down to "Fill this in". */
 function worstConfidence(fieldConfidence: Record<string, FieldConfidence> | undefined, ...keys: string[]): FieldConfidence | undefined {
   if (!fieldConfidence) return undefined
   const values = keys.map((key) => fieldConfidence[key]).filter((value): value is FieldConfidence => value !== undefined)
@@ -56,8 +57,22 @@ function worstConfidence(fieldConfidence: Record<string, FieldConfidence> | unde
   return 'verbatim'
 }
 
+/** Which of `flatPrice`/`takeawayPrice`/`eatInPrice` is actually relevant, inferred from the proposed price's own shape rather than a separately-tracked mode field — mirrors the same shape-based branching already used in `product.ts`/`category.ts`'s own `mergeDraft` and `ProductForm.tsx`'s field-disabling. */
+function priceConfidenceKeys(price: Price | undefined): string[] {
+  if (typeof price === 'number') return ['flatPrice']
+  if (price !== undefined) return ['takeawayPrice', 'eatInPrice']
+  return []
+}
+
+/** Same idea as `priceConfidenceKeys`, for `discountPercentage`/`discountAmount`. */
+function discountConfidenceKeys(discount: Discount | undefined): string[] {
+  if (discount?.type === 'percentage') return ['discountPercentage']
+  if (discount?.type === 'amount') return ['discountAmount']
+  return []
+}
+
 function bilingual(value: { no: string; en: string } | undefined, language: LanguageCode): string {
-  return value?.[language] ?? ''
+  return resolveBilingualField(value, language)
 }
 
 function formatBoolean(t: Translate, value: boolean | undefined): string {
@@ -84,8 +99,8 @@ function formatDietaryTags(t: Translate, tags: DietaryTag[]): string {
 }
 
 function formatProductLocation(product: Product, categories: Category[], catalogues: Catalogue[], language: LanguageCode): string {
-  if (product.category) return categories.find((category) => category.id === product.category)?.name[language] ?? ''
-  if (product.catalogueId) return catalogues.find((catalogue) => catalogue.id === product.catalogueId)?.name[language] ?? ''
+  if (product.category) return resolveBilingualField(categories.find((category) => category.id === product.category)?.name, language)
+  if (product.catalogueId) return resolveBilingualField(catalogues.find((catalogue) => catalogue.id === product.catalogueId)?.name, language)
   return ''
 }
 
@@ -129,14 +144,14 @@ export function buildProductChangeRows(
     t('admin.products.priceLabel'),
     isCreate ? null : formatPriceValue(t, current.price),
     formatPriceValue(t, draft.price),
-    worstConfidence(fieldConfidence, 'priceMode', 'flatPrice', 'takeawayPrice', 'eatInPrice'),
+    worstConfidence(fieldConfidence, 'priceMode', ...priceConfidenceKeys(draft.price)),
   )
   pushRow(
     rows,
     t('admin.products.discountLabel'),
     isCreate ? null : formatDiscountValue(t, current.discount),
     formatDiscountValue(t, draft.discount),
-    worstConfidence(fieldConfidence, 'discountMode', 'discountPercentage', 'discountAmount'),
+    worstConfidence(fieldConfidence, 'discountMode', ...discountConfidenceKeys(draft.discount)),
   )
   pushRow(rows, t('admin.products.allergensLabel'), isCreate ? null : formatAllergens(t, current.allergens), formatAllergens(t, draft.allergens), fieldConfidence?.allergens)
   pushRow(
@@ -310,7 +325,7 @@ export function buildCategoryChangeRows(
       t('admin.products.categoryPriceLabel'),
       isCreate ? null : formatPriceValue(t, currentDefaultPrice),
       formatPriceValue(t, draft.defaultPrice),
-      worstConfidence(fieldConfidence, 'priceMode', 'flatPrice', 'takeawayPrice', 'eatInPrice'),
+      worstConfidence(fieldConfidence, 'priceMode', ...priceConfidenceKeys(draft.defaultPrice)),
     )
   }
   if (isCreate) {

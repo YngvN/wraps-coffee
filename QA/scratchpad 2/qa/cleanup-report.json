@@ -1,0 +1,26 @@
+{
+  "deleted": 66,
+  "total": 68,
+  "failures": [
+    {
+      "entry": {
+        "type": "category",
+        "name": ""
+      },
+      "error": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('.products-view__item').filter({ has: locator('.products-view__item-name').filter({ hasText: /^$/ }) }).first().getByRole('button', { name: 'Slett', exact: true })\n"
+    },
+    {
+      "entry": {
+        "type": "category",
+        "name": "Verktøy",
+        "note": "AutoDeler"
+      },
+      "error": "TimeoutError: locator.click: Timeout 15000ms exceeded.\nCall log:\n  - waiting for locator('.products-view__item').filter({ has: locator('.products-view__item-name').filter({ hasText: /^Verktøy$/ }) }).first().getByRole('button', { name: 'Slett', exact: true })\n"
+    }
+  ],
+  "cataloguesRemaining": [
+    "Matmeny",
+    "sdfsfd",
+    ""
+  ]
+}

@@ -1,0 +1,1131 @@
+{
+  "results": [
+    {
+      "id": "A.1",
+      "title": "Product count (deterministic lookup)",
+      "phase": "Phase2",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Vi har 109 produkter.\". trace uses lookup_query=true, uses answer_lookup=false (expect false for deterministic count path).",
+      "evidence": {
+        "reply": "Vi har 109 produkter.",
+        "usesAnswerLookup": false,
+        "usesLookupQuery": true
+      },
+      "trace": [
+        "classify_message\n924 inn / 7 ut\nclassify_message · gemma3:4b\n1s\n{\"userText\":\"Hvor mange produkter har vi?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n1350 inn / 23 ut\nlookup_query · gemma3:4b\n1s\n{\"userText\":\"Hvor mange produkter har vi?\"}\n{\"filters\":[{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1438 inn / 10 ut\nlookup_query · gemma3:4b\n2s\n{\"userText\":\"Hvor mange produkter har vi?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"hasDiscount\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[],\"reportField\":null}"
+      ],
+      "screenshot": "001-A-1.png"
+    },
+    {
+      "id": "A.2",
+      "title": "Discounted product count",
+      "phase": "Phase2",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Vi har 3 produkter.\" (expect 1).",
+      "evidence": {
+        "reply": "Vi har 3 produkter."
+      },
+      "trace": [
+        "classify_message\n1045 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Hvor mange produkter er på tilbud?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n1354 inn / 23 ut\nlookup_query · gemma3:4b\n4s\n{\"userText\":\"Hvor mange produkter er på tilbud?\"}\n{\"filters\":[{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1442 inn / 23 ut\nlookup_query · gemma3:4b\n1s\n{\"userText\":\"Hvor mange produkter er på tilbud?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"hasDiscount\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":null}"
+      ],
+      "screenshot": "002-A-2.png"
+    },
+    {
+      "id": "A.3",
+      "title": "Which product is on sale",
+      "phase": "Phase2",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Her er 3 produkter på tilbud:\" (expect mentions Michelin Vinterdekk).",
+      "evidence": {
+        "reply": "Her er 3 produkter på tilbud:"
+      },
+      "trace": [
+        "classify_message\n1064 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Hvilke produkter er på tilbud?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n1354 inn / 23 ut\nlookup_query · gemma3:4b\n4s\n{\"userText\":\"Hvilke produkter er på tilbud?\"}\n{\"filters\":[{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1442 inn / 23 ut\nlookup_query · gemma3:4b\n1s\n{\"userText\":\"Hvilke produkter er på tilbud?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"hasDiscount\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":null}"
+      ],
+      "screenshot": "003-A-3.png"
+    },
+    {
+      "id": "A.4",
+      "title": "List all products (bullet attachment)",
+      "phase": "Phase1",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Ingen produkter....\". DOM <li> count near transcript: 14 (expect a real list, not one run-on sentence — check screenshot).",
+      "evidence": {
+        "reply": "Ingen produkter.",
+        "listItemCount": 14
+      },
+      "trace": [
+        "lookup_query\n(draft)\n1350 inn / 50 ut\nlookup_query · gemma3:4b\n4s\n{\"userText\":\"Gi meg en liste over alle produkter\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"equals\",\"value\":\"Wraps & Coffee\"},{\"field\":\"available\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"false\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1465 inn / 25 ut\nlookup_query · gemma3:4b\n1s\n{\"userText\":\"Gi meg en liste over alle produkter\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"equals\\\",\\\"value\\\":\\\"Wraps & Coffee\\\"},{\\\"field\\\":\\\"available\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"},{\\\"field\\\":\\\"hasDiscount\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"false\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected \n{\"filters\":[{\"field\":\"name\",\"op\":\"equals\",\"value\":\"Wraps & Coffee\"}],\"reportField\":null}"
+      ],
+      "screenshot": "004-A-4.png"
+    },
+    {
+      "id": "A.5",
+      "title": "Compound imperative+interrogative",
+      "phase": "General",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Ingen produkter.\nHer er 3 produkter på tilbud:...\"",
+      "evidence": {
+        "reply": "Ingen produkter.\nHer er 3 produkter på tilbud:"
+      },
+      "trace": [
+        "lookup_query\n(draft)\n1350 inn / 50 ut\nlookup_query · gemma3:4b\n2s\n{\"userText\":\"Gi meg en liste over alle produkter\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"equals\",\"value\":\"Wraps & Coffee\"},{\"field\":\"available\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"false\"}],\"reportField\":null}",
+        "lookup_query\n(draft)\n1354 inn / 23 ut\nlookup_query · gemma3:4b\n5s\n{\"userText\":\"vis meg hvem som er på tilbud\"}\n{\"filters\":[{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1465 inn / 25 ut\nlookup_query · gemma3:4b\n4s\n{\"userText\":\"Gi meg en liste over alle produkter\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"equals\\\",\\\"value\\\":\\\"Wraps & Coffee\\\"},{\\\"field\\\":\\\"available\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"},{\\\"field\\\":\\\"hasDiscount\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"false\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected \n{\"filters\":[{\"field\":\"name\",\"op\":\"equals\",\"value\":\"Wraps & Coffee\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1442 inn / 23 ut\nlookup_query · gemma3:4b\n3s\n{\"userText\":\"vis meg hvem som er på tilbud\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"hasDiscount\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":null}"
+      ],
+      "screenshot": "005-A-5.png"
+    },
+    {
+      "id": "A.6",
+      "title": "Compound two-interrogative",
+      "phase": "General",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Vi har 109 produkter.\nHer er 3 produkter på tilbud:\" — check whether both halves answered or one silently dropped.",
+      "evidence": {
+        "reply": "Vi har 109 produkter.\nHer er 3 produkter på tilbud:"
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n586 inn / 85 ut\ncompact_history · gemma3:4b\n4s\n{\"userText\":\"Admin: Hvor mange produkter har vi?\\nAssistant: Vi har 109 produkter.\\nAdmin: Hvor mange produkter er på tilbud?\\nAssistant: Vi har 3 produkter.\\nAdmin: Hvilke produkter er på tilbud?\\nAssistant: Her er 3 produkter på tilbud:\\n- Kylling Fajitas (Wraps)\\n- Michelin Vinterdekk 205/55R16 (?)\\n- Michelin Vinterdekk 205/55R16 (Dekk)\\nAdmin: Gi meg en liste over alle produkter\\nAssistant: Ingen produkter.\\nAdmin: Gi meg en liste over alle produkter og vis meg hvem som er på tilbud\\nAssist\n{\"summary\":\"The admin is requesting a list of all products and identifying which are on sale, specifically the Kylling Fajitas (Wraps), Michelin Vinterdekk 205/55R16 tires (with question mark), and Michelin Vinterdekk 205/55R16 (Dekk). The assistant previously stated there were 3 products on offer.\"}",
+        "classify_message\n1106 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Hvor mange produkter har vi og hvem er på tilbud?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n1348 inn / 35 ut\nlookup_query · gemma3:4b\n4s\n{\"userText\":\"Hvor mange produkter har vi\"}\n{\"filters\":[{\"field\":\"available\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"false\"}],\"reportField\":null}",
+        "lookup_query\n(draft)\n1350 inn / 23 ut\nlookup_query · gemma3:4b\n7s\n{\"userText\":\"hvem er på tilbud?\"}\n{\"filters\":[{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1448 inn / 10 ut\nlookup_query · gemma3:4b\n5s\n{\"userText\":\"Hvor mange produkter har vi\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"available\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"},{\\\"field\\\":\\\"hasDiscount\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"false\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unc\n{\"filters\":[],\"reportField\":null}",
+        "lookup_query\n(verify)\n1438 inn / 23 ut\nlookup_query · gemma3:4b\n4s\n{\"userText\":\"hvem er på tilbud?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"hasDiscount\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":null}"
+      ],
+      "screenshot": "006-A-6.png"
+    },
+    {
+      "id": "A.7",
+      "title": "Non-question phrase must not trigger create",
+      "phase": "Phase1",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Hei! Jeg kan hjelpe deg med å se på antall produkter, inkludert de som er på salg. Du har rett, det er totalt 109 produkter, og Kylling Fajitas (Wraps), Michelin Vinterdekk 205/55R16 og Michelin Vinterdekk 205/55R16 (Dekk) er i øyeblikket på tilbud. Vil du at jeg skal se nærmere på noen av disse, eller kanskje lage en rapport over alle produkter som er på salg?\". gate=false batch=false singleReview=false (all must be false — must be an ordinary lookup answer, never a create draft).",
+      "evidence": {
+        "reply": "Hei! Jeg kan hjelpe deg med å se på antall produkter, inkludert de som er på salg. Du har rett, det er totalt 109 produkter, og Kylling Fajitas (Wraps), Michelin Vinterdekk 205/55R16 og Michelin Vinterdekk 205/55R16 (Dekk) er i øyeblikket på tilbud. Vil du at jeg skal se nærmere på noen av disse, eller kanskje lage en rapport over alle produkter som er på salg?",
+        "gate": false,
+        "batch": false,
+        "review": false
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n674 inn / 90 ut\ncompact_history · gemma3:4b\n4s\n{\"userText\":\"Admin: Hvor mange produkter har vi?\\nAssistant: Vi har 109 produkter.\\nAdmin: Hvor mange produkter er på tilbud?\\nAssistant: Vi har 3 produkter.\\nAdmin: Hvilke produkter er på tilbud?\\nAssistant: Her er 3 produkter på tilbud:\\n- Kylling Fajitas (Wraps)\\n- Michelin Vinterdekk 205/55R16 (?)\\n- Michelin Vinterdekk 205/55R16 (Dekk)\\nAdmin: Gi meg en liste over alle produkter\\nAssistant: Ingen produkter.\\nAdmin: Gi meg en liste over alle produkter og vis meg hvem som er på tilbud\\nAssist\n{\"summary\":\"The admin is asking about the total number of products and which ones are on sale. They have stated there are 109 products in total, and three products – Kylling Fajitas (Wraps), Michelin Vinterdekk 205/55R16 (?) and Michelin Vinterdekk 205/55R16 (Dekk) – are currently on offer.\"}",
+        "classify_message\n1108 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"et stort og et lite frontlys\"}\n{\"messageType\":\"chat\"}",
+        "compose_chat_reply\n871 inn / 128 ut\ncompose_chat_reply · gemma3:4b\n5s\n{\"userText\":\"et stort og et lite frontlys\"}\n{\"reply\":\"Hei! Jeg kan hjelpe deg med å se på antall produkter, inkludert de som er på salg. Du har rett, det er totalt 109 produkter, og Kylling Fajitas (Wraps), Michelin Vinterdekk 205/55R16 og Michelin Vinterdekk 205/55R16 (Dekk) er i øyeblikket på tilbud. Vil du at jeg skal se nærmere på noen av disse, eller kanskje lage en rapport over alle produkter som er på salg?\"}"
+      ],
+      "screenshot": "007-A-7.png"
+    },
+    {
+      "id": "A.8/A.11",
+      "title": "Ambiguous \"Frontlys\" must clarify",
+      "phase": "General",
+      "status": "FAIL",
+      "notes": "Reply: \"Frontlys koster 349 kr.\". clarifying=false options=[] (must list both Frontlys candidates with distinguishing category labels, never silently guess).",
+      "evidence": {
+        "reply": "Frontlys koster 349 kr.",
+        "clarifying": false,
+        "options": []
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n810 inn / 91 ut\ncompact_history · gemma3:4b\n4s\n{\"userText\":\"Admin: Hvor mange produkter har vi?\\nAssistant: Vi har 109 produkter.\\nAdmin: Hvor mange produkter er på tilbud?\\nAssistant: Vi har 3 produkter.\\nAdmin: Hvilke produkter er på tilbud?\\nAssistant: Her er 3 produkter på tilbud:\\n- Kylling Fajitas (Wraps)\\n- Michelin Vinterdekk 205/55R16 (?)\\n- Michelin Vinterdekk 205/55R16 (Dekk)\\nAdmin: Gi meg en liste over alle produkter\\nAssistant: Ingen produkter.\\nAdmin: Gi meg en liste over alle produkter og vis meg hvem som er på tilbud\\nAssist\n{\"summary\":\"The admin is asking about the total number of products (109) and which ones are on sale – specifically Kylling Fajitas (Wraps), Michelin Vinterdekk 205/55R16, and Michelin Vinterdekk 205/55R16 (Dekk). The admin previously requested a list of all products, but the assistant indicated there were none.\"}",
+        "classify_message\n1225 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Hvor mye koster Frontlys?\"}\n{\"messageType\":\"question\"}",
+        "select_lookup_target\n963 inn / 12 ut\nselect_lookup_target · gemma3:4b\n3s\n{\"userText\":\"Hvor mye koster Frontlys?\"}\n{\"lookupEntities\":[\"product\"],\"searchText\":\"Frontlys\"}",
+        "Fant riktig element\n(draft)\n618 inn / 34 ut\nselect_item · gemma3:4b\n2s\n{\"userText\":\"Hvor mye koster Frontlys?\\n\\nCandidates:\\n- category-1785699287845-1785699305554: Frontlys - Interiør\\n- category-1785699310327-1785699313479: Frontlys - Tilbehør\"}\n{\"itemID\":\"category-1785699287845-1785699305554\"}",
+        "Fant riktig element\n(verify)\n802 inn / 34 ut\nselect_item · gemma3:4b\n3s\n{\"userText\":\"Hvor mye koster Frontlys?\\n\\nCandidates:\\n- category-1785699287845-1785699305554: Frontlys - Interiør\\n- category-1785699310327-1785699313479: Frontlys - Tilbehør\\nHere is what you proposed on the first pass: {\\\"itemID\\\":\\\"category-1785699287845-1785699305554\\\"}\\n\\nAdditional context to check your answer against:\\n- category-1785699287845-1785699305554: Frontlys - Interiør\\n- category-1785699310327-1785699313479: Frontlys - Tilbehør\\n\\nDouble-check your proposal against the message \n{\"itemID\":\"category-1785699287845-1785699305554\"}",
+        "answer_lookup_item\n(draft)\n978 inn / 16 ut\nanswer_lookup_item · gemma3:4b\n2s\n{\"userText\":\"Hvor mye koster Frontlys?\"}\n{\"reply\":\"Frontlys koster 349 kr.\"}",
+        "answer_lookup_item\n(verify)\n1058 inn / 15 ut\nanswer_lookup_item · gemma3:4b\n2s\n{\"userText\":\"Hvor mye koster Frontlys?\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"Frontlys koster 349 kr.\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"reply\":\"Frontlys koster 349 kr.\"}"
+      ],
+      "screenshot": "008-A-8-A-11.png"
+    },
+    {
+      "id": "A.9a",
+      "title": "Bilingual filter — LED products (Norsk UI)",
+      "phase": "Phase2",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Her er 4 produkter:\". Found 0/3 LED product names ([]) — regression check for null-Norwegian-variant bilingual filter.",
+      "evidence": {
+        "reply": "Her er 4 produkter:",
+        "found": []
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n834 inn / 89 ut\ncompact_history · gemma3:4b\n4s\n{\"userText\":\"Admin: Hvor mange produkter har vi?\\nAssistant: Vi har 109 produkter.\\nAdmin: Hvor mange produkter er på tilbud?\\nAssistant: Vi har 3 produkter.\\nAdmin: Hvilke produkter er på tilbud?\\nAssistant: Her er 3 produkter på tilbud:\\n- Kylling Fajitas (Wraps)\\n- Michelin Vinterdekk 205/55R16 (?)\\n- Michelin Vinterdekk 205/55R16 (Dekk)\\nAdmin: Gi meg en liste over alle produkter\\nAssistant: Ingen produkter.\\nAdmin: Gi meg en liste over alle produkter og vis meg hvem som er på tilbud\\nAssist\n{\"summary\":\"The admin is inquiring about the price of a 'Frontlys', which costs 349 kr. Previously, the assistant confirmed there are 109 products total, with Kylling Fajitas (Wraps), Michelin Vinterdekk 205/55R16 and Michelin Vinterdekk 205/55R16 (Dekk) currently on sale.\"}",
+        "lookup_query\n(draft)\n1350 inn / 36 ut\nlookup_query · gemma3:4b\n4s\n{\"userText\":\"Vis meg alle LED-produkter\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"contains\",\"value\":\"LED\"},{\"field\":\"locationLabel\",\"op\":\"equals\",\"value\":\"Wraps\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1451 inn / 22 ut\nlookup_query · gemma3:4b\n1s\n{\"userText\":\"Vis meg alle LED-produkter\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"contains\\\",\\\"value\\\":\\\"LED\\\"},{\\\"field\\\":\\\"locationLabel\\\",\\\"op\\\":\\\"equals\\\",\\\"value\\\":\\\"Wraps\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answe\n{\"filters\":[{\"field\":\"name\",\"op\":\"contains\",\"value\":\"LED\"}],\"reportField\":null}"
+      ],
+      "screenshot": "009-A-9a.png"
+    },
+    {
+      "id": "A.9b",
+      "title": "Bilingual filter — LED products (English UI)",
+      "phase": "Phase2",
+      "status": "CAPTURED",
+      "notes": "Reply (English UI): \"No products.\". Found 0/3 ([]) — confirms fix isn't one-directional.",
+      "evidence": {
+        "reply": "No products.",
+        "found": []
+      },
+      "trace": [
+        "lookup_query\n(draft)\n1336 in / 36 out\nlookup_query · gemma3:4b\n2s\n{\"userText\":\"Show me all LED products\"}\n{\"filters\":[{\"field\":\"name\",\"op\":\"equals\",\"value\":\"LED\"},{\"field\":\"locationLabel\",\"op\":\"equals\",\"value\":\"Wraps\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1437 in / 22 out\nlookup_query · gemma3:4b\n2s\n{\"userText\":\"Show me all LED products\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"name\\\",\\\"op\\\":\\\"equals\\\",\\\"value\\\":\\\"LED\\\"},{\\\"field\\\":\\\"locationLabel\\\",\\\"op\\\":\\\"equals\\\",\\\"value\\\":\\\"Wraps\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer un\n{\"filters\":[{\"field\":\"name\",\"op\":\"equals\",\"value\":\"LED\"}],\"reportField\":null}"
+      ],
+      "screenshot": "010-A-9b.png"
+    },
+    {
+      "id": "A.10",
+      "title": "Pronoun follow-up (diagnostic only, out of scope)",
+      "phase": "OutOfScope",
+      "status": "CAPTURED",
+      "notes": "Q1 reply: \"Vi har følgende produkter i Bremser-kategorien: Bremser Del 1, Bremser Del 2, Bremser Del 3, Frontlys, LED Headlight Bulb H7, LED Interior Strip.\". Q2 (\"den første\") reply: \"Den første koster 209 kr.\". Diagnostic only — not a Phase 1-3 regression either way.",
+      "evidence": {
+        "firstReply": "Vi har følgende produkter i Bremser-kategorien: Bremser Del 1, Bremser Del 2, Bremser Del 3, Frontlys, LED Headlight Bulb H7, LED Interior Strip.",
+        "secondReply": "Den første koster 209 kr."
+      },
+      "trace": [
+        "classify_message\n931 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"messageType\":\"question\"}",
+        "Går gjennom en gruppe med data\n(draft)\n1350 inn / 11 ut\nlookup_batch · gemma3:4b\n3s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":0,\"matchingExamples\":[]}",
+        "Går gjennom en gruppe med data\n(draft)\n1591 inn / 31 ut\nlookup_batch · gemma3:4b\n7s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":3,\"matchingExamples\":[\"Chicken (Wraps)\",\"Tunfisk (Wraps)\",\"Vegetar (Wraps)\"]}",
+        "Går gjennom en gruppe med data\n(verify)\n1426 inn / 28 ut\nlookup_batch · gemma3:4b\n6s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":0,\\\"matchingExamples\\\":[]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"matchingCount\":6,\"matchingExamples\":[\"Wraps\",\"Salater\",\"Baguetter\",\"Pizza\",\"Smoothies\",\"Nachos\"]}",
+        "Går gjennom en gruppe med data\n(verify)\n1687 inn / 33 ut\nlookup_batch · gemma3:4b\n4s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":3,\\\"matchingExamples\\\":[\\\"Chicken (Wraps)\\\",\\\"Tunfisk (Wraps)\\\",\\\"Vegetar (Wraps)\\\"]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"matchingCount\":3,\"matchingExamples\":[\"Kylling (Wraps)\",\"Tunfisk (Wraps)\",\"Vegetar (Wraps)\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1734 inn / 20 ut\nlookup_batch · gemma3:4b\n6s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":3,\"matchingExamples\":[\"Bremser\",\"Dekk\",\"Batterier\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1576 inn / 11 ut\nlookup_batch · gemma3:4b\n7s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":0,\"matchingExamples\":[]}",
+        "Går gjennom en gruppe med data\n(verify)\n1819 inn / 20 ut\nlookup_batch · gemma3:4b\n5s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":3,\\\"matchingExamples\\\":[\\\"Bremser\\\",\\\"Dekk\\\",\\\"Batterier\\\"]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"matchingCount\":3,\"matchingExamples\":[\"Bremser\",\"Dekk\",\"Batterier\"]}",
+        "Går gjennom en gruppe med data\n(verify)\n1652 inn / 11 ut\nlookup_batch · gemma3:4b\n3s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":0,\\\"matchingExamples\\\":[]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"matchingCount\":0,\"matchingExamples\":[]}",
+        "Går gjennom en gruppe med data\n(draft)\n1589 inn / 36 ut\nlookup_batch · gemma3:4b\n4s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":3,\"matchingExamples\":[\"Reker (Baguetter)\",\"Tunfisk (Baguetter)\",\"Kylling (Baguetter)\"]}",
+        "Går gjennom en gruppe med data\n(verify)\n1690 inn / 36 ut\nlookup_batch · gemma3:4b\n2s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":3,\\\"matchingExamples\\\":[\\\"Reker (Baguetter)\\\",\\\"Tunfisk (Baguetter)\\\",\\\"Kylling (Baguetter)\\\"]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"matchingCount\":3,\"matchingExamples\":[\"Reker (Baguetter)\",\"Tunfisk (Baguetter)\",\"Kylling (Baguetter)\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1510 inn / 11 ut\nlookup_batch · gemma3:4b\n4s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":0,\"matchingExamples\":[]}",
+        "Går gjennom en gruppe med data\n(verify)\n1586 inn / 11 ut\nlookup_batch · gemma3:4b\n1s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":0,\\\"matchingExamples\\\":[]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"matchingCount\":0,\"matchingExamples\":[]}",
+        "Går gjennom en gruppe med data\n(draft)\n1541 inn / 11 ut\nlookup_batch · gemma3:4b\n4s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":0,\"matchingExamples\":[]}",
+        "Går gjennom en gruppe med data\n(verify)\n1617 inn / 26 ut\nlookup_batch · gemma3:4b\n1s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":0,\\\"matchingExamples\\\":[]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"matchingCount\":5,\"matchingExamples\":[\"Espresso\",\"Long Black\",\"Red Eye\",\"Americano\",\"Macchiato\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1542 inn / 29 ut\nlookup_batch · gemma3:4b\n4s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":5,\"matchingExamples\":[\"Cortado\",\"Cappuccino\",\"Caffè Latte\",\"Chai Latte\",\"Mocha\"]}",
+        "Går gjennom en gruppe med data\n(verify)\n1635 inn / 28 ut\nlookup_batch · gemma3:4b\n1s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":5,\\\"matchingExamples\\\":[\\\"Cortado\\\",\\\"Cappuccino\\\",\\\"Caffè Latte\\\",\\\"Chai Latte\\\",\\\"Mocha\\\"]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"matchingCount\":5,\"matchingExamples\":[\"Cortado\",\"Cappuccino\",\"Caffè Latte\",\"Chai Latte\",\"Mocha\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1518 inn / 11 ut\nlookup_batch · gemma3:4b\n4s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":0,\"matchingExamples\":[]}",
+        "Går gjennom en gruppe med data\n(verify)\n1594 inn / 19 ut\nlookup_batch · gemma3:4b\n1s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":0,\\\"matchingExamples\\\":[]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"matchingCount\":3,\"matchingExamples\":[\"Iskaffe\",\"Flat White\",\"Te\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1561 inn / 11 ut\nlookup_batch · gemma3:4b\n4s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":0,\"matchingExamples\":[]}",
+        "Går gjennom en gruppe med data\n(verify)\n1637 inn / 11 ut\nlookup_batch · gemma3:4b\n1s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":0,\\\"matchingExamples\\\":[]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"matchingCount\":0,\"matchingExamples\":[]}",
+        "Går gjennom en gruppe med data\n(draft)\n1551 inn / 11 ut\nlookup_batch · gemma3:4b\n4s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":0,\"matchingExamples\":[]}",
+        "Går gjennom en gruppe med data\n(verify)\n1627 inn / 39 ut\nlookup_batch · gemma3:4b\n2s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":0,\\\"matchingExamples\\\":[]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"matchingCount\":5,\"matchingExamples\":[\"Kylling\",\"Kylling Tandoori\",\"Kylling Tzatziki\",\"Kylling Curry\",\"Kylling Aioli\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1702 inn / 39 ut\nlookup_batch · gemma3:4b\n5s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":3,\"matchingExamples\":[\"Michelin Vinterdekk 205/55R16\",\"Dekk Del 1\",\"Dekk Del 2\"]}",
+        "Går gjennom en gruppe med data\n(verify)\n1806 inn / 28 ut\nlookup_batch · gemma3:4b\n1s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":3,\\\"matchingExamples\\\":[\\\"Michelin Vinterdekk 205/55R16\\\",\\\"Dekk Del 1\\\",\\\"Dekk Del 2\\\"]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"matchingCount\":3,\"matchingExamples\":[\"Dekk Del 1\",\"Dekk Del 2\",\"Dekk Del 3\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1757 inn / 58 ut\nlookup_batch · gemma3:4b\n5s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":6,\"matchingExamples\":[\"Dekk Del 4\",\"Dekk Del 5\",\"Dekk Del 6\",\"Dekk Del 7\",\"Dekk Del 8\",\"Michelin Vinterdekk 205/55R16\"]}",
+        "Går gjennom en gruppe med data\n(verify)\n1879 inn / 57 ut\nlookup_batch · gemma3:4b\n2s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":6,\\\"matchingExamples\\\":[\\\"Dekk Del 4\\\",\\\"Dekk Del 5\\\",\\\"Dekk Del 6\\\",\\\"Dekk Del 7\\\",\\\"Dekk Del 8\\\",\\\"Michelin Vinterdekk 205/55R16\\\"]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the s\n{\"matchingCount\":6,\"matchingExamples\":[\"Dekk Del 4\",\"Dekk Del 5\",\"Dekk Del 6\",\"Dekk Del 7\",\"Dekk Del 8\",\"Michelin Vinterdekk 205/55R16\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1708 inn / 31 ut\nlookup_batch · gemma3:4b\n4s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":3,\"matchingExamples\":[\"Bremser Del 1\",\"Bremser Del 2\",\"Bremser Del 3\"]}",
+        "Går gjennom en gruppe med data\n(verify)\n1804 inn / 31 ut\nlookup_batch · gemma3:4b\n1s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":3,\\\"matchingExamples\\\":[\\\"Bremser Del 1\\\",\\\"Bremser Del 2\\\",\\\"Bremser Del 3\\\"]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"matchingCount\":3,\"matchingExamples\":[\"Bremser Del 1\",\"Bremser Del 2\",\"Bremser Del 3\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1708 inn / 53 ut\nlookup_batch · gemma3:4b\n5s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":6,\"matchingExamples\":[\"Motorolje Del 3\",\"Motorolje Del 4\",\"Motorolje Del 5\",\"Motorolje Del 6\",\"Motorolje Del 7\",\"Motorolje Del 8\"]}",
+        "Går gjennom en gruppe med data\n(verify)\n1825 inn / 52 ut\nlookup_batch · gemma3:4b\n2s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":6,\\\"matchingExamples\\\":[\\\"Motorolje Del 3\\\",\\\"Motorolje Del 4\\\",\\\"Motorolje Del 5\\\",\\\"Motorolje Del 6\\\",\\\"Motorolje Del 7\\\",\\\"Motorolje Del 8\\\"]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again\n{\"matchingCount\":6,\"matchingExamples\":[\"Motorolje Del 3\",\"Motorolje Del 4\",\"Motorolje Del 5\",\"Motorolje Del 6\",\"Motorolje Del 7\",\"Motorolje Del 8\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1710 inn / 56 ut\nlookup_batch · gemma3:4b\n5s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":6,\"matchingExamples\":[\"Motorolje Del 9\",\"Motorolje Del 10\",\"Motorolje Del 11\",\"Motorolje Del 12\",\"Motorolje Del 13\",\"Batterier Del 1\"]}",
+        "Går gjennom en gruppe med data\n(verify)\n1830 inn / 55 ut\nlookup_batch · gemma3:4b\n2s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":6,\\\"matchingExamples\\\":[\\\"Motorolje Del 9\\\",\\\"Motorolje Del 10\\\",\\\"Motorolje Del 11\\\",\\\"Motorolje Del 12\\\",\\\"Motorolje Del 13\\\",\\\"Batterier Del 1\\\"]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool a\n{\"matchingCount\":6,\"matchingExamples\":[\"Motorolje Del 9\",\"Motorolje Del 10\",\"Motorolje Del 11\",\"Motorolje Del 12\",\"Motorolje Del 13\",\"Batterier Del 1\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1696 inn / 47 ut\nlookup_batch · gemma3:4b\n5s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":6,\"matchingExamples\":[\"Batterier Del 2\",\"Batterier Del 3\",\"Batterier Del 4\",\"Batterier Del 5\",\"Batterier Del 6\",\"Batterier Del 7\"]}",
+        "Går gjennom en gruppe med data\n(verify)\n1807 inn / 46 ut\nlookup_batch · gemma3:4b\n2s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":6,\\\"matchingExamples\\\":[\\\"Batterier Del 2\\\",\\\"Batterier Del 3\\\",\\\"Batterier Del 4\\\",\\\"Batterier Del 5\\\",\\\"Batterier Del 6\\\",\\\"Batterier Del 7\\\"]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again\n{\"matchingCount\":6,\"matchingExamples\":[\"Batterier Del 2\",\"Batterier Del 3\",\"Batterier Del 4\",\"Batterier Del 5\",\"Batterier Del 6\",\"Batterier Del 7\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1710 inn / 30 ut\nlookup_batch · gemma3:4b\n4s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":3,\"matchingExamples\":[\"Batterier Del 8\",\"Batterier Del 9\",\"Lydanlegg Del 1\"]}",
+        "Går gjennom en gruppe med data\n(verify)\n1805 inn / 30 ut\nlookup_batch · gemma3:4b\n1s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":3,\\\"matchingExamples\\\":[\\\"Batterier Del 8\\\",\\\"Batterier Del 9\\\",\\\"Lydanlegg Del 1\\\"]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"matchingCount\":3,\"matchingExamples\":[\"Batterier Del 8\",\"Batterier Del 9\",\"Lydanlegg Del 1\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1708 inn / 52 ut\nlookup_batch · gemma3:4b\n5s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":6,\"matchingExamples\":[\"Interiør Del 2\",\"Interiør Del 3\",\"Interiør Del 4\",\"Interiør Del 5\",\"Interiør Del 6\",\"Interiør Del 7\"]}",
+        "Går gjennom en gruppe med data\n(verify)\n1825 inn / 52 ut\nlookup_batch · gemma3:4b\n2s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":6,\\\"matchingExamples\\\":[\\\"Interiør Del 2\\\",\\\"Interiør Del 3\\\",\\\"Interiør Del 4\\\",\\\"Interiør Del 5\\\",\\\"Interiør Del 6\\\",\\\"Interiør Del 7\\\"]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with \n{\"matchingCount\":6,\"matchingExamples\":[\"Interiør Del 2\",\"Interiør Del 3\",\"Interiør Del 4\",\"Interiør Del 5\",\"Interiør Del 6\",\"Interiør Del 7\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1702 inn / 46 ut\nlookup_batch · gemma3:4b\n5s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":6,\"matchingExamples\":[\"Interiør Del 8\",\"Interiør Del 9\",\"Interiør Del 10\",\"Frontlys\",\"LED Headlight Bulb H7\",\"LED Interior Strip\"]}",
+        "Går gjennom en gruppe med data\n(verify)\n1813 inn / 46 ut\nlookup_batch · gemma3:4b\n2s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":6,\\\"matchingExamples\\\":[\\\"Interiør Del 8\\\",\\\"Interiør Del 9\\\",\\\"Interiør Del 10\\\",\\\"Frontlys\\\",\\\"LED Headlight Bulb H7\\\",\\\"LED Interior Strip\\\"]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again\n{\"matchingCount\":6,\"matchingExamples\":[\"Interiør Del 8\",\"Interiør Del 9\",\"Interiør Del 10\",\"Frontlys\",\"LED Headlight Bulb H7\",\"LED Interior Strip\"]}",
+        "Går gjennom en gruppe med data\n(draft)\n1314 inn / 25 ut\nlookup_batch · gemma3:4b\n4s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"matchingCount\":3,\"matchingExamples\":[\"Tilbehør Del 1\",\"Frontlys\",\"LED Fog Light\"]}",
+        "Går gjennom en gruppe med data\n(verify)\n1403 inn / 24 ut\nlookup_batch · gemma3:4b\n1s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"matchingCount\\\":3,\\\"matchingExamples\\\":[\\\"Tilbehør Del 1\\\",\\\"Frontlys\\\",\\\"LED Fog Light\\\"]}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"matchingCount\":3,\"matchingExamples\":[\"Tilbehør Del 1\",\"Frontlys\",\"LED Fog Light\"]}",
+        "Setter sammen svaret\n(draft)\n1618 inn / 49 ut\nanswer_lookup · gemma3:4b\n5s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n{\"reply\":\"Vi har følgende produkter i Bremser-kategorien: Bremser Del 1, Bremser Del 2, Bremser Del 3, Frontlys, LED Headlight Bulb H7, LED Interior Strip.\"}",
+        "Setter sammen svaret\n(verify)\n1732 inn / 49 ut\nanswer_lookup · gemma3:4b\n2s\n{\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"Vi har følgende produkter i Bremser-kategorien: Bremser Del 1, Bremser Del 2, Bremser Del 3, Frontlys, LED Headlight Bulb H7, LED Interior Strip.\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again wi\n{\"reply\":\"Vi har følgende produkter i Bremser-kategorien: Bremser Del 1, Bremser Del 2, Bremser Del 3, Frontlys, LED Headlight Bulb H7, LED Interior Strip.\"}",
+        "classify_message\n1123 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Hvor mye koster den første?\"}\n{\"messageType\":\"question\"}",
+        "select_lookup_target\n940 inn / 16 ut\nselect_lookup_target · gemma3:4b\n3s\n{\"userText\":\"Hvor mye koster den første?\"}\n{\"lookupEntities\":[\"product\"],\"searchText\":\"Bremser Del 1\"}",
+        "answer_lookup_item\n(draft)\n962 inn / 15 ut\nanswer_lookup_item · gemma3:4b\n2s\n{\"userText\":\"Hvor mye koster den første?\"}\n{\"reply\":\"Den første koster 209 kr.\"}",
+        "answer_lookup_item\n(verify)\n1042 inn / 15 ut\nanswer_lookup_item · gemma3:4b\n2s\n{\"userText\":\"Hvor mye koster den første?\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"Den første koster 209 kr.\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"reply\":\"Den første koster 209 kr.\"}"
+      ],
+      "screenshot": "011-A-10.png"
+    },
+    {
+      "id": "A.12a",
+      "title": "Event bilingual display (Norsk UI)",
+      "phase": "Phase2",
+      "status": "CAPTURED",
+      "notes": "Q1: \"Vi har 1 arrangement.\". Q2: \"Ingen arrangementer.\" — expect \"Bilutstilling på tunet\" title shown.",
+      "evidence": {
+        "q1": "Vi har 1 arrangement.",
+        "q2": "Ingen arrangementer."
+      },
+      "trace": [
+        "classify_message\n1113 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Hvor mange arrangementer har vi?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n1173 inn / 53 ut\nlookup_query · gemma3:4b\n4s\n{\"userText\":\"Hvor mange arrangementer har vi?\"}\n{\"filters\":[{\"field\":\"hasOccurred\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"recurring\",\"op\":\"isNot\",\"value\":\"true\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1275 inn / 10 ut\nlookup_query · gemma3:4b\n1s\n{\"userText\":\"Hvor mange arrangementer har vi?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"hasOccurred\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"},{\\\"field\\\":\\\"recurring\\\",\\\"op\\\":\\\"isNot\\\",\\\"value\\\":\\\"true\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same ans\n{\"filters\":[],\"reportField\":null}",
+        "classify_message\n1129 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Hvilke arrangementer har vi?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n1173 inn / 37 ut\nlookup_query · gemma3:4b\n4s\n{\"userText\":\"Hvilke arrangementer har vi?\"}\n{\"filters\":[{\"field\":\"hasOccurred\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"status\",\"op\":\"equals\",\"value\":\"scheduled\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1274 inn / 36 ut\nlookup_query · gemma3:4b\n2s\n{\"userText\":\"Hvilke arrangementer har vi?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"hasOccurred\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"},{\\\"field\\\":\\\"status\\\",\\\"op\\\":\\\"equals\\\",\\\"value\\\":\\\"scheduled\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answ\n{\"filters\":[{\"field\":\"hasOccurred\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"status\",\"op\":\"equals\",\"value\":\"scheduled\"}],\"reportField\":null}"
+      ],
+      "screenshot": "012-A-12a.png"
+    },
+    {
+      "id": "A.12b",
+      "title": "Event bilingual display (English UI, no English title)",
+      "phase": "Phase2",
+      "status": "CAPTURED",
+      "notes": "English UI Q1: \"We have 1 event.\". Q2: \"There's only Bilutstilling på tunet (2026-09-01).\". Events list view text: \"Events\nAdd event\n\nCreate and manage store events, including recurring, postponed and cancelled occurrences.\n\nBilutstilling på tunet\n01.09.2026 · 12:00\nScheduled\nEdit\nDelete\" — title must fall back to Norwegian variant, not render blank.",
+      "evidence": {
+        "q1": "We have 1 event.",
+        "q2": "There's only Bilutstilling på tunet (2026-09-01).",
+        "eventsViewText": "Events\nAdd event\n\nCreate and manage store events, including recurring, postponed and cancelled occurrences.\n\nBilutstilling på tunet\n01.09.2026 · 12:00\nScheduled\nEdit\nDelete"
+      },
+      "trace": [
+        "classify_message\n914 in / 7 out\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"How many events do we have?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n1161 in / 10 out\nlookup_query · gemma3:4b\n3s\n{\"userText\":\"How many events do we have?\"}\n{\"filters\":[],\"reportField\":null}",
+        "lookup_query\n(verify)\n1236 in / 10 out\nlookup_query · gemma3:4b\n1s\n{\"userText\":\"How many events do we have?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[],\"reportField\":null}",
+        "classify_message\n1028 in / 7 out\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"What events do we have?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n1159 in / 53 out\nlookup_query · gemma3:4b\n4s\n{\"userText\":\"What events do we have?\"}\n{\"filters\":[{\"field\":\"hasOccurred\",\"op\":\"is\",\"value\":\"true\"},{\"field\":\"recurring\",\"op\":\"isNot\",\"value\":\"true\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n1261 in / 10 out\nlookup_query · gemma3:4b\n1s\n{\"userText\":\"What events do we have?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"hasOccurred\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"},{\\\"field\\\":\\\"recurring\\\",\\\"op\\\":\\\"isNot\\\",\\\"value\\\":\\\"true\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer uncha\n{\"filters\":[],\"reportField\":null}"
+      ],
+      "screenshot": "014-A-12b-events-view.png"
+    },
+    {
+      "id": "A.extra",
+      "title": "Catalogue count (2) and category count (8)",
+      "phase": "General",
+      "status": "CAPTURED",
+      "notes": "Catalogues Q: \"Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\" (expect 2). Categories Q: \"Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\" (expect 8, incl. blank-named).",
+      "evidence": {
+        "q1": "Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.",
+        "q2": "Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()"
+      },
+      "trace": [
+        "classify_message\n925 inn / 7 ut\nclassify_message · gemma3:4b\n1s\n{\"userText\":\"Hvor mange kataloger har vi?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n774 inn / 23 ut\nlookup_query · gemma3:4b\n2s\n{\"userText\":\"Hvor mange kataloger har vi?\"}\n{\"filters\":[{\"field\":\"categoryCount\",\"op\":\"equals\",\"value\":\"1\"}],\"reportField\":null}",
+        "lookup_query\n(verify)\n862 inn / 11 ut\nlookup_query · gemma3:4b\n2s\n{\"userText\":\"Hvor mange kataloger har vi?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"categoryCount\\\",\\\"op\\\":\\\"equals\\\",\\\"value\\\":\\\"1\\\"}],\\\"reportField\\\":null}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"filters\":[],\"reportField\":\"categoryCount\"}",
+        "Setter sammen svaret\n(draft)\n959 inn / 24 ut\nanswer_lookup · gemma3:4b\n3s\n{\"userText\":\"Hvor mange kataloger har vi?\"}\n{\"reply\":\"Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\"}",
+        "Setter sammen svaret\n(verify)\n1048 inn / 24 ut\nanswer_lookup · gemma3:4b\n2s\n{\"userText\":\"Hvor mange kataloger har vi?\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the tool again with the same answer unchanged.\"}\n{\"reply\":\"Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\"}",
+        "classify_message\n1067 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Hvor mange kategorier har vi?\"}\n{\"messageType\":\"question\"}",
+        "lookup_query\n(draft)\n785 inn / 43 ut\nlookup_query · gemma3:4b\n3s\n{\"userText\":\"Hvor mange kategorier har vi?\"}\n{\"filters\":[{\"field\":\"catalogueName\",\"op\":\"equals\",\"value\":\"Wraps & Coffee\"},{\"field\":\"hasCustomFields\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":\"catalogueName\"}",
+        "lookup_query\n(verify)\n893 inn / 12 ut\nlookup_query · gemma3:4b\n2s\n{\"userText\":\"Hvor mange kategorier har vi?\\nHere is what you proposed on the first pass: {\\\"filters\\\":[{\\\"field\\\":\\\"catalogueName\\\",\\\"op\\\":\\\"equals\\\",\\\"value\\\":\\\"Wraps & Coffee\\\"},{\\\"field\\\":\\\"hasCustomFields\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":\\\"true\\\"}],\\\"reportField\\\":\\\"catalogueName\\\"}\\n\\nDouble-check your proposal against the message above and the additional context (if any). If anything is wrong, missing, or was misread, call the tool again with the corrected answer. If it already holds up, call the\n{\"filters\":[],\"reportField\":\"catalogueName\"}",
+        "Setter sammen svaret\n(draft)\n1246 inn / 124 ut\nanswer_lookup · gemma3:4b\n5s\n{\"userText\":\"Hvor mange kategorier har vi?\"}\n{\"reply\":\"Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ().\"}",
+        "Setter sammen svaret\n(verify)\n1435 inn / 124 ut\nanswer_lookup · gemma3:4b\n4s\n{\"userText\":\"Hvor mange kategorier har vi?\\nHere is what you proposed on the first pass: {\\\"reply\\\":\\\"Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ().\\\"}\\n\\nDouble-check your proposal against the message above a\n{\"reply\":\"Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\"}"
+      ],
+      "screenshot": "015-A-extra.png"
+    },
+    {
+      "id": "B.1",
+      "title": "Confidence markers / posture stripping (create tire)",
+      "phase": "Phase3",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". gate=false gateText=\"\". review has Allergener=false Diettmerker=false (both must be absent). confirmed=false.",
+      "evidence": {
+        "reply": "",
+        "gate": false,
+        "gateText": "",
+        "reviewText": "",
+        "hasAllergens": false,
+        "hasDietary": false
+      },
+      "trace": [
+        "classify_message\n1314 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Legg til et nytt dekk som heter Continental Sommerdekk, ca 1200 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1363 inn / 15 ut\nselect_command · gemma3:4b\n3s\n{\"userText\":\"Legg til et nytt dekk som heter Continental Sommerdekk, ca 1200 kr\"}\n{\"entity\":\"category\",\"action\":\"update\",\"searchText\":\"Dekk\"}"
+      ],
+      "screenshot": "016-B-1.png"
+    },
+    {
+      "id": "B.2/B.3a",
+      "title": "Clarification loop fix — tap to pick catalogue",
+      "phase": "Phase1",
+      "status": "FAIL",
+      "notes": "Reply: \"\". clarifying=false options=[] resolved(tap)=false — must resolve immediately, not loop.",
+      "evidence": {
+        "reply": "",
+        "clarifying": false,
+        "options": [],
+        "resolved": false
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n558 inn / 70 ut\ncompact_history · gemma3:4b\n3s\n{\"userText\":\"Admin: Hvor mange kataloger har vi?\\nAssistant: Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\\nAdmin: Hvor mange kategorier har vi?\\nAssistant: Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\\n\n{\"summary\":\"The admin is asking about the number of categories and has provided a list of 16 categories within the 'Matmeny' menu, as well as several categories under 'AutoDeler'. They then requested adding a new product, 'Continental Sommerdekk,' with a price of approximately 1200 kr.\"}",
+        "classify_message\n1204 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Legg til en ny kategori som heter Dekkhotell\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1253 inn / 17 ut\nselect_command · gemma3:4b\n2s\n{\"userText\":\"Legg til en ny kategori som heter Dekkhotell\"}\n{\"entity\":\"category\",\"action\":\"create\",\"searchText\":\"Dekkhotell\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_category\n774 inn / 59 ut\nfill_fields_batch_category · gemma3:4b\n3s\n{\"userText\":\"Legg til en ny kategori som heter Dekkhotell\"}\n{\"records\":[{\"catalogueId\":\"catalogue-1785699317084\",\"name\":\"Dekkhotell\",\"description\":null,\"priceMode\":\"none\",\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null}]}"
+      ],
+      "screenshot": "018-B-2-B-3a-after.png"
+    },
+    {
+      "id": "B.2/B.3b",
+      "title": "Clarification loop fix — typed chat answer",
+      "phase": "Phase1",
+      "status": "FAIL",
+      "notes": "Reply: \"\". clarifying=false options=[]. Typed answer reply: \"\". resolved=false — confirms typed-answer path also resolves.",
+      "evidence": {
+        "reply": "",
+        "clarifying": false,
+        "options": [],
+        "typedReply": "",
+        "resolved": false
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n573 inn / 48 ut\ncompact_history · gemma3:4b\n2s\n{\"userText\":\"Admin: Hvor mange kataloger har vi?\\nAssistant: Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\\nAdmin: Hvor mange kategorier har vi?\\nAssistant: Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\\n\n{\"summary\":\"The admin is adding a new product 'Continental Sommerdekk' (approximately 1200 NOK) to the 'AutoDeler' category and creating a new category called 'Dekkhotell'.\"}",
+        "Fyller ut detaljer for kategori\n784 inn / 53 ut\nfill_fields_category · gemma3:4b\n3s\n{\"userText\":\"The admin said the previously-proposed draft was still wrong. Previous draft: {\\\"id\\\":\\\"category-a8551d7a-4b2f-4997-9f5e-3766ce3a6034\\\",\\\"name\\\":{\\\"no\\\":\\\"Dekkhotell\\\",\\\"en\\\":\\\"\\\"},\\\"catalogueId\\\":\\\"catalogue-1785699317084\\\",\\\"description\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"}}\\n\\nCorrection: Legg til en ny kategori som heter Sesonglager\"}\n{\"catalogueId\":\"catalogue-1785699317084\",\"name\":null,\"description\":null,\"priceMode\":null,\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null}"
+      ],
+      "screenshot": "019-B-2-B-3b.png"
+    },
+    {
+      "id": "B.4",
+      "title": "Unclear chat answer to clarification",
+      "phase": "Phase1",
+      "status": "N/A",
+      "notes": "Reply: \"\". clarifying=false. Unclear answer reply: \"\". stillClarifying=false falselyResolved=false (must not falsely resolve).",
+      "evidence": {
+        "reply": "",
+        "clarifying": false,
+        "unclearReply": "",
+        "stillClarifying": false,
+        "falselyResolved": false
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n587 inn / 52 ut\ncompact_history · gemma3:4b\n2s\n{\"userText\":\"Admin: Hvor mange kataloger har vi?\\nAssistant: Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\\nAdmin: Hvor mange kategorier har vi?\\nAssistant: Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\\n\n{\"summary\":\"The admin has added three new categories: 'Dekkhotell', 'Sesonglager' and 'Continental Sommerdekk' (as a product within the 'AutoDeler' category), all with associated prices or descriptions.\"}",
+        "Fyller ut detaljer for kategori\n780 inn / 53 ut\nfill_fields_category · gemma3:4b\n3s\n{\"userText\":\"The admin said the previously-proposed draft was still wrong. Previous draft: {\\\"id\\\":\\\"category-a5fd00d7-f11a-4664-a1dc-a55afae11b22\\\",\\\"name\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"catalogueId\\\":\\\"catalogue-1785699317084\\\",\\\"description\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"}}\\n\\nCorrection: Legg til en ny kategori som heter Vinterlager\"}\n{\"catalogueId\":\"catalogue-1785699317084\",\"name\":null,\"description\":null,\"priceMode\":\"none\",\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null}"
+      ],
+      "screenshot": "020-B-4.png"
+    },
+    {
+      "id": "B.5a",
+      "title": "Draft-quality gate — Se detaljer",
+      "phase": "Phase3",
+      "status": "FAIL",
+      "notes": "Reply: \"\". gate=false. After \"Se detaljer\", normal review form shown=false.",
+      "evidence": {
+        "reply": "",
+        "gate": false,
+        "reviewShown": false
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n601 inn / 61 ut\ncompact_history · gemma3:4b\n2s\n{\"userText\":\"Admin: Hvor mange kataloger har vi?\\nAssistant: Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\\nAdmin: Hvor mange kategorier har vi?\\nAssistant: Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\\n\n{\"summary\":\"The admin has added three new categories: 'Dekkhotell', 'Sesonglager', and 'Vinterlager', as well as a new product 'Continental Sommerdekk' (approximately 1200 kr) within the 'AutoDeler' category.\"}",
+        "Fyller ut detaljer for kategori\n802 inn / 57 ut\nfill_fields_category · gemma3:4b\n3s\n{\"userText\":\"The admin said the previously-proposed draft was still wrong. Previous draft: {\\\"id\\\":\\\"category-ca7940c4-f99f-4323-9497-b7a8528528b3\\\",\\\"name\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"catalogueId\\\":\\\"catalogue-1785699317084\\\",\\\"description\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"}}\\n\\nCorrection: Legg til et nytt dekk som heter Gate Test Dekk A, ca 500 kr\"}\n{\"catalogueId\":\"catalogue-1785699317084\",\"name\":null,\"description\":null,\"priceMode\":\"none\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null}"
+      ],
+      "screenshot": "022-B-5a-review.png"
+    },
+    {
+      "id": "B.5b",
+      "title": "Draft-quality gate — Prøv igjen (composer restore)",
+      "phase": "Phase3",
+      "status": "CAPTURED",
+      "notes": "gate=false. After \"Prøv igjen\": composer=\"\" (expect exact match to \"Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr\"), focused=false, gate dismissed=true.",
+      "evidence": {
+        "reply": "",
+        "gate": false,
+        "restoredText": "",
+        "expectedText": "Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr",
+        "focused": false,
+        "gateGone": true
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n625 inn / 68 ut\ncompact_history · gemma3:4b\n3s\n{\"userText\":\"Admin: Hvor mange kataloger har vi?\\nAssistant: Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\\nAdmin: Hvor mange kategorier har vi?\\nAssistant: Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\\n\n{\"summary\":\"The admin has added three new categories: 'Dekkhotell', 'Sesonglager', and 'Vinterlager'. They also added a new tire named 'Continental Sommerdekk' at 1200 kr and another tire named 'Gate Test Dekk A' at 500 kr.\"}",
+        "Fyller ut detaljer for kategori\n807 inn / 57 ut\nfill_fields_category · gemma3:4b\n3s\n{\"userText\":\"The admin said the previously-proposed draft was still wrong. Previous draft: {\\\"id\\\":\\\"category-f17407c7-a63c-45d7-9bd5-fa4792a6cec9\\\",\\\"name\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"catalogueId\\\":\\\"catalogue-1785699317084\\\",\\\"description\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"}}\\n\\nCorrection: Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr\"}\n{\"catalogueId\":\"catalogue-1785699317084\",\"name\":null,\"description\":null,\"priceMode\":\"flat\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null}"
+      ],
+      "screenshot": "023-B-5b.png"
+    },
+    {
+      "id": "B.5c",
+      "title": "Draft-quality gate — Avbryt (discard)",
+      "phase": "Phase3",
+      "status": "CAPTURED",
+      "notes": "gate=false. After \"Avbryt\": composer=\"\" (expect empty), gate dismissed=true.",
+      "evidence": {
+        "reply": "",
+        "gate": false,
+        "composerAfter": "",
+        "gateGone": true
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n649 inn / 77 ut\ncompact_history · gemma3:4b\n3s\n{\"userText\":\"Admin: Hvor mange kataloger har vi?\\nAssistant: Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\\nAdmin: Hvor mange kategorier har vi?\\nAssistant: Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\\n\n{\"summary\":\"The admin has added four new categories: 'Dekkhotell', 'Sesonglager', and 'Vinterlager', as well as three new tires - 'Continental Sommerdekk', 'Gate Test Dekk A', and 'Gate Test Dekk B' – with prices of 1200 kr and 500 kr respectively.\"}",
+        "Fyller ut detaljer for kategori\n823 inn / 55 ut\nfill_fields_category · gemma3:4b\n3s\n{\"userText\":\"The admin said the previously-proposed draft was still wrong. Previous draft: {\\\"id\\\":\\\"category-c67373d6-e478-4e00-8aa6-be88238aee6b\\\",\\\"name\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"catalogueId\\\":\\\"catalogue-1785699317084\\\",\\\"description\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"defaultPrice\\\":500}\\n\\nCorrection: Legg til et nytt dekk som heter Gate Test Dekk C, ca 500 kr\"}\n{\"catalogueId\":\"catalogue-1785699317084\",\"name\":null,\"description\":null,\"priceMode\":\"flat\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null}"
+      ],
+      "screenshot": "024-B-5c.png"
+    },
+    {
+      "id": "B.6",
+      "title": "Confirm/Edit a staged draft through the gate",
+      "phase": "Phase3",
+      "status": "PARTIAL",
+      "notes": "Confirm path: reply=\"\" confirmed=true. Edit path: reply=\"\" editFormOpened=false.",
+      "evidence": {
+        "confirmOk": true,
+        "editFormOpened": false
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n673 inn / 75 ut\ncompact_history · gemma3:4b\n3s\n{\"userText\":\"Admin: Hvor mange kataloger har vi?\\nAssistant: Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\\nAdmin: Hvor mange kategorier har vi?\\nAssistant: Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\\n\n{\"summary\":\"The admin has added three new categories: 'Dekkhotell', 'Sesonglager', and 'Vinterlager', as well as six new tires - 'Continental Sommerdekk', 'Gate Test Dekk A', 'Gate Test Dekk B', 'Gate Test Dekk C' - all priced at 500 kr.\"}",
+        "Fyller ut detaljer for kategori\n822 inn / 57 ut\nfill_fields_category · gemma3:4b\n3s\n{\"userText\":\"The admin said the previously-proposed draft was still wrong. Previous draft: {\\\"id\\\":\\\"category-71b51c2a-39c7-4e95-8b2f-c05e53dc8678\\\",\\\"name\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"catalogueId\\\":\\\"catalogue-1785699317084\\\",\\\"description\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"defaultPrice\\\":500}\\n\\nCorrection: Legg til et nytt dekk som heter Gate Confirm Dekk, ca 500 kr\"}\n{\"catalogueId\":\"catalogue-1785699317084\",\"name\":null,\"description\":null,\"priceMode\":\"flat\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null}",
+        "Oppsummerer nylig samtale\n700 inn / 77 ut\ncompact_history · gemma3:4b\n3s\n{\"userText\":\"Admin: Hvor mange kataloger har vi?\\nAssistant: Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\\nAdmin: Hvor mange kategorier har vi?\\nAssistant: Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\\n\n{\"summary\":\"The admin has added several new tires (Continental Sommerdekk, Gate Test Dekk A, Gate Test Dekk B, Gate Test Dekk C, and Gate Confirm Dekk) with prices of approximately 1200 NOK and 500 NOK respectively, as well as two new categories: Dekkhotell and Sesonglager.\"}",
+        "classify_message\n1101 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Edit Dekk, ca 500 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1268 inn / 17 ut\nselect_command · gemma3:4b\n2s\n{\"userText\":\"Legg til et nytt dekk som heter Gate Edit Dekk, ca 500 kr\"}\n{\"entity\":\"product\",\"action\":\"update\",\"searchText\":\"Gate Edit Dekk\"}"
+      ],
+      "screenshot": "026-B-6-edit.png"
+    },
+    {
+      "id": "B.7",
+      "title": "Price/discount display fix (invalid discount stripped)",
+      "phase": "Phase2",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". Review text discount line: \"(not found)\" — must show unset (\"Fill this in\"), never a captured/fabricated percentage. confirmed=false.",
+      "evidence": {
+        "reply": "",
+        "reviewText": "",
+        "hasFabricatedDiscount": false
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n723 inn / 70 ut\ncompact_history · gemma3:4b\n3s\n{\"userText\":\"Admin: Hvor mange kataloger har vi?\\nAssistant: Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\\nAdmin: Hvor mange kategorier har vi?\\nAssistant: Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\\n\n{\"summary\":\"The admin has added several new tires – Continental Sommerdekk, Gate Test Dekk A, Gate Test Dekk B, Gate Test Dekk C, and Gate Confirm Dekk – all priced at approximately 500 kr. They have also created two new categories: Dekkhotell and Sesonglager.\"}",
+        "classify_message\n1102 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Legg til et bremsesett som heter Brembo Sportbrems for 2400 kr med 20% rabatt\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1269 inn / 19 ut\nselect_command · gemma3:4b\n2s\n{\"userText\":\"Legg til et bremsesett som heter Brembo Sportbrems for 2400 kr med 20% rabatt\"}\n{\"entity\":\"product\",\"action\":\"update\",\"searchText\":\"Brembo Sportbrems\"}",
+        "Fant riktig element\n(draft)\n639 inn / 34 ut\nselect_item · gemma3:4b\n2s\n{\"userText\":\"Legg til et bremsesett som heter Brembo Sportbrems for 2400 kr med 20% rabatt\\n\\nCandidates:\\n- category-1785698944060-1785698945682: Michelin Vinterdekk 205/55R16 - ?\\n- category-1785699221089-1785699234766: Michelin Vinterdekk 205/55R16 - Dekk\"}\n{\"itemID\":\"category-1785699221089-1785699234766\"}",
+        "Fant riktig element\n(verify)\n846 inn / 34 ut\nselect_item · gemma3:4b\n2s\n{\"userText\":\"Legg til et bremsesett som heter Brembo Sportbrems for 2400 kr med 20% rabatt\\n\\nCandidates:\\n- category-1785698944060-1785698945682: Michelin Vinterdekk 205/55R16 - ?\\n- category-1785699221089-1785699234766: Michelin Vinterdekk 205/55R16 - Dekk\\nHere is what you proposed on the first pass: {\\\"itemID\\\":\\\"category-1785699221089-1785699234766\\\"}\\n\\nAdditional context to check your answer against:\\n- category-1785698944060-1785698945682: Michelin Vinterdekk 205/55R16 - ?\\n- category-17\n{\"itemID\":\"category-1785699221089-1785699234766\"}"
+      ],
+      "screenshot": "027-B-7.png"
+    },
+    {
+      "id": "B.8",
+      "title": "Category custom-field fabrication check",
+      "phase": "Phase3",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". Review text: \"Kategorinavn\nVerktøy\nKategoribeskrivelse\nEn ny kategori for verktøy.\nAvbryt\nRediger\nBekreft\" — must show no unrequested custom fields (e.g. no fabricated \"Type\"/\"Merke\"). confirmed=true.",
+      "evidence": {
+        "reply": "",
+        "reviewText": "Kategorinavn\nVerktøy\nKategoribeskrivelse\nEn ny kategori for verktøy.\nAvbryt\nRediger\nBekreft"
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n754 inn / 71 ut\ncompact_history · gemma3:4b\n3s\n{\"userText\":\"Admin: Hvor mange kataloger har vi?\\nAssistant: Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\\nAdmin: Hvor mange kategorier har vi?\\nAssistant: Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\\n\n{\"summary\":\"The admin has recently added several new tires (Continental Sommerdekk, Gate Test Dekk A, B, C, Gate Confirm Dekk, and Gate Edit Dekk) with varying prices, as well as two new categories: Dekkhotell and Sesonglager, and a Brembo Sportbrems brake kit.\"}",
+        "classify_message\n1086 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Legg til en ny kategori som heter Verktøy\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1253 inn / 16 ut\nselect_command · gemma3:4b\n2s\n{\"userText\":\"Legg til en ny kategori som heter Verktøy\"}\n{\"entity\":\"category\",\"action\":\"create\",\"searchText\":\"Verktøy\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_category\n774 inn / 70 ut\nfill_fields_batch_category · gemma3:4b\n3s\n{\"userText\":\"Legg til en ny kategori som heter Verktøy\"}\n{\"records\":[{\"catalogueId\":\"catalogue-1785139059092\",\"name\":\"Verktøy\",\"description\":\"En ny kategori for verktøy.\",\"priceMode\":\"none\",\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null}]}"
+      ],
+      "screenshot": "028-B-8.png"
+    },
+    {
+      "id": "B.9",
+      "title": "Update product price via chat",
+      "phase": "Phase2",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". Review text: \"\" — price row should show real old→new values (1200→1350), not \"Fill this in\". confirmed=false.",
+      "evidence": {
+        "reply": "",
+        "reviewText": ""
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n772 inn / 83 ut\ncompact_history · gemma3:4b\n4s\n{\"userText\":\"Admin: Hvor mange kataloger har vi?\\nAssistant: Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\\nAdmin: Hvor mange kategorier har vi?\\nAssistant: Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\\n\n{\"summary\":\"The admin has added several new tires (Continental Sommerdekk, Gate Test Dekk A, B, C, Gate Confirm Dekk, and Gate Edit Dekk) and a bremsesett (Brembo Sportbrems) along with three new categories: Dekkhotell, Sesonglager, and Verktøy. The admin also specified prices for some of the tires.\"}",
+        "classify_message\n1104 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Endre prisen på Continental Sommerdekk til 1350 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1271 inn / 17 ut\nselect_command · gemma3:4b\n2s\n{\"userText\":\"Endre prisen på Continental Sommerdekk til 1350 kr\"}\n{\"entity\":\"product\",\"action\":\"update\",\"searchText\":\"Continental Sommerdekk\"}"
+      ],
+      "screenshot": "029-B-9.png"
+    },
+    {
+      "id": "B.10",
+      "title": "Delete product via chat",
+      "phase": "General",
+      "status": "FAIL",
+      "notes": "Reply: \"Fant ingen match.\". Required confirm phrase read from UI: \"\". deleted=false.",
+      "evidence": {
+        "reply": "Fant ingen match.",
+        "phrase": "",
+        "deleted": false
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n791 inn / 91 ut\ncompact_history · gemma3:4b\n4s\n{\"userText\":\"Admin: Hvor mange kataloger har vi?\\nAssistant: Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\\nAdmin: Hvor mange kategorier har vi?\\nAssistant: Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\\n\n{\"summary\":\"The admin has added several new tires (Continental Sommerdekk, Gate Test Dekk A, B, C, Gate Confirm Dekk, and Gate Edit Dekk) and a bremsesett (Brembo Sportbrems), along with three new categories: Dekkhotell, Sesonglager, and Verktøy. The price of Continental Sommerdekk was subsequently changed to 1350 kr.\"}",
+        "classify_message\n1103 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Slett dekket Continental Sommerdekk\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1270 inn / 17 ut\nselect_command · gemma3:4b\n2s\n{\"userText\":\"Slett dekket Continental Sommerdekk\"}\n{\"entity\":\"category\",\"action\":\"delete\",\"searchText\":\"Continental Sommerdekk\"}"
+      ],
+      "screenshot": "031-B-10-after.png"
+    },
+    {
+      "id": "B.11a",
+      "title": "Kebab override — posture Av (full), verify + two trace steps",
+      "phase": "Phase3",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". gate=false (expect false under full posture). Allergener present=false Diettmerker present=false (expect true, fields present though maybe blank). trace shows (draft)=true and (verify)=true steps.",
+      "evidence": {
+        "reply": "",
+        "gate": false,
+        "hasAllergens": false,
+        "hasDietary": false,
+        "draftTagged": true,
+        "verifyTagged": true
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n809 inn / 97 ut\ncompact_history · gemma3:4b\n4s\n{\"userText\":\"Admin: Hvor mange kataloger har vi?\\nAssistant: Vi har 4 kataloger: Matmeny, sdfsfd, AutoDeler og.\\nAdmin: Hvor mange kategorier har vi?\\nAssistant: Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\\n\n{\"summary\":\"The admin has recently added several new tires (Continental Sommerdekk, Gate Test Dekk A, B, C, Gate Confirm Dekk, and Gate Edit Dekk) and a bremsesett (Brembo Sportbrems), along with three new categories: Dekkhotell, Sesonglager, and Verktøy. The admin also changed the price of Continental Sommerdekk to 1350 kr and subsequently deleted it.\"}",
+        "classify_message\n1124 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Legg til et nytt dekk som heter Full Posture Dekk, ca 500 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1289 inn / 18 ut\nselect_command · gemma3:4b\n2s\n{\"userText\":\"Legg til et nytt dekk som heter Full Posture Dekk, ca 500 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Full Posture Dekk\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n(draft)\n2066 inn / 95 ut\nfill_fields_batch_product · gemma3:4b\n1m 11s\n{\"userText\":\"Legg til et nytt dekk som heter Full Posture Dekk, ca 500 kr\"}\n{\"records\":[{\"location\":\"category:salads\",\"name\":\"Full Posture Dekk\",\"description\":\"Dekk\",\"priceMode\":\"flat\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null,\"discountMode\":\"none\",\"discountPercentage\":null,\"discountAmount\":null,\"allergens\":[],\"dietaryTags\":[],\"available\":true,\"trackStock\":false,\"stockQuantity\":0,\"outOfStock\":false}]}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n(verify)\n2205 inn / 103 ut\nfill_fields_batch_product · gemma3:4b\n4s\n{\"userText\":\"Legg til et nytt dekk som heter Full Posture Dekk, ca 500 kr\\nHere is what you proposed on the first pass: {\\\"records\\\":[{\\\"location\\\":\\\"category:salads\\\",\\\"name\\\":\\\"Full Posture Dekk\\\",\\\"description\\\":\\\"Dekk\\\",\\\"priceMode\\\":\\\"flat\\\",\\\"flatPrice\\\":500,\\\"takeawayPrice\\\":null,\\\"eatInPrice\\\":null,\\\"discountMode\\\":\\\"none\\\",\\\"discountPercentage\\\":null,\\\"discountAmount\\\":null,\\\"allergens\\\":[],\\\"dietaryTags\\\":[],\\\"available\\\":true,\\\"trackStock\\\":false,\\\"stockQuantity\\\":0,\\\"outOfStock\\\":fal\n{\"records\":[{\"location\":\"category:salads\",\"name\":\"Full Posture Dekk\",\"description\":\"Dekk\",\"priceMode\":\"flat\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null,\"discountMode\":\"none\",\"discountPercentage\":null,\"discountAmount\":null,\"allergens\":[],\"dietaryTags\":[],\"available\":true,\"trackStock\":false,\"stockQuantity\":0,\"outOfStock\":false}]}"
+      ],
+      "screenshot": "032-B-11a.png"
+    },
+    {
+      "id": "B.11b",
+      "title": "Kebab override — posture back to Automatisk, single untagged step",
+      "phase": "Phase3",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Fant ingen match.\". gate=false (expect true under safe/auto posture). trace (draft) tag=false (verify) tag=false (expect a single untagged fill_fields step, no verify pass, under safe posture).",
+      "evidence": {
+        "reply": "Fant ingen match.",
+        "gate": false,
+        "draftTagged": false,
+        "verifyTagged": false
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n804 inn / 111 ut\ncompact_history · gemma3:4b\n5s\n{\"userText\":\"Admin: Hvor mange kategorier har vi?\\nAssistant: Vi har 16 kategorier: Nachos (Matmeny), Salater (Matmeny), Wraps (Matmeny), Baguetter (Matmeny), Pizza (Matmeny), Kaffe & Drikke (Matmeny), Smoothies (Matmeny), sdfsdfsd (sdfsfd), Dekk (AutoDeler), Bremser (AutoDeler), Motorolje (AutoDeler), Batterier (AutoDeler), Lydanlegg (AutoDeler), Interiør (AutoDeler), Tilbehør (AutoDeler) og ()\\nAdmin: Legg til et nytt dekk som heter Continental Sommerdekk, ca 1200 kr\\nAdmin: Legg til en ny kat\n{\"summary\":\"The admin is currently working with a list of 16 categories including auto parts and has recently added several new tires (Continental Sommerdekk, Gate Test Dekk A/B/C, Gate Confirm Dekk, Gate Edit Dekk, Full Posture Dekk) and a bremsesett (Brembo Sportbrems) along with the 'Dekkhotell' and 'Sesonglager' categories. The admin previously attempted to delete the Continental Sommerdekk but the system did not find a match.\"}",
+        "classify_message\n1136 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Legg til et nytt dekk som heter Auto Posture Dekk, ca 500 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1303 inn / 18 ut\nselect_command · gemma3:4b\n2s\n{\"userText\":\"Legg til et nytt dekk som heter Auto Posture Dekk, ca 500 kr\"}\n{\"entity\":\"category\",\"action\":\"update\",\"searchText\":\"Auto Posture Dekk\"}"
+      ],
+      "screenshot": "033-B-11b.png"
+    },
+    {
+      "id": "B.12",
+      "title": "Manual product creation unaffected (no AI chrome)",
+      "phase": "General",
+      "status": "PASS",
+      "notes": "Manually created \"Manuell Test Dekk\" via ordinary \"+ Legg til produkt\" form. AI-related chrome detected in category section HTML=false (expect false).",
+      "evidence": {
+        "hasAiChrome": false
+      },
+      "screenshot": "034-B-12.png"
+    },
+    {
+      "id": "C.1a",
+      "title": "Batch phrasing gap — natural non-imperative phrasing",
+      "phase": "General",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". batchShown=false — known gap: likely misclassified as lookup, not a Phase 1-3 regression either way.",
+      "evidence": {
+        "reply": "",
+        "batch": false
+      },
+      "trace": [
+        "classify_message\n933 inn / 7 ut\nclassify_message · gemma3:4b\n1s\n{\"userText\":\"Dekk til 1200 kr med sommer, vinter og pigg\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1128 inn / 15 ut\nselect_command · gemma3:4b\n2s\n{\"userText\":\"Dekk til 1200 kr med sommer, vinter og pigg\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Pigg\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1682 inn / 110 ut\nfill_fields_batch_product · gemma3:4b\n4s\n{\"userText\":\"Dekk til 1200 kr med sommer, vinter og pigg\"}\n{\"records\":[{\"location\":\"category:category-1785699221089\",\"name\":\"Dekk\",\"description\":\"Dekk til 1200 kr med sommer, vinter og pigg\",\"priceMode\":\"flat\",\"flatPrice\":1200,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}]}"
+      ],
+      "screenshot": "001-C-1a.png"
+    },
+    {
+      "id": "C.1b",
+      "title": "Batch create — explicit imperative, dual pricing, no fabricated fields",
+      "phase": "Phase1",
+      "status": "FAIL",
+      "notes": "Reply: \"\". batch=false cardCount=0 (expect 3). Summaries: []. confirmedNames=[].",
+      "evidence": {
+        "reply": "",
+        "batch": false,
+        "count": 0,
+        "summaries": []
+      },
+      "trace": [
+        "Fyller ut detaljer for produkt\n1967 inn / 159 ut\nfill_fields_product · gemma3:4b\n6s\n{\"userText\":\"The admin said the previously-proposed draft was still wrong. Previous draft: {\\\"itemID\\\":\\\"category-1785699221089-2ddb46fb-eddf-449b-9031-4feff35fc8f1\\\",\\\"name\\\":{\\\"no\\\":\\\"Dekk\\\",\\\"en\\\":\\\"\\\"},\\\"description\\\":{\\\"no\\\":\\\"Dekk til 1200 kr med sommer, vinter og pigg\\\",\\\"en\\\":\\\"\\\"},\\\"allergens\\\":[],\\\"dietaryTags\\\":[],\\\"available\\\":true,\\\"category\\\":\\\"category-1785699221089\\\",\\\"price\\\":1200}\\n\\nCorrection: Legg til tre nye dekk til 1200/1300 kr: sommerdekk, vinterdekk og piggdekk\"}\n{\"location\":\"category:category-1785699221089\",\"name\":null,\"description\":\"Legg til tre nye dekk til 1200/1300 kr: sommerdekk, vinterdekk og piggdekk\",\"priceMode\":\"flat\",\"flatPrice\":1200,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true,\"customFieldValues\":{\"a84f7434-be90-478b-a642-d3c96245de25\":\"tre nye dekk til 1200/1300 kr: sommerdekk, vinterdekk og piggdekk\"}}"
+      ],
+      "screenshot": "003-C-1b-after.png"
+    },
+    {
+      "id": "C.2",
+      "title": "Shared clarification across batch cards (fillFieldsBatch)",
+      "phase": "Phase1",
+      "status": "FAIL",
+      "notes": "Reply: \"\". clarifying=true options=[\"Nachos\",\"Salater\",\"Wraps\",\"Baguetter\",\"Pizza\",\"Kaffe & Drikke\",\"Smoothies\",\"sdfsdfsd\",\"Verktøy\",\"Dekk\",\"Bremser\",\"Motorolje\",\"Batterier\",\"Lydanlegg\",\"Interiør\",\"Tilbehør\",\"\",\"\"] resolved=false confirmedNames=[] — same loop-fix, via fillFieldsBatch.",
+      "evidence": {
+        "reply": "",
+        "clarifying": true,
+        "options": [
+          "Nachos",
+          "Salater",
+          "Wraps",
+          "Baguetter",
+          "Pizza",
+          "Kaffe & Drikke",
+          "Smoothies",
+          "sdfsdfsd",
+          "Verktøy",
+          "Dekk",
+          "Bremser",
+          "Motorolje",
+          "Batterier",
+          "Lydanlegg",
+          "Interiør",
+          "Tilbehør",
+          "",
+          ""
+        ],
+        "resolved": false
+      },
+      "trace": [
+        "Fyller ut detaljer for produkt\n2068 inn / 101 ut\nfill_fields_product · gemma3:4b\n5s\n{\"userText\":\"The admin said the previously-proposed draft was still wrong. Previous draft: {\\\"itemID\\\":\\\"category-1785699221089-aa15b078-44ee-40f9-aaa6-eab3d9aa397e\\\",\\\"name\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"description\\\":{\\\"no\\\":\\\"Legg til tre nye dekk til 1200/1300 kr: sommerdekk, vinterdekk og piggdekk\\\",\\\"en\\\":\\\"\\\"},\\\"allergens\\\":[],\\\"dietaryTags\\\":[],\\\"available\\\":true,\\\"category\\\":\\\"category-1785699221089\\\",\\\"price\\\":1200,\\\"customFieldValues\\\":{\\\"a84f7434-be90-478b-a642-d3c96245de25\\\":\\\"tre ny\n{\"location\":null,\"name\":null,\"description\":\"Legg til to nye kategorier: Skinnhotell og Feltlager\",\"priceMode\":null,\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true,\"customFieldValues\":{\"a84f7434-be90-478b-a642-d3c96245de25\":\"Skinnhotell og Feltlager\"}}"
+      ],
+      "screenshot": "005-C-2-after.png"
+    },
+    {
+      "id": "C.3",
+      "title": "Per-card actions (confirm/edit/remove independence)",
+      "phase": "General",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". batch=false count=0. confirmOk=false editOk=false removeOk=false.",
+      "evidence": {
+        "reply": "",
+        "batch": false,
+        "count": 0,
+        "confirmOk": false,
+        "editOk": false,
+        "removeOk": false
+      },
+      "trace": [
+        "Fyller ut detaljer for produkt\n1873 inn / 62 ut\nfill_fields_product · gemma3:4b\n6s\n{\"userText\":\"The admin said the previously-proposed draft was still wrong. Previous draft: {\\\"itemID\\\":\\\"nachos-5e41f3cf-0b90-4e4c-bce9-d344ac41e4d7\\\",\\\"name\\\":{\\\"no\\\":\\\"Skinskott\\\",\\\"en\\\":\\\"\\\"},\\\"description\\\":{\\\"no\\\":\\\"Skinskott\\\",\\\"en\\\":\\\"\\\"},\\\"allergens\\\":[],\\\"dietaryTags\\\":[],\\\"available\\\":true,\\\"category\\\":\\\"nachos\\\"}\\n\\nCorrection: Legg til tre nye batterier: Card Test A for 500 kr, Card Test B for 600 kr, Card Test C for 700 kr\"}\n{\"location\":\"category:category-1785699281591\",\"name\":null,\"description\":null,\"priceMode\":\"flat\",\"flatPrice\":1800,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}"
+      ],
+      "screenshot": "007-C-3-after.png"
+    },
+    {
+      "id": "C.4",
+      "title": "Invalid discount blocks Confirm all only",
+      "phase": "Phase2",
+      "status": "FAIL",
+      "notes": "Reply: \"\". batch=false. Confirm all disabled=false hint=\"null\". Bosch card shows fabricated discount=false (must be false). Summaries: [].",
+      "evidence": {
+        "reply": "",
+        "batch": false,
+        "disabled": false,
+        "hint": null,
+        "boschHasDiscount": false,
+        "summaries": []
+      },
+      "trace": [
+        "Fyller ut detaljer for produkt\n1941 inn / 59 ut\nfill_fields_product · gemma3:4b\n3s\n{\"userText\":\"The admin said the previously-proposed draft was still wrong. Previous draft: {\\\"itemID\\\":\\\"category-1785699281591-2a7f139e-2351-417b-b150-36bbc118aa88\\\",\\\"name\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"description\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"allergens\\\":[],\\\"dietaryTags\\\":[],\\\"available\\\":true,\\\"category\\\":\\\"category-1785699281591\\\",\\\"price\\\":1800}\\n\\nCorrection: Legg til to nye batterier: Bosch 60Ah for 900 kr, og Varta 70Ah for 1100 kr med 150% rabatt\"}\n{\"location\":\"category:category-1785699281591\",\"name\":null,\"description\":null,\"priceMode\":\"flat\",\"flatPrice\":1800,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}"
+      ],
+      "screenshot": "008-C-4.png"
+    },
+    {
+      "id": "C.5",
+      "title": "Confirm all on a clean batch",
+      "phase": "General",
+      "status": "FAIL",
+      "notes": "Reply: \"\". batch=false summaries=[] confirmed=false.",
+      "evidence": {
+        "reply": "",
+        "batch": false,
+        "summaries": []
+      },
+      "trace": [
+        "Fyller ut detaljer for produkt\n1973 inn / 59 ut\nfill_fields_product · gemma3:4b\n3s\n{\"userText\":\"The admin said the previously-proposed draft was still wrong. Previous draft: {\\\"itemID\\\":\\\"category-1785699281591-c9534ccf-c6cd-42b0-ae2a-783067282a26\\\",\\\"name\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"description\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"allergens\\\":[],\\\"dietaryTags\\\":[],\\\"available\\\":true,\\\"category\\\":\\\"category-1785699281591\\\",\\\"price\\\":1800}\\n\\nCorrection: Legg til to nye lydanlegg: Pioneer Høyttaler for 800 kr og Sony Forsterker for 950 kr\"}\n{\"location\":\"category:category-1785699281591\",\"name\":null,\"description\":null,\"priceMode\":\"flat\",\"flatPrice\":1800,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}"
+      ],
+      "screenshot": "010-C-5-after.png"
+    },
+    {
+      "id": "C.6",
+      "title": "Cancel all — nothing created",
+      "phase": "General",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". batch=false cancelledSuccessfully=false. No products should have been created.",
+      "evidence": {
+        "reply": "",
+        "batch": false,
+        "cancelled": false
+      },
+      "trace": [
+        "Fyller ut detaljer for produkt\n2016 inn / 59 ut\nfill_fields_product · gemma3:4b\n3s\n{\"userText\":\"The admin said the previously-proposed draft was still wrong. Previous draft: {\\\"itemID\\\":\\\"category-1785699281591-1acde3e9-460a-41c7-88f4-8d5a767b5149\\\",\\\"name\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"description\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"allergens\\\":[],\\\"dietaryTags\\\":[],\\\"available\\\":true,\\\"category\\\":\\\"category-1785699281591\\\",\\\"price\\\":1800}\\n\\nCorrection: Legg til tre nye interiørprodukter: Cancel Test A for 100 kr, Cancel Test B for 120 kr, Cancel Test C for 140 kr\"}\n{\"location\":\"category:category-1785699281591\",\"name\":null,\"description\":null,\"priceMode\":\"inherit\",\"flatPrice\":1800,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}"
+      ],
+      "screenshot": "012-C-6-after.png"
+    },
+    {
+      "id": "C.7",
+      "title": "Cross-record contamination check (events batch)",
+      "phase": "General",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". batch=false summaries=[] — check each card's own date/address stayed isolated (no bleed) via screenshot. Category field text present=false (should be absent/unset, not fabricated). confirmed=false.",
+      "evidence": {
+        "reply": "",
+        "batch": false,
+        "summaries": [],
+        "categoryFabricated": false
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n599 inn / 121 ut\ncompact_history · gemma3:4b\n4s\n{\"userText\":\"Admin: Dekk til 1200 kr med sommer, vinter og pigg\\nAdmin: Legg til tre nye dekk til 1200/1300 kr: sommerdekk, vinterdekk og piggdekk\\nAdmin: Legg til to nye kategorier: Skinnhotell og Feltlager\\nAdmin: Legg til tre nye batterier: Card Test A for 500 kr, Card Test B for 600 kr, Card Test C for 700 kr\\nAdmin: Legg til to nye batterier: Bosch 60Ah for 900 kr, og Varta 70Ah for 1100 kr med 150% rabatt\\nAdmin: Legg til to nye lydanlegg: Pioneer Høyttaler for 800 kr og Sony Forsterker fo\n{\"summary\":\"The admin is requesting coverage of 1200 kr with summer, winter and studded tires, and has added several new products: three tire types (summer, winter, and studded), two hotel categories (Leather Hotel and Field Storage), three batteries (Card Test A, Card Test B, and Card Test C), two additional batteries (Bosch 60Ah and Varta 70Ah with a significant discount), two audio systems (Pioneer Speaker and Sony Amplifier), and three interior products (Cancel Test A, Cancel Test B, and Can",
+        "Fyller ut detaljer for produkt\n1960 inn / 56 ut\nfill_fields_product · gemma3:4b\n3s\n{\"userText\":\"The admin said the previously-proposed draft was still wrong. Previous draft: {\\\"itemID\\\":\\\"category-1785699281591-46633d9a-25d9-4e5b-8ff6-3719cb8702b9\\\",\\\"name\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"description\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"allergens\\\":[],\\\"dietaryTags\\\":[],\\\"available\\\":true,\\\"category\\\":\\\"category-1785699281591\\\"}\\n\\nCorrection: Legg til to nye arrangementer: Sommertreff 10.06.2026 kl 12-16 adresse Torget 1, og Vintertreff 15.12.2026 kl 12-16 adresse Torget 2\"}\n{\"location\":\"category:category-1785699281591\",\"name\":null,\"description\":null,\"priceMode\":\"inherit\",\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}"
+      ],
+      "screenshot": "014-C-7-after.png"
+    },
+    {
+      "id": "C.8",
+      "title": "No false batch UI for single-record message",
+      "phase": "General",
+      "status": "PASS",
+      "notes": "Reply: \"\". batchShown=false (must be false). gate=true.",
+      "evidence": {
+        "reply": "",
+        "batch": false,
+        "gate": true
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n665 inn / 106 ut\ncompact_history · gemma3:4b\n4s\n{\"userText\":\"Admin: Dekk til 1200 kr med sommer, vinter og pigg\\nAdmin: Legg til tre nye dekk til 1200/1300 kr: sommerdekk, vinterdekk og piggdekk\\nAdmin: Legg til to nye kategorier: Skinnhotell og Feltlager\\nAdmin: Legg til tre nye batterier: Card Test A for 500 kr, Card Test B for 600 kr, Card Test C for 700 kr\\nAdmin: Legg til to nye batterier: Bosch 60Ah for 900 kr, og Varta 70Ah for 1100 kr med 150% rabatt\\nAdmin: Legg til to nye lydanlegg: Pioneer Høyttaler for 800 kr og Sony Forsterker fo\n{\"summary\":\"The admin is requesting coverage of 1200 kr with summer, winter and studded tires, and has added several new products including three tire types (summer, winter, and studded) at prices of 1200/1300 kr, two hotel categories (Leather Hotel and Field Storage), and three batteries (Card Test A, Card Test B, Card Test C) along with two additional battery options (Bosch 60Ah, Varta 70Ah).\"}",
+        "Fyller ut detaljer for produkt\n1900 inn / 60 ut\nfill_fields_product · gemma3:4b\n3s\n{\"userText\":\"The admin said the previously-proposed draft was still wrong. Previous draft: {\\\"itemID\\\":\\\"category-1785699281591-803dc174-e21c-4ed3-b148-9bc74f0c2d8c\\\",\\\"name\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"description\\\":{\\\"no\\\":\\\"\\\",\\\"en\\\":\\\"\\\"},\\\"allergens\\\":[],\\\"dietaryTags\\\":[],\\\"available\\\":true,\\\"category\\\":\\\"category-1785699281591\\\"}\\n\\nCorrection: Legg til et nytt dekk som heter Test Solo Dekk for 999 kr\"}\n{\"location\":\"category:category-1785699281591\",\"name\":null,\"description\":null,\"priceMode\":\"flat\",\"flatPrice\":999,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}"
+      ],
+      "screenshot": "015-C-8.png"
+    },
+    {
+      "id": "C.9a",
+      "title": "Draft-quality gate, batch (3 records)",
+      "phase": "Phase3",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Fant ingen match.\". gate=false. Gate text: \"\" — expect 3 per-record summary lines.",
+      "evidence": {
+        "reply": "Fant ingen match.",
+        "gate": false,
+        "gateText": ""
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n691 inn / 49 ut\ncompact_history · gemma3:4b\n3s\n{\"userText\":\"Admin: Dekk til 1200 kr med sommer, vinter og pigg\\nAdmin: Legg til tre nye dekk til 1200/1300 kr: sommerdekk, vinterdekk og piggdekk\\nAdmin: Legg til to nye kategorier: Skinnhotell og Feltlager\\nAdmin: Legg til tre nye batterier: Card Test A for 500 kr, Card Test B for 600 kr, Card Test C for 700 kr\\nAdmin: Legg til to nye batterier: Bosch 60Ah for 900 kr, og Varta 70Ah for 1100 kr med 150% rabatt\\nAdmin: Legg til to nye lydanlegg: Pioneer Høyttaler for 800 kr og Sony Forsterker fo\n{\"summary\":\"The admin is currently requesting to cover 1200 kr with summer, winter and studded tires, and has added several new products including the 'Test Solo Dekk' tire at 999 kr.\"}",
+        "classify_message\n1081 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Legg til tre nye motoroljer: Gate Batch A, Gate Batch B og Gate Batch C, alle for 150 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1248 inn / 16 ut\nselect_command · gemma3:4b\n2s\n{\"userText\":\"Legg til tre nye motoroljer: Gate Batch A, Gate Batch B og Gate Batch C, alle for 150 kr\"}\n{\"entity\":\"category\",\"action\":\"update\",\"searchText\":\"Gate Batch A\"}"
+      ],
+      "screenshot": "016-C-9a.png"
+    },
+    {
+      "id": "C.9b",
+      "title": "Draft-quality gate, batch overflow (6+ records)",
+      "phase": "Phase3",
+      "status": "PASS",
+      "notes": "Reply: \"\". gate=true. Gate text: \"Test Solo Dekk · Batterier · 999 kr\nDekk Seks A · Motorolje · 100 kr\nDekk Seks B · Motorolje · 110 kr\nDekk Seks C · Motorolje · 120 kr\nDekk Seks D · Motorolje · 130 kr\n…og 2 til\n\n23 felt trenger gjennomgang\n\nSe detaljer\nPrøv igjen\nAvbryt\". Overflow line found: \"…og 2 til\" (expect up to 5 lines + \"…og N til\").",
+      "evidence": {
+        "reply": "",
+        "gate": true,
+        "gateText": "Test Solo Dekk · Batterier · 999 kr\nDekk Seks A · Motorolje · 100 kr\nDekk Seks B · Motorolje · 110 kr\nDekk Seks C · Motorolje · 120 kr\nDekk Seks D · Motorolje · 130 kr\n…og 2 til\n\n23 felt trenger gjennomgang\n\nSe detaljer\nPrøv igjen\nAvbryt",
+        "overflowLine": "…og 2 til"
+      },
+      "trace": [
+        "Oppsummerer nylig samtale\n729 inn / 53 ut\ncompact_history · gemma3:4b\n3s\n{\"userText\":\"Admin: Dekk til 1200 kr med sommer, vinter og pigg\\nAdmin: Legg til tre nye dekk til 1200/1300 kr: sommerdekk, vinterdekk og piggdekk\\nAdmin: Legg til to nye kategorier: Skinnhotell og Feltlager\\nAdmin: Legg til tre nye batterier: Card Test A for 500 kr, Card Test B for 600 kr, Card Test C for 700 kr\\nAdmin: Legg til to nye batterier: Bosch 60Ah for 900 kr, og Varta 70Ah for 1100 kr med 150% rabatt\\nAdmin: Legg til to nye lydanlegg: Pioneer Høyttaler for 800 kr og Sony Forsterker fo\n{\"summary\":\"The admin is currently adding new products and events, specifically three new motor oils (Gate Batch A, B, and C at 150 kr each), and a Test Solo Dekk tire priced at 999 kr.\"}",
+        "classify_message\n1138 inn / 7 ut\nclassify_message · gemma3:4b\n2s\n{\"userText\":\"Legg til seks nye dekk: Dekk Seks A for 100 kr, Dekk Seks B for 110 kr, Dekk Seks C for 120 kr, Dekk Seks D for 130 kr, Dekk Seks E for 140 kr, Dekk Seks F for 150 kr\"}\n{\"messageType\":\"command\"}",
+        "select_command\n1303 inn / 18 ut\nselect_command · gemma3:4b\n2s\n{\"userText\":\"Legg til seks nye dekk: Dekk Seks A for 100 kr, Dekk Seks B for 110 kr, Dekk Seks C for 120 kr, Dekk Seks D for 130 kr, Dekk Seks E for 140 kr, Dekk Seks F for 150 kr\"}\n{\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Dekk Seks A\"}",
+        "Fyller ut detaljer for admin.assistant.entities.batch_product\n1857 inn / 690 ut\nfill_fields_batch_product · gemma3:4b\n25s\n{\"userText\":\"Legg til seks nye dekk: Dekk Seks A for 100 kr, Dekk Seks B for 110 kr, Dekk Seks C for 120 kr, Dekk Seks D for 130 kr, Dekk Seks E for 140 kr, Dekk Seks F for 150 kr\"}\n{\"records\":[{\"location\":\"category:category-1785699265843\",\"name\":\"Test Solo Dekk\",\"description\":\"Test Solo Dekk\",\"priceMode\":\"flat\",\"flatPrice\":999,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true},{\"location\":\"category:category-1785699244003\",\"name\":\"Dekk Seks A\",\"description\":\"Dekk Seks A\",\"priceMode\":\"flat\",\"flatPrice\":100,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true},{\"location\":\"category:category-1785699244003\",\"name\":\"Dekk Seks B\",\"description\":\"Dekk Seks B\",\"priceMode\":\""
+      ],
+      "screenshot": "017-C-9b.png"
+    }
+  ],
+  "created": [
+    {
+      "type": "catalogue",
+      "name": "AutoDeler"
+    },
+    {
+      "type": "category",
+      "name": "Dekk"
+    },
+    {
+      "type": "category",
+      "name": "Bremser"
+    },
+    {
+      "type": "category",
+      "name": "Motorolje"
+    },
+    {
+      "type": "category",
+      "name": "Batterier"
+    },
+    {
+      "type": "category",
+      "name": "Lydanlegg"
+    },
+    {
+      "type": "category",
+      "name": "Interiør"
+    },
+    {
+      "type": "category",
+      "name": "Tilbehør"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 1",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 2",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 3",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 4",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 5",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 6",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 7",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Dekk Del 8",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Michelin Vinterdekk 205/55R16",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Bremser Del 1",
+      "note": "Bremser"
+    },
+    {
+      "type": "product",
+      "name": "Bremser Del 2",
+      "note": "Bremser"
+    },
+    {
+      "type": "product",
+      "name": "Bremser Del 3",
+      "note": "Bremser"
+    },
+    {
+      "type": "product",
+      "name": "Bremser Del 4",
+      "note": "Bremser"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 1",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 2",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 3",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 4",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 5",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 6",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 7",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 8",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 9",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 10",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 11",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 12",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Motorolje Del 13",
+      "note": "Motorolje"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 1",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 2",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 3",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 4",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 5",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 6",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 7",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 8",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Batterier Del 9",
+      "note": "Batterier"
+    },
+    {
+      "type": "product",
+      "name": "Lydanlegg Del 1",
+      "note": "Lydanlegg"
+    },
+    {
+      "type": "product",
+      "name": "Lydanlegg Del 2",
+      "note": "Lydanlegg"
+    },
+    {
+      "type": "product",
+      "name": "Lydanlegg Del 3",
+      "note": "Lydanlegg"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 1",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 2",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 3",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 4",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 5",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 6",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 7",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 8",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 9",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Interiør Del 10",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Frontlys",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "LED Headlight Bulb H7",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "LED Interior Strip",
+      "note": "Interiør"
+    },
+    {
+      "type": "product",
+      "name": "Tilbehør Del 1",
+      "note": "Tilbehør"
+    },
+    {
+      "type": "product",
+      "name": "Frontlys",
+      "note": "Tilbehør"
+    },
+    {
+      "type": "product",
+      "name": "LED Fog Light",
+      "note": "Tilbehør"
+    },
+    {
+      "type": "catalogue",
+      "name": ""
+    },
+    {
+      "type": "category",
+      "name": ""
+    },
+    {
+      "type": "event",
+      "name": "Bilutstilling på tunet"
+    },
+    {
+      "type": "product",
+      "name": "Gate Confirm Dekk",
+      "note": "Dekk"
+    },
+    {
+      "type": "category",
+      "name": "Verktøy",
+      "note": "AutoDeler"
+    },
+    {
+      "type": "product",
+      "name": "Manuell Test Dekk",
+      "note": "Dekk"
+    }
+  ],
+  "updatedAt": "2026-08-03T05:23:54.339Z"
+}

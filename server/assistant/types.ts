@@ -114,6 +114,14 @@ export interface AssistantEntity<TDraft> {
    * turns the rest into real questions.
    */
   clarifiableFields?(action: AssistantActionName, context: AssistantFillContext, fields: Record<string, unknown>): Promise<{ field: string; questionKey: string; options: AssistantCandidate[] }[]>
+  /**
+   * Field names (matching this entity's own `fillFieldsSchema` property keys) that a weaker/local
+   * model reliably fabricates rather than leaving null, once they're offered in the schema at all —
+   * see the "ingestion posture" plan. Stripped from the schema entirely (never sent to the model,
+   * never merely a prompt instruction to ignore) under a `'safe'` posture; present unchanged under
+   * `'full'`. Omit entirely for an entity with nothing identified as confabulation-risk.
+   */
+  confabulationRiskFields?: string[]
   /** Merges the model's raw (schema-validated but not yet business-validated) tool `input` into a full draft — `current` is the live record for `update`/`resetPassword`, `null` for `create`. This is the one place bilingual fields land in the right language slot (only `context.uiLanguage`'s side is ever touched) and defaults get applied — steps.ts never special-cases a particular entity. */
   mergeDraft(action: AssistantActionName, current: TDraft | null, fields: unknown, context: AssistantFillContext): TDraft
   validate(action: AssistantActionName, draft: TDraft, context: AssistantFillContext): AssistantValidationIssue[]
@@ -240,4 +248,12 @@ export class AssistantLocalProviderError extends Error {
  */
 export function nullable(schema: Record<string, unknown>): Record<string, unknown> {
   return { anyOf: [schema, { type: 'null' }] }
+}
+
+/** Removes the given keys from a schema's `properties`/`required` — used under a `'safe'` ingestion posture to strip an entity's own `confabulationRiskFields` before the schema is ever sent to the model. A no-op (returns `schema` unchanged) when `fields` is empty, so every call site can call this unconditionally rather than branching on whether the entity has any risk fields at all. */
+export function stripSchemaFields(schema: AssistantJsonSchema, fields: string[]): AssistantJsonSchema {
+  if (fields.length === 0) return schema
+  const properties = { ...schema.properties }
+  for (const field of fields) delete properties[field]
+  return { ...schema, properties, required: schema.required.filter((key) => !fields.includes(key)) }
 }

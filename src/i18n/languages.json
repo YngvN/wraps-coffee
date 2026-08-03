@@ -489,6 +489,13 @@
             "custom": "Custom"
           },
           "chunkSizeCustomLabel": "Records per batch",
+          "postureMenuTitle": "Extra caution mode",
+          "postureDescription": "Controls how cautious the assistant is when creating or updating something from a chat message. In caution mode, the assistant only fills in fields it can be sure about (like allergens or discounts) and leaves the rest for you to fill in yourself — recommended for local/offline models, which are more likely to guess. Auto picks the right mode automatically for whichever AI model is currently active.",
+          "postureOption": {
+            "auto": "Automatic (recommended)",
+            "safe": "On",
+            "full": "Off"
+          },
           "copyConversationSectionTitle": "Export",
           "copyConversation": "Copy conversation to clipboard",
           "copyConversationCopied": "Copied!",
@@ -541,7 +548,12 @@
             "batchConfirmAll": "Confirm all",
             "batchConfirmAllDisabledHint": "Fix the issues on every record below before confirming all at once.",
             "batchRemoveOne": "Remove",
-            "batchReviewFirst": "Use Confirm, Edit, or Remove on the records above, or Confirm all / Cancel all."
+            "batchReviewFirst": "Use Confirm, Edit, or Remove on the records above, or Confirm all / Cancel all.",
+            "gateSeeDetails": "See details",
+            "gateTryAgain": "Try again",
+            "gateCancel": "Cancel",
+            "gateFieldsNeedingReview": "{{count}} fields need review",
+            "gateBatchMoreCount": "…and {{count}} more"
           },
           "clarify": {
             "productCategory": "Which category should this product go in?",
@@ -2474,6 +2486,13 @@
             "custom": "Egendefinert"
           },
           "chunkSizeCustomLabel": "Poster per porsjon",
+          "postureMenuTitle": "Ekstra forsiktig modus",
+          "postureDescription": "Styrer hvor forsiktig assistenten er når den oppretter eller oppdaterer noe fra en chat-melding. I forsiktig modus fyller assistenten kun ut felt den er trygg på (som allergener eller rabatter), og lar deg fylle ut resten selv — anbefales for lokale/frakoblede modeller, som er mer tilbøyelige til å gjette. Automatisk velger riktig modus automatisk for den AI-modellen som er i bruk.",
+          "postureOption": {
+            "auto": "Automatisk (anbefalt)",
+            "safe": "På",
+            "full": "Av"
+          },
           "copyConversationSectionTitle": "Eksporter",
           "copyConversation": "Kopier samtalen til utklippstavlen",
           "copyConversationCopied": "Kopiert!",
@@ -2526,7 +2545,12 @@
             "batchConfirmAll": "Bekreft alle",
             "batchConfirmAllDisabledHint": "Rett opp problemene på hver post under før du bekrefter alle samtidig.",
             "batchRemoveOne": "Fjern",
-            "batchReviewFirst": "Bruk Bekreft, Rediger eller Fjern på postene over, eller Bekreft alle / Avbryt alt."
+            "batchReviewFirst": "Bruk Bekreft, Rediger eller Fjern på postene over, eller Bekreft alle / Avbryt alt.",
+            "gateSeeDetails": "Se detaljer",
+            "gateTryAgain": "Prøv igjen",
+            "gateCancel": "Avbryt",
+            "gateFieldsNeedingReview": "{{count}} felt trenger gjennomgang",
+            "gateBatchMoreCount": "…og {{count}} til"
           },
           "clarify": {
             "productCategory": "Hvilken kategori skal dette produktet være i?",

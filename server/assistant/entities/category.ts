@@ -73,6 +73,7 @@ export const categoryEntity: AssistantEntity<AssistantCategoryDraft> = {
   section: 'products',
   imageField: 'image',
   destructive: (action) => action === 'delete',
+  confabulationRiskFields: ['customFields'],
 
   fillFieldsSchema(action, context: AssistantFillContext): AssistantJsonSchema {
     if (action === 'delete') return { type: 'object', properties: {}, required: [], additionalProperties: false }

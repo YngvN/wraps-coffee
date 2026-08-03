@@ -12,6 +12,7 @@ import {
   assistantSelectItem,
   assistantTranscribeAttachment,
   type AssistantFillFieldsBatchClarification,
+  type AssistantIngestionPosture,
   type AssistantIntentResult,
   type AssistantModel,
   type AssistantProvider,
@@ -173,7 +174,19 @@ type FlowState =
       /** Whether resuming (once every clarification has an answer) should re-call `fillFields` (`'single'`, the only case before batch ingestion existed) or `fillFieldsBatch` (`'batch'` — this clarification came from a create message that turned out to describe exactly one record, so it collapsed into this same state/UI unchanged, but still needs to resume via the batch step). Defaults to `'single'` everywhere else in this file. */
       resumeVia?: 'single' | 'batch'
     }
-  | { status: 'reviewingForm'; entity: AssistantEntityKey; action: AssistantActionName; itemID?: string; draft: unknown; issues: AssistantValidationIssue[]; fieldConfidence: Record<string, FieldConfidence> }
+  | {
+      status: 'reviewingForm'
+      entity: AssistantEntityKey
+      action: AssistantActionName
+      itemID?: string
+      draft: unknown
+      issues: AssistantValidationIssue[]
+      fieldConfidence: Record<string, FieldConfidence>
+      /** Which posture (see `AssistantIngestionPosture`) actually produced this draft — drives whether `AssistantDraftQualityGate` shows before the review form (only ever for `'safe'`). */
+      posture: 'safe' | 'full'
+      /** The admin's own message that produced this draft — restored into the composer if the draft-quality gate's "Prøv igjen" is used. */
+      originatingMessage: string
+    }
   | {
       status: 'reviewingDestructive'
       entity: AssistantEntityKey
@@ -212,6 +225,9 @@ type FlowState =
       drafts: { draft: unknown; issues: AssistantValidationIssue[]; fieldConfidence: Record<string, FieldConfidence> }[]
       removedIndices: number[]
       editingIndex: number | null
+      /** Same meaning as `'reviewingForm'`'s own field — see its doc comment. */
+      posture: 'safe' | 'full'
+      originatingMessage: string
     }
   /**
    * A factual question named one specific item, but `answerLookup` couldn't confidently narrow it
@@ -281,6 +297,7 @@ export function useAssistantFlow(
   modelOverride?: AssistantModel,
   chunkSizePreference?: ChunkSizePreference,
   customChunkRecordCount?: number,
+  ingestionPostureOverride?: AssistantIngestionPosture,
   providerOverride?: AssistantProvider,
   localModelOverride?: string,
   localVisionModelOverride?: string,
@@ -379,6 +396,18 @@ export function useAssistantFlow(
   }, [appendLine, finalizeThought])
 
   /**
+   * Discards a staged draft without the "cancelled" transcript line `cancel()` appends — used by
+   * `AssistantDraftQualityGate`'s "Prøv igjen" ("try again"), where the admin isn't cancelling but
+   * correcting: `AssistantPanel` follows this with restoring the draft's own `originatingMessage`
+   * into the composer (focused, not auto-sent) so they can rephrase and resend.
+   */
+  const discardForRetry = useCallback(() => {
+    abortRef.current?.abort()
+    finalizeThought()
+    setState({ status: 'idle' })
+  }, [finalizeThought])
+
+  /**
    * Archives the current conversation into the admin's own conversation log
    * (if it has any messages — an untouched chat isn't worth logging) and
    * resets to a blank one — the only way to reset the chat (see
@@ -439,6 +468,7 @@ export function useAssistantFlow(
             provider: providerOverride,
             localModel: localModelOverride,
             localVisionModel: localVisionModelOverride,
+            posture: ingestionPostureOverride,
             history: options.history,
             historyContext: options.historyContext,
           },
@@ -460,13 +490,23 @@ export function useAssistantFlow(
           return
         }
         finalizeThought()
-        setState({ status: 'reviewingForm', entity, action, itemID, draft: result.draft, issues: result.issues, fieldConfidence: result.fieldConfidence })
+        setState({
+          status: 'reviewingForm',
+          entity,
+          action,
+          itemID,
+          draft: result.draft,
+          issues: result.issues,
+          fieldConfidence: result.fieldConfidence,
+          posture: result.posture,
+          originatingMessage: message,
+        })
       } catch (error) {
         if (isAbortError(error)) return
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride, localVisionModelOverride],
+    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride, localVisionModelOverride, ingestionPostureOverride],
   )
 
   /** Delete still runs `fillFields` (an empty schema for every destructible entity — see each adapter's own `fillFieldsSchema`) purely to get a real `validate()` pass: that's the only path that surfaces a delete-time soft warning (e.g. "N products would be orphaned") or hard guard (e.g. "can't delete the active theme") before the typed-confirmation screen, rather than skipping straight to an empty-issues review. */
@@ -548,6 +588,7 @@ export function useAssistantFlow(
             model: modelOverride,
             provider: providerOverride,
             localModel: localModelOverride,
+            posture: ingestionPostureOverride,
             history: options.history,
             historyContext: options.historyContext,
           },
@@ -582,16 +623,16 @@ export function useAssistantFlow(
         finalizeThought()
         if (result.drafts.length === 1) {
           const [{ draft, issues, fieldConfidence }] = result.drafts
-          setState({ status: 'reviewingForm', entity, action: 'create', draft, issues, fieldConfidence })
+          setState({ status: 'reviewingForm', entity, action: 'create', draft, issues, fieldConfidence, posture: result.posture, originatingMessage: message })
           return
         }
-        setState({ status: 'reviewingBatch', entity, drafts: result.drafts, removedIndices: [], editingIndex: null })
+        setState({ status: 'reviewingBatch', entity, drafts: result.drafts, removedIndices: [], editingIndex: null, posture: result.posture, originatingMessage: message })
       } catch (error) {
         if (isAbortError(error)) return
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride],
+    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride, ingestionPostureOverride],
   )
 
   /**
@@ -1053,6 +1094,7 @@ export function useAssistantFlow(
     answerBatchClarification,
     pickLookupItem,
     cancel,
+    discardForRetry,
     newChat,
     conversationLog,
     onCommitted,

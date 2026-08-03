@@ -2,6 +2,7 @@ import { validateProductDraft } from '../../../src/lib/assistantValidation'
 import type { Catalogue, Category } from '../../../src/types/category'
 import type { CustomFieldDefinition } from '../../../src/types/customFields'
 import { ALLERGEN_OPTIONS, DIETARY_TAG_ORDER, type AllergenCode, type CategoryPrices, type DietaryTag, type Discount, type Price, type Product } from '../../../src/types/product'
+import { resolveBilingualField } from '../../../src/utils/bilingual'
 import { getEffectivePrice, type EffectivePrice } from '../../../src/utils/price'
 import * as store from '../../store'
 import type { LookupQueryField, LookupQueryRecord } from '../lookupQuery'
@@ -49,10 +50,10 @@ function priceToNumber(price: Price): number {
 function productLocationLabel(product: Product, uiLanguage: 'no' | 'en'): string {
   if (product.category) {
     const category = liveCategories().find((candidate) => candidate.id === product.category)
-    if (category) return category.name[uiLanguage]
+    if (category) return resolveBilingualField(category.name, uiLanguage)
   } else if (product.catalogueId) {
     const catalogue = liveCatalogues().find((candidate) => candidate.id === product.catalogueId)
-    if (catalogue) return catalogue.name[uiLanguage]
+    if (catalogue) return resolveBilingualField(catalogue.name, uiLanguage)
   }
   return '?'
 }
@@ -140,6 +141,7 @@ export const productEntity: AssistantEntity<Product> = {
   section: 'products',
   imageField: 'image',
   destructive: (action) => action === 'delete',
+  confabulationRiskFields: ['discountMode', 'discountPercentage', 'discountAmount', 'allergens', 'dietaryTags', 'trackStock', 'stockQuantity', 'outOfStock'],
 
   fillFieldsSchema(_action, context: AssistantFillContext, knownDraft?: Partial<Product>): AssistantJsonSchema {
     const location = locationOptions()
@@ -249,7 +251,7 @@ export const productEntity: AssistantEntity<Product> = {
     const byLocation = matches.length > 1 ? matches.filter((product) => needle.includes(productLocationLabel(product, context.uiLanguage).toLowerCase())) : []
     const resolved = byLocation.length > 0 ? byLocation : matches
 
-    return resolved.slice(0, 30).map((product) => ({ id: product.itemID, label: `${product.name[context.uiLanguage]} - ${productLocationLabel(product, context.uiLanguage)}` }))
+    return resolved.slice(0, 30).map((product) => ({ id: product.itemID, label: `${resolveBilingualField(product.name, context.uiLanguage)} - ${productLocationLabel(product, context.uiLanguage)}` }))
   },
 
   /** A brand-new product has no sane default category (unlike `update`, which always has `current.category` already) — worth a clarifying question rather than silently landing in whichever category happens to be first. Never asked once the model has already set `location` to a catalogue directly — that's a deliberate "no category", not an unresolved one. */
@@ -261,7 +263,7 @@ export const productEntity: AssistantEntity<Product> = {
       {
         field: 'location',
         questionKey: 'admin.assistant.clarify.productCategory',
-        options: categories.map((category) => ({ id: `category:${category.id}`, label: category.name[context.uiLanguage] })),
+        options: categories.map((category) => ({ id: `category:${category.id}`, label: resolveBilingualField(category.name, context.uiLanguage) })),
       },
     ]
   },
@@ -378,10 +380,14 @@ export const productEntity: AssistantEntity<Product> = {
       const effective = resolveProductEffectivePrice(product)
       return {
         id: product.itemID,
-        label: product.name[context.uiLanguage],
+        label: resolveBilingualField(product.name, context.uiLanguage),
         sublabel: productLocationLabel(product, context.uiLanguage),
         fields: {
-          name: product.name[context.uiLanguage],
+          // Both language variants, not just the admin's current UI language — a "contains" filter
+          // (e.g. "kylling"/"chicken") must match whichever language the product's own name happens
+          // to be stored in, regardless of which language the admin is asking in. The *label* above
+          // still shows just one clean name; only this filterable value needs both.
+          name: `${product.name.no} ${product.name.en}`.trim(),
           available: product.available,
           hasDiscount: product.discount != null,
           outOfStock: Boolean(product.outOfStock),

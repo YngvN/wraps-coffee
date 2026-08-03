@@ -7,6 +7,7 @@ import { useDateFormatPreference } from '../../../hooks/useDateFormatPreference'
 import { useEvents } from '../../../hooks/useEvents'
 import { useLanguage } from '../../../i18n'
 import type { EventRecord } from '../../../types/event'
+import { resolveBilingualField } from '../../../utils/bilingual'
 import { formatClockTime } from '../../../utils/clockFormat'
 import { formatDate } from '../../../utils/dateFormat'
 import { toDateTime } from '../../../utils/events'
@@ -77,7 +78,7 @@ export function EventsView() {
       transition={{ duration: 0.15 }}
     >
       <div className="events-view__item-info">
-        <span className="events-view__item-title">{event.title[language]}</span>
+        <span className="events-view__item-title">{resolveBilingualField(event.title, language)}</span>
         <div className="events-view__item-meta">
           <span className="events-view__item-date">
             {formatDate(toDateTime(event.date, event.time), dateFormat)} · {formatClockTime(toDateTime(event.date, event.time), language, clockFormat)}

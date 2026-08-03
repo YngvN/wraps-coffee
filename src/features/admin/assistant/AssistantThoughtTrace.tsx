@@ -95,6 +95,12 @@ export function AssistantThoughtTrace({ trace, durationMs, live, typingLabel, de
                     </div>
                     <pre>{entry.input}</pre>
                     <pre>{entry.output}</pre>
+                    {entry.resolvedFields && (
+                      <div>
+                        <span className="assistant-thought-trace__step-raw-label">resolvedFields</span>
+                        <pre>{JSON.stringify(entry.resolvedFields)}</pre>
+                      </div>
+                    )}
                   </div>
                 </AnimatedDetails>
               </li>

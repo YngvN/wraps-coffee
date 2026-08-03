@@ -17,7 +17,21 @@ import { useMessageBoards } from '../../../hooks/useMessageBoards'
 import { useProducts } from '../../../hooks/useProducts'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
 import { useLanguage } from '../../../i18n'
-import { createUser, deleteUser, getAssistantCredentialStatus, getOllamaConfig, listOllamaModels, resetUserPassword, SessionExpiredError, type AssistantModel, type AssistantProvider, type ChunkSizePreference, type OllamaModelInfo } from '../../../lib/localServer'
+import {
+  createUser,
+  deleteUser,
+  getAssistantCredentialStatus,
+  getOllamaConfig,
+  listOllamaModels,
+  resetUserPassword,
+  SessionExpiredError,
+  type AssistantIngestionPosture,
+  type AssistantModel,
+  type AssistantProvider,
+  type ChunkSizePreference,
+  type FieldConfidence,
+  type OllamaModelInfo,
+} from '../../../lib/localServer'
 import { dismissUpload, startUpload, useUpload } from '../../../lib/uploadManager'
 import type { AppearanceTheme, AppearanceThemeColor } from '../../../types/appearanceTheme'
 import type { Catalogue, Category } from '../../../types/category'
@@ -29,8 +43,10 @@ import { NEWS_SOURCES } from '../../../types/news'
 import type { Price, Product } from '../../../types/product'
 import type { StoreSettings } from '../../../types/storeSettings'
 import type { AdminRole, DashboardSection } from '../../../types/sync'
+import { resolveBilingualField } from '../../../utils/bilingual'
 import { copyToClipboard } from '../../../utils/clipboard'
 import { formatDateTime } from '../../../utils/clockFormat'
+import { formatPrice } from '../../../utils/price'
 import { resolveProductCatalogue } from '../../../utils/productCatalogue'
 import { EventForm } from '../events/EventForm'
 import { AdminRightPanel } from '../layout/AdminRightPanel'
@@ -45,6 +61,7 @@ import { ThemeEditorForm } from '../store/ThemeEditorForm'
 import { ResetPasswordForm } from '../users/ResetPasswordForm'
 import { UserForm } from '../users/UserForm'
 import { AssistantBatchReview, type AssistantBatchReviewCard } from './AssistantBatchReview'
+import { AssistantDraftQualityGate } from './AssistantDraftQualityGate'
 import { AssistantListAttachment } from './AssistantListAttachment'
 import { AssistantReviewSummary } from './AssistantReviewSummary'
 import { AssistantThoughtTrace } from './AssistantThoughtTrace'
@@ -62,6 +79,7 @@ import {
   buildProductChangeRows,
   buildStoreSettingsChangeRows,
   buildThemeChangeRows,
+  type ReviewChangeRow,
 } from './reviewChangeRows'
 import { type AssistantEntityKey, type AssistantImageMode, formatReplyListAsText, type TranscriptLine, useAssistantFlow } from './useAssistantFlow'
 import './AssistantPanel.scss'
@@ -86,6 +104,8 @@ const MODEL_OVERRIDE_OPTIONS: AssistantModel[] = ['claude-haiku-4-5', 'claude-so
 const PROVIDER_SELECT_STANDARD_VALUE = 'standard'
 
 const CHUNK_SIZE_OPTIONS: ChunkSizePreference[] = ['auto', 'small', 'medium', 'large', 'custom']
+
+const INGESTION_POSTURE_OPTIONS: AssistantIngestionPosture[] = ['auto', 'safe', 'full']
 
 /** Shown in the "Custom" numeric field before the admin has ever set a value of their own — a reasonable starting point, not a hidden default the server falls back to (that's `server/assistant/steps.ts`'s own per-model capability profile). */
 const DEFAULT_CUSTOM_CHUNK_RECORD_COUNT = 25
@@ -132,7 +152,10 @@ function buildConversationClipboardText(transcript: TranscriptLine[], modelLabel
             `  ${index + 1}. ${traceStepLabel(entry, t)}${entry.pass ? ` (${entry.pass})` : ''} [${entry.toolName}${entry.model ? `, ${entry.model}` : ''}, ${formatThoughtDuration(entry.durationMs)}]${entryUsageSuffix}`,
             `     Input: ${entry.input}`,
             `     Output: ${entry.output}`,
-          ].join('\n')
+            entry.resolvedFields ? `     Resolved fields: ${JSON.stringify(entry.resolvedFields)}` : null,
+          ]
+            .filter((part): part is string => part !== null)
+            .join('\n')
         })
         return [summary, ...steps].join('\n')
       }
@@ -196,10 +219,16 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   // constrained) hardware set an exact records-per-batch value the fixed presets don't cover.
   const [chunkSizePreference, setChunkSizePreference] = useLocalStorage<ChunkSizePreference>('admin.assistantChunkSizePreference', 'auto')
   const [customChunkRecordCount, setCustomChunkRecordCount] = useLocalStorage<number | null>('admin.assistantChunkSizeCustomValue', null)
+  // Same per-device, never-synced posture as `chunkSizePreference` above — controls how cautious the
+  // assistant's own extraction is (see `AssistantIngestionPosture`'s own doc comment). `'auto'` means
+  // "use the active provider's own default" (full schema + verify for Claude, stripped schema + no
+  // verify for local) — `'safe'`/`'full'` force one or the other regardless of provider.
+  const [ingestionPosture, setIngestionPosture] = useLocalStorage<AssistantIngestionPosture>('admin.assistantIngestionPosture', 'auto')
   const flow = useAssistantFlow(
     modelOverride ?? undefined,
     chunkSizePreference,
     customChunkRecordCount ?? undefined,
+    ingestionPosture,
     providerOverride ?? undefined,
     localModelOverride?.trim() ? localModelOverride : undefined,
     localVisionModelOverride?.trim() ? localVisionModelOverride : undefined,
@@ -292,7 +321,14 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   // Every new review (including a corrected draft from a follow-up chat message) starts back on
   // the compact change-summary view, not stuck in the full-form edit view from a previous draft.
   const [isEditingDraft, setIsEditingDraft] = useState(false)
+  // Whether `AssistantDraftQualityGate`'s "Se detaljer" has been clicked for the current draft —
+  // once true, the normal review form/batch review renders in its place, same as it always has.
+  // Reset alongside `isEditingDraft` below on every new `flow.state`, so a new draft (or a new
+  // clarification-resolved retry of the same one) always starts back on the gate rather than
+  // staying dismissed from whatever the previous draft's own dismissal left behind.
+  const [gateDismissed, setGateDismissed] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
   const tracked = useUpload(uploadId)
   const transcriptEndRef = useRef<HTMLDivElement>(null)
 
@@ -304,6 +340,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
     queueMicrotask(() => {
       setConfirmPhrase('')
       setIsEditingDraft(false)
+      setGateDismissed(false)
     })
   }, [flow.state])
 
@@ -363,6 +400,65 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
         </ul>
       </Alert>
     )
+  }
+
+  /** Which of a batch/single draft's own fields are worth flagging in `AssistantDraftQualityGate`'s field-count line — both `'unknown'` (never set) and `'inferred'` (the AI's own guess) are "double-check this" tiers per `admin.assistant.ingest.inferredHint`'s existing copy; only `'verbatim'` is genuinely not worth mentioning. Fields stripped entirely under safe posture (see `confabulationRiskFields`) never produce a row at all, so they're correctly absent from this count rather than somehow inflating it. */
+  const countFieldsNeedingReview = (rows: ReviewChangeRow[]): number => rows.filter((row) => row.confidence === 'unknown' || row.confidence === 'inferred').length
+
+  /** One gate summary line + its own field-review count for a single draft — `null` for any entity the gate doesn't know how to summarize (only `product`/`event`/`catalogue`, matching the ingestion-posture spec's own field choices; `category` and every non-batch-capable entity fall straight through to the normal review form/batch review, unchanged, even under safe posture). */
+  const buildGateSummary = (entity: AssistantEntityKey, draft: unknown, fieldConfidence: Record<string, FieldConfidence>): { summaryLine: string; count: number } | null => {
+    if (entity === 'product') {
+      const product = draft as Product
+      const location = product.category
+        ? resolveBilingualField(allCategories.find((category) => category.id === product.category)?.name, reviewLanguage)
+        : product.catalogueId
+          ? resolveBilingualField(catalogues.find((catalogue) => catalogue.id === product.catalogueId)?.name, reviewLanguage)
+          : ''
+      const price = product.price !== undefined ? formatPrice(product.price, t) : ''
+      const rows = buildProductChangeRows(t, reviewLanguage, null, product, allCategories, catalogues, fieldConfidence)
+      return { summaryLine: [resolveBilingualField(product.name, reviewLanguage), location, price].filter(Boolean).join(' · '), count: countFieldsNeedingReview(rows) }
+    }
+    if (entity === 'event') {
+      const event = draft as EventRecord
+      const rows = buildEventChangeRows(t, reviewLanguage, null, event, fieldConfidence)
+      return { summaryLine: [resolveBilingualField(event.title, reviewLanguage), event.date, event.category].filter(Boolean).join(' · '), count: countFieldsNeedingReview(rows) }
+    }
+    if (entity === 'catalogue') {
+      const catalogue = draft as Catalogue
+      const rows = buildCatalogueChangeRows(t, reviewLanguage, null, catalogue, fieldConfidence)
+      return { summaryLine: resolveBilingualField(catalogue.name, reviewLanguage), count: countFieldsNeedingReview(rows) }
+    }
+    return null
+  }
+
+  /** Batch cap from the plan: at most 5 per-record summary lines, then an "…and N more" line — `AssistantDraftQualityGate` itself is oblivious to the cap, it just renders whatever lines it's given. */
+  const MAX_GATE_BATCH_LINES = 5
+
+  /** Builds the gate's props for the current `flow.state`, or `null` when the gate shouldn't show at all — not `'reviewingForm'`/`'reviewingBatch'`, not `'safe'` posture, or an entity `buildGateSummary` doesn't support. */
+  const buildDraftQualityGateProps = (): { summaryLines: string[]; fieldsNeedingReviewCount: number } | null => {
+    if (flow.state.status === 'reviewingForm') {
+      const state = flow.state
+      if (state.posture !== 'safe') return null
+      const result = buildGateSummary(state.entity, state.draft, state.fieldConfidence)
+      if (!result) return null
+      return { summaryLines: [result.summaryLine], fieldsNeedingReviewCount: result.count }
+    }
+    if (flow.state.status === 'reviewingBatch') {
+      const state = flow.state
+      if (state.posture !== 'safe') return null
+      const removedSet = new Set(state.removedIndices)
+      const activeDrafts = state.drafts.filter((_, index) => !removedSet.has(index))
+      const results = activeDrafts.map(({ draft, fieldConfidence }) => buildGateSummary(state.entity, draft, fieldConfidence))
+      if (results.some((result) => result === null)) return null
+      const nonNullResults = results as { summaryLine: string; count: number }[]
+      const shownLines = nonNullResults.slice(0, MAX_GATE_BATCH_LINES).map((result) => result.summaryLine)
+      const overflowCount = nonNullResults.length - shownLines.length
+      return {
+        summaryLines: overflowCount > 0 ? [...shownLines, t('admin.assistant.ingest.gateBatchMoreCount', { count: overflowCount })] : shownLines,
+        fieldsNeedingReviewCount: nonNullResults.reduce((total, result) => total + result.count, 0),
+      }
+    }
+    return null
   }
 
   const renderReview = () => {
@@ -1160,6 +1256,8 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
     </LayoutGroup>
   )
 
+  const draftQualityGateInfo = gateDismissed ? null : buildDraftQualityGateProps()
+
   return (
     <AdminRightPanel
       open={open}
@@ -1311,6 +1409,27 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                     max={1000}
                   />
                 )}
+
+                <div className="assistant-panel__log-entry-header">
+                  <span className="assistant-panel__log-title">{t('admin.assistant.postureMenuTitle')}</span>
+                </div>
+                <p className="assistant-panel__model-menu-description">{t('admin.assistant.postureDescription')}</p>
+                <div className="assistant-panel__model-select-field">
+                  <select
+                    id="assistant-ingestion-posture-select"
+                    value={ingestionPosture}
+                    onChange={(event) => {
+                      setIngestionPosture(event.target.value as AssistantIngestionPosture)
+                      setModelMenuOpen(false)
+                    }}
+                  >
+                    {INGESTION_POSTURE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {t(`admin.assistant.postureOption.${option}`)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 {session?.role === 'admin' && (
                   <>
                     <div className="assistant-panel__log-entry-header">
@@ -1517,9 +1636,27 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                     </div>
                   )}
 
-                  {(flow.state.status === 'reviewingForm' || flow.state.status === 'reviewingDestructive') && <div className="assistant-panel__review">{renderReview()}</div>}
+                  {draftQualityGateInfo && (flow.state.status === 'reviewingForm' || flow.state.status === 'reviewingBatch') && (
+                    <div className="assistant-panel__review">
+                      <AssistantDraftQualityGate
+                        summaryLines={draftQualityGateInfo.summaryLines}
+                        fieldsNeedingReviewCount={draftQualityGateInfo.fieldsNeedingReviewCount}
+                        onSeeDetails={() => setGateDismissed(true)}
+                        onTryAgain={() => {
+                          const originatingMessage = flow.state.status === 'reviewingForm' || flow.state.status === 'reviewingBatch' ? flow.state.originatingMessage : ''
+                          flow.discardForRetry()
+                          setMessage(originatingMessage)
+                          requestAnimationFrame(() => composerRef.current?.focus())
+                        }}
+                        onCancel={flow.cancel}
+                      />
+                    </div>
+                  )}
 
-                  {flow.state.status === 'reviewingBatch' && <div className="assistant-panel__review">{renderBatchReview()}</div>}
+                  {!draftQualityGateInfo &&
+                    (flow.state.status === 'reviewingForm' || flow.state.status === 'reviewingDestructive') && <div className="assistant-panel__review">{renderReview()}</div>}
+
+                  {!draftQualityGateInfo && flow.state.status === 'reviewingBatch' && <div className="assistant-panel__review">{renderBatchReview()}</div>}
 
                   {isBusy && (
                     <AssistantThoughtTrace
@@ -1568,6 +1705,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                     📎
                   </button>
                   <textarea
+                    ref={composerRef}
                     value={message}
                     placeholder={t('admin.assistant.composerPlaceholder')}
                     onChange={(event) => setMessage(event.target.value)}

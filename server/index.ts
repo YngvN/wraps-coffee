@@ -626,6 +626,8 @@ const httpServer = createServer((req, res) => {
     value === 'claude-haiku-4-5' || value === 'claude-sonnet-4-5' || value === 'claude-opus-4-5'
   /** Validates a per-device `provider` override (see `AssistantPanel`'s kebab menu) the same defensive way `isAssistantModel` validates `model` — an invalid/missing value falls back to `undefined`, which every step function itself then falls back to the shared, admin-configured default for. */
   const isAssistantProvider = (value: unknown): value is store.AssistantProvider => value === 'local' || value === 'claude'
+  /** Validates the kebab menu's "Ekstra forsiktig modus" override, same defensive pattern as `isAssistantProvider` — an invalid/missing value falls back to `undefined`, which `resolveIngestionPosture` itself then resolves per the active provider. */
+  const isIngestionPosture = (value: unknown): value is assistantSteps.AssistantIngestionPosture => value === 'auto' || value === 'safe' || value === 'full'
 
   if (req.method === 'GET' && url.pathname === '/assistant/credentials') {
     const session = store.getSession(bearerToken(req) ?? '')
@@ -913,7 +915,7 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields, model, history, historyContext, provider, localModel, localVisionModel } = body as {
+        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields, model, history, historyContext, provider, localModel, localVisionModel, posture } = body as {
           entity?: string
           action?: AssistantActionName
           itemID?: string
@@ -928,6 +930,7 @@ const httpServer = createServer((req, res) => {
           provider?: store.AssistantProvider
           localModel?: string
           localVisionModel?: string
+          posture?: assistantSteps.AssistantIngestionPosture
         }
         if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, action, message, or uiLanguage' })
@@ -946,6 +949,7 @@ const httpServer = createServer((req, res) => {
               providerOverride: isAssistantProvider(provider) ? provider : undefined,
               localModelOverride: typeof localModel === 'string' ? localModel : undefined,
               localVisionModelOverride: typeof localVisionModel === 'string' ? localVisionModel : undefined,
+              postureOverride: isIngestionPosture(posture) ? posture : undefined,
               history: typeof history === 'string' ? history : undefined,
               historyContext: typeof historyContext === 'string' ? historyContext : undefined,
             }),
@@ -968,7 +972,7 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, message, uiLanguage, resolvedFields, model, history, historyContext, provider, localModel } = body as {
+        const { entity, message, uiLanguage, resolvedFields, model, history, historyContext, provider, localModel, posture } = body as {
           entity?: string
           message?: string
           uiLanguage?: 'no' | 'en'
@@ -978,6 +982,7 @@ const httpServer = createServer((req, res) => {
           historyContext?: string
           provider?: store.AssistantProvider
           localModel?: string
+          posture?: assistantSteps.AssistantIngestionPosture
         }
         if (!entity || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, message, or uiLanguage' })
@@ -992,6 +997,7 @@ const httpServer = createServer((req, res) => {
               modelOverride: isAssistantModel(model) ? model : undefined,
               providerOverride: isAssistantProvider(provider) ? provider : undefined,
               localModelOverride: typeof localModel === 'string' ? localModel : undefined,
+              postureOverride: isIngestionPosture(posture) ? posture : undefined,
               history: typeof history === 'string' ? history : undefined,
               historyContext: typeof historyContext === 'string' ? historyContext : undefined,
             }),

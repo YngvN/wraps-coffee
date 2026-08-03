@@ -1,0 +1,31 @@
+@use '../../../styles/variables' as *;
+
+.assistant-draft-quality-gate {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+}
+
+.assistant-draft-quality-gate__summary {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+}
+
+.assistant-draft-quality-gate__summary li {
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  border-radius: 8px;
+  border: 1px solid $color-border;
+  background: $color-surface;
+  font-size: 0.9rem;
+  color: $color-text;
+}
+
+.assistant-draft-quality-gate__count {
+  margin: 0;
+  font-size: 0.8rem;
+  color: $color-text-muted;
+}

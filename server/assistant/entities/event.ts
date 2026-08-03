@@ -1,5 +1,6 @@
 import { validateEventDraft } from '../../../src/lib/assistantValidation'
 import type { EventRecord } from '../../../src/types/event'
+import { resolveBilingualField } from '../../../src/utils/bilingual'
 import { isEventPast, toDateTime } from '../../../src/utils/events'
 import * as store from '../../store'
 import type { LookupQueryField, LookupQueryRecord } from '../lookupQuery'
@@ -58,6 +59,7 @@ export const eventEntity: AssistantEntity<EventRecord> = {
   section: 'events',
   imageField: 'imageUrl',
   destructive: (action) => action === 'delete',
+  confabulationRiskFields: ['category'],
 
   fillFieldsSchema(_action, context: AssistantFillContext): AssistantJsonSchema {
     const languageName = context.uiLanguage === 'no' ? 'Norwegian' : 'English'
@@ -104,7 +106,7 @@ export const eventEntity: AssistantEntity<EventRecord> = {
   async listCandidates(_action, context: AssistantFillContext, searchText: string): Promise<AssistantCandidate[]> {
     const needle = searchText.trim().toLowerCase()
     const matches = liveEvents().filter((event) => !needle || event.title.no.toLowerCase().includes(needle) || event.title.en.toLowerCase().includes(needle))
-    return matches.slice(0, 30).map((event) => ({ id: event.eventID, label: `${event.title[context.uiLanguage]} (${event.date})` }))
+    return matches.slice(0, 30).map((event) => ({ id: event.eventID, label: `${resolveBilingualField(event.title, context.uiLanguage)} (${event.date})` }))
   },
 
   async getCurrent(id: string): Promise<EventRecord | null> {
@@ -203,7 +205,7 @@ export const eventEntity: AssistantEntity<EventRecord> = {
   async listQueryableRecords(context: AssistantFillContext): Promise<LookupQueryRecord[]> {
     return liveEvents().map((event) => ({
       id: event.eventID,
-      label: `${event.title[context.uiLanguage]} (${event.date})`,
+      label: `${resolveBilingualField(event.title, context.uiLanguage)} (${event.date})`,
       fields: {
         hasOccurred: hasOccurred(event),
         recurring: event.recurring,

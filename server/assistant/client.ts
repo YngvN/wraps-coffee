@@ -46,6 +46,14 @@ export interface AssistantTraceEntry {
    * so a list-shape turn is identifiable when inspecting the trace.
    */
   shape?: 'count' | 'list' | 'report'
+  /**
+   * Debug-only tag stamped after the fact by `steps.ts`'s `fillFields`/`fillFieldsBatch` onto their
+   * own `fill_fields_*`/`fill_fields_batch_*` trace entries, whenever the call was resuming a prior
+   * clarifying question — the admin's tapped/typed answer(s), keyed by field name. Never read by
+   * any functional code path; exists so a clarification's resolved value is visible in the trace
+   * export instead of only being inferable from the (truncated) request JSON.
+   */
+  resolvedFields?: Record<string, string>
 }
 
 export interface ToolCallInput {
