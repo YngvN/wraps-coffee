@@ -277,6 +277,32 @@
   gap: calc($spacing-unit / 2);
 }
 
+.assistant-panel__settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  font-size: 0.875rem;
+
+  > span {
+    font-weight: 600;
+  }
+}
+
+.assistant-panel__settings-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc($spacing-unit / 2);
+}
+
+.assistant-panel__settings-sidebar-items {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .assistant-panel__composer-hint {
   margin: 0;
   padding-top: calc($spacing-unit / 2);

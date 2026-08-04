@@ -35,6 +35,24 @@ export function ContactInfoView() {
         />
       </div>
 
+      <div className="contact-info-view__temporarily-closed">
+        <Checkbox
+          id="contact-temporarily-closed"
+          label={t('admin.contact.temporarilyClosedLabel')}
+          checked={contactInfo.temporarilyClosed ?? false}
+          onChange={(event) => setContactInfo({ ...contactInfo, temporarilyClosed: event.target.checked })}
+        />
+        {contactInfo.temporarilyClosed && (
+          <Input
+            id="contact-temporarily-closed-reason"
+            label={t('admin.contact.temporarilyClosedReasonLabel')}
+            placeholder={t('admin.contact.temporarilyClosedReasonPlaceholder')}
+            value={contactInfo.temporarilyClosedReason ?? ''}
+            onChange={(event) => setContactInfo({ ...contactInfo, temporarilyClosedReason: event.target.value })}
+          />
+        )}
+      </div>
+
       <h2>{t('admin.contact.hoursTitle')}</h2>
       <ul className="contact-info-view__hours">
         {WEEKDAY_KEYS.map((day) => {

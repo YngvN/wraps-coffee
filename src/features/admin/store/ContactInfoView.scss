@@ -12,6 +12,15 @@
   gap: $spacing-unit * 2;
 }
 
+.contact-info-view__temporarily-closed {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  padding: $spacing-unit * 1.5;
+  border: 1px solid $color-border;
+  border-radius: 8px;
+}
+
 .contact-info-view__hours {
   display: flex;
   flex-direction: column;

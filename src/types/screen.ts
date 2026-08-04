@@ -1,4 +1,4 @@
-import type { LanguageCode } from '../i18n'
+import type { LanguageCode } from '../i18n/translate'
 
 /** How an image slide's picture fills its slot: shrunk to fit without cropping (the default), or scaled to fill the entire container, cropping as needed. */
 export type ImageFit = 'contain' | 'cover'

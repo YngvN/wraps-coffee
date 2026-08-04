@@ -10,5 +10,6 @@
     "friday": { "closed": false, "open": "08:00", "close": "18:00" },
     "saturday": { "closed": true },
     "sunday": { "closed": true }
-  }
+  },
+  "temporarilyClosed": false
 }

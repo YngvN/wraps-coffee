@@ -5,21 +5,48 @@ import { categoryCustomFieldEntity } from './entities/categoryCustomField'
 import { contactInfoEntity } from './entities/contactInfo'
 import { eventEntity } from './entities/event'
 import { integrationToggleEntity } from './entities/integrationToggle'
+import { displayManagerEntity } from './entities/displayManager'
+import { mediaLibraryEntity } from './entities/mediaLibrary'
 import { messageBoardEntity } from './entities/messageBoard'
 import { messageBoardPostEntity } from './entities/messageBoardPost'
+import { ordersEntity } from './entities/orders'
 import { productEntity } from './entities/product'
+import { screenEntity } from './entities/screen'
+import { settingsEntity } from './entities/settings'
 import { storeSettingsEntity } from './entities/storeSettings'
 import { themeEntity } from './entities/theme'
 import { userEntity } from './entities/user'
 import type { AssistantEntity, AssistantSession } from './types'
 
 /**
- * Every entity the assistant can operate on. Adding one is: write the
- * adapter file (see `AssistantEntity` in `types.ts`), import it, and add it
- * here — nothing else in this module, the routes, or the client UI needs to
- * change. Per this repo's CLAUDE.md: whenever new interactive dashboard
- * functionality is added, add/update the matching entry here in the same
- * change.
+ * Every entity the assistant can operate on. Per this repo's CLAUDE.md:
+ * whenever new interactive dashboard functionality is added, add/update the
+ * matching entry here in the same change.
+ *
+ * Adding a new entity is **not** just "write the adapter file, import it,
+ * add it here" — despite that once being this comment's own claim, every
+ * existing entity also needs matching updates in several other files (confirm
+ * by grepping for an existing entity's own key, e.g. `contactInfo`, across
+ * `src/features/admin/assistant/` before assuming this list is exhaustive
+ * for a future addition):
+ * 1. This file — import + add to `ASSISTANT_ENTITIES` below.
+ * 2. `server/assistant/steps.ts` — an `ENTITY_DESCRIPTIONS` entry (its own
+ *    doc comment says to keep this in sync with the array below).
+ * 3. `src/features/admin/assistant/useAssistantFlow.ts` — add the key to the
+ *    `AssistantEntityKey` union, `ENTITY_SECTIONS` (client-side mirror of
+ *    `sessionCanUseEntity` below), and `SINGLETON_ENTITIES`/`BATCH_CAPABLE_ENTITIES`
+ *    if applicable.
+ * 4. `src/features/admin/assistant/AssistantPanel.tsx` — a new
+ *    `if (entity === '<key>') { ... }` branch in the review-form mount
+ *    (reuse a real form component via `'existingForm'`, or build a small
+ *    "MiniForm" like `ContactInfoMiniForm`/`StoreSettingsMiniForm` when none
+ *    exists) wired to the actual commit, and — only if the entity supports
+ *    `delete` — another branch in the destructive-delete confirm handler.
+ * 5. `src/features/admin/assistant/reviewChangeRows.ts` — a new
+ *    `build<Entity>ChangeRows` function.
+ * 6. `src/i18n/languages.json` — an `admin.assistant.entities.<key>` label,
+ *    both languages, plus any new field labels the entity's own MiniForm
+ *    needs.
  *
  * Beyond the CRUD contract (`fillFieldsSchema`/`mergeDraft`/`validate`/etc.),
  * an entity can also opt into `listAll` — its full current live data, used
@@ -45,6 +72,11 @@ export const ASSISTANT_ENTITIES: AssistantEntity<any>[] = [
   storeSettingsEntity,
   contactInfoEntity,
   integrationToggleEntity,
+  settingsEntity,
+  mediaLibraryEntity,
+  screenEntity,
+  displayManagerEntity,
+  ordersEntity,
 ]
 
 /** Whether `session` is allowed to use `entity` at all — `section: null` entities (Users, credentials, backup, cleanup) require `role !== 'limited'`; section-scoped entities require that section in `allowedSections` when the session is `limited`. */

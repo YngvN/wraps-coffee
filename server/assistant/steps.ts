@@ -46,6 +46,11 @@ const ENTITY_DESCRIPTIONS: Record<string, string> = {
   storeSettings: "the store's own name/slogan/logos/favicon",
   contactInfo: "the store's phone/email/address/opening hours",
   integrationToggle: 'turning an integration (weather/transit/entur/news) on or off',
+  settings: "the admin's own device/store preferences — clock format, date format, kiosk pane default language, which sidebar items are hidden",
+  mediaLibrary: 'a single uploaded image/video file in the Media Library — renaming its display label, or deleting it',
+  screen: 'a kiosk display screen\'s own global settings — name, borders, whole-screen background, stages/rotation timing, transitions, screensaver — never its pane layout/content, which only the in-place screen editor changes',
+  displayManager: 'a physical monitor on a registered kiosk machine — renaming the machine, or assigning which screen that monitor shows',
+  orders: "an order's own status (received/accepted/preparing/ready/completed/cancelled) — never any other field, and never a new or deleted order",
 }
 
 /**
@@ -554,6 +559,7 @@ async function selectCommand(
 /** The `'question'` branch's own narrow call — just `lookupEntities`/`searchText`, no `entity`/`action`/`reply` fields for a local model to conflate them with. */
 async function selectLookupTarget(
   entityKeys: string[],
+  entityListForPrompt: string,
   historyContext: string | null,
   message: string,
   uiLanguage: 'no' | 'en',
@@ -573,7 +579,15 @@ async function selectLookupTarget(
     additionalProperties: false,
   }
 
-  const systemPrompt = [languageInstruction(uiLanguage), currentDateInstruction(), REFERENCE_RESOLUTION_LINE, historyContextPromptLine(historyContext)].filter(Boolean).join('\n')
+  const systemPrompt = [
+    languageInstruction(uiLanguage),
+    currentDateInstruction(),
+    entityListLine(entityListForPrompt, entityKeys.includes('user')),
+    REFERENCE_RESOLUTION_LINE,
+    historyContextPromptLine(historyContext),
+  ]
+    .filter(Boolean)
+    .join('\n')
 
   return callToolOnce<{ lookupEntities: string[]; searchText: string | null }>({
     systemPrompt,
@@ -751,7 +765,7 @@ async function selectIntentCascaded(
       return { entity: 'chat', action: null, searchText: null, reply: null, lookupEntities: filteredEntities }
     }
 
-    const { lookupEntities, searchText } = await selectLookupTarget(entityKeys, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace, signal)
+    const { lookupEntities, searchText } = await selectLookupTarget(entityKeys, entityListForPrompt, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace, signal)
     if (lookupEntities.length === 0) {
       // Shouldn't happen given `classifyMessageType` already committed to "question", but never
       // leave the admin with silence if it does.

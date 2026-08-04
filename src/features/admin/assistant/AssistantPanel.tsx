@@ -9,20 +9,32 @@ import { useClockFormatPreference } from '../../../hooks/useClockFormatPreferenc
 import { useContactInfo } from '../../../hooks/useContactInfo'
 import { useDateFormatPreference } from '../../../hooks/useDateFormatPreference'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
+import { useDisplayMachines } from '../../../hooks/useDisplayMachines'
 import { useEvents } from '../../../hooks/useEvents'
+import { useFoodoraOrders } from '../../../hooks/useFoodoraOrders'
 import { useIntegrationsConfig } from '../../../hooks/useIntegrationsConfig'
 import { useLocalStorage } from '../../../hooks/useLocalStorage'
 import { useMessageBoardPosts } from '../../../hooks/useMessageBoardPosts'
 import { useMessageBoards } from '../../../hooks/useMessageBoards'
+import { useOrders } from '../../../hooks/useOrders'
 import { useProducts } from '../../../hooks/useProducts'
+import { useScreens } from '../../../hooks/useScreens'
+import { useSidebarSettings } from '../../../hooks/useSidebarSettings'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
-import { useLanguage } from '../../../i18n'
+import { useWoltOrders } from '../../../hooks/useWoltOrders'
+import { availableLanguages, useLanguage } from '../../../i18n'
+import { reportError } from '../../../lib/errorNotifications'
 import {
   createUser,
+  deleteUpload,
   deleteUser,
   getAssistantCredentialStatus,
   getOllamaConfig,
   listOllamaModels,
+  listUploads,
+  pushFoodoraOrderStatus,
+  pushWoltOrderStatus,
+  renameUpload,
   resetUserPassword,
   SessionExpiredError,
   type AssistantIngestionPosture,
@@ -31,6 +43,7 @@ import {
   type ChunkSizePreference,
   type FieldConfidence,
   type OllamaModelInfo,
+  type UploadedMedia,
 } from '../../../lib/localServer'
 import { dismissUpload, startUpload, useUpload } from '../../../lib/uploadManager'
 import type { AppearanceTheme, AppearanceThemeColor } from '../../../types/appearanceTheme'
@@ -40,7 +53,10 @@ import type { CustomFieldDefinition } from '../../../types/customFields'
 import type { EventRecord } from '../../../types/event'
 import type { MessageBoard, MessageBoardPost } from '../../../types/messageBoard'
 import { NEWS_SOURCES } from '../../../types/news'
+import type { OrderRecord } from '../../../types/order'
 import type { Price, Product } from '../../../types/product'
+import type { ScreenConfig } from '../../../types/screen'
+import type { ToggleableSidebarItem } from '../../../types/sidebarSettings'
 import type { StoreSettings } from '../../../types/storeSettings'
 import type { AdminRole, DashboardSection } from '../../../types/sync'
 import { resolveBilingualField } from '../../../utils/bilingual'
@@ -49,12 +65,14 @@ import { formatDateTime } from '../../../utils/clockFormat'
 import { formatPrice } from '../../../utils/price'
 import { resolveProductCatalogue } from '../../../utils/productCatalogue'
 import { EventForm } from '../events/EventForm'
+import { NAV_ITEMS } from '../layout/adminNavItems'
 import { AdminRightPanel } from '../layout/AdminRightPanel'
 import { MessageBoardPostForm } from '../messageBoard/MessageBoardPostForm'
 import { CatalogueForm } from '../products/CatalogueForm'
 import { CategoryForm } from '../products/CategoryForm'
 import { CustomFieldListEditor } from '../products/CustomFieldListEditor'
 import { ProductForm } from '../products/ProductForm'
+import { ScreenForm } from '../screens/ScreenForm'
 import { LogoListEditor } from '../store/LogoListEditor'
 import { ThemeColorListEditor } from '../store/ThemeColorListEditor'
 import { ThemeEditorForm } from '../store/ThemeEditorForm'
@@ -72,14 +90,22 @@ import {
   buildCategoryChangeRows,
   buildCategoryCustomFieldChangeRows,
   buildContactInfoChangeRows,
+  buildDisplayManagerChangeRows,
   buildEventChangeRows,
   buildIntegrationToggleChangeRows,
+  buildMediaLibraryChangeRows,
   buildMessageBoardChangeRows,
   buildMessageBoardPostChangeRows,
+  buildOrdersChangeRows,
   buildProductChangeRows,
+  buildScreenChangeRows,
+  buildSettingsChangeRows,
   buildStoreSettingsChangeRows,
   buildThemeChangeRows,
+  type DisplayManagerDraft,
+  type MediaLibraryDraft,
   type ReviewChangeRow,
+  type SettingsDraft,
 } from './reviewChangeRows'
 import { type AssistantEntityKey, type AssistantImageMode, formatReplyListAsText, type TranscriptLine, useAssistantFlow } from './useAssistantFlow'
 import './AssistantPanel.scss'
@@ -181,7 +207,7 @@ function buildConversationClipboardText(transcript: TranscriptLine[], modelLabel
  */
 export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   const { t, language } = useLanguage()
-  const [defaultPaneLanguage] = useDefaultPaneLanguage()
+  const [defaultPaneLanguage, setDefaultPaneLanguage] = useDefaultPaneLanguage()
   // The language the admin was just chatting with the assistant in, falling back to the cafe's
   // own default pane content language, and finally English — so a reviewed form never shows every
   // language a product/event/etc. happens to already have content in, just the one relevant here.
@@ -233,8 +259,9 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
     localModelOverride?.trim() ? localModelOverride : undefined,
     localVisionModelOverride?.trim() ? localVisionModelOverride : undefined,
   )
-  const [clockFormat] = useClockFormatPreference()
-  const [dateFormat] = useDateFormatPreference()
+  const [clockFormat, setClockFormat] = useClockFormatPreference()
+  const [dateFormat, setDateFormat] = useDateFormatPreference()
+  const [sidebarSettings, setSidebarSettings] = useSidebarSettings()
   // Slides in from the right over the chat, same as `logView` below — see the model-menu
   // branch of the main `AnimatePresence` for why these two are mutually exclusive.
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
@@ -308,10 +335,25 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   const [categoryPrices, setCategoryPrices] = useCategoryPrices()
   const [boards, setBoards] = useMessageBoards()
   const [posts, setPosts] = useMessageBoardPosts()
+  const [screens, setScreens] = useScreens()
   const [appearanceSettings, setAppearanceSettings] = useAppearanceThemes()
   const [storeSettings, setStoreSettings] = useStoreSettings()
   const [contactInfo, setContactInfo] = useContactInfo()
   const [integrationsConfig, setIntegrationsConfig] = useIntegrationsConfig()
+  const [displayMachines, setDisplayMachines] = useDisplayMachines()
+  const [orders, setOrders] = useOrders()
+  const [woltOrders, setWoltOrders] = useWoltOrders()
+  const [foodoraOrders, setFoodoraOrders] = useFoodoraOrders()
+  // Media items aren't a synced-key hook like every list above (`listUploads` is a plain REST
+  // fetch — see `MediaLibraryView.tsx`) — fetched lazily only while actually reviewing a
+  // `mediaLibrary` draft, purely so its own review row can show the file's current label alongside
+  // the proposed one, the same "before → after" every other entity's review already shows.
+  const [mediaItems, setMediaItems] = useState<UploadedMedia[]>([])
+  useEffect(() => {
+    if (flow.state.status === 'reviewingForm' && flow.state.entity === 'mediaLibrary' && session) {
+      listUploads(session.token).then(setMediaItems).catch(() => {})
+    }
+  }, [flow.state, session])
   const [message, setMessage] = useState('')
   const [uploadId, setUploadId] = useState<string | undefined>()
   const [pendingImageBase64, setPendingImageBase64] = useState<{ mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string } | undefined>()
@@ -537,6 +579,35 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
           <>
             {renderIssues(issues)}
             <EventForm event={eventDraft} forceLanguage={reviewLanguage} onSave={saveEvent} onCancel={flow.cancel} />
+          </>
+        )
+      }
+
+      if (entity === 'screen') {
+        const screenDraft = draft as ScreenConfig
+        const currentScreen = itemID ? screens.find((existing) => existing.screenID === itemID) ?? null : null
+        const saveScreen = (screen: ScreenConfig) => {
+          const exists = screens.some((existing) => existing.screenID === screen.screenID)
+          setScreens(exists ? screens.map((existing) => (existing.screenID === screen.screenID ? screen : existing)) : [...screens, screen])
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildScreenChangeRows(t, currentScreen, screenDraft)}
+                onConfirm={() => saveScreen(screenDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
+        return (
+          <>
+            {renderIssues(issues)}
+            <ScreenForm screen={screenDraft} onSave={saveScreen} onCancel={flow.cancel} />
           </>
         )
       }
@@ -902,6 +973,136 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
         }
         return <IntegrationToggleMiniForm draft={toggleDraft} issues={issues} renderIssues={renderIssues} onSave={saveToggle} onCancel={flow.cancel} />
       }
+
+      if (entity === 'settings') {
+        const settingsDraft = draft as SettingsDraft
+        const currentSettings: SettingsDraft = { clockFormat, dateFormat, paneLanguage: defaultPaneLanguage, hiddenSidebarItems: sidebarSettings.hiddenItems }
+        const saveSettings = (next: SettingsDraft) => {
+          setClockFormat(next.clockFormat)
+          setDateFormat(next.dateFormat)
+          setDefaultPaneLanguage(next.paneLanguage)
+          setSidebarSettings({ ...sidebarSettings, hiddenItems: next.hiddenSidebarItems })
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildSettingsChangeRows(t, currentSettings, settingsDraft)}
+                onConfirm={() => saveSettings(settingsDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
+        return <SettingsMiniForm draft={settingsDraft} issues={issues} renderIssues={renderIssues} onSave={saveSettings} onCancel={flow.cancel} />
+      }
+
+      if (entity === 'mediaLibrary') {
+        const mediaDraft = draft as MediaLibraryDraft
+        const currentMedia = itemID ? mediaItems.find((existing) => existing.filename === itemID) ?? null : null
+        const saveMedia = (next: MediaLibraryDraft) => {
+          if (!session) return
+          renameUpload(next.filename, next.displayName ?? '', session.token)
+            .then(flow.onCommitted)
+            .catch((error) => {
+              if (!(error instanceof SessionExpiredError)) console.error(error)
+            })
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildMediaLibraryChangeRows(t, currentMedia, mediaDraft)}
+                onConfirm={() => saveMedia(mediaDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
+        return <MediaLibraryMiniForm draft={mediaDraft} issues={issues} renderIssues={renderIssues} onSave={saveMedia} onCancel={flow.cancel} />
+      }
+
+      if (entity === 'displayManager') {
+        const displayDraft = draft as DisplayManagerDraft
+        const currentMachine = displayMachines.find((existing) => existing.machineID === displayDraft.machineID)
+        const currentMonitor = currentMachine?.monitors.find((existing) => existing.id === displayDraft.monitorId)
+        const currentDraft: DisplayManagerDraft = {
+          machineID: displayDraft.machineID,
+          monitorId: displayDraft.monitorId,
+          monitorLabel: displayDraft.monitorLabel,
+          machineLabel: currentMachine?.customLabel ?? currentMachine?.label ?? displayDraft.machineLabel,
+          assignedScreenID: currentMonitor?.assignedScreenID ?? null,
+        }
+        const saveDisplayManager = (next: DisplayManagerDraft) => {
+          setDisplayMachines(
+            displayMachines.map((machine) =>
+              machine.machineID === next.machineID
+                ? { ...machine, customLabel: next.machineLabel, monitors: machine.monitors.map((monitor) => (monitor.id === next.monitorId ? { ...monitor, assignedScreenID: next.assignedScreenID } : monitor)) }
+                : machine,
+            ),
+          )
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildDisplayManagerChangeRows(t, currentDraft, displayDraft, screens)}
+                onConfirm={() => saveDisplayManager(displayDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
+        return <DisplayManagerMiniForm draft={displayDraft} issues={issues} renderIssues={renderIssues} screens={screens} onSave={saveDisplayManager} onCancel={flow.cancel} />
+      }
+
+      if (entity === 'orders') {
+        const orderDraft = draft as OrderRecord
+        const allOrders = [...orders, ...woltOrders, ...foodoraOrders]
+        const currentOrder = itemID ? allOrders.find((existing) => existing.id === itemID) ?? null : null
+        const saveOrder = (order: OrderRecord) => {
+          if (order.source === 'wolt') {
+            setWoltOrders(woltOrders.map((existing) => (existing.id === order.id ? order : existing)))
+            if (session) {
+              pushWoltOrderStatus(session.token, order.externalId ?? order.id, order.status).catch((error) => {
+                reportError(t('admin.orders.woltStatusPushError'), error instanceof Error ? error.message : undefined)
+              })
+            }
+          } else if (order.source === 'foodora') {
+            setFoodoraOrders(foodoraOrders.map((existing) => (existing.id === order.id ? order : existing)))
+            if (session) {
+              pushFoodoraOrderStatus(session.token, order.externalId ?? order.id, order.status).catch((error) => {
+                reportError(t('admin.orders.foodoraStatusPushError'), error instanceof Error ? error.message : undefined)
+              })
+            }
+          } else {
+            setOrders(orders.map((existing) => (existing.id === order.id ? order : existing)))
+          }
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildOrdersChangeRows(t, currentOrder ?? orderDraft, orderDraft)}
+                onConfirm={() => saveOrder(orderDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
+        return <OrdersMiniForm draft={orderDraft} issues={issues} renderIssues={renderIssues} onSave={saveOrder} onCancel={flow.cancel} />
+      }
     }
 
     if (flow.state.status === 'reviewingDestructive') {
@@ -960,6 +1161,13 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                   flow.onCommitted()
                 } else if (entity === 'theme') {
                   setAppearanceSettings({ ...appearanceSettings, themes: appearanceSettings.themes.filter((existing) => existing.id !== itemID) })
+                  flow.onCommitted()
+                } else if (entity === 'mediaLibrary') {
+                  // `deleteUpload` takes a full URL and parses the filename back out of it (see its own doc comment) — `itemID` here already *is* the filename, so this just needs to contain the `/uploads/<filename>` marker it splits on.
+                  deleteUpload(`/uploads/${itemID}`, session.token).then(flow.onCommitted)
+                } else if (entity === 'screen') {
+                  // Matches `ScreensView.tsx`'s own real delete: a naive top-level filter, no cascade (nothing else references a screen by id).
+                  setScreens(screens.filter((existing) => existing.screenID !== itemID))
                   flow.onCommitted()
                 }
               }}
@@ -1890,6 +2098,23 @@ function ContactInfoMiniForm({ draft, issues, renderIssues, onSave, onCancel }: 
         value={contactInfo.address}
         onChange={(event) => setContactInfo({ ...contactInfo, address: event.target.value })}
       />
+      <div className="contact-info-view__temporarily-closed">
+        <Checkbox
+          id="assistant-contact-temporarily-closed"
+          label={t('admin.contact.temporarilyClosedLabel')}
+          checked={contactInfo.temporarilyClosed ?? false}
+          onChange={(event) => setContactInfo({ ...contactInfo, temporarilyClosed: event.target.checked })}
+        />
+        {contactInfo.temporarilyClosed && (
+          <Input
+            id="assistant-contact-temporarily-closed-reason"
+            label={t('admin.contact.temporarilyClosedReasonLabel')}
+            placeholder={t('admin.contact.temporarilyClosedReasonPlaceholder')}
+            value={contactInfo.temporarilyClosedReason ?? ''}
+            onChange={(event) => setContactInfo({ ...contactInfo, temporarilyClosedReason: event.target.value })}
+          />
+        )}
+      </div>
       <ul className="contact-info-view__hours">
         {WEEKDAY_KEYS.map((day) => {
           const dayHours = contactInfo.hours[day]
@@ -1965,6 +2190,178 @@ function IntegrationToggleMiniForm({ draft, issues, renderIssues, onSave, onCanc
         </ul>
       )}
       <MiniFormActions onCancel={onCancel} onSave={() => onSave({ integration: draft.integration, enabled, sourceIds: draft.integration === 'news' ? sourceIds : undefined })} />
+    </>
+  )
+}
+
+interface SettingsMiniFormProps {
+  draft: SettingsDraft
+  issues: AssistantIssue[]
+  renderIssues: RenderIssues
+  onSave: (next: SettingsDraft) => void
+  onCancel: () => void
+}
+
+const TOGGLEABLE_SIDEBAR_ITEMS: ToggleableSidebarItem[] = NAV_ITEMS.filter((item) => item.toggleable).map((item) => item.to as ToggleableSidebarItem)
+
+/** Mirrors `SettingsView.tsx`'s own clock/date format toggles, "Standard panespråk" picker, and sidebar-items checklist — that view writes straight to each preference's own hook on every change, with no Save step of its own, so this stages edits locally until confirmed, same as every other assistant mini-form. */
+function SettingsMiniForm({ draft, issues, renderIssues, onSave, onCancel }: SettingsMiniFormProps) {
+  const { t } = useLanguage()
+  const [settings, setSettings] = useState(draft)
+
+  const toggleSidebarItem = (item: ToggleableSidebarItem, hidden: boolean) => {
+    setSettings({
+      ...settings,
+      hiddenSidebarItems: hidden ? [...settings.hiddenSidebarItems, item] : settings.hiddenSidebarItems.filter((existing) => existing !== item),
+    })
+  }
+
+  return (
+    <>
+      {renderIssues(issues)}
+      <div className="assistant-panel__settings-field">
+        <span>{t('admin.settings.clockFormatLabel')}</span>
+        <div className="assistant-panel__settings-options">
+          {(['24h', '12h'] as const).map((format) => (
+            <Button key={format} type="button" variant={settings.clockFormat === format ? 'primary' : 'secondary'} onClick={() => setSettings({ ...settings, clockFormat: format })}>
+              {t(format === '24h' ? 'admin.settings.clockFormat24hLabel' : 'admin.settings.clockFormat12hLabel')}
+            </Button>
+          ))}
+        </div>
+      </div>
+      <div className="assistant-panel__settings-field">
+        <span>{t('admin.settings.dateFormatLabel')}</span>
+        <div className="assistant-panel__settings-options">
+          {(['dmy', 'mdy'] as const).map((format) => (
+            <Button key={format} type="button" variant={settings.dateFormat === format ? 'primary' : 'secondary'} onClick={() => setSettings({ ...settings, dateFormat: format })}>
+              {t(format === 'dmy' ? 'admin.settings.dateFormatDmyLabel' : 'admin.settings.dateFormatMdyLabel')}
+            </Button>
+          ))}
+        </div>
+      </div>
+      <div className="assistant-panel__settings-field">
+        <span>{t('admin.settings.paneLanguageLabel')}</span>
+        <div className="assistant-panel__settings-options">
+          {availableLanguages.map((option) => (
+            <Button key={option.code} type="button" variant={settings.paneLanguage === option.code ? 'primary' : 'secondary'} onClick={() => setSettings({ ...settings, paneLanguage: option.code })}>
+              {option.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+      <div className="assistant-panel__settings-field">
+        <span>{t('admin.settings.sidebarItemsTitle')}</span>
+        <ul className="assistant-panel__settings-sidebar-items">
+          {TOGGLEABLE_SIDEBAR_ITEMS.map((item) => {
+            const navItem = NAV_ITEMS.find((entry) => entry.to === item)
+            return (
+              <li key={item}>
+                <Checkbox
+                  id={`assistant-sidebar-item-${item}`}
+                  label={navItem ? t(navItem.id) : item}
+                  checked={!settings.hiddenSidebarItems.includes(item)}
+                  onChange={(event) => toggleSidebarItem(item, !event.target.checked)}
+                />
+              </li>
+            )
+          })}
+        </ul>
+      </div>
+      <MiniFormActions onCancel={onCancel} onSave={() => onSave(settings)} />
+    </>
+  )
+}
+
+interface MediaLibraryMiniFormProps {
+  draft: MediaLibraryDraft
+  issues: AssistantIssue[]
+  renderIssues: RenderIssues
+  onSave: (next: MediaLibraryDraft) => void
+  onCancel: () => void
+}
+
+/** Mirrors `MediaLibraryView.tsx`'s own inline rename input — that view commits on blur/Enter with no separate Save step, so this stages the label locally until confirmed, same as every other assistant mini-form. */
+function MediaLibraryMiniForm({ draft, issues, renderIssues, onSave, onCancel }: MediaLibraryMiniFormProps) {
+  const { t } = useLanguage()
+  const [displayName, setDisplayName] = useState(draft.displayName ?? '')
+
+  return (
+    <>
+      {renderIssues(issues)}
+      <Input id="assistant-media-display-name" label={t('admin.mediaLibrary.renameLabel')} value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+      <MiniFormActions onCancel={onCancel} onSave={() => onSave({ ...draft, displayName })} />
+    </>
+  )
+}
+
+interface DisplayManagerMiniFormProps {
+  draft: DisplayManagerDraft
+  issues: AssistantIssue[]
+  renderIssues: RenderIssues
+  screens: ScreenConfig[]
+  onSave: (next: DisplayManagerDraft) => void
+  onCancel: () => void
+}
+
+/** Mirrors `DisplayManagerView.tsx`'s own machine-label input and per-monitor screen `<select>` — that view writes straight to `useDisplayMachines()` on every change, with no Save step of its own, so this stages both edits locally until confirmed. */
+function DisplayManagerMiniForm({ draft, issues, renderIssues, screens, onSave, onCancel }: DisplayManagerMiniFormProps) {
+  const { t } = useLanguage()
+  const [displayManager, setDisplayManager] = useState(draft)
+
+  return (
+    <>
+      {renderIssues(issues)}
+      <Input
+        id="assistant-display-machine-label"
+        label={t('admin.displayManager.machineLabelLabel')}
+        value={displayManager.machineLabel}
+        onChange={(event) => setDisplayManager({ ...displayManager, machineLabel: event.target.value })}
+      />
+      <label className="assistant-panel__field">
+        <span>{t('admin.displayManager.assignedScreenLabel')} — {displayManager.monitorLabel}</span>
+        <select value={displayManager.assignedScreenID ?? ''} onChange={(event) => setDisplayManager({ ...displayManager, assignedScreenID: event.target.value || null })}>
+          <option value="">{t('admin.displayManager.unassignedOption')}</option>
+          {screens.map((screen) => (
+            <option key={screen.screenID} value={screen.screenID}>
+              {screen.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <MiniFormActions onCancel={onCancel} onSave={() => onSave(displayManager)} />
+    </>
+  )
+}
+
+const ORDER_STATUS_OPTIONS: OrderRecord['status'][] = ['received', 'accepted', 'preparing', 'ready', 'completed', 'cancelled']
+
+interface OrdersMiniFormProps {
+  draft: OrderRecord
+  issues: AssistantIssue[]
+  renderIssues: RenderIssues
+  onSave: (next: OrderRecord) => void
+  onCancel: () => void
+}
+
+/** Mirrors `OrdersView.tsx`'s own status `<select>` — that view writes straight to whichever synced key/platform push owns this order on every change, with no Save step of its own, so this stages the edit locally until confirmed. */
+function OrdersMiniForm({ draft, issues, renderIssues, onSave, onCancel }: OrdersMiniFormProps) {
+  const { t } = useLanguage()
+  const [status, setStatus] = useState(draft.status)
+
+  return (
+    <>
+      {renderIssues(issues)}
+      <label className="assistant-panel__field">
+        <span>{t('admin.orders.statusLabel')}</span>
+        <select value={status} onChange={(event) => setStatus(event.target.value as OrderRecord['status'])}>
+          {ORDER_STATUS_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {t(`admin.orders.status.${option}`)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <MiniFormActions onCancel={onCancel} onSave={() => onSave({ ...draft, status })} />
     </>
   )
 }

@@ -158,19 +158,33 @@ interface ContactInfoRow {
   email: string
   address: string
   hours: ContactInfo['hours']
+  temporarily_closed: boolean | null
+  temporarily_closed_reason: string | null
 }
 
 export async function pullContactInfo(client: Client): Promise<ContactInfo | null> {
-  const { rows } = await client.query<ContactInfoRow>('select phone, email, address, hours from contact_info where id = $1', ['main'])
+  const { rows } = await client.query<ContactInfoRow>(
+    'select phone, email, address, hours, temporarily_closed, temporarily_closed_reason from contact_info where id = $1',
+    ['main'],
+  )
   const row = rows[0]
-  return row ? { phone: row.phone, email: row.email, address: row.address, hours: row.hours } : null
+  if (!row) return null
+  return {
+    phone: row.phone,
+    email: row.email,
+    address: row.address,
+    hours: row.hours,
+    temporarilyClosed: row.temporarily_closed ?? false,
+    temporarilyClosedReason: row.temporarily_closed_reason ?? undefined,
+  }
 }
 
 export async function pushContactInfo(client: Client, info: ContactInfo): Promise<void> {
   await client.query(
-    `insert into contact_info (id, phone, email, address, hours, updated_at) values ('main', $1, $2, $3, $4::jsonb, now())
-     on conflict (id) do update set phone = $1, email = $2, address = $3, hours = $4::jsonb, updated_at = now()`,
-    [info.phone, info.email, info.address, JSON.stringify(info.hours)],
+    `insert into contact_info (id, phone, email, address, hours, temporarily_closed, temporarily_closed_reason, updated_at)
+     values ('main', $1, $2, $3, $4::jsonb, $5, $6, now())
+     on conflict (id) do update set phone = $1, email = $2, address = $3, hours = $4::jsonb, temporarily_closed = $5, temporarily_closed_reason = $6, updated_at = now()`,
+    [info.phone, info.email, info.address, JSON.stringify(info.hours), info.temporarilyClosed ?? false, info.temporarilyClosedReason ?? null],
   )
 }
 

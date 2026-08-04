@@ -574,7 +574,12 @@
             "theme": "theme",
             "storeSettings": "store branding",
             "contactInfo": "contact info",
-            "integrationToggle": "integration"
+            "integrationToggle": "integration",
+            "settings": "settings",
+            "mediaLibrary": "media file",
+            "screen": "screen",
+            "displayManager": "display",
+            "orders": "order"
           },
           "actions": {
             "create": "create",
@@ -763,7 +768,10 @@
           "closedLabel": "Closed",
           "openLabel": "Opens",
           "closeLabel": "Closes",
-          "description": "The phone number, email, address and opening hours shown on the public website."
+          "description": "The phone number, email, address and opening hours shown on the public website.",
+          "temporarilyClosedLabel": "Temporarily closed",
+          "temporarilyClosedReasonLabel": "Reason (optional)",
+          "temporarilyClosedReasonPlaceholder": "e.g. Closed for a private event"
         },
         "appearance": {
           "title": "Appearance",
@@ -1033,7 +1041,9 @@
           "electronBadge": "Kiosk machine",
           "lastSeen": "Last seen {{date}}",
           "unassignedOption": "— Unassigned (shows the screensaver) —",
-          "addDisplayButton": "Add display"
+          "addDisplayButton": "Add display",
+          "machineLabelLabel": "Display name",
+          "assignedScreenLabel": "Assigned screen"
         },
         "common": {
           "save": "Save",
@@ -1063,7 +1073,8 @@
           "empty": "No media uploaded yet.",
           "error": "Could not load the media library.",
           "storageSummary": "{{used}} used · {{available}} free on this machine",
-          "failedBadge": "Failed"
+          "failedBadge": "Failed",
+          "renameLabel": "Label"
         },
         "users": {
           "title": "Users",
@@ -2572,7 +2583,12 @@
             "theme": "tema",
             "storeSettings": "butikkprofil",
             "contactInfo": "kontaktinfo",
-            "integrationToggle": "integrasjon"
+            "integrationToggle": "integrasjon",
+            "settings": "innstillinger",
+            "mediaLibrary": "mediefil",
+            "screen": "skjerm",
+            "displayManager": "skjermtilkobling",
+            "orders": "bestilling"
           },
           "actions": {
             "create": "opprette",
@@ -2761,7 +2777,10 @@
           "closedLabel": "Stengt",
           "openLabel": "Åpner",
           "closeLabel": "Stenger",
-          "description": "Telefonnummer, e-post, adresse og åpningstider som vises på nettsiden."
+          "description": "Telefonnummer, e-post, adresse og åpningstider som vises på nettsiden.",
+          "temporarilyClosedLabel": "Midlertidig stengt",
+          "temporarilyClosedReasonLabel": "Årsak (valgfritt)",
+          "temporarilyClosedReasonPlaceholder": "f.eks. Stengt for privat arrangement"
         },
         "appearance": {
           "title": "Utseende",
@@ -3031,7 +3050,9 @@
           "electronBadge": "Kioskmaskin",
           "lastSeen": "Sist sett {{date}}",
           "unassignedOption": "— Ikke tildelt (viser skjermspareren) —",
-          "addDisplayButton": "Legg til skjerm"
+          "addDisplayButton": "Legg til skjerm",
+          "machineLabelLabel": "Visningsnavn",
+          "assignedScreenLabel": "Tildelt skjerm"
         },
         "common": {
           "save": "Lagre",
@@ -3061,7 +3082,8 @@
           "empty": "Ingen media er lastet opp ennå.",
           "error": "Kunne ikke laste inn mediebiblioteket.",
           "storageSummary": "{{used}} brukt · {{available}} ledig på denne maskinen",
-          "failedBadge": "Feilet"
+          "failedBadge": "Feilet",
+          "renameLabel": "Merkelapp"
         },
         "users": {
           "title": "Brukere",

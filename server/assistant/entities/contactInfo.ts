@@ -13,20 +13,31 @@ function liveContactInfo(): ContactInfo {
       email: '',
       address: '',
       hours: Object.fromEntries(WEEKDAYS.map((day) => [day, { closed: true }])) as ContactInfo['hours'],
+      temporarilyClosed: false,
     }
   )
 }
 
+/**
+ * `closed`/`open`/`close` are required (not individually nullable) once a day's own wrapper object
+ * is present at all — only the wrapper itself (below) is nullable, to skip a day the message doesn't
+ * address. See `fillFieldsSchema`'s own comment for why this specific field needed flattening: with
+ * every field nullable, this entity's schema had 33 nullable/`anyOf`-typed properties, well past
+ * Claude's own 16-union-parameter schema limit. `open`/`close` use `""` (not `null`) for "not
+ * applicable" — a plain required string still counts as one, not-union, field toward that limit.
+ */
 interface DayFields {
-  closed: boolean | null
-  open: string | null
-  close: string | null
+  closed: boolean
+  open: string
+  close: string
 }
 
 type ContactInfoFields = {
   phone: string | null
   email: string | null
   address: string | null
+  temporarilyClosed: boolean | null
+  temporarilyClosedReason: string | null
 } & Record<Weekday, DayFields | null>
 
 /**
@@ -41,6 +52,14 @@ export const contactInfoEntity: AssistantEntity<ContactInfo> = {
   supportedActions: ['update'],
   section: 'store',
 
+  /**
+   * Only the per-day wrapper object below is `nullable(...)` (skip a day the message doesn't
+   * address) — `closed`/`open`/`close` inside it are plain required fields, not each individually
+   * nullable, specifically to keep this schema's total union-typed-property count low: Claude's API
+   * rejects any single tool schema with more than 16 `anyOf`/type-array properties, and the previous
+   * fully-nullable-nested-fields shape hit 33 (confirmed via a real `400` at runtime, not a guess).
+   * `open`/`close` use `""` for "not applicable" instead of `null` — see `DayFields`'s own doc comment.
+   */
   fillFieldsSchema(): AssistantJsonSchema {
     const dayProperties = Object.fromEntries(
       WEEKDAYS.map((day) => [
@@ -48,9 +67,9 @@ export const contactInfoEntity: AssistantEntity<ContactInfo> = {
         nullable({
           type: 'object',
           properties: {
-            closed: nullable({ type: 'boolean' }),
-            open: nullable({ type: 'string', description: 'Opening time, "HH:MM" 24-hour.' }),
-            close: nullable({ type: 'string', description: 'Closing time, "HH:MM" 24-hour.' }),
+            closed: { type: 'boolean' },
+            open: { type: 'string', description: 'Opening time, "HH:MM" 24-hour, or "" if closed/not applicable.' },
+            close: { type: 'string', description: 'Closing time, "HH:MM" 24-hour, or "" if closed/not applicable.' },
           },
           required: ['closed', 'open', 'close'],
           additionalProperties: false,
@@ -63,9 +82,11 @@ export const contactInfoEntity: AssistantEntity<ContactInfo> = {
         phone: nullable({ type: 'string' }),
         email: nullable({ type: 'string' }),
         address: nullable({ type: 'string' }),
+        temporarilyClosed: nullable({ type: 'boolean', description: 'A one-off closure overriding the regular weekly hours below (e.g. closed today for a private event) — not the same as a weekday\'s own recurring closed day.' }),
+        temporarilyClosedReason: nullable({ type: 'string', description: 'Optional public-facing reason for the temporary closure, e.g. "Closed for a private event". Only meaningful when temporarilyClosed is true.' }),
         ...dayProperties,
       },
-      required: ['phone', 'email', 'address', ...WEEKDAYS],
+      required: ['phone', 'email', 'address', 'temporarilyClosed', 'temporarilyClosedReason', ...WEEKDAYS],
       additionalProperties: false,
     }
   },
@@ -83,9 +104,9 @@ export const contactInfoEntity: AssistantEntity<ContactInfo> = {
       if (!dayFields) continue
       const existing: DayHours = hours[day]
       hours[day] = {
-        closed: dayFields.closed ?? existing.closed,
-        open: dayFields.open ?? existing.open,
-        close: dayFields.close ?? existing.close,
+        closed: dayFields.closed,
+        open: dayFields.open || existing.open,
+        close: dayFields.close || existing.close,
       }
     }
     return {
@@ -93,6 +114,8 @@ export const contactInfoEntity: AssistantEntity<ContactInfo> = {
       phone: fields.phone ?? base.phone,
       email: fields.email ?? base.email,
       address: fields.address ?? base.address,
+      temporarilyClosed: fields.temporarilyClosed ?? base.temporarilyClosed ?? false,
+      temporarilyClosedReason: fields.temporarilyClosedReason ?? base.temporarilyClosedReason,
       hours,
     }
   },
@@ -108,4 +131,7 @@ export const contactInfoEntity: AssistantEntity<ContactInfo> = {
   async listAll(): Promise<ContactInfo> {
     return liveContactInfo()
   },
+
+  lookupGuidance:
+    'Check `temporarilyClosed` first, before reciting the regular weekly `hours` below. When it is true, the cafe is closed right now regardless of what today\'s normal weekday hours say — lead the answer with that fact (and `temporarilyClosedReason` if given) rather than reciting Monday-Friday hours as if nothing had changed. Only fall back to the regular weekly `hours` for an "when are you open" style question once `temporarilyClosed` is confirmed false, or when the question is specifically about the regular/normal schedule rather than right now.',
 }

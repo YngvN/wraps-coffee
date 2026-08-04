@@ -1,4 +1,6 @@
-import type { LanguageCode } from '../../../i18n'
+import type { ClockFormat } from '../../../hooks/useClockFormatPreference'
+import type { DateFormat } from '../../../hooks/useDateFormatPreference'
+import { availableLanguages, type LanguageCode } from '../../../i18n'
 import type { FieldConfidence } from '../../../lib/localServer'
 import type { AppearanceTheme, AppearanceThemeColor } from '../../../types/appearanceTheme'
 import type { Catalogue, Category } from '../../../types/category'
@@ -7,10 +9,14 @@ import type { CustomFieldDefinition } from '../../../types/customFields'
 import type { EventRecord } from '../../../types/event'
 import type { MessageBoard, MessageBoardPost } from '../../../types/messageBoard'
 import { NEWS_SOURCES } from '../../../types/news'
+import type { OrderRecord } from '../../../types/order'
 import { ALLERGEN_OPTIONS, DIETARY_TAG_ORDER, type AllergenCode, type DietaryTag, type Discount, type Price, type Product } from '../../../types/product'
+import type { PreviewAspectRatio, ScreenConfig } from '../../../types/screen'
+import type { ToggleableSidebarItem } from '../../../types/sidebarSettings'
 import type { StoreSettings } from '../../../types/storeSettings'
 import { resolveBilingualField } from '../../../utils/bilingual'
 import { formatPrice } from '../../../utils/price'
+import { NAV_ITEMS } from '../layout/adminNavItems'
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string
 
@@ -401,6 +407,10 @@ export function buildContactInfoChangeRows(t: Translate, current: ContactInfo | 
   pushRow(rows, t('admin.contact.phoneLabel'), isCreate ? null : current.phone, draft.phone)
   pushRow(rows, t('admin.contact.emailLabel'), isCreate ? null : current.email, draft.email)
   pushRow(rows, t('admin.contact.addressLabel'), isCreate ? null : current.address, draft.address)
+  pushRow(rows, t('admin.contact.temporarilyClosedLabel'), isCreate ? null : formatBoolean(t, current.temporarilyClosed ?? false), formatBoolean(t, draft.temporarilyClosed ?? false))
+  if (draft.temporarilyClosed) {
+    pushRow(rows, t('admin.contact.temporarilyClosedReasonLabel'), isCreate ? null : current.temporarilyClosedReason ?? '', draft.temporarilyClosedReason ?? '')
+  }
   for (const day of CONTACT_WEEKDAYS) {
     pushRow(rows, t(`footer.hours.${day}`), isCreate ? null : formatDayHours(t, current.hours[day]), formatDayHours(t, draft.hours[day]))
   }
@@ -419,5 +429,115 @@ export function buildIntegrationToggleChangeRows(
     const sourceName = (id: string) => NEWS_SOURCES.find((source) => source.id === id)?.name ?? id
     pushRow(rows, t('admin.integrations.newsSourcesLabel'), (current.sourceIds ?? []).map(sourceName).join(', '), (draft.sourceIds ?? []).map(sourceName).join(', '))
   }
+  return rows
+}
+
+/** The bundled draft shape for the `settings` assistant entity — mirrors `server/assistant/entities/settings.ts`'s own `SettingsDraft`, four independently-synced-keyed preferences treated as one record for review purposes. */
+export interface SettingsDraft {
+  clockFormat: ClockFormat
+  dateFormat: DateFormat
+  paneLanguage: LanguageCode
+  hiddenSidebarItems: ToggleableSidebarItem[]
+}
+
+function sidebarItemLabel(t: Translate, item: ToggleableSidebarItem): string {
+  const navItem = NAV_ITEMS.find((entry) => entry.to === item)
+  return navItem ? t(navItem.id) : item
+}
+
+function formatHiddenSidebarItems(t: Translate, hiddenItems: ToggleableSidebarItem[]): string {
+  return hiddenItems.length === 0 ? EMPTY_VALUE : hiddenItems.map((item) => sidebarItemLabel(t, item)).join(', ')
+}
+
+const PREVIEW_ASPECT_RATIO_LABELS: Record<string, PreviewAspectRatio> = {
+  '16:9': { width: 16, height: 9 },
+  '9:16': { width: 9, height: 16 },
+  '4:3': { width: 4, height: 3 },
+  '3:4': { width: 3, height: 4 },
+  '21:9': { width: 21, height: 9 },
+}
+
+function aspectRatioLabel(ratio: PreviewAspectRatio | undefined): string {
+  if (!ratio) return ''
+  const match = Object.entries(PREVIEW_ASPECT_RATIO_LABELS).find(([, value]) => value.width === ratio.width && value.height === ratio.height)
+  return match?.[0] ?? `${ratio.width}:${ratio.height}`
+}
+
+function formatTextSizes(sizes: ScreenConfig['textSizes']): string {
+  if (!sizes) return EMPTY_VALUE
+  return `${sizes.heading}/${sizes.itemTitle}/${sizes.description}/${sizes.price}/${sizes.itemPrice}`
+}
+
+/** Only the whole-screen/global fields `ScreenForm.tsx`'s own tabbed dashboard form writes — never `layout`/`paneSlots`, which only the in-place screen editor changes (see `screenEntity`'s own doc comment, `server/assistant/entities/screen.ts`). */
+export function buildScreenChangeRows(t: Translate, current: ScreenConfig | null, draft: ScreenConfig): ReviewChangeRow[] {
+  const rows: ReviewChangeRow[] = []
+  const isCreate = current === null
+  pushRow(rows, t('admin.screens.nameLabel'), isCreate ? null : current.name, draft.name)
+  pushRow(rows, t('admin.screens.previewRatioLabel'), isCreate ? null : aspectRatioLabel(current.previewAspectRatio), aspectRatioLabel(draft.previewAspectRatio))
+  pushRow(rows, t('admin.screens.useStagesLabel'), isCreate ? null : formatBoolean(t, current.useStages), formatBoolean(t, draft.useStages))
+  if (draft.useStages) pushRow(rows, t('admin.screens.stageCountLabel'), isCreate ? null : String(current.stageCount ?? 1), String(draft.stageCount ?? 1))
+  pushRow(rows, t('admin.screens.slideDurationLabel'), isCreate ? null : String(current.slideDurationSeconds), String(draft.slideDurationSeconds))
+  pushRow(
+    rows,
+    t('admin.screens.transitionStyleLabel'),
+    isCreate ? null : t(current.transitionStyle === 'fade' ? 'admin.screens.transitionFadeLabel' : 'admin.screens.transitionSlideLabel'),
+    t(draft.transitionStyle === 'fade' ? 'admin.screens.transitionFadeLabel' : 'admin.screens.transitionSlideLabel'),
+  )
+  pushRow(
+    rows,
+    t('admin.screens.paneGrowthFallbackLabel'),
+    isCreate ? null : t(current.paneGrowthFallback === 'fade' ? 'admin.screens.paneGrowthFadeLabel' : 'admin.screens.paneGrowthScreenEdgeLabel'),
+    t(draft.paneGrowthFallback === 'fade' ? 'admin.screens.paneGrowthFadeLabel' : 'admin.screens.paneGrowthScreenEdgeLabel'),
+  )
+  pushRow(rows, t('admin.screens.showSlotBordersLabel'), isCreate ? null : formatBoolean(t, current.showSlotBorders), formatBoolean(t, draft.showSlotBorders))
+  if (draft.showSlotBorders) pushRow(rows, t('admin.screens.borderColorLabel'), isCreate ? null : current.borderColor ?? t('admin.screens.autoBorderColorLabel'), draft.borderColor ?? t('admin.screens.autoBorderColorLabel'))
+  pushRow(rows, t('admin.screens.hideScrollbarLabel'), isCreate ? null : formatBoolean(t, current.hideScrollbar), formatBoolean(t, draft.hideScrollbar))
+  pushRow(rows, t('admin.screens.useScreensaverLabel'), isCreate ? null : formatBoolean(t, current.useScreensaver), formatBoolean(t, draft.useScreensaver))
+  pushRow(rows, t('admin.screens.backgroundLabel'), isCreate ? null : current.backgroundColor ?? '', draft.backgroundColor ?? '')
+  if (draft.backgroundImage) pushRow(rows, t('admin.screens.backgroundLabel'), isCreate ? null : current.backgroundImage?.imageUrl ?? '', draft.backgroundImage.imageUrl)
+  pushRow(rows, t('admin.screens.editTextSize'), isCreate ? null : formatTextSizes(current.textSizes), formatTextSizes(draft.textSizes))
+  return rows
+}
+
+export interface MediaLibraryDraft {
+  filename: string
+  displayName?: string
+}
+
+export function buildMediaLibraryChangeRows(t: Translate, current: MediaLibraryDraft | null, draft: MediaLibraryDraft): ReviewChangeRow[] {
+  const rows: ReviewChangeRow[] = []
+  pushRow(rows, t('admin.mediaLibrary.renameLabel'), current?.displayName ?? current?.filename ?? null, draft.displayName || draft.filename)
+  return rows
+}
+
+export interface DisplayManagerDraft {
+  machineID: string
+  monitorId: string
+  monitorLabel: string
+  machineLabel: string
+  assignedScreenID: string | null
+}
+
+export function buildDisplayManagerChangeRows(t: Translate, current: DisplayManagerDraft, draft: DisplayManagerDraft, screens: ScreenConfig[]): ReviewChangeRow[] {
+  const rows: ReviewChangeRow[] = []
+  const screenName = (id: string | null) => (id ? (screens.find((screen) => screen.screenID === id)?.name ?? id) : t('admin.displayManager.unassignedOption'))
+  pushRow(rows, t('admin.displayManager.machineLabelLabel'), current.machineLabel, draft.machineLabel)
+  pushRow(rows, t('admin.displayManager.assignedScreenLabel'), screenName(current.assignedScreenID), screenName(draft.assignedScreenID))
+  return rows
+}
+
+export function buildOrdersChangeRows(t: Translate, current: OrderRecord, draft: OrderRecord): ReviewChangeRow[] {
+  const rows: ReviewChangeRow[] = []
+  pushRow(rows, t('admin.orders.statusLabel'), t(`admin.orders.status.${current.status}`), t(`admin.orders.status.${draft.status}`))
+  return rows
+}
+
+export function buildSettingsChangeRows(t: Translate, current: SettingsDraft, draft: SettingsDraft): ReviewChangeRow[] {
+  const rows: ReviewChangeRow[] = []
+  pushRow(rows, t('admin.settings.clockFormatLabel'), t(current.clockFormat === '24h' ? 'admin.settings.clockFormat24hLabel' : 'admin.settings.clockFormat12hLabel'), t(draft.clockFormat === '24h' ? 'admin.settings.clockFormat24hLabel' : 'admin.settings.clockFormat12hLabel'))
+  pushRow(rows, t('admin.settings.dateFormatLabel'), t(current.dateFormat === 'dmy' ? 'admin.settings.dateFormatDmyLabel' : 'admin.settings.dateFormatMdyLabel'), t(draft.dateFormat === 'dmy' ? 'admin.settings.dateFormatDmyLabel' : 'admin.settings.dateFormatMdyLabel'))
+  const languageLabel = (code: LanguageCode) => availableLanguages.find((language) => language.code === code)?.label ?? code
+  pushRow(rows, t('admin.settings.paneLanguageLabel'), languageLabel(current.paneLanguage), languageLabel(draft.paneLanguage))
+  pushRow(rows, t('admin.settings.sidebarItemsTitle'), formatHiddenSidebarItems(t, current.hiddenSidebarItems), formatHiddenSidebarItems(t, draft.hiddenSidebarItems))
   return rows
 }

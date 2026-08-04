@@ -39,6 +39,11 @@ export type AssistantEntityKey =
   | 'storeSettings'
   | 'contactInfo'
   | 'integrationToggle'
+  | 'settings'
+  | 'mediaLibrary'
+  | 'screen'
+  | 'displayManager'
+  | 'orders'
 export type AssistantActionName = 'create' | 'update' | 'delete' | 'resetPassword' | 'trigger'
 
 export interface AssistantValidationIssue {
@@ -129,10 +134,18 @@ const ENTITY_SECTIONS: Record<AssistantEntityKey, DashboardSection | null> = {
   storeSettings: 'store',
   contactInfo: 'store',
   integrationToggle: 'integrations',
+  // Not a permissioned DashboardSection — a personal/device preference, same posture as `user`
+  // (never available to a `limited` role, always available to `admin`/`subadmin`).
+  settings: null,
+  // No DashboardSection covers Media Library today — same `section: null` convention as `user`/`settings`.
+  mediaLibrary: null,
+  screen: 'screens',
+  displayManager: 'displaymanager',
+  orders: 'orders',
 }
 
-/** Entities with exactly one record — no `listCandidates` to pick from, so `startOperation` skips straight to `fillFields` with the fixed `itemID: 'singleton'` each singleton entity's own `getCurrent` expects (see `storeSettings.ts`/`contactInfo.ts`). */
-const SINGLETON_ENTITIES: ReadonlySet<AssistantEntityKey> = new Set(['storeSettings', 'contactInfo'])
+/** Entities with exactly one record — no `listCandidates` to pick from, so `startOperation` skips straight to `fillFields` with the fixed `itemID: 'singleton'` each singleton entity's own `getCurrent` expects (see `storeSettings.ts`/`contactInfo.ts`/`settings.ts`). */
+const SINGLETON_ENTITIES: ReadonlySet<AssistantEntityKey> = new Set(['storeSettings', 'contactInfo', 'settings'])
 
 /** Entities `startOperation` routes a `create` message through `runFillFieldsBatch` for, rather than the single-record `runFillFields` — see `fillFieldsBatch`'s own doc comment for why every other entity's create is deliberately left untouched (ingestion is scoped to these four for now). */
 const BATCH_CAPABLE_ENTITIES: ReadonlySet<AssistantEntityKey> = new Set(['product', 'category', 'catalogue', 'event'])
