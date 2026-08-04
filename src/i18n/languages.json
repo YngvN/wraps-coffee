@@ -535,6 +535,7 @@
           "setActiveThemeConfirm": "Make \"{{name}}\" the active theme on every screen?",
           "categoryCustomFieldTarget": "Adding a field to \"{{name}}\"",
           "answerClarificationFirst": "Please answer the question above, or Cancel.",
+          "flaggedChecksWarning": "One or more automatic checks on this draft couldn't fully confirm it — please double-check it carefully before confirming.",
           "review": {
             "noChanges": "No changes to review."
           },
@@ -2544,6 +2545,7 @@
           "setActiveThemeConfirm": "Gjøre «{{name}}» til den aktive temaet på alle skjermer?",
           "categoryCustomFieldTarget": "Legger til et felt i «{{name}}»",
           "answerClarificationFirst": "Svar på spørsmålet over, eller avbryt.",
+          "flaggedChecksWarning": "Én eller flere automatiske sjekker av dette utkastet kunne ikke bekrefte det fullt ut — dobbeltsjekk det nøye før du bekrefter.",
           "review": {
             "noChanges": "Ingen endringer å se over."
           },

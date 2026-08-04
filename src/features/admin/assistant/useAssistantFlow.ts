@@ -200,6 +200,8 @@ type FlowState =
       posture: 'safe' | 'full'
       /** The admin's own message that produced this draft — restored into the composer if the draft-quality gate's "Prøv igjen" is used. */
       originatingMessage: string
+      /** See `AssistantFillFieldsResult`'s own doc comment — server-side post-checks that still failed after their one retry. Non-empty means `AssistantPanel` shows a warning banner above the review form. */
+      flaggedChecks: string[]
     }
   | {
       status: 'reviewingDestructive'
@@ -210,6 +212,7 @@ type FlowState =
       issues: AssistantValidationIssue[]
       label: string
       fieldConfidence: Record<string, FieldConfidence>
+      flaggedChecks: string[]
     }
   /**
    * A `create` message that described 2+ records at once (see `fillFieldsBatch`'s own doc
@@ -237,6 +240,8 @@ type FlowState =
       status: 'reviewingBatch'
       entity: AssistantEntityKey
       drafts: { draft: unknown; issues: AssistantValidationIssue[]; fieldConfidence: Record<string, FieldConfidence> }[]
+      /** `fillFieldsBatch` has no equivalent to `AssistantFillFieldsResult.flaggedChecks` — its own post-checks (`applyChecksNoRetry`, `server/assistant/steps.ts`) either auto-fix silently or throw, never flag — see that function's own doc comment. Always empty; kept here only so `AssistantPanel`'s shared warning-banner rendering doesn't need a separate branch for the batch case. */
+      flaggedChecks: string[]
       removedIndices: number[]
       editingIndex: number | null
       /** Same meaning as `'reviewingForm'`'s own field — see its doc comment. */
@@ -520,6 +525,7 @@ export function useAssistantFlow(
             posture: ingestionPostureOverride,
             history: options.history,
             historyContext: options.historyContext,
+            conversationId: conversationIdRef.current,
             turnVersion: requestVersion,
           },
           abortRef.current?.signal,
@@ -554,6 +560,7 @@ export function useAssistantFlow(
           fieldConfidence: result.fieldConfidence,
           posture: result.posture,
           originatingMessage: message,
+          flaggedChecks: result.flaggedChecks,
         })
       } catch (error) {
         if (isAbortError(error)) return
@@ -591,6 +598,7 @@ export function useAssistantFlow(
             localModel: localModelOverride,
             history: options.history,
             historyContext: options.historyContext,
+            conversationId: conversationIdRef.current,
             turnVersion: requestVersion,
           },
           abortRef.current?.signal,
@@ -616,7 +624,7 @@ export function useAssistantFlow(
           return
         }
         finalizeThought()
-        setState({ status: 'reviewingDestructive', entity, action, itemID, draft: result.draft, issues: result.issues, label, fieldConfidence: result.fieldConfidence })
+        setState({ status: 'reviewingDestructive', entity, action, itemID, draft: result.draft, issues: result.issues, label, fieldConfidence: result.fieldConfidence, flaggedChecks: result.flaggedChecks })
       } catch (error) {
         if (isAbortError(error)) return
         reportError(error instanceof Error ? error.message : 'Something went wrong')
@@ -652,6 +660,7 @@ export function useAssistantFlow(
             posture: ingestionPostureOverride,
             history: options.history,
             historyContext: options.historyContext,
+            conversationId: conversationIdRef.current,
             turnVersion: requestVersion,
           },
           abortRef.current?.signal,
@@ -689,10 +698,10 @@ export function useAssistantFlow(
         finalizeThought()
         if (result.drafts.length === 1) {
           const [{ draft, issues, fieldConfidence }] = result.drafts
-          setState({ status: 'reviewingForm', entity, action: 'create', draft, issues, fieldConfidence, posture: result.posture, originatingMessage: message })
+          setState({ status: 'reviewingForm', entity, action: 'create', draft, issues, fieldConfidence, posture: result.posture, originatingMessage: message, flaggedChecks: [] })
           return
         }
-        setState({ status: 'reviewingBatch', entity, drafts: result.drafts, removedIndices: [], editingIndex: null, posture: result.posture, originatingMessage: message })
+        setState({ status: 'reviewingBatch', entity, drafts: result.drafts, removedIndices: [], editingIndex: null, posture: result.posture, originatingMessage: message, flaggedChecks: [] })
       } catch (error) {
         if (isAbortError(error)) return
         reportError(error instanceof Error ? error.message : 'Something went wrong')

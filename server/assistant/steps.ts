@@ -4,6 +4,12 @@ import { combineCompoundReplies, combineFocusUpdates, splitCompoundQuestion, typ
 import { focusFromUpdate, getDialogFocus, setDialogFocus, type DialogFocusUpdate } from './dialogFocus'
 import { inferFieldConfidence, type FieldConfidence } from './fieldConfidence'
 import { buildLookupQuerySchema, executeLookupQuery, type LookupQueryField, type LookupQueryFilterInput, type LookupQueryRecord, type LookupQuerySpec } from './lookupQuery'
+import { applyChecksNoRetry, runStepWithChecks } from './postChecks/framework'
+import { fillFieldsChecks, type FillFieldsCheckContext } from './postChecks/fillFields'
+import { lookupQueryChecks, reconsiderEmptyResult, type LookupQueryCheckContext } from './postChecks/lookupQuery'
+import { lookupTargetChecks, type LookupTargetCheckContext } from './postChecks/selectLookupTarget'
+import { selectCommandChecks, type SelectCommandCheckContext } from './postChecks/selectCommand'
+import { selectItemChecks, type SelectItemCheckContext } from './postChecks/selectItem'
 import { resolvePronounFocus } from './pronounPrefilter'
 import { allowedEntitiesFor, findEntity } from './registry'
 import {
@@ -94,8 +100,12 @@ const ENTITY_KEYWORDS: Partial<Record<string, { no: string[]; en: string[] }>> =
  * entity's keyword as a substring) can at worst add an extra entity to a
  * multi-entity lookup, which the existing `MAX_LOOKUP_ENTITIES` cap and
  * per-entity data blocks already handle safely — never a hard failure.
+ *
+ * Exported for `postChecks/selectLookupTarget.ts`'s `entity-searchtext-consistency` check, which
+ * reuses this same keyword table to backfill `lookupEntities` from `searchText` rather than
+ * duplicating the entity-noun list.
  */
-function detectEntitiesFromKeywords(message: string, allowedEntityKeys: string[], uiLanguage: 'no' | 'en'): string[] {
+export function detectEntitiesFromKeywords(message: string, allowedEntityKeys: string[], uiLanguage: 'no' | 'en'): string[] {
   const lower = message.toLowerCase()
   return allowedEntityKeys.filter((key) => ENTITY_KEYWORDS[key]?.[uiLanguage]?.some((word) => lower.includes(word)))
 }
@@ -288,7 +298,7 @@ export async function selectIntent(
     history?: string
     providerOverride?: store.AssistantProvider
     localModelOverride?: string
-    /** This chat's own id (see `useAssistantFlow.ts`) — only ever consulted by the local cascade's pronoun prefilter (see `selectIntentCascaded`/`resolvePronounFocus`) to look up this conversation's `DialogFocus`. Never touched on the Claude path. */
+    /** This chat's own id (see `useAssistantFlow.ts`) — consulted by the local cascade's pronoun prefilter (see `selectIntentCascaded`/`resolvePronounFocus`), and, on *both* providers, by this function's own `lookupTargetChecks` post-check pass below (its `DialogFocus` context). */
     conversationId?: string
     /** See `ToolCallInput.signal` — propagated into every real model call this step (and its own local-provider cascade) makes. */
     signal?: AbortSignal
@@ -302,10 +312,29 @@ export async function selectIntent(
   const historyContext = await resolveHistoryContext({ history }, uiLanguage, modelOverride, providerOverride, localModelOverride, trace, signal)
 
   const provider = providerOverride ?? store.getAssistantProvider()
-  const raw =
+  const rawResult =
     provider === 'local'
       ? await selectIntentCascaded(entities, message, uiLanguage, modelOverride, providerOverride, localModelOverride, history, historyContext, trace, conversationId, signal)
       : await selectIntentSinglePass(entities, message, uiLanguage, modelOverride, providerOverride, historyContext, trace, signal)
+
+  // Applied post-hoc (not through `runStepWithChecks`) since `rawResult` may have come from either
+  // of two different call paths above, not one specific tool call this could re-invoke on retry —
+  // see `applyChecksNoRetry`'s own doc comment. Scoped to `entity === 'chat'` only: a genuine
+  // create/update/delete command legitimately has `lookupEntities: []` and a real item name in
+  // `searchText` (e.g. "update the price of Chicken Fajitas") — backfilling `lookupEntities` there
+  // would wrongly reroute a real command into a lookup via `hasLookup` below, since that check
+  // already treats any non-empty `lookupEntities` as authoritative regardless of `entity`.
+  const raw =
+    rawResult.entity === 'chat'
+      ? {
+          ...rawResult,
+          ...applyChecksNoRetry<{ lookupEntities: string[]; searchText: string | null }, LookupTargetCheckContext>(
+            lookupTargetChecks,
+            { lookupEntities: rawResult.lookupEntities ?? [], searchText: rawResult.searchText },
+            { message, uiLanguage, entityKeys: entities.map((entity) => entity.key), dialogFocus: getDialogFocus(conversationId) },
+          ),
+        }
+      : rawResult
 
   // Never trust the model to have kept `entity`/`action`/`reply`/`lookupEntities` mutually
   // consistent on its own — a non-empty `lookupEntities` is treated as authoritative regardless of
@@ -542,18 +571,26 @@ async function selectCommand(
     .filter(Boolean)
     .join('\n')
 
-  return callToolOnce<Pick<RawIntentResult, 'entity' | 'action' | 'searchText'>>({
-    systemPrompt,
-    userText: message,
-    toolName: 'select_command',
-    toolDescription: 'Choose which entity and action this create/update/delete request is about.',
-    schema,
-    model: modelOverride,
-    provider: providerOverride,
-    localModel: localModelOverride,
+  const { output } = await runStepWithChecks<Pick<RawIntentResult, 'entity' | 'action' | 'searchText'>, SelectCommandCheckContext>(
+    selectCommandChecks,
+    () =>
+      callToolOnce<Pick<RawIntentResult, 'entity' | 'action' | 'searchText'>>({
+        systemPrompt,
+        userText: message,
+        toolName: 'select_command',
+        toolDescription: 'Choose which entity and action this create/update/delete request is about.',
+        schema,
+        model: modelOverride,
+        provider: providerOverride,
+        localModel: localModelOverride,
+        trace,
+        signal,
+      }),
+    { message, uiLanguage },
     trace,
-    signal,
-  })
+    'select_command',
+  )
+  return output
 }
 
 /** The `'question'` branch's own narrow call — just `lookupEntities`/`searchText`, no `entity`/`action`/`reply` fields for a local model to conflate them with. */
@@ -889,7 +926,8 @@ export async function selectItem(
     .join('\n')
 
   const trace: AssistantTraceEntry[] = []
-  const result = await generateThenVerify<{ itemID: string | null }>({
+  const capability = resolveModelCapability(modelOverride, providerOverride)
+  const selectItemCallArgs = {
     systemPrompt,
     userText,
     toolName: 'select_item',
@@ -901,7 +939,17 @@ export async function selectItem(
     localModel: localModelOverride,
     trace,
     signal,
-  })
+  }
+  const { output: result } = await runStepWithChecks<{ itemID: string | null }, SelectItemCheckContext>(
+    selectItemChecks,
+    () =>
+      capability.useVerifyPass.selectItem
+        ? generateThenVerify<{ itemID: string | null }>(selectItemCallArgs)
+        : callToolOnce<{ itemID: string | null }>(selectItemCallArgs),
+    { message, candidates },
+    trace,
+    'select_item',
+  )
 
   return { itemID: result.itemID, candidates, trace }
 }
@@ -919,7 +967,16 @@ export interface FillFieldsClarification {
  * merged or validated. `'ready'` — the normal staged-draft result.
  */
 export type FillFieldsResult =
-  | { status: 'ready'; draft: unknown; issues: AssistantValidationIssue[]; fieldConfidence: Record<string, FieldConfidence>; posture: 'safe' | 'full'; trace: AssistantTraceEntry[] }
+  | {
+      status: 'ready'
+      draft: unknown
+      issues: AssistantValidationIssue[]
+      fieldConfidence: Record<string, FieldConfidence>
+      posture: 'safe' | 'full'
+      trace: AssistantTraceEntry[]
+      /** Names of `fillFieldsChecks` that still failed after their one retry — see `PostCheckRunResult.flaggedChecks`. Empty for the overwhelmingly common case where every check passed (or fixed itself) cleanly; a non-empty array means the review UI should warn rather than silently trust this draft. */
+      flaggedChecks: string[]
+    }
   | { status: 'clarify'; clarifications: FillFieldsClarification[]; trace: AssistantTraceEntry[]; historyContext: string | null }
 
 /** Every field the model proposed came back empty — nothing to extract from the message at all. Used both to skip `fillFields`'s own verify pass (see `generateThenVerify`'s `skipVerifyIf`) and, on a `create`, to abort before staging a draft with nothing real behind it. */
@@ -950,6 +1007,8 @@ export async function fillFields(
     history?: string
     /** An already-resolved value from an earlier call in the same turn (usually `selectIntent`'s). Mutually exclusive with `history`. */
     historyContext?: string
+    /** This chat's own id (see `useAssistantFlow.ts`) — only ever consulted by `fillFieldsChecks`' own `catalogueId-context-consistency` check, to look up this conversation's `DialogFocus`. */
+    conversationId?: string
     /** See `ToolCallInput.signal`. */
     signal?: AbortSignal
   } = {},
@@ -1003,10 +1062,16 @@ export async function fillFields(
     trace,
     signal: options.signal,
   }
-  const rawFields =
-    posture === 'full'
-      ? await generateThenVerify<Record<string, unknown>>({ ...fillFieldsCallArgs, skipVerifyIf: isEmptyFieldsObject })
-      : await callToolOnce<Record<string, unknown>>(fillFieldsCallArgs)
+  const { output: rawFields, flaggedChecks } = await runStepWithChecks<Record<string, unknown>, FillFieldsCheckContext>(
+    fillFieldsChecks,
+    () =>
+      posture === 'full'
+        ? generateThenVerify<Record<string, unknown>>({ ...fillFieldsCallArgs, skipVerifyIf: isEmptyFieldsObject })
+        : callToolOnce<Record<string, unknown>>(fillFieldsCallArgs),
+    { entityKey, message, uiLanguage, posture, confabulationRiskFields: entity.confabulationRiskFields ?? [], dialogFocus: getDialogFocus(options.conversationId) },
+    trace,
+    `fill_fields_${entityKey}`,
+  )
 
   // The admin's own answers to a prior clarifying round are authoritative — they override whatever the model itself proposed (or failed to) for that same field.
   const fields = { ...rawFields, ...options.resolvedFields }
@@ -1050,7 +1115,7 @@ export async function fillFields(
     fieldConfidence[key] = key in (options.resolvedFields ?? {}) ? 'verbatim' : inferFieldConfidence(fields[key], message)
   }
 
-  return { status: 'ready', draft, issues, fieldConfidence, posture, trace }
+  return { status: 'ready', draft, issues, fieldConfidence, posture, trace, flaggedChecks }
 }
 
 export interface FillFieldsBatchClarification {
@@ -1097,6 +1162,8 @@ export async function fillFieldsBatch(
     postureOverride?: AssistantIngestionPosture
     history?: string
     historyContext?: string
+    /** This chat's own id — see `fillFields`' own identical option; same `catalogueId-context-consistency` use. */
+    conversationId?: string
     /** See `ToolCallInput.signal`. */
     signal?: AbortSignal
   } = {},
@@ -1156,6 +1223,23 @@ export async function fillFieldsBatch(
     posture === 'full'
       ? await generateThenVerify<{ records: Record<string, unknown>[] }>({ ...fillFieldsBatchCallArgs, skipVerifyIf: (draft) => draft.records.every(isEmptyFieldsObject) })
       : await callToolOnce<{ records: Record<string, unknown>[] }>(fillFieldsBatchCallArgs)
+
+  // Applied per-record via `applyChecksNoRetry`, not `runStepWithChecks` — a `reject-retry` verdict
+  // here re-runs the *entire* batch call to fix one record's own issue, which is disproportionate
+  // for a multi-record batch; treating it the same as `reject-clarify` (abort with a message) is the
+  // simpler, honest tradeoff. `dialogFocus` is resolved once, shared by every record's own check
+  // (the conversation's own recent focus doesn't vary per record within one call).
+  const dialogFocus = getDialogFocus(options.conversationId)
+  result.records = (result.records ?? []).map((rawFields) =>
+    applyChecksNoRetry<Record<string, unknown>, FillFieldsCheckContext>(fillFieldsChecks, rawFields, {
+      entityKey,
+      message,
+      uiLanguage,
+      posture,
+      confabulationRiskFields: entity.confabulationRiskFields ?? [],
+      dialogFocus,
+    }),
+  )
 
   // Debug-only tag (see `AssistantTraceEntry.resolvedFields`) — never asked of the model.
   if (options.resolvedFields && Object.keys(options.resolvedFields).length > 0) {
@@ -1366,8 +1450,24 @@ interface AssistantModelCapability {
   recordsPerBatch: number
   /** A secondary ceiling applied alongside `recordsPerBatch`, not after it — `packRecordsIntoBatches` closes a batch as soon as either bound would be exceeded, so a batch of unusually content-heavy records (bilingual name/description, custom fields, etc.) gets split into more, smaller batches rather than ever having its serialized JSON truncated mid-record. */
   chunkCharBudget: number
-  /** Whether the extra `generateThenVerify` pass is worth the added latency for this tier — always used for cloud Claude and, despite the extra latency, for `local` too: real testing showed a small Ollama model over-includes an entire batch on a filtering question (e.g. confidently marking most of a batch "on sale" when none of it actually had a discount field set) at a high enough rate that skipping the verify pass there isn't actually a good tradeoff — see `LOOKUP_BATCH_SCHEMA`'s own doc comment, which named this exact failure mode. */
-  useVerifyPass: boolean
+  /**
+   * Per-step "is the extra `generateThenVerify` pass worth the added latency" gate. Deliberately
+   * covers only the steps that actually branch on this — `classifyMessage`/`selectIntent`/
+   * `selectLookupTarget`/`selectCommand` always stay single-pass regardless of tier (see
+   * `callToolOnce`'s own doc comment on `selectIntent`), and `fillFields`/`fillFieldsBatch` are
+   * gated independently by `resolveIngestionPosture` above, not this — adding fields here for
+   * those would be dead, unread no-ops.
+   */
+  useVerifyPass: {
+    /** See `LOOKUP_BATCH_SCHEMA`'s own doc comment: real testing showed a small Ollama model over-includes an entire batch on a filtering question (e.g. confidently marking most of a batch "on sale" when none of it actually had a discount field set) at a high enough rate that skipping the verify pass there isn't a good tradeoff on *any* tier — kept `true` everywhere. */
+    lookupBatch: boolean
+    /** The structured filter/report query `buildEntityQueryDataBlock` builds — QA evidence showed a local model's verify pass agreeing with its own filter-construction errors rather than catching them, so this is the one worth turning off for `local` specifically. */
+    lookupQuery: boolean
+    /** The final natural-language compose call (`answerFromRecord`/`resolveSingleEntityLookup`/`answerLookup`'s own `answer_lookup` tool). */
+    answerLookup: boolean
+    /** `selectItem`'s own narrowing call — unlike the others, this step called `generateThenVerify` unconditionally until this field existed; this is a genuine new behavior change, not a rename. */
+    selectItem: boolean
+  }
   maxParallelChunkCalls: number
   /** `'full'` — a strong-enough model reads the (already client-capped) recent transcript itself; the raw text is passed straight through with no extra call (see `resolveHistoryContext`). `'compact'` — a real extra summarization call (`compactHistory`) condenses it into a short blurb first, so the cheaper/weaker tier pays for history-awareness once in output tokens rather than repeatedly in input tokens across a turn's several calls (the "compute once per turn" plan). Chosen for `claude-haiku-4-5` and the `local` placeholder, mirroring the haiku-vs-sonnet+ split above. */
   historyMode: 'full' | 'compact'
@@ -1394,10 +1494,14 @@ const ASSISTANT_MODEL_CAPABILITIES: Record<store.AssistantModel | 'local', Assis
   // `packRecordsIntoBatches` actually respects this bound (see its own doc comment) — these are a
   // re-estimate, not a measured figure; revisit if real usage shows batches still splitting more
   // aggressively than intended.
-  'claude-haiku-4-5': { recordsPerBatch: 25, chunkCharBudget: 6000, useVerifyPass: true, maxParallelChunkCalls: 4, historyMode: 'compact' },
-  'claude-sonnet-4-5': { recordsPerBatch: 150, chunkCharBudget: 12000, useVerifyPass: true, maxParallelChunkCalls: 4, historyMode: 'full' },
-  'claude-opus-4-5': { recordsPerBatch: 150, chunkCharBudget: 12000, useVerifyPass: true, maxParallelChunkCalls: 4, historyMode: 'full' },
-  local: { recordsPerBatch: 10, chunkCharBudget: 2400, useVerifyPass: true, maxParallelChunkCalls: 1, historyMode: 'compact' },
+  'claude-haiku-4-5': { recordsPerBatch: 25, chunkCharBudget: 6000, useVerifyPass: { lookupBatch: true, lookupQuery: true, answerLookup: true, selectItem: true }, maxParallelChunkCalls: 4, historyMode: 'compact' },
+  'claude-sonnet-4-5': { recordsPerBatch: 150, chunkCharBudget: 12000, useVerifyPass: { lookupBatch: true, lookupQuery: true, answerLookup: true, selectItem: true }, maxParallelChunkCalls: 4, historyMode: 'full' },
+  'claude-opus-4-5': { recordsPerBatch: 150, chunkCharBudget: 12000, useVerifyPass: { lookupBatch: true, lookupQuery: true, answerLookup: true, selectItem: true }, maxParallelChunkCalls: 4, historyMode: 'full' },
+  // `lookupQuery`/`answerLookup`/`selectItem` off for `local` — QA evidence (see the plan behind this
+  // change) showed a local model's verify pass mostly re-sampling its own draft's biases rather than
+  // catching errors on these steps, at real latency cost. `lookupBatch` stays on regardless — see its
+  // own field doc comment above.
+  local: { recordsPerBatch: 10, chunkCharBudget: 2400, useVerifyPass: { lookupBatch: true, lookupQuery: false, answerLookup: false, selectItem: false }, maxParallelChunkCalls: 1, historyMode: 'compact' },
 }
 
 /** Bounds enforced on an admin's own "Custom" record-per-batch entry — re-clamped here regardless of whatever the client-side `NumberInput` already enforces, since a client-supplied number is never trusted as-is. Guards against both an oversized single batch (could blow past `client.ts`'s shared `max_tokens: 1024`) and a `0`/negative value (would break the batch-splitting loop below). */
@@ -1687,7 +1791,13 @@ async function buildEntityQueryDataBlock(
     trace,
     signal,
   }
-  const spec = useVerifyPass ? await generateThenVerify<LookupQuerySpec>(callArgs) : await callToolOnce<LookupQuerySpec>(callArgs)
+  const { output: spec } = await runStepWithChecks<LookupQuerySpec, LookupQueryCheckContext>(
+    lookupQueryChecks,
+    () => (useVerifyPass ? generateThenVerify<LookupQuerySpec>(callArgs) : callToolOnce<LookupQuerySpec>(callArgs)),
+    { message, uiLanguage, fields },
+    trace,
+    'lookup_query',
+  )
 
   // Never trust a filter whose value the admin never actually said — real testing showed a local
   // model inventing filters wholesale for a "list everything" question (e.g. matching a product's
@@ -1749,6 +1859,28 @@ async function buildEntityQueryDataBlock(
     const nounPlural = noun?.plural ?? entity.key
 
     if (matches.length === 0) {
+      // Real testing found a "list all X" question coming back with a confusing empty answer
+      // because the model attached an unnecessary filter clause nobody asked for — re-running
+      // with the single most restrictive filter dropped and surfacing a "found none with the
+      // full filter, showing all X instead" note is the honest middle ground between that and
+      // silently discarding a real filter the admin actually did ask for. Not a `PostCheck` (see
+      // `reconsiderEmptyResult`'s own doc comment) — its "retry" is a deterministic re-query, not
+      // a model re-call.
+      const reconsidered = reconsiderEmptyResult(filters, (candidateFilters) => executeLookupQuery(records, { filters: candidateFilters, reportField: null }, fields))
+      if (reconsidered.droppedFilter) {
+        const narrowedSuffix = buildFilterSuffix(reconsidered.filtersUsed, fields, uiLanguage)
+        const items: AssistantListItem[] = reconsidered.matches.map((record) => ({ label: record.label, sublabel: record.sublabel }))
+        const templatedReply =
+          uiLanguage === 'no'
+            ? `Fant ingen${filterSuffix} — her er ${reconsidered.matches.length} ${nounPlural}${narrowedSuffix} i stedet:`
+            : `Found none${filterSuffix} — here are ${reconsidered.matches.length} ${nounPlural}${narrowedSuffix} instead:`
+        return {
+          dataBlock: '',
+          templatedReply,
+          templatedList: { style: 'bullet', items },
+          focusUpdate: { kind: 'set', entity: entity.key, filter: reconsidered.filtersUsed, ids: reconsidered.matches.map((record) => record.id), label: entity.countLabel?.[uiLanguage]?.plural ?? entity.key },
+        }
+      }
       const templatedReply = uiLanguage === 'no' ? `Ingen ${nounPlural}${filterSuffix}.` : `No ${nounPlural}${filterSuffix}.`
       return { dataBlock: '', templatedReply, focusUpdate: setFocusUpdate }
     }
@@ -1832,7 +1964,7 @@ async function answerFromRecord(
     trace,
     signal,
   }
-  const result = capability.useVerifyPass ? await generateThenVerify<{ reply: string }>(callArgs) : await callToolOnce<{ reply: string }>(callArgs)
+  const result = capability.useVerifyPass.answerLookup ? await generateThenVerify<{ reply: string }>(callArgs) : await callToolOnce<{ reply: string }>(callArgs)
   return { ...result, trace }
 }
 
@@ -1871,7 +2003,7 @@ async function resolveSingleEntityLookup(
   trace: AssistantTraceEntry[],
   signal: AbortSignal | undefined,
 ): Promise<LookupHalfResult> {
-  const dataBlockResult = await buildEntityQueryDataBlock(entity, context, message, uiLanguage, capability.useVerifyPass, modelOverride, providerOverride, localModelOverride, baseFilters, trace, signal)
+  const dataBlockResult = await buildEntityQueryDataBlock(entity, context, message, uiLanguage, capability.useVerifyPass.lookupQuery, modelOverride, providerOverride, localModelOverride, baseFilters, trace, signal)
 
   if (dataBlockResult.templatedReply) {
     return { reply: dataBlockResult.templatedReply, list: dataBlockResult.templatedList, focusUpdate: dataBlockResult.focusUpdate }
@@ -1920,7 +2052,7 @@ async function resolveSingleEntityLookup(
     trace,
     signal,
   }
-  const result = capability.useVerifyPass ? await generateThenVerify<{ reply: string }>(callArgs) : await callToolOnce<{ reply: string }>(callArgs)
+  const result = capability.useVerifyPass.answerLookup ? await generateThenVerify<{ reply: string }>(callArgs) : await callToolOnce<{ reply: string }>(callArgs)
   return { reply: result.reply }
 }
 
@@ -2055,7 +2187,7 @@ export async function answerLookup(
 
   const dataBlockResults = await Promise.all(
     entities.map((entity) =>
-      buildEntityDataBlock(entity, context, message, uiLanguage, recordsPerBatch, capability.chunkCharBudget, capability.useVerifyPass, historyContext ?? null, modelOverride, providerOverride, localModelOverride, trace, signal).then(
+      buildEntityDataBlock(entity, context, message, uiLanguage, recordsPerBatch, capability.chunkCharBudget, capability.useVerifyPass.lookupBatch, historyContext ?? null, modelOverride, providerOverride, localModelOverride, trace, signal).then(
         (dataBlock) => ({ dataBlock }),
       ),
     ),
@@ -2111,7 +2243,7 @@ export async function answerLookup(
     trace,
     signal,
   }
-  const result = capability.useVerifyPass ? await generateThenVerify<{ reply: string }>(callArgs) : await callToolOnce<{ reply: string }>(callArgs)
+  const result = capability.useVerifyPass.answerLookup ? await generateThenVerify<{ reply: string }>(callArgs) : await callToolOnce<{ reply: string }>(callArgs)
   return { status: 'ready', ...result, trace }
 }
 

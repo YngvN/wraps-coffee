@@ -438,6 +438,18 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
 
   const roleLabelFor = (entity: AssistantEntityKey) => t(`admin.assistant.entities.${entity}`)
 
+  /** One shared banner for `flow.state.flaggedChecks` (see `useAssistantFlow.ts`'s own doc comment on that field) — names of server-side post-checks (`server/assistant/postChecks/`) that still failed after their one retry. Rendered once at the shared `renderReview()`/`renderBatchReview()` call site rather than duplicated per entity branch inside `renderReview()` itself. Deliberately doesn't name which check failed (those are internal, kebab-case identifiers, not admin-facing text) — just a generic "double check this" prompt, same posture as `admin.assistant.ingest.inferredHint`. */
+  const renderFlaggedChecksWarning = () => {
+    const flaggedChecks =
+      flow.state.status === 'reviewingForm' || flow.state.status === 'reviewingDestructive' || flow.state.status === 'reviewingBatch' ? flow.state.flaggedChecks : []
+    if (flaggedChecks.length === 0) return null
+    return (
+      <Alert variant="warning" title={t('admin.assistant.title')}>
+        {t('admin.assistant.flaggedChecksWarning')}
+      </Alert>
+    )
+  }
+
   const renderIssues = (issues: { code: string; params?: Record<string, string> }[]) => {
     if (issues.length === 0) return null
     return (
@@ -1868,10 +1880,19 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                     </div>
                   )}
 
-                  {!draftQualityGateInfo &&
-                    (flow.state.status === 'reviewingForm' || flow.state.status === 'reviewingDestructive') && <div className="assistant-panel__review">{renderReview()}</div>}
+                  {!draftQualityGateInfo && (flow.state.status === 'reviewingForm' || flow.state.status === 'reviewingDestructive') && (
+                    <div className="assistant-panel__review">
+                      {renderFlaggedChecksWarning()}
+                      {renderReview()}
+                    </div>
+                  )}
 
-                  {!draftQualityGateInfo && flow.state.status === 'reviewingBatch' && <div className="assistant-panel__review">{renderBatchReview()}</div>}
+                  {!draftQualityGateInfo && flow.state.status === 'reviewingBatch' && (
+                    <div className="assistant-panel__review">
+                      {renderFlaggedChecksWarning()}
+                      {renderBatchReview()}
+                    </div>
+                  )}
 
                   {isBusy && (
                     <AssistantThoughtTrace

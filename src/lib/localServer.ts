@@ -595,7 +595,17 @@ export type FieldConfidence = 'verbatim' | 'inferred' | 'unknown'
  * draft, same shape as before this was a union.
  */
 export type AssistantFillFieldsResult =
-  | { status: 'ready'; draft: unknown; issues: { code: string; params?: Record<string, string> }[]; fieldConfidence: Record<string, FieldConfidence>; posture: 'safe' | 'full'; trace: AssistantTraceEntry[]; turnVersion?: number }
+  | {
+      status: 'ready'
+      draft: unknown
+      issues: { code: string; params?: Record<string, string> }[]
+      fieldConfidence: Record<string, FieldConfidence>
+      posture: 'safe' | 'full'
+      trace: AssistantTraceEntry[]
+      /** Names of server-side post-checks that still failed after their one retry — see `server/assistant/postChecks/framework.ts`'s `PostCheckRunResult`. Empty for the common case; a non-empty array means `AssistantPanel` should show a warning rather than silently trusting this draft. */
+      flaggedChecks: string[]
+      turnVersion?: number
+    }
   | { status: 'clarify'; clarifications: AssistantFillFieldsClarification[]; trace: AssistantTraceEntry[]; historyContext: string | null; turnVersion?: number }
 
 /** Step 3 of the assistant flow — proposes (never writes) a draft for `entity`/`action`, merged onto the current item (`itemID`) or empty defaults. `image` is the vision-extraction input (see `AssistantPanel`'s attach flow); `priorDraft` is set when this call is a correction from the review step; `resolvedFields` carries the admin's own answers to a prior `'clarify'` result; `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. `history` (raw recent-transcript text) is only sent when this call is itself the first of its turn/continuation (the `reviewingForm`-correction path, which bypasses `assistantSelectIntent`); `historyContext` is an already-resolved value from an earlier call in the same turn. Mutually exclusive. */
@@ -617,6 +627,7 @@ export async function assistantFillFields(
     localModel?: string
     localVisionModel?: string
     posture?: AssistantIngestionPosture
+    conversationId?: string
     turnVersion?: number
   },
   signal?: AbortSignal,
@@ -668,6 +679,7 @@ export async function assistantFillFieldsBatch(
     provider?: AssistantProvider
     localModel?: string
     posture?: AssistantIngestionPosture
+    conversationId?: string
     turnVersion?: number
   },
   signal?: AbortSignal,

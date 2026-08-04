@@ -58,6 +58,15 @@ export interface AssistantTraceEntry {
   turnVersion?: number
   /** Set by `anthropicCallTool`/`ollamaCallTool` when this call's own outbound HTTP request was aborted (via `ToolCallInput.signal`) rather than completing normally — distinguishes a genuinely cancelled call from one that simply errored, in the trace export. Never read by any functional code path. */
   aborted?: boolean
+  /**
+   * Debug-only tag stamped after the fact by `postChecks/framework.ts`'s `runStepWithChecks` onto
+   * whichever of this array's entries its own call produced, once every registered post-check for
+   * that step has run against the (possibly retried) output — never read by any functional code
+   * path, purely so a check's verdict is visible in the trace export instead of only inferable from
+   * comparing a draft/retry's raw output by eye. Absent entirely for a step with no post-checks
+   * wired in yet.
+   */
+  checks?: { name: string; ok: boolean; reason?: string; action?: 'auto-fix' | 'reject-retry' | 'reject-clarify'; attempt: 1 | 2 }[]
 }
 
 export interface ToolCallInput {
@@ -203,7 +212,7 @@ export async function generateThenVerify<T>(input: {
   })
 }
 
-/** Single-pass tool call — used only by `selectIntent`, which stays single-pass per the plan (a coarse, low-ambiguity choice that confirm-before-write already backstops). */
+/** Single-pass tool call — unconditionally for `classifyMessage`/`selectIntent`/`selectLookupTarget`/`selectCommand` (a coarse, low-ambiguity choice that confirm-before-write already backstops, per the plan), and conditionally for every step gated by `AssistantModelCapability.useVerifyPass` (`steps.ts`) when that tier's flag is off. */
 export async function callToolOnce<T>(input: ToolCallInput): Promise<T> {
   return callTool<T>(input)
 }

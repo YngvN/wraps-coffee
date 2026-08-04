@@ -21,12 +21,13 @@ export interface PronounFocusResult {
  * for now. No English singular pronoun is included for the same reason ("it" is exactly as
  * ambiguous as "det").
  */
-const SINGULAR_REFERRING_WORDS: Record<'no' | 'en', string[]> = { no: ['den'], en: [] }
+export const SINGULAR_REFERRING_WORDS: Record<'no' | 'en', string[]> = { no: ['den'], en: [] }
 
 /** Plural referring pronouns — "de"/"dem"/"disse" read as referring back to a just-discussed set far more reliably than "det" does for a single item, so no exclusion heuristic is needed here. */
-const PLURAL_REFERRING_WORDS: Record<'no' | 'en', string[]> = { no: ['de', 'dem', 'disse'], en: ['them', 'these', 'those'] }
+export const PLURAL_REFERRING_WORDS: Record<'no' | 'en', string[]> = { no: ['de', 'dem', 'disse'], en: ['them', 'these', 'those'] }
 
-function containsWord(message: string, words: string[]): boolean {
+/** Word-boundary match, not a plain substring check — a short pronoun like "de"/"dem" would false-positive against unrelated words otherwise (e.g. Norwegian "dem" inside a longer word). Exported for `postChecks/selectLookupTarget.ts`'s `pronoun-not-searchtext` check, which needs the exact same "is this literally a referring pronoun" test this file already uses. */
+export function containsWord(message: string, words: string[]): boolean {
   const lower = message.toLowerCase()
   return words.some((word) => new RegExp(`\\b${word}\\b`).test(lower))
 }

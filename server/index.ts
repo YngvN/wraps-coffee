@@ -962,7 +962,7 @@ const httpServer = createServer((req, res) => {
     res.on('close', () => { if (!res.writableEnded) abortController.abort() })
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields, model, history, historyContext, provider, localModel, localVisionModel, posture, turnVersion } = body as {
+        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields, model, history, historyContext, provider, localModel, localVisionModel, posture, conversationId, turnVersion } = body as {
           entity?: string
           action?: AssistantActionName
           itemID?: string
@@ -978,6 +978,7 @@ const httpServer = createServer((req, res) => {
           localModel?: string
           localVisionModel?: string
           posture?: assistantSteps.AssistantIngestionPosture
+          conversationId?: string
           turnVersion?: number
         }
         if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
@@ -1001,6 +1002,7 @@ const httpServer = createServer((req, res) => {
                 postureOverride: isIngestionPosture(posture) ? posture : undefined,
                 history: typeof history === 'string' ? history : undefined,
                 historyContext: typeof historyContext === 'string' ? historyContext : undefined,
+                conversationId: typeof conversationId === 'string' ? conversationId : undefined,
                 signal: abortController.signal,
               }),
               typeof turnVersion === 'number' ? turnVersion : undefined,
@@ -1027,7 +1029,7 @@ const httpServer = createServer((req, res) => {
     res.on('close', () => { if (!res.writableEnded) abortController.abort() })
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, message, uiLanguage, resolvedFields, model, history, historyContext, provider, localModel, posture, turnVersion } = body as {
+        const { entity, message, uiLanguage, resolvedFields, model, history, historyContext, provider, localModel, posture, conversationId, turnVersion } = body as {
           entity?: string
           message?: string
           uiLanguage?: 'no' | 'en'
@@ -1038,6 +1040,7 @@ const httpServer = createServer((req, res) => {
           provider?: store.AssistantProvider
           localModel?: string
           posture?: assistantSteps.AssistantIngestionPosture
+          conversationId?: string
           turnVersion?: number
         }
         if (!entity || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
@@ -1057,6 +1060,7 @@ const httpServer = createServer((req, res) => {
                 postureOverride: isIngestionPosture(posture) ? posture : undefined,
                 history: typeof history === 'string' ? history : undefined,
                 historyContext: typeof historyContext === 'string' ? historyContext : undefined,
+                conversationId: typeof conversationId === 'string' ? conversationId : undefined,
                 signal: abortController.signal,
               }),
               typeof turnVersion === 'number' ? turnVersion : undefined,

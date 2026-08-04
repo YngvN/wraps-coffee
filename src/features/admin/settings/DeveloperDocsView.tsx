@@ -437,9 +437,10 @@ POST /assistant/select-item        (Authorization: Bearer <token>, any authentic
 → 200 { "itemID": string | null, "candidates": [{ "id", "label" }] }
 
 POST /assistant/fill-fields        (Authorization: Bearer <token>, any authenticated session)
-{ "entity": string, "action": string, "message": string, "uiLanguage": "no" | "en", "itemID"?: string, "priorDraft"?: unknown, "image"?: { "mediaType", "base64Data" }, "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5", "history"?: string, "historyContext"?: string, "provider"?: "local" | "claude" }
-→ 200 { "draft": unknown, "issues": [{ "code", "params"? }] }
+{ "entity": string, "action": string, "message": string, "uiLanguage": "no" | "en", "itemID"?: string, "priorDraft"?: unknown, "image"?: { "mediaType", "base64Data" }, "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5", "history"?: string, "historyContext"?: string, "provider"?: "local" | "claude", "conversationId"?: string }
+→ 200 { "draft": unknown, "issues": [{ "code", "params"? }], "flaggedChecks": string[] }
    ("history"/"historyContext" are mutually exclusive — see /assistant/intent's own note; "history" is only ever sent here for the one call path that bypasses /assistant/intent entirely, a correction typed while reviewing a proposed draft)
+   ("conversationId" is this chat's own client-generated id — consulted only by one server-side post-check (server/assistant/postChecks/fillFields.ts's "catalogueId-context-consistency"), to look up this conversation's recent dialog focus; "flaggedChecks" names any post-check that still failed after its own one retry — a non-empty array means the client should warn rather than silently trust this draft, see server/assistant/postChecks/framework.ts)
 
 POST /assistant/lookup             (Authorization: Bearer <token>, any authenticated session)
 { "message": string, "uiLanguage": "no" | "en", "entities": string[], "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5", "chunkSizePreference"?: "auto"|"small"|"medium"|"large"|"custom", "customChunkRecordCount"?: number, "historyContext"?: string, "provider"?: "local" | "claude", "itemSearchText"?: string }
