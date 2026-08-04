@@ -60,19 +60,20 @@ export interface AssistantClarification {
 
 /**
  * A plain chat bubble (`'user'`/`'assistant'`, optionally flagged `variant:
- * 'error'` for a persisted failure — see `reportError`/`reportNoMatch`), or a
- * `'thought'` line: the assistant's own internal trace for the operation
- * that led to whatever comes right after it (see `finalizeThought`) —
- * collapsed by default behind a "Thought for Xs" toggle in the UI
- * (`AssistantThoughtTrace`), never itself a stand-in for a real reply.
- * `list`, like `variant`, is only ever meaningful on an `'assistant'` line —
- * a structured list of matched records built entirely in code (see
+ * 'error'` for a persisted failure — see `reportError`/`reportNoMatch` — or
+ * `variant: 'stale'` for a discarded late-arriving response — see
+ * `discardStaleTurn`), or a `'thought'` line: the assistant's own internal
+ * trace for the operation that led to whatever comes right after it (see
+ * `finalizeThought`) — collapsed by default behind a "Thought for Xs" toggle
+ * in the UI (`AssistantThoughtTrace`), never itself a stand-in for a real
+ * reply. `list`, like `variant`, is only ever meaningful on an `'assistant'`
+ * line — a structured list of matched records built entirely in code (see
  * `answerLookup`'s own `AssistantReplyList` doc comment), rendered by
  * `AssistantPanel` as a real bullet list beneath the bubble rather than
  * folded into `text` as prose.
  */
 export type TranscriptLine =
-  | { id: string; role: 'user' | 'assistant'; text: string; variant?: 'error'; list?: AssistantReplyList }
+  | { id: string; role: 'user' | 'assistant'; text: string; variant?: 'error' | 'stale'; list?: AssistantReplyList }
   | { id: string; role: 'thought'; trace: AssistantTraceEntry[]; durationMs: number }
 
 /** Narrows away `'thought'` lines (no `.text` of their own) wherever a plain chat transcript is needed — `Array.prototype.find`/`filter` only narrow their return type given an explicit type predicate like this one. */
@@ -307,6 +308,13 @@ export function useAssistantFlow(
   const [transcript, setTranscript] = useState<TranscriptLine[]>([])
   const [state, setState] = useState<FlowState>({ status: 'idle' })
   const abortRef = useRef<AbortController | null>(null)
+  // Monotonic, bumped on every outgoing tool call (see `beginTurn`) and again on `cancel`/
+  // `discardForRetry`/`newChat` — lets a response handler tell whether it's still the *latest*
+  // request by the time it resolves. Needed because an abort today only stops the client from
+  // *waiting* on a request (see `abortRef` above); nothing server-side is cancelled yet, so an
+  // in-flight request can still resolve normally, late, well after a newer turn has started —
+  // `isStaleTurn` is what catches that and keeps it from ever reaching `setState`.
+  const turnVersionRef = useRef(0)
   // Sticky for the lifetime of the current conversation (cleared only by `newChat`) — tracks
   // whether *any* operation within it ever hit an error, even one the admin went on to resolve
   // successfully, so the conversation log can flag the entry (see `newChat`'s own `hadError` archive param).
@@ -338,6 +346,15 @@ export function useAssistantFlow(
     setState({ status: 'busy', phase })
   }, [])
 
+  /** Call immediately before every outgoing wrapper call (`assistantFillFields`, `assistantSelectIntent`, ...) — bumps `turnVersionRef` and returns the snapshot this particular request should be checked against once it resolves, via `isStaleTurn`. */
+  const beginTurn = useCallback(() => {
+    turnVersionRef.current += 1
+    return turnVersionRef.current
+  }, [])
+
+  /** True once a newer turn has started (a later `beginTurn` call, or a `cancel`/`discardForRetry`/`newChat` bump) since `requestVersion` was snapshotted — the response this guards is stale and must not reach `setState`/`recordTrace`. */
+  const isStaleTurn = useCallback((requestVersion: number) => requestVersion !== turnVersionRef.current, [])
+
   /** Call immediately after every awaited step-function call resolves, with that call's own `result.trace`. */
   const recordTrace = useCallback((entries: AssistantTraceEntry[]) => {
     if (entries.length === 0) return
@@ -364,9 +381,17 @@ export function useAssistantFlow(
     setTranscript((current) => [...current, { id: generateId(), role: 'thought', trace: entries, durationMs }])
   }, [])
 
-  const appendLine = useCallback((role: 'user' | 'assistant', text: string, variant?: 'error', list?: AssistantReplyList) => {
+  const appendLine = useCallback((role: 'user' | 'assistant', text: string, variant?: 'error' | 'stale', list?: AssistantReplyList) => {
     setTranscript((current) => [...current, { id: generateId(), role, text, variant, list }])
   }, [])
+
+  /** Surfaces a stale-discard as a visible (non-alarming) transcript line instead of silently dropping it — see `TranscriptLine`'s own doc comment on `variant: 'stale'`. Deliberately only touches `transcript`, never `state`/`traceRef`, since by definition a newer turn already owns those. */
+  const discardStaleTurn = useCallback(
+    (requestVersion: number) => {
+      appendLine('assistant', t('admin.assistant.staleResponseDiscarded', { previous: String(requestVersion), current: String(turnVersionRef.current) }), 'stale')
+    },
+    [appendLine, t],
+  )
 
   /** Persists a real failure as a normal (if visually flagged) transcript line instead of transient `flow.state` — see the plan behind this: an error used to vanish the instant the next message was sent, since it was never part of the permanent transcript. */
   const reportError = useCallback(
@@ -388,6 +413,10 @@ export function useAssistantFlow(
 
   const cancel = useCallback(() => {
     abortRef.current?.abort()
+    // Also bump the turn version so any already-in-flight response (abort doesn't stop the request
+    // server-side yet — see `turnVersionRef`'s own doc comment) is discarded on arrival even if its
+    // own call site's `isStaleTurn` check would otherwise have raced this reset.
+    turnVersionRef.current += 1
     // Unlike `newChat` (which wipes the whole transcript anyway), a cancel mid-operation shouldn't
     // silently drop whatever trace already accumulated from calls that resolved before the abort.
     finalizeThought()
@@ -403,6 +432,7 @@ export function useAssistantFlow(
    */
   const discardForRetry = useCallback(() => {
     abortRef.current?.abort()
+    turnVersionRef.current += 1
     finalizeThought()
     setState({ status: 'idle' })
   }, [finalizeThought])
@@ -421,6 +451,7 @@ export function useAssistantFlow(
     const linesToArchive = transcript
     const hadError = hadErrorRef.current
     abortRef.current?.abort()
+    turnVersionRef.current += 1
     setState({ status: 'idle' })
     setTranscript([])
     hadErrorRef.current = false
@@ -435,7 +466,11 @@ export function useAssistantFlow(
 
     const id = conversationLog.archive(linesToArchive, fallbackConversationTitle(linesToArchive), hadError)
     if (!session) return
-    assistantGenerateTitle(session.token, transcriptToText(linesToArchive), language, modelOverride, providerOverride, localModelOverride)
+    // Own `AbortController`, not reused from whatever operation was just cancelled above — this
+    // title generation is for the just-archived conversation, but should itself still be aborted if
+    // the admin clicks "New chat" again before it resolves (nothing should outlive a chat reset).
+    abortRef.current = new AbortController()
+    assistantGenerateTitle(session.token, transcriptToText(linesToArchive), language, modelOverride, providerOverride, localModelOverride, undefined, abortRef.current.signal)
       .then((result) => conversationLog.updateTitle(id, result.title))
       .catch(() => {
         // Keep the plain-text fallback title — a failed/unconfigured assistant shouldn't block browsing the log.
@@ -452,6 +487,7 @@ export function useAssistantFlow(
     ) => {
       if (!session) return
       beginBusy('thinking')
+      const requestVersion = beginTurn()
       try {
         const result = await assistantFillFields(
           session.token,
@@ -471,9 +507,14 @@ export function useAssistantFlow(
             posture: ingestionPostureOverride,
             history: options.history,
             historyContext: options.historyContext,
+            turnVersion: requestVersion,
           },
           abortRef.current?.signal,
         )
+        if (isStaleTurn(requestVersion)) {
+          discardStaleTurn(requestVersion)
+          return
+        }
         recordTrace(result.trace)
         if (result.status === 'clarify') {
           finalizeThought()
@@ -506,7 +547,7 @@ export function useAssistantFlow(
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride, localVisionModelOverride, ingestionPostureOverride],
+    [session, language, beginBusy, beginTurn, isStaleTurn, discardStaleTurn, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride, localVisionModelOverride, ingestionPostureOverride],
   )
 
   /** Delete still runs `fillFields` (an empty schema for every destructible entity — see each adapter's own `fillFieldsSchema`) purely to get a real `validate()` pass: that's the only path that surfaces a delete-time soft warning (e.g. "N products would be orphaned") or hard guard (e.g. "can't delete the active theme") before the typed-confirmation screen, rather than skipping straight to an empty-issues review. */
@@ -521,6 +562,7 @@ export function useAssistantFlow(
     ) => {
       if (!session) return
       beginBusy('thinking')
+      const requestVersion = beginTurn()
       try {
         const result = await assistantFillFields(
           session.token,
@@ -536,9 +578,14 @@ export function useAssistantFlow(
             localModel: localModelOverride,
             history: options.history,
             historyContext: options.historyContext,
+            turnVersion: requestVersion,
           },
           abortRef.current?.signal,
         )
+        if (isStaleTurn(requestVersion)) {
+          discardStaleTurn(requestVersion)
+          return
+        }
         recordTrace(result.trace)
         if (result.status === 'clarify') {
           finalizeThought()
@@ -562,7 +609,7 @@ export function useAssistantFlow(
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride],
+    [session, language, beginBusy, beginTurn, isStaleTurn, discardStaleTurn, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride],
   )
 
   /**
@@ -577,6 +624,7 @@ export function useAssistantFlow(
     async (entity: AssistantEntityKey, message: string, options: { resolvedFields?: Record<string, string>; history?: string; historyContext?: string } = {}) => {
       if (!session) return
       beginBusy('thinking')
+      const requestVersion = beginTurn()
       try {
         const result = await assistantFillFieldsBatch(
           session.token,
@@ -591,9 +639,14 @@ export function useAssistantFlow(
             posture: ingestionPostureOverride,
             history: options.history,
             historyContext: options.historyContext,
+            turnVersion: requestVersion,
           },
           abortRef.current?.signal,
         )
+        if (isStaleTurn(requestVersion)) {
+          discardStaleTurn(requestVersion)
+          return
+        }
         recordTrace(result.trace)
         if (result.status === 'clarify') {
           finalizeThought()
@@ -632,7 +685,7 @@ export function useAssistantFlow(
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, beginBusy, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride, ingestionPostureOverride],
+    [session, language, beginBusy, beginTurn, isStaleTurn, discardStaleTurn, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride, ingestionPostureOverride],
   )
 
   /**
@@ -650,12 +703,17 @@ export function useAssistantFlow(
       const clarifyingState = state
       abortRef.current = new AbortController()
       beginBusy('thinking')
+      const requestVersion = beginTurn()
       try {
         const result = await assistantResolveClarification(
           session.token,
-          { clarifications: clarifyingState.clarifications, message, uiLanguage: language, model: modelOverride, provider: providerOverride, localModel: localModelOverride },
+          { clarifications: clarifyingState.clarifications, message, uiLanguage: language, model: modelOverride, provider: providerOverride, localModel: localModelOverride, turnVersion: requestVersion },
           abortRef.current.signal,
         )
+        if (isStaleTurn(requestVersion)) {
+          discardStaleTurn(requestVersion)
+          return
+        }
         recordTrace(result.trace)
         if (Object.keys(result.resolvedFields).length === 0) {
           finalizeThought()
@@ -686,7 +744,7 @@ export function useAssistantFlow(
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [state, session, language, modelOverride, providerOverride, localModelOverride, beginBusy, recordTrace, finalizeThought, appendLine, t, runFillFields, runFillFieldsBatch, runFillFieldsForDelete, reportError],
+    [state, session, language, modelOverride, providerOverride, localModelOverride, beginBusy, beginTurn, isStaleTurn, discardStaleTurn, recordTrace, finalizeThought, appendLine, t, runFillFields, runFillFieldsBatch, runFillFieldsForDelete, reportError],
   )
 
   /** Batch sibling of `answerClarification` — same "batch every question, any order, auto-submit once all answered" posture, just against `'clarifyingBatch'` and resuming into `runFillFieldsBatch`. */
@@ -713,12 +771,17 @@ export function useAssistantFlow(
       const clarifyingState = state
       abortRef.current = new AbortController()
       beginBusy('thinking')
+      const requestVersion = beginTurn()
       try {
         const result = await assistantResolveClarification(
           session.token,
-          { clarifications: clarifyingState.clarifications, message, uiLanguage: language, model: modelOverride, provider: providerOverride, localModel: localModelOverride },
+          { clarifications: clarifyingState.clarifications, message, uiLanguage: language, model: modelOverride, provider: providerOverride, localModel: localModelOverride, turnVersion: requestVersion },
           abortRef.current.signal,
         )
+        if (isStaleTurn(requestVersion)) {
+          discardStaleTurn(requestVersion)
+          return
+        }
         recordTrace(result.trace)
         if (Object.keys(result.resolvedFields).length === 0) {
           finalizeThought()
@@ -740,7 +803,7 @@ export function useAssistantFlow(
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [state, session, language, modelOverride, providerOverride, localModelOverride, beginBusy, recordTrace, finalizeThought, appendLine, t, runFillFieldsBatch, reportError],
+    [state, session, language, modelOverride, providerOverride, localModelOverride, beginBusy, beginTurn, isStaleTurn, discardStaleTurn, recordTrace, finalizeThought, appendLine, t, runFillFieldsBatch, reportError],
   )
 
   const proceedWithItem = useCallback(
@@ -770,6 +833,7 @@ export function useAssistantFlow(
         return
       }
       beginBusy('thinking')
+      const requestVersion = beginTurn()
       try {
         const result = await assistantSelectItem(
           session.token,
@@ -783,9 +847,14 @@ export function useAssistantFlow(
             provider: providerOverride,
             localModel: localModelOverride,
             historyContext: historyContext ?? undefined,
+            turnVersion: requestVersion,
           },
           abortRef.current?.signal,
         )
+        if (isStaleTurn(requestVersion)) {
+          discardStaleTurn(requestVersion)
+          return
+        }
         recordTrace(result.trace)
         if (result.candidates.length === 0) {
           reportNoMatch()
@@ -812,7 +881,7 @@ export function useAssistantFlow(
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, runFillFields, runFillFieldsBatch, proceedWithItem, beginBusy, recordTrace, finalizeThought, reportNoMatch, reportError, modelOverride, providerOverride, localModelOverride],
+    [session, language, runFillFields, runFillFieldsBatch, proceedWithItem, beginBusy, beginTurn, isStaleTurn, discardStaleTurn, recordTrace, finalizeThought, reportNoMatch, reportError, modelOverride, providerOverride, localModelOverride],
   )
 
   const sendMessage = useCallback(
@@ -830,12 +899,17 @@ export function useAssistantFlow(
       // read, never a correction to an in-progress draft.
       if (image && imageMode === 'transcribeOnly') {
         beginBusy('thinking')
+        const requestVersion = beginTurn()
         try {
           const result = await assistantTranscribeAttachment(
             session.token,
-            { message, uiLanguage: language, image, model: modelOverride, provider: providerOverride, localModel: localModelOverride, localVisionModel: localVisionModelOverride },
+            { message, uiLanguage: language, image, model: modelOverride, provider: providerOverride, localModel: localModelOverride, localVisionModel: localVisionModelOverride, turnVersion: requestVersion },
             abortRef.current.signal,
           )
+          if (isStaleTurn(requestVersion)) {
+            discardStaleTurn(requestVersion)
+            return
+          }
           recordTrace(result.trace)
           finalizeThought()
           appendLine('assistant', result.text)
@@ -878,6 +952,7 @@ export function useAssistantFlow(
       }
 
       beginBusy('thinking')
+      const requestVersion = beginTurn()
       try {
         const result: AssistantIntentResult = await assistantSelectIntent(
           session.token,
@@ -888,8 +963,13 @@ export function useAssistantFlow(
           providerOverride,
           localModelOverride,
           conversationIdRef.current,
+          requestVersion,
           abortRef.current.signal,
         )
+        if (isStaleTurn(requestVersion)) {
+          discardStaleTurn(requestVersion)
+          return
+        }
         recordTrace(result.trace)
 
         // General question/greeting/etc. — answered directly, never routed
@@ -900,6 +980,7 @@ export function useAssistantFlow(
           if (result.lookupEntities && result.lookupEntities.length > 0) {
             // A factual question about the cafe's own current data — hand off to `answerLookup`
             // instead of a plain conversational reply (see `selectIntent`'s own doc comment).
+            const lookupRequestVersion = beginTurn()
             const lookup = await assistantAnswerLookup(
               session.token,
               {
@@ -915,9 +996,14 @@ export function useAssistantFlow(
                 itemSearchText: result.searchText ?? undefined,
                 baseFilters: result.baseFilters,
                 conversationId: conversationIdRef.current,
+                turnVersion: lookupRequestVersion,
               },
               abortRef.current?.signal,
             )
+            if (isStaleTurn(lookupRequestVersion)) {
+              discardStaleTurn(lookupRequestVersion)
+              return
+            }
             recordTrace(lookup.trace)
             if (lookup.status === 'clarifyItem') {
               finalizeThought()
@@ -957,6 +1043,9 @@ export function useAssistantFlow(
       answerBatchClarificationFromChat,
       startOperation,
       beginBusy,
+      beginTurn,
+      isStaleTurn,
+      discardStaleTurn,
       recordTrace,
       finalizeThought,
       reportError,
@@ -1024,6 +1113,7 @@ export function useAssistantFlow(
       const { entityKey, message, historyContext, candidates } = state
       abortRef.current = new AbortController()
       beginBusy('thinking')
+      const requestVersion = beginTurn()
       try {
         const result = await assistantAnswerLookupForItem(
           session.token,
@@ -1038,9 +1128,14 @@ export function useAssistantFlow(
             localModel: localModelOverride,
             label: candidates.find((candidate) => candidate.id === itemID)?.label,
             conversationId: conversationIdRef.current,
+            turnVersion: requestVersion,
           },
           abortRef.current.signal,
         )
+        if (isStaleTurn(requestVersion)) {
+          discardStaleTurn(requestVersion)
+          return
+        }
         recordTrace(result.trace)
         finalizeThought()
         appendLine('assistant', result.reply)
@@ -1050,7 +1145,7 @@ export function useAssistantFlow(
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [state, session, language, modelOverride, providerOverride, localModelOverride, beginBusy, recordTrace, finalizeThought, appendLine, reportError],
+    [state, session, language, modelOverride, providerOverride, localModelOverride, beginBusy, beginTurn, isStaleTurn, discardStaleTurn, recordTrace, finalizeThought, appendLine, reportError],
   )
 
   /** Called by the review UI once the real, existing save/delete path has actually committed the write — the assistant itself never does (see the plan's hard invariant). */

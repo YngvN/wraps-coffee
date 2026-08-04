@@ -101,6 +101,15 @@
   border: 1px solid $color-error-border;
 }
 
+// A discarded late response from a superseded turn (`discardStaleTurn` — see `useAssistantFlow.ts`'s
+// own `turnVersionRef` doc comment) — deliberately not error-toned, since this is expected/handled
+// behavior, not a failure.
+.assistant-panel__line--stale {
+  background: $color-warning-bg;
+  color: $color-warning;
+  border: 1px solid $color-warning-border;
+}
+
 .assistant-panel__log {
   display: flex;
   flex-direction: column;

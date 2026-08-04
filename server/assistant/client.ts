@@ -54,6 +54,10 @@ export interface AssistantTraceEntry {
    * export instead of only being inferable from the (truncated) request JSON.
    */
   resolvedFields?: Record<string, string>
+  /** The client-assigned `turnVersion` (see `useAssistantFlow.ts`'s own `turnVersionRef`) of the request that produced this entry, stamped on by the route handler in `server/index.ts` after this array comes back from `steps.ts` — this file itself never reads or sets it. Purely for trace-panel debugging of stale/discarded turns, never read by any functional code path. */
+  turnVersion?: number
+  /** Set by `anthropicCallTool`/`ollamaCallTool` when this call's own outbound HTTP request was aborted (via `ToolCallInput.signal`) rather than completing normally — distinguishes a genuinely cancelled call from one that simply errored, in the trace export. Never read by any functional code path. */
+  aborted?: boolean
 }
 
 export interface ToolCallInput {
@@ -84,6 +88,16 @@ export interface ToolCallInput {
   trace?: AssistantTraceEntry[]
   /** Only meaningful alongside `trace` — tags which `generateThenVerify` pass this call is, so the UI can label them. Never set for a `callToolOnce` call. */
   pass?: 'draft' | 'verify'
+  /**
+   * Propagated from the originating HTTP request's own client-disconnect handling (see
+   * `server/index.ts`'s per-route `AbortController` tied to `req.on('close', ...)`) all the way down
+   * into the real outbound Anthropic/Ollama call — see `anthropicClient.ts`'s `client.messages.beta.create`
+   * and `ollamaClient.ts`'s `ollamaChat`, both of which compose this with their own existing internal
+   * safety timeout rather than replacing it. `undefined` for any caller with nothing upstream to
+   * cancel from (there is none today — every `steps.ts` entry point is itself a route handler's
+   * direct call).
+   */
+  signal?: AbortSignal
 }
 
 /**
@@ -132,6 +146,8 @@ export async function generateThenVerify<T>(input: {
   localVisionModel?: string
   /** See `ToolCallInput.trace` — both the draft and verify pass push their own entry onto it, tagged `pass: 'draft'`/`'verify'` respectively. */
   trace?: AssistantTraceEntry[]
+  /** See `ToolCallInput.signal` — applied to both the draft and verify pass. */
+  signal?: AbortSignal
   /**
    * Skips the verify pass entirely when it returns `true` for the draft — verify's whole mechanism
    * is "show the model its own draft plus extra grounding and ask it to double-check," and against
@@ -154,6 +170,7 @@ export async function generateThenVerify<T>(input: {
     localModel: input.localModel,
     localVisionModel: input.localVisionModel,
     trace: input.trace,
+    signal: input.signal,
     pass: 'draft',
   })
 
@@ -181,6 +198,7 @@ export async function generateThenVerify<T>(input: {
     localModel: input.localModel,
     localVisionModel: input.localVisionModel,
     trace: input.trace,
+    signal: input.signal,
     pass: 'verify',
   })
 }

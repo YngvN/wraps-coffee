@@ -666,15 +666,42 @@ const httpServer = createServer((req, res) => {
     return
   }
 
+  /**
+   * Echoes the client-assigned `turnVersion` (see `useAssistantFlow.ts`'s own `turnVersionRef` doc
+   * comment) back onto a step function's result, and stamps it onto every trace entry the result
+   * carries — purely an echo for the client's own stale-turn detection and trace-panel debugging; no
+   * server-side logic here or in `assistantSteps.*` ever branches on this value. Shared by every
+   * `/assistant/*` route below rather than duplicated per-route.
+   */
+  function stampTurnVersion<T extends object>(result: T, turnVersion: number | undefined): T & { turnVersion?: number } {
+    if (turnVersion === undefined) return result
+    const stamped: Record<string, unknown> = { ...result, turnVersion }
+    const trace = (result as Record<string, unknown>).trace
+    if (Array.isArray(trace)) {
+      stamped.trace = (trace as Record<string, unknown>[]).map((entry) => ({ ...entry, turnVersion }))
+    }
+    return stamped as T & { turnVersion?: number }
+  }
+
   if (req.method === 'POST' && url.pathname === '/assistant/intent') {
     const session = store.getSession(bearerToken(req) ?? '')
     if (!session) {
       sendJson(res, 401, { error: 'Authentication required' })
       return
     }
+    // Listens on `res`, not `req` — `req`'s own 'close' fires as soon as the request body has been
+    // fully read (confirmed empirically; not just a docs-reading mistake), long before the response is
+    // sent, which aborted every real call almost immediately and silently dropped the response
+    // entirely (the catch block below skips responding once aborted) — this is what caused every
+    // assistant reply to hang or never arrive right after this wiring first landed. `res`'s own
+    // 'close' correctly fires early (before the response) only on a genuine client disconnect, and
+    // late (after, with `writableEnded: true`) on normal completion — the `writableEnded` guard makes
+    // the late, harmless case a no-op instead of racing an abort against an already-sent response.
+    const abortController = new AbortController()
+    res.on('close', () => { if (!res.writableEnded) abortController.abort() })
     readJsonBody(req)
       .then(async (body) => {
-        const { message, uiLanguage, model, history, provider, localModel, conversationId } = body as {
+        const { message, uiLanguage, model, history, provider, localModel, conversationId, turnVersion } = body as {
           message?: string
           uiLanguage?: 'no' | 'en'
           model?: store.AssistantModel
@@ -682,6 +709,7 @@ const httpServer = createServer((req, res) => {
           provider?: store.AssistantProvider
           localModel?: string
           conversationId?: string
+          turnVersion?: number
         }
         if (!message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing message or uiLanguage' })
@@ -691,18 +719,20 @@ const httpServer = createServer((req, res) => {
           sendJson(
             res,
             200,
-            await assistantSteps.selectIntent(
-              session,
-              message,
-              uiLanguage,
-              isAssistantModel(model) ? model : undefined,
-              typeof history === 'string' ? history : undefined,
-              isAssistantProvider(provider) ? provider : undefined,
-              typeof localModel === 'string' ? localModel : undefined,
-              typeof conversationId === 'string' ? conversationId : undefined,
+            stampTurnVersion(
+              await assistantSteps.selectIntent(session, message, uiLanguage, {
+                modelOverride: isAssistantModel(model) ? model : undefined,
+                history: typeof history === 'string' ? history : undefined,
+                providerOverride: isAssistantProvider(provider) ? provider : undefined,
+                localModelOverride: typeof localModel === 'string' ? localModel : undefined,
+                conversationId: typeof conversationId === 'string' ? conversationId : undefined,
+                signal: abortController.signal,
+              }),
+              typeof turnVersion === 'number' ? turnVersion : undefined,
             ),
           )
         } catch (error) {
+          if (abortController.signal.aborted) return
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
         }
       })
@@ -716,9 +746,11 @@ const httpServer = createServer((req, res) => {
       sendJson(res, 401, { error: 'Authentication required' })
       return
     }
+    const abortController = new AbortController()
+    res.on('close', () => { if (!res.writableEnded) abortController.abort() })
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, action, message, searchText, uiLanguage, priorItemID, model, historyContext, provider, localModel } = body as {
+        const { entity, action, message, searchText, uiLanguage, priorItemID, model, historyContext, provider, localModel, turnVersion } = body as {
           entity?: string
           action?: AssistantActionName
           message?: string
@@ -729,6 +761,7 @@ const httpServer = createServer((req, res) => {
           historyContext?: string
           provider?: store.AssistantProvider
           localModel?: string
+          turnVersion?: number
         }
         if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, action, message, or uiLanguage' })
@@ -738,21 +771,20 @@ const httpServer = createServer((req, res) => {
           sendJson(
             res,
             200,
-            await assistantSteps.selectItem(
-              entity,
-              action,
-              session,
-              message,
-              searchText ?? '',
-              uiLanguage,
-              priorItemID,
-              isAssistantModel(model) ? model : undefined,
-              typeof historyContext === 'string' ? historyContext : undefined,
-              isAssistantProvider(provider) ? provider : undefined,
-              typeof localModel === 'string' ? localModel : undefined,
+            stampTurnVersion(
+              await assistantSteps.selectItem(entity, action, session, message, searchText ?? '', uiLanguage, {
+                priorItemID,
+                modelOverride: isAssistantModel(model) ? model : undefined,
+                historyContext: typeof historyContext === 'string' ? historyContext : undefined,
+                providerOverride: isAssistantProvider(provider) ? provider : undefined,
+                localModelOverride: typeof localModel === 'string' ? localModel : undefined,
+                signal: abortController.signal,
+              }),
+              typeof turnVersion === 'number' ? turnVersion : undefined,
             ),
           )
         } catch (error) {
+          if (abortController.signal.aborted) return
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
         }
       })
@@ -766,14 +798,17 @@ const httpServer = createServer((req, res) => {
       sendJson(res, 401, { error: 'Authentication required' })
       return
     }
+    const abortController = new AbortController()
+    res.on('close', () => { if (!res.writableEnded) abortController.abort() })
     readJsonBody(req)
       .then(async (body) => {
-        const { transcriptText, uiLanguage, model, provider, localModel } = body as {
+        const { transcriptText, uiLanguage, model, provider, localModel, turnVersion } = body as {
           transcriptText?: string
           uiLanguage?: 'no' | 'en'
           model?: store.AssistantModel
           provider?: store.AssistantProvider
           localModel?: string
+          turnVersion?: number
         }
         if (!transcriptText || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing transcriptText or uiLanguage' })
@@ -783,15 +818,18 @@ const httpServer = createServer((req, res) => {
           sendJson(
             res,
             200,
-            await assistantSteps.generateTitle(
-              transcriptText,
-              uiLanguage,
-              isAssistantModel(model) ? model : undefined,
-              isAssistantProvider(provider) ? provider : undefined,
-              typeof localModel === 'string' ? localModel : undefined,
+            stampTurnVersion(
+              await assistantSteps.generateTitle(transcriptText, uiLanguage, {
+                modelOverride: isAssistantModel(model) ? model : undefined,
+                providerOverride: isAssistantProvider(provider) ? provider : undefined,
+                localModelOverride: typeof localModel === 'string' ? localModel : undefined,
+                signal: abortController.signal,
+              }),
+              typeof turnVersion === 'number' ? turnVersion : undefined,
             ),
           )
         } catch (error) {
+          if (abortController.signal.aborted) return
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
         }
       })
@@ -805,9 +843,11 @@ const httpServer = createServer((req, res) => {
       sendJson(res, 401, { error: 'Authentication required' })
       return
     }
+    const abortController = new AbortController()
+    res.on('close', () => { if (!res.writableEnded) abortController.abort() })
     readJsonBody(req)
       .then(async (body) => {
-        const { message, uiLanguage, entities, model, chunkSizePreference, customChunkRecordCount, historyContext, provider, itemSearchText, localModel, baseFilters, conversationId } = body as {
+        const { message, uiLanguage, entities, model, chunkSizePreference, customChunkRecordCount, historyContext, provider, itemSearchText, localModel, baseFilters, conversationId, turnVersion } = body as {
           message?: string
           uiLanguage?: 'no' | 'en'
           entities?: string[]
@@ -820,6 +860,7 @@ const httpServer = createServer((req, res) => {
           localModel?: string
           baseFilters?: LookupQueryFilterInput[] | null
           conversationId?: string
+          turnVersion?: number
         }
         if (!message || (uiLanguage !== 'no' && uiLanguage !== 'en') || !Array.isArray(entities)) {
           sendJson(res, 400, { error: 'Missing message, uiLanguage, or entities' })
@@ -829,23 +870,24 @@ const httpServer = createServer((req, res) => {
           sendJson(
             res,
             200,
-            await assistantSteps.answerLookup(
-              session,
-              message,
-              uiLanguage,
-              entities,
-              isAssistantModel(model) ? model : undefined,
-              chunkSizePreference,
-              customChunkRecordCount,
-              typeof historyContext === 'string' ? historyContext : undefined,
-              isAssistantProvider(provider) ? provider : undefined,
-              typeof itemSearchText === 'string' ? itemSearchText : undefined,
-              typeof localModel === 'string' ? localModel : undefined,
-              Array.isArray(baseFilters) ? baseFilters : undefined,
-              typeof conversationId === 'string' ? conversationId : undefined,
+            stampTurnVersion(
+              await assistantSteps.answerLookup(session, message, uiLanguage, entities, {
+                modelOverride: isAssistantModel(model) ? model : undefined,
+                chunkSizePreference,
+                customChunkRecordCount,
+                historyContext: typeof historyContext === 'string' ? historyContext : undefined,
+                providerOverride: isAssistantProvider(provider) ? provider : undefined,
+                itemSearchText: typeof itemSearchText === 'string' ? itemSearchText : undefined,
+                localModelOverride: typeof localModel === 'string' ? localModel : undefined,
+                baseFilters: Array.isArray(baseFilters) ? baseFilters : undefined,
+                conversationId: typeof conversationId === 'string' ? conversationId : undefined,
+                signal: abortController.signal,
+              }),
+              typeof turnVersion === 'number' ? turnVersion : undefined,
             ),
           )
         } catch (error) {
+          if (abortController.signal.aborted) return
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
         }
       })
@@ -863,9 +905,11 @@ const httpServer = createServer((req, res) => {
       sendJson(res, 401, { error: 'Authentication required' })
       return
     }
+    const abortController = new AbortController()
+    res.on('close', () => { if (!res.writableEnded) abortController.abort() })
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, itemID, message, uiLanguage, historyContext, model, provider, localModel, label, conversationId } = body as {
+        const { entity, itemID, message, uiLanguage, historyContext, model, provider, localModel, label, conversationId, turnVersion } = body as {
           entity?: string
           itemID?: string
           message?: string
@@ -876,6 +920,7 @@ const httpServer = createServer((req, res) => {
           localModel?: string
           label?: string
           conversationId?: string
+          turnVersion?: number
         }
         if (!entity || !itemID || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, itemID, message, or uiLanguage' })
@@ -885,21 +930,21 @@ const httpServer = createServer((req, res) => {
           sendJson(
             res,
             200,
-            await assistantSteps.answerLookupForItem(
-              entity,
-              itemID,
-              message,
-              uiLanguage,
-              session,
-              typeof historyContext === 'string' ? historyContext : undefined,
-              isAssistantModel(model) ? model : undefined,
-              isAssistantProvider(provider) ? provider : undefined,
-              typeof localModel === 'string' ? localModel : undefined,
-              typeof label === 'string' ? label : undefined,
-              typeof conversationId === 'string' ? conversationId : undefined,
+            stampTurnVersion(
+              await assistantSteps.answerLookupForItem(entity, itemID, message, uiLanguage, session, {
+                historyContext: typeof historyContext === 'string' ? historyContext : undefined,
+                modelOverride: isAssistantModel(model) ? model : undefined,
+                providerOverride: isAssistantProvider(provider) ? provider : undefined,
+                localModelOverride: typeof localModel === 'string' ? localModel : undefined,
+                label: typeof label === 'string' ? label : undefined,
+                conversationId: typeof conversationId === 'string' ? conversationId : undefined,
+                signal: abortController.signal,
+              }),
+              typeof turnVersion === 'number' ? turnVersion : undefined,
             ),
           )
         } catch (error) {
+          if (abortController.signal.aborted) return
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
         }
       })
@@ -913,9 +958,11 @@ const httpServer = createServer((req, res) => {
       sendJson(res, 401, { error: 'Authentication required' })
       return
     }
+    const abortController = new AbortController()
+    res.on('close', () => { if (!res.writableEnded) abortController.abort() })
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields, model, history, historyContext, provider, localModel, localVisionModel, posture } = body as {
+        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields, model, history, historyContext, provider, localModel, localVisionModel, posture, turnVersion } = body as {
           entity?: string
           action?: AssistantActionName
           itemID?: string
@@ -931,6 +978,7 @@ const httpServer = createServer((req, res) => {
           localModel?: string
           localVisionModel?: string
           posture?: assistantSteps.AssistantIngestionPosture
+          turnVersion?: number
         }
         if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, action, message, or uiLanguage' })
@@ -940,21 +988,26 @@ const httpServer = createServer((req, res) => {
           sendJson(
             res,
             200,
-            await assistantSteps.fillFields(entity, action, session, message, uiLanguage, {
-              itemID,
-              image,
-              priorDraft,
-              resolvedFields,
-              modelOverride: isAssistantModel(model) ? model : undefined,
-              providerOverride: isAssistantProvider(provider) ? provider : undefined,
-              localModelOverride: typeof localModel === 'string' ? localModel : undefined,
-              localVisionModelOverride: typeof localVisionModel === 'string' ? localVisionModel : undefined,
-              postureOverride: isIngestionPosture(posture) ? posture : undefined,
-              history: typeof history === 'string' ? history : undefined,
-              historyContext: typeof historyContext === 'string' ? historyContext : undefined,
-            }),
+            stampTurnVersion(
+              await assistantSteps.fillFields(entity, action, session, message, uiLanguage, {
+                itemID,
+                image,
+                priorDraft,
+                resolvedFields,
+                modelOverride: isAssistantModel(model) ? model : undefined,
+                providerOverride: isAssistantProvider(provider) ? provider : undefined,
+                localModelOverride: typeof localModel === 'string' ? localModel : undefined,
+                localVisionModelOverride: typeof localVisionModel === 'string' ? localVisionModel : undefined,
+                postureOverride: isIngestionPosture(posture) ? posture : undefined,
+                history: typeof history === 'string' ? history : undefined,
+                historyContext: typeof historyContext === 'string' ? historyContext : undefined,
+                signal: abortController.signal,
+              }),
+              typeof turnVersion === 'number' ? turnVersion : undefined,
+            ),
           )
         } catch (error) {
+          if (abortController.signal.aborted) return
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
         }
       })
@@ -970,9 +1023,11 @@ const httpServer = createServer((req, res) => {
       sendJson(res, 401, { error: 'Authentication required' })
       return
     }
+    const abortController = new AbortController()
+    res.on('close', () => { if (!res.writableEnded) abortController.abort() })
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, message, uiLanguage, resolvedFields, model, history, historyContext, provider, localModel, posture } = body as {
+        const { entity, message, uiLanguage, resolvedFields, model, history, historyContext, provider, localModel, posture, turnVersion } = body as {
           entity?: string
           message?: string
           uiLanguage?: 'no' | 'en'
@@ -983,6 +1038,7 @@ const httpServer = createServer((req, res) => {
           provider?: store.AssistantProvider
           localModel?: string
           posture?: assistantSteps.AssistantIngestionPosture
+          turnVersion?: number
         }
         if (!entity || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, message, or uiLanguage' })
@@ -992,17 +1048,22 @@ const httpServer = createServer((req, res) => {
           sendJson(
             res,
             200,
-            await assistantSteps.fillFieldsBatch(entity, session, message, uiLanguage, {
-              resolvedFields,
-              modelOverride: isAssistantModel(model) ? model : undefined,
-              providerOverride: isAssistantProvider(provider) ? provider : undefined,
-              localModelOverride: typeof localModel === 'string' ? localModel : undefined,
-              postureOverride: isIngestionPosture(posture) ? posture : undefined,
-              history: typeof history === 'string' ? history : undefined,
-              historyContext: typeof historyContext === 'string' ? historyContext : undefined,
-            }),
+            stampTurnVersion(
+              await assistantSteps.fillFieldsBatch(entity, session, message, uiLanguage, {
+                resolvedFields,
+                modelOverride: isAssistantModel(model) ? model : undefined,
+                providerOverride: isAssistantProvider(provider) ? provider : undefined,
+                localModelOverride: typeof localModel === 'string' ? localModel : undefined,
+                postureOverride: isIngestionPosture(posture) ? posture : undefined,
+                history: typeof history === 'string' ? history : undefined,
+                historyContext: typeof historyContext === 'string' ? historyContext : undefined,
+                signal: abortController.signal,
+              }),
+              typeof turnVersion === 'number' ? turnVersion : undefined,
+            ),
           )
         } catch (error) {
+          if (abortController.signal.aborted) return
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
         }
       })
@@ -1019,15 +1080,18 @@ const httpServer = createServer((req, res) => {
       sendJson(res, 401, { error: 'Authentication required' })
       return
     }
+    const abortController = new AbortController()
+    res.on('close', () => { if (!res.writableEnded) abortController.abort() })
     readJsonBody(req)
       .then(async (body) => {
-        const { clarifications, message, uiLanguage, model, provider, localModel } = body as {
+        const { clarifications, message, uiLanguage, model, provider, localModel, turnVersion } = body as {
           clarifications?: assistantSteps.FillFieldsClarification[]
           message?: string
           uiLanguage?: 'no' | 'en'
           model?: store.AssistantModel
           provider?: store.AssistantProvider
           localModel?: string
+          turnVersion?: number
         }
         if (!Array.isArray(clarifications) || clarifications.length === 0 || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing clarifications, message, or uiLanguage' })
@@ -1037,16 +1101,18 @@ const httpServer = createServer((req, res) => {
           sendJson(
             res,
             200,
-            await assistantSteps.resolveClarificationChat(
-              clarifications,
-              message,
-              uiLanguage,
-              isAssistantModel(model) ? model : undefined,
-              isAssistantProvider(provider) ? provider : undefined,
-              typeof localModel === 'string' ? localModel : undefined,
+            stampTurnVersion(
+              await assistantSteps.resolveClarificationChat(clarifications, message, uiLanguage, {
+                modelOverride: isAssistantModel(model) ? model : undefined,
+                providerOverride: isAssistantProvider(provider) ? provider : undefined,
+                localModelOverride: typeof localModel === 'string' ? localModel : undefined,
+                signal: abortController.signal,
+              }),
+              typeof turnVersion === 'number' ? turnVersion : undefined,
             ),
           )
         } catch (error) {
+          if (abortController.signal.aborted) return
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
         }
       })
@@ -1204,9 +1270,11 @@ const httpServer = createServer((req, res) => {
       sendJson(res, 401, { error: 'Authentication required' })
       return
     }
+    const abortController = new AbortController()
+    res.on('close', () => { if (!res.writableEnded) abortController.abort() })
     readJsonBody(req)
       .then(async (body) => {
-        const { message, uiLanguage, image, model, provider, localModel, localVisionModel } = body as {
+        const { message, uiLanguage, image, model, provider, localModel, localVisionModel, turnVersion } = body as {
           message?: string
           uiLanguage?: 'no' | 'en'
           image?: { mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'; base64Data: string }
@@ -1214,6 +1282,7 @@ const httpServer = createServer((req, res) => {
           provider?: store.AssistantProvider
           localModel?: string
           localVisionModel?: string
+          turnVersion?: number
         }
         if (uiLanguage !== 'no' && uiLanguage !== 'en') {
           sendJson(res, 400, { error: 'Missing uiLanguage' })
@@ -1227,17 +1296,19 @@ const httpServer = createServer((req, res) => {
           sendJson(
             res,
             200,
-            await assistantSteps.transcribeAttachment(
-              message ?? '',
-              uiLanguage,
-              image,
-              isAssistantModel(model) ? model : undefined,
-              isAssistantProvider(provider) ? provider : undefined,
-              typeof localModel === 'string' ? localModel : undefined,
-              typeof localVisionModel === 'string' ? localVisionModel : undefined,
+            stampTurnVersion(
+              await assistantSteps.transcribeAttachment(message ?? '', uiLanguage, image, {
+                modelOverride: isAssistantModel(model) ? model : undefined,
+                providerOverride: isAssistantProvider(provider) ? provider : undefined,
+                localModelOverride: typeof localModel === 'string' ? localModel : undefined,
+                localVisionModelOverride: typeof localVisionModel === 'string' ? localVisionModel : undefined,
+                signal: abortController.signal,
+              }),
+              typeof turnVersion === 'number' ? turnVersion : undefined,
             ),
           )
         } catch (error) {
+          if (abortController.signal.aborted) return
           sendJson(res, error instanceof AssistantNotConfiguredError || error instanceof AssistantLocalProviderError ? 409 : 400, { error: (error as Error).message })
         }
       })

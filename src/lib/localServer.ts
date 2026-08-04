@@ -433,6 +433,8 @@ export interface AssistantTraceEntry {
   shape?: 'count' | 'list' | 'report'
   /** The admin's tapped/typed answer(s) to a prior clarifying question, keyed by field name, when this call was resuming one — see `server/assistant/client.ts`'s own `AssistantTraceEntry` doc comment. Never read by any functional code path. */
   resolvedFields?: Record<string, string>
+  /** The client-assigned `turnVersion` (see `useAssistantFlow.ts`'s own `turnVersionRef`) of the request that produced this entry, stamped on by the route handler in `server/index.ts` — purely for trace-panel debugging of stale/discarded turns, never read by any functional code path. */
+  turnVersion?: number
 }
 
 /** One row of a structured list reply attachment — client-side mirror of `server/assistant/types.ts`'s own `AssistantListItem`. */
@@ -504,6 +506,8 @@ export interface AssistantIntentResult {
   historyContext: string | null
   /** See `AssistantTraceEntry` — always exactly one entry (this step is single-pass), plus one more if history had to be summarized. */
   trace: AssistantTraceEntry[]
+  /** The request's own `turnVersion`, echoed back verbatim — see `useAssistantFlow.ts`'s `isStaleTurn`. */
+  turnVersion?: number
 }
 
 /** Step 1 of the assistant flow (see `useAssistantFlow`) — routes free text to an entity + action. Never writes anything; see `server/assistant/types.ts`'s own module doc comment. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. `history` is raw recent-transcript text, only sent when this call is the first of its turn (see `useAssistantFlow`'s own `transcriptToText`). `provider` pins this one call (and, via `useAssistantFlow`, this whole device's chat) to a specific backend regardless of the shared, admin-configured default — same kebab-menu override as `model`, but selectable independently of it (picking "Local (Ollama)" makes `model` a no-op, since that provider routes by call shape instead). `conversationId` is this chat's own id (see `useAssistantFlow`'s own `conversationIdRef`) — only ever consulted server-side by the local provider's pronoun prefilter, to look up this conversation's own dialog focus. */
@@ -516,12 +520,13 @@ export async function assistantSelectIntent(
   provider?: AssistantProvider,
   localModel?: string,
   conversationId?: string,
+  turnVersion?: number,
   signal?: AbortSignal,
 ): Promise<AssistantIntentResult> {
   const response = await fetch(`${serverBaseUrl()}/assistant/intent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message, uiLanguage, model, history, provider, localModel, conversationId }),
+    body: JSON.stringify({ message, uiLanguage, model, history, provider, localModel, conversationId, turnVersion }),
     signal,
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
@@ -537,6 +542,8 @@ export interface AssistantSelectItemResult {
   candidates: { id: string; label: string }[]
   /** See `AssistantTraceEntry` — empty when a fast path (0 or 1 candidates) skipped the model entirely. */
   trace: AssistantTraceEntry[]
+  /** The request's own `turnVersion`, echoed back verbatim — see `useAssistantFlow.ts`'s `isStaleTurn`. */
+  turnVersion?: number
 }
 
 /** Step 2 of the assistant flow (only for actions that need an existing item) — picks a candidate `itemID` for `entity`, or `null` if none clearly match. Pass `priorItemID` when the admin said the previous pick was wrong. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. `historyContext` is this turn's already-resolved conversation context (from `assistantSelectIntent`'s own result), spliced straight in — never resolved again here. */
@@ -553,6 +560,7 @@ export async function assistantSelectItem(
     historyContext?: string
     provider?: AssistantProvider
     localModel?: string
+    turnVersion?: number
   },
   signal?: AbortSignal,
 ): Promise<AssistantSelectItemResult> {
@@ -587,8 +595,8 @@ export type FieldConfidence = 'verbatim' | 'inferred' | 'unknown'
  * draft, same shape as before this was a union.
  */
 export type AssistantFillFieldsResult =
-  | { status: 'ready'; draft: unknown; issues: { code: string; params?: Record<string, string> }[]; fieldConfidence: Record<string, FieldConfidence>; posture: 'safe' | 'full'; trace: AssistantTraceEntry[] }
-  | { status: 'clarify'; clarifications: AssistantFillFieldsClarification[]; trace: AssistantTraceEntry[]; historyContext: string | null }
+  | { status: 'ready'; draft: unknown; issues: { code: string; params?: Record<string, string> }[]; fieldConfidence: Record<string, FieldConfidence>; posture: 'safe' | 'full'; trace: AssistantTraceEntry[]; turnVersion?: number }
+  | { status: 'clarify'; clarifications: AssistantFillFieldsClarification[]; trace: AssistantTraceEntry[]; historyContext: string | null; turnVersion?: number }
 
 /** Step 3 of the assistant flow — proposes (never writes) a draft for `entity`/`action`, merged onto the current item (`itemID`) or empty defaults. `image` is the vision-extraction input (see `AssistantPanel`'s attach flow); `priorDraft` is set when this call is a correction from the review step; `resolvedFields` carries the admin's own answers to a prior `'clarify'` result; `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. `history` (raw recent-transcript text) is only sent when this call is itself the first of its turn/continuation (the `reviewingForm`-correction path, which bypasses `assistantSelectIntent`); `historyContext` is an already-resolved value from an earlier call in the same turn. Mutually exclusive. */
 export async function assistantFillFields(
@@ -609,6 +617,7 @@ export async function assistantFillFields(
     localModel?: string
     localVisionModel?: string
     posture?: AssistantIngestionPosture
+    turnVersion?: number
   },
   signal?: AbortSignal,
 ): Promise<AssistantFillFieldsResult> {
@@ -642,8 +651,8 @@ export interface AssistantFillFieldsBatchClarification {
  * `'ready'` carries one draft per record, in the order the model proposed them.
  */
 export type AssistantFillFieldsBatchResult =
-  | { status: 'clarify'; clarifications: AssistantFillFieldsBatchClarification[]; recordCount: number; trace: AssistantTraceEntry[]; historyContext: string | null }
-  | { status: 'ready'; drafts: { draft: unknown; issues: { code: string; params?: Record<string, string> }[]; fieldConfidence: Record<string, FieldConfidence> }[]; posture: 'safe' | 'full'; trace: AssistantTraceEntry[] }
+  | { status: 'clarify'; clarifications: AssistantFillFieldsBatchClarification[]; recordCount: number; trace: AssistantTraceEntry[]; historyContext: string | null; turnVersion?: number }
+  | { status: 'ready'; drafts: { draft: unknown; issues: { code: string; params?: Record<string, string> }[]; fieldConfidence: Record<string, FieldConfidence> }[]; posture: 'safe' | 'full'; trace: AssistantTraceEntry[]; turnVersion?: number }
 
 /** Batch sibling of `assistantFillFields` — `create` only, one or more staged records from a single message (e.g. "10 new coffee variants"). See `server/assistant/steps.ts`'s own `fillFieldsBatch` doc comment for why there's no separate "how many records" step. */
 export async function assistantFillFieldsBatch(
@@ -659,6 +668,7 @@ export async function assistantFillFieldsBatch(
     provider?: AssistantProvider
     localModel?: string
     posture?: AssistantIngestionPosture
+    turnVersion?: number
   },
   signal?: AbortSignal,
 ): Promise<AssistantFillFieldsBatchResult> {
@@ -686,9 +696,10 @@ export async function assistantResolveClarification(
     model?: AssistantModel
     provider?: AssistantProvider
     localModel?: string
+    turnVersion?: number
   },
   signal?: AbortSignal,
-): Promise<{ resolvedFields: Record<string, string>; trace: AssistantTraceEntry[] }> {
+): Promise<{ resolvedFields: Record<string, string>; trace: AssistantTraceEntry[]; turnVersion?: number }> {
   const response = await fetch(`${serverBaseUrl()}/assistant/resolve-clarification`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -700,7 +711,7 @@ export async function assistantResolveClarification(
     const body = (await response.json().catch(() => ({}))) as { error?: string }
     throw new Error(body.error ?? "Couldn't resolve that")
   }
-  return response.json() as Promise<{ resolvedFields: Record<string, string>; trace: AssistantTraceEntry[] }>
+  return response.json() as Promise<{ resolvedFields: Record<string, string>; trace: AssistantTraceEntry[]; turnVersion?: number }>
 }
 
 /** Names a just-finished conversation for the admin's own conversation log (see `useAssistantConversationLog`) — `transcriptText` is a plain-text rendering of the chat, not structured data. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only — see `AssistantPanel`'s model-picker menu. */
@@ -711,12 +722,13 @@ export async function assistantGenerateTitle(
   model?: AssistantModel,
   provider?: AssistantProvider,
   localModel?: string,
+  turnVersion?: number,
   signal?: AbortSignal,
-): Promise<{ title: string }> {
+): Promise<{ title: string; turnVersion?: number }> {
   const response = await fetch(`${serverBaseUrl()}/assistant/title`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ transcriptText, uiLanguage, model, provider, localModel }),
+    body: JSON.stringify({ transcriptText, uiLanguage, model, provider, localModel, turnVersion }),
     signal,
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
@@ -724,7 +736,7 @@ export async function assistantGenerateTitle(
     const body = (await response.json().catch(() => ({}))) as { error?: string }
     throw new Error(body.error ?? 'Could not generate a title for this conversation')
   }
-  return response.json() as Promise<{ title: string }>
+  return response.json() as Promise<{ title: string; turnVersion?: number }>
 }
 
 /** The admin's own override of how much data a lookup answer processes per call at once — see `AssistantPanel`'s kebab-menu chunk-size setting. `'auto'` means "use the active model/provider's own default." */
@@ -743,8 +755,8 @@ export type AssistantIngestionPosture = 'auto' | 'safe' | 'full'
  * silently guessing.
  */
 export type AssistantLookupResult =
-  | { status: 'ready'; reply: string; list?: AssistantReplyList; trace: AssistantTraceEntry[] }
-  | { status: 'clarifyItem'; entityKey: string; candidates: { id: string; label: string }[]; trace: AssistantTraceEntry[] }
+  | { status: 'ready'; reply: string; list?: AssistantReplyList; trace: AssistantTraceEntry[]; turnVersion?: number }
+  | { status: 'clarifyItem'; entityKey: string; candidates: { id: string; label: string }[]; trace: AssistantTraceEntry[]; turnVersion?: number }
 
 /** Answers a factual question about the cafe's own current dashboard data — called when `assistantSelectIntent` returns a non-empty `lookupEntities` instead of a plain `reply`. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only; `chunkSizePreference`/`customChunkRecordCount` override how much data is processed per call at once — see `AssistantPanel`'s kebab menu for both. `historyContext` is this turn's already-resolved conversation context (from `assistantSelectIntent`'s own result). `itemSearchText` (`assistantSelectIntent`'s own `searchText`) engages the server's single-item fast path when the question named one specific item, skipping the batch scan entirely for it — see `AssistantLookupResult`'s own doc comment for what happens when that's still ambiguous. */
 export async function assistantAnswerLookup(
@@ -762,6 +774,7 @@ export async function assistantAnswerLookup(
     localModel?: string
     baseFilters?: AssistantLookupFilter[] | null
     conversationId?: string
+    turnVersion?: number
   },
   signal?: AbortSignal,
 ): Promise<AssistantLookupResult> {
@@ -793,9 +806,10 @@ export async function assistantAnswerLookupForItem(
     localModel?: string
     label?: string
     conversationId?: string
+    turnVersion?: number
   },
   signal?: AbortSignal,
-): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
+): Promise<{ reply: string; trace: AssistantTraceEntry[]; turnVersion?: number }> {
   const response = await fetch(`${serverBaseUrl()}/assistant/lookup-item`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -807,7 +821,7 @@ export async function assistantAnswerLookupForItem(
     const body = (await response.json().catch(() => ({}))) as { error?: string }
     throw new Error(body.error ?? "Couldn't look that up")
   }
-  return response.json() as Promise<{ reply: string; trace: AssistantTraceEntry[] }>
+  return response.json() as Promise<{ reply: string; trace: AssistantTraceEntry[]; turnVersion?: number }>
 }
 
 export interface OllamaConfig {
@@ -916,9 +930,10 @@ export async function assistantTranscribeAttachment(
     provider?: AssistantProvider
     localModel?: string
     localVisionModel?: string
+    turnVersion?: number
   },
   signal?: AbortSignal,
-): Promise<{ text: string; trace: AssistantTraceEntry[] }> {
+): Promise<{ text: string; trace: AssistantTraceEntry[]; turnVersion?: number }> {
   const response = await fetch(`${serverBaseUrl()}/assistant/transcribe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -930,7 +945,7 @@ export async function assistantTranscribeAttachment(
     const body = (await response.json().catch(() => ({}))) as { error?: string }
     throw new Error(body.error ?? "Couldn't read that photo")
   }
-  return response.json() as Promise<{ text: string; trace: AssistantTraceEntry[] }>
+  return response.json() as Promise<{ text: string; trace: AssistantTraceEntry[]; turnVersion?: number }>
 }
 
 /** How a screen's own `/screens/:screenId` link should be addressed (see Settings → Advanced) — public, no auth needed. */

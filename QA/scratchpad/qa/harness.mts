@@ -233,6 +233,56 @@ export async function sendChat(page: Page, message: string, opts: { timeoutMs?: 
 }
 
 /**
+ * Fires two turns without waiting for the first to fully resolve first — every other helper in this
+ * file (`sendChat` included) assumes turns are strictly serialized, which is exactly what the
+ * concurrent-turn-safety scenarios (Section E of the test plan template) need to *not* do. Sends
+ * `message1`, waits for its busy indicator to appear, optionally interrupts it (`opts.interrupt`,
+ * matching the composer's own Send/Cancel toggle button — see `AssistantPanel.tsx`'s
+ * `admin.common.cancel` key — or the header's "New chat" button), then sends `message2` and reads its
+ * reply/trace the normal way via `sendChat`. Also waits a couple of seconds after `message2` settles
+ * and reports any `.assistant-panel__line--stale` transcript lines present — see `useAssistantFlow.ts`'s
+ * own `discardStaleTurn` — so a scenario can assert both that `message1`'s late response never became
+ * the visible last reply *and* that its discard is inspectable in the transcript, not silently dropped.
+ * `interrupt: 'none'` still exercises the race (no cancel/new-chat click), just without the app's own
+ * abort path engaged — useful for isolating whether stale-discard alone (Phase A) is enough without
+ * Phase B's real cancellation. E.3 (the Draft-Quality Gate's "Prøv igjen" retry) isn't covered by this
+ * helper — that scenario needs its own staging to actually reach the gate first; use
+ * `clickGateTryAgain` directly instead once there.
+ */
+export async function sendChatConcurrent(
+  page: Page,
+  message1: string,
+  message2: string,
+  opts: { interrupt?: 'cancel' | 'newChat' | 'none'; timeoutMs?: number } = {},
+): Promise<{ reply: string; trace: string[]; staleLines: string[] }> {
+  const timeoutMs = opts.timeoutMs ?? 180000
+  const interrupt = opts.interrupt ?? 'cancel'
+  const composer = composerLocator(page)
+  const status = page.locator('.assistant-typing-indicator')
+
+  await composer.click()
+  await composer.fill(message1)
+  await page.getByRole('button', { name: 'Send', exact: true }).click()
+  await status.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {})
+
+  if (interrupt === 'cancel') {
+    await page.getByRole('button', { name: 'Avbryt', exact: true }).click()
+    await status.waitFor({ state: 'detached', timeout: 10000 }).catch(() => {})
+  } else if (interrupt === 'newChat') {
+    await newChat(page)
+  }
+
+  const result = await sendChat(page, message2, { timeoutMs })
+
+  // Give a straggling first-turn response a little extra time to land (if it's going to at all) before
+  // reading the transcript for a stale-discard line — this is exactly the race the scenario tests.
+  await page.waitForTimeout(2000)
+  const staleLines = await page.locator('.assistant-panel__line--stale').allInnerTexts()
+
+  return { ...result, staleLines }
+}
+
+/**
  * Reads the trace via the assistant panel's own admin-only "Kopier samtalen til utklippstavlen"
  * (Copy conversation to clipboard) export instead of clicking through every collapsible thought/step
  * row in the DOM. Two concrete advantages over the old click-through approach (kept below as

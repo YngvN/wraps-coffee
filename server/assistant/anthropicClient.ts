@@ -47,14 +47,28 @@ export async function anthropicCallTool<T>(input: ToolCallInput): Promise<T> {
   const startedAt = Date.now()
   // strict tool use (guarantees `input` validates against `schema` exactly)
   // is only exposed on the beta messages endpoint in this SDK version.
-  const response = await client.beta.messages.create({
-    model,
-    max_tokens: 1024,
-    system: input.systemPrompt,
-    messages: [{ role: 'user', content: userContent }],
-    tools: [{ name: input.toolName, description: input.toolDescription, input_schema: input.schema, strict: true }],
-    tool_choice: { type: 'tool', name: input.toolName },
-  })
+  let response: Awaited<ReturnType<typeof client.beta.messages.create>>
+  try {
+    response = await client.beta.messages.create(
+      {
+        model,
+        max_tokens: 1024,
+        system: input.systemPrompt,
+        messages: [{ role: 'user', content: userContent }],
+        tools: [{ name: input.toolName, description: input.toolDescription, input_schema: input.schema, strict: true }],
+        tool_choice: { type: 'tool', name: input.toolName },
+      },
+      { signal: input.signal },
+    )
+  } catch (error) {
+    // Client disconnected (see `server/index.ts`'s per-route `AbortController`) before this call
+    // finished — record it as an abort, distinguishable from a genuine failure, then let the
+    // rejection propagate as normal (the route handler already skips responding once aborted).
+    if (input.trace && input.signal?.aborted) {
+      input.trace.push({ toolName: input.toolName, pass: input.pass, durationMs: Date.now() - startedAt, input: JSON.stringify({ userText: input.userText }).slice(0, 500), output: '', model, aborted: true })
+    }
+    throw error
+  }
   const durationMs = Date.now() - startedAt
 
   const toolUse = response.content.find((block): block is Anthropic.Beta.Messages.BetaToolUseBlock => block.type === 'tool_use')

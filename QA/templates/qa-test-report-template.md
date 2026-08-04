@@ -1,8 +1,8 @@
-<!-- Template version: 3 (updated after the qwen3:8b test-cycle retrospective — added the harness-fix-log convention below, so a report documents which harness gaps it found/fixed rather than leaving that only in conversation history). -->
+<!-- Template version: 4 (added after the concurrent-turn-safety plan landed — a dedicated "Prompt" field above "Status" on every per-scenario entry, broken out of the old inline title-line quote, so a multi-message scenario like Section E's concurrent-turn pairs can list each message in order instead of squeezing one quote into the header. Applies to future reports only — do not retrofit onto existing reports in QA/Reports/.) -->
 
 # Assistant QA Report — [Provider/Model] — [session policy, e.g. "fresh-session-by-default"] — [date]
 
-**Template version:** 3
+**Template version:** 4
 **Provider tested:** [Local (Ollama) tag(s) for thinking/vision, or Claude model]. Ingestion posture "Ekstra forsiktig modus" left on **Automatisk** except where a scenario explicitly overrides it.
 **Environment:** http://localhost:5173, dev instance, `main` branch (note any uncommitted working-tree changes relevant to what's being tested).
 **Execution method:** Headed (visible) Chromium via Playwright (`QA/scratchpad/qa/[script].mts`, not committed), driving the real admin UI and chatting with the real assistant panel. Full raw evidence (every reply, every trace step, one screenshot per scenario) is in `[results path]` and `[screenshots folder]`.
@@ -23,7 +23,8 @@
 
 ## A. Read/lookup pipeline
 
-**[ID] — [short title] ("[exact message tested]")** *(Phase: [which shipped phase this tests, or "pending" — omit if this project isn't using phase labels])*
+**[ID] — [short title]** *(Phase: [which shipped phase this tests, or "pending" — omit if this project isn't using phase labels])*
+- **Prompt:** "[exact message tested, verbatim — the literal text sent to the composer, not a paraphrase]." For a multi-message scenario (e.g. a Section E concurrent-turn pair, or a clarification round-trip), number each one in the order sent: `1: "..." · 2: "..."`, so a reader can tell which reply/trace entry below belongs to which without cross-referencing the scenario bank.
 - **Status:** PASS / PARTIAL / FAIL / N/A / N/A-pending / ERROR
 - **What happened:** [the actual reply/outcome, quoted; what the trace shows fired; whether it matches the expected/correct answer against real current data — never trust the assistant's own self-report, verify against `server/data/*.json` or the admin UI. If this is a FAIL where the trace shows the pipeline itself fired correctly, open the screenshot before finalizing the grade — a DOM/innerText read can miss content a human glance catches.]
 - **Screenshot:** `[path]`

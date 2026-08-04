@@ -69,7 +69,21 @@ interface OllamaChatResponse {
   eval_count?: number
 }
 
-async function ollamaChat(config: store.OllamaConfig, model: string, systemPrompt: string, userText: string, image: ToolCallInput['image'], schema: AssistantJsonSchema): Promise<OllamaChatResponse> {
+/** Composes the caller's own external abort (see `ToolCallInput.signal` — a client disconnect propagated from `server/index.ts`) with this call's fixed safety timeout, rather than one replacing the other — losing the timeout would leave a genuinely stuck request with nothing to ever cancel it. */
+function ollamaRequestSignal(externalSignal: AbortSignal | undefined): AbortSignal {
+  const timeoutSignal = AbortSignal.timeout(120_000)
+  return externalSignal ? AbortSignal.any([externalSignal, timeoutSignal]) : timeoutSignal
+}
+
+async function ollamaChat(
+  config: store.OllamaConfig,
+  model: string,
+  systemPrompt: string,
+  userText: string,
+  image: ToolCallInput['image'],
+  schema: AssistantJsonSchema,
+  externalSignal: AbortSignal | undefined,
+): Promise<OllamaChatResponse> {
   const userMessage: Record<string, unknown> = { role: 'user', content: userText }
   if (image) userMessage.images = [image.base64Data]
 
@@ -86,7 +100,7 @@ async function ollamaChat(config: store.OllamaConfig, model: string, systemPromp
       options: { temperature: 0 },
     }),
     // Pi CPU inference has no GPU acceleration and can be slow, especially on a cold-loaded model.
-    signal: AbortSignal.timeout(120_000),
+    signal: ollamaRequestSignal(externalSignal),
   })
   if (!response.ok) throw new AssistantNotConfiguredError(`Ollama request failed (${response.status}) — check the host and model names on the Integrations page.`)
   return (await response.json()) as OllamaChatResponse
@@ -107,13 +121,25 @@ export async function ollamaCallTool<T>(input: ToolCallInput): Promise<T> {
   const systemPrompt = [input.systemPrompt, schemaInstructionBlock(input.toolDescription, input.schema)].join('\n\n')
 
   const startedAt = Date.now()
-  let response = await ollamaChat(config, model, systemPrompt, input.userText, input.image, input.schema)
-  let parsed = parseStructuredReply<T>(response.message.content, input.schema)
-
-  if (!parsed) {
-    const retrySystemPrompt = `${systemPrompt}\n\nYour previous reply was not valid JSON — reply with ONLY the JSON object this time.`
-    response = await ollamaChat(config, model, retrySystemPrompt, input.userText, input.image, input.schema)
+  let response: OllamaChatResponse
+  let parsed: T | null
+  try {
+    response = await ollamaChat(config, model, systemPrompt, input.userText, input.image, input.schema, input.signal)
     parsed = parseStructuredReply<T>(response.message.content, input.schema)
+
+    if (!parsed) {
+      const retrySystemPrompt = `${systemPrompt}\n\nYour previous reply was not valid JSON — reply with ONLY the JSON object this time.`
+      response = await ollamaChat(config, model, retrySystemPrompt, input.userText, input.image, input.schema, input.signal)
+      parsed = parseStructuredReply<T>(response.message.content, input.schema)
+    }
+  } catch (error) {
+    // Client disconnected (see `server/index.ts`'s per-route `AbortController`) before this call
+    // finished — record it as an abort, distinguishable from a genuine failure, then let the
+    // rejection propagate as normal (the route handler already skips responding once aborted).
+    if (input.trace && input.signal?.aborted) {
+      input.trace.push({ toolName: input.toolName, pass: input.pass, durationMs: Date.now() - startedAt, input: JSON.stringify({ userText: input.userText }).slice(0, 500), output: '', model, aborted: true })
+    }
+    throw error
   }
   const durationMs = Date.now() - startedAt
 

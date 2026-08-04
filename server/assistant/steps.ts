@@ -147,6 +147,7 @@ async function compactHistory(
   providerOverride: store.AssistantProvider | undefined,
   localModelOverride: string | undefined,
   trace: AssistantTraceEntry[],
+  signal: AbortSignal | undefined,
 ): Promise<string> {
   const schema: AssistantJsonSchema = {
     type: 'object',
@@ -177,6 +178,7 @@ async function compactHistory(
     provider: providerOverride,
     localModel: localModelOverride,
     trace,
+    signal,
   })
   return result.summary
 }
@@ -201,13 +203,14 @@ async function resolveHistoryContext(
   providerOverride: store.AssistantProvider | undefined,
   localModelOverride: string | undefined,
   trace: AssistantTraceEntry[],
+  signal: AbortSignal | undefined,
 ): Promise<string | null> {
   if (input.historyContext) return input.historyContext
   if (!input.history?.trim()) return null
   const boundedHistory = input.history.slice(-HISTORY_CHAR_CAP)
   const capability = resolveModelCapability(modelOverride, providerOverride)
   if (capability.historyMode === 'full' || boundedHistory.length < HISTORY_COMPACTION_THRESHOLD) return boundedHistory
-  return compactHistory(boundedHistory, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
+  return compactHistory(boundedHistory, uiLanguage, modelOverride, providerOverride, localModelOverride, trace, signal)
 }
 
 /**
@@ -275,24 +278,29 @@ export async function selectIntent(
   session: AssistantSession,
   message: string,
   uiLanguage: 'no' | 'en',
-  modelOverride?: store.AssistantModel,
-  history?: string,
-  providerOverride?: store.AssistantProvider,
-  localModelOverride?: string,
-  /** This chat's own id (see `useAssistantFlow.ts`) — only ever consulted by the local cascade's pronoun prefilter (see `selectIntentCascaded`/`resolvePronounFocus`) to look up this conversation's `DialogFocus`. Never touched on the Claude path. */
-  conversationId?: string,
+  options: {
+    modelOverride?: store.AssistantModel
+    history?: string
+    providerOverride?: store.AssistantProvider
+    localModelOverride?: string
+    /** This chat's own id (see `useAssistantFlow.ts`) — only ever consulted by the local cascade's pronoun prefilter (see `selectIntentCascaded`/`resolvePronounFocus`) to look up this conversation's `DialogFocus`. Never touched on the Claude path. */
+    conversationId?: string
+    /** See `ToolCallInput.signal` — propagated into every real model call this step (and its own local-provider cascade) makes. */
+    signal?: AbortSignal
+  } = {},
 ): Promise<IntentResult> {
+  const { modelOverride, history, providerOverride, localModelOverride, conversationId, signal } = options
   const entities = allowedEntitiesFor(session)
   if (entities.length === 0) throw new Error('No assistant actions are available to this account.')
 
   const trace: AssistantTraceEntry[] = []
-  const historyContext = await resolveHistoryContext({ history }, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
+  const historyContext = await resolveHistoryContext({ history }, uiLanguage, modelOverride, providerOverride, localModelOverride, trace, signal)
 
   const provider = providerOverride ?? store.getAssistantProvider()
   const raw =
     provider === 'local'
-      ? await selectIntentCascaded(entities, message, uiLanguage, modelOverride, providerOverride, localModelOverride, history, historyContext, trace, conversationId)
-      : await selectIntentSinglePass(entities, message, uiLanguage, modelOverride, providerOverride, historyContext, trace)
+      ? await selectIntentCascaded(entities, message, uiLanguage, modelOverride, providerOverride, localModelOverride, history, historyContext, trace, conversationId, signal)
+      : await selectIntentSinglePass(entities, message, uiLanguage, modelOverride, providerOverride, historyContext, trace, signal)
 
   // Never trust the model to have kept `entity`/`action`/`reply`/`lookupEntities` mutually
   // consistent on its own — a non-empty `lookupEntities` is treated as authoritative regardless of
@@ -369,6 +377,7 @@ async function selectIntentSinglePass(
   providerOverride: store.AssistantProvider | undefined,
   historyContext: string | null,
   trace: AssistantTraceEntry[],
+  signal: AbortSignal | undefined,
 ): Promise<RawIntentResult> {
   const entityKeys = entities.map((entity) => entity.key)
   const entityListForPrompt = entities.map((entity) => `${entity.key} (${ENTITY_DESCRIPTIONS[entity.key] ?? ''})`).join(', ')
@@ -414,6 +423,7 @@ async function selectIntentSinglePass(
     model: modelOverride,
     provider: providerOverride,
     trace,
+    signal,
   })
 }
 
@@ -441,6 +451,7 @@ async function classifyMessageType(
   providerOverride: store.AssistantProvider | undefined,
   localModelOverride: string | undefined,
   trace: AssistantTraceEntry[],
+  signal: AbortSignal | undefined,
 ): Promise<MessageType> {
   const schema: AssistantJsonSchema = {
     type: 'object',
@@ -481,6 +492,7 @@ async function classifyMessageType(
     provider: providerOverride,
     localModel: localModelOverride,
     trace,
+    signal,
   })
   return result.messageType
 }
@@ -495,6 +507,7 @@ async function selectCommand(
   providerOverride: store.AssistantProvider | undefined,
   localModelOverride: string | undefined,
   trace: AssistantTraceEntry[],
+  signal: AbortSignal | undefined,
 ): Promise<Pick<RawIntentResult, 'entity' | 'action' | 'searchText'>> {
   const entityKeys = entities.map((entity) => entity.key)
   const schema: AssistantJsonSchema = {
@@ -534,6 +547,7 @@ async function selectCommand(
     provider: providerOverride,
     localModel: localModelOverride,
     trace,
+    signal,
   })
 }
 
@@ -547,6 +561,7 @@ async function selectLookupTarget(
   providerOverride: store.AssistantProvider | undefined,
   localModelOverride: string | undefined,
   trace: AssistantTraceEntry[],
+  signal: AbortSignal | undefined,
 ): Promise<{ lookupEntities: string[]; searchText: string | null }> {
   const schema: AssistantJsonSchema = {
     type: 'object',
@@ -570,6 +585,7 @@ async function selectLookupTarget(
     provider: providerOverride,
     localModel: localModelOverride,
     trace,
+    signal,
   })
 }
 
@@ -584,6 +600,7 @@ async function composeChatReply(
   providerOverride: store.AssistantProvider | undefined,
   localModelOverride: string | undefined,
   trace: AssistantTraceEntry[],
+  signal: AbortSignal | undefined,
 ): Promise<string> {
   const schema: AssistantJsonSchema = { type: 'object', properties: { reply: { type: 'string' } }, required: ['reply'], additionalProperties: false }
   const systemPrompt = [
@@ -604,6 +621,7 @@ async function composeChatReply(
     provider: providerOverride,
     localModel: localModelOverride,
     trace,
+    signal,
   })
   return result.reply
 }
@@ -618,6 +636,7 @@ async function composeMetaReply(
   providerOverride: store.AssistantProvider | undefined,
   localModelOverride: string | undefined,
   trace: AssistantTraceEntry[],
+  signal: AbortSignal | undefined,
 ): Promise<string> {
   const schema: AssistantJsonSchema = { type: 'object', properties: { reply: { type: 'string' } }, required: ['reply'], additionalProperties: false }
   const systemPrompt = [
@@ -639,6 +658,7 @@ async function composeMetaReply(
     provider: providerOverride,
     localModel: localModelOverride,
     trace,
+    signal,
   })
   return result.reply
 }
@@ -669,6 +689,7 @@ async function selectIntentCascaded(
   historyContext: string | null,
   trace: AssistantTraceEntry[],
   conversationId: string | undefined,
+  signal: AbortSignal | undefined,
 ): Promise<RawIntentResult> {
   const entityKeys = entities.map((entity) => entity.key)
 
@@ -692,15 +713,15 @@ async function selectIntentCascaded(
   const hasUserEntity = entityKeys.includes('user')
   const lastAssistantReply = extractLastAssistantLine(historyRaw)
 
-  const messageType = await classifyMessageType(entityListForPrompt, hasUserEntity, lastAssistantReply, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
+  const messageType = await classifyMessageType(entityListForPrompt, hasUserEntity, lastAssistantReply, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace, signal)
 
   if (messageType === 'meta') {
-    const reply = await composeMetaReply(lastAssistantReply, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
+    const reply = await composeMetaReply(lastAssistantReply, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace, signal)
     return { entity: 'chat', action: null, searchText: null, reply, lookupEntities: null }
   }
 
   if (messageType === 'chat') {
-    const reply = await composeChatReply(entityListForPrompt, hasUserEntity, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
+    const reply = await composeChatReply(entityListForPrompt, hasUserEntity, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace, signal)
     return { entity: 'chat', action: null, searchText: null, reply, lookupEntities: null }
   }
 
@@ -730,7 +751,7 @@ async function selectIntentCascaded(
       return { entity: 'chat', action: null, searchText: null, reply: null, lookupEntities: filteredEntities }
     }
 
-    const { lookupEntities, searchText } = await selectLookupTarget(entityKeys, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
+    const { lookupEntities, searchText } = await selectLookupTarget(entityKeys, historyContext, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace, signal)
     if (lookupEntities.length === 0) {
       // Shouldn't happen given `classifyMessageType` already committed to "question", but never
       // leave the admin with silence if it does.
@@ -740,7 +761,7 @@ async function selectIntentCascaded(
   }
 
   // 'command'
-  const commandResult = await selectCommand(entities, entityListForPrompt, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace)
+  const commandResult = await selectCommand(entities, entityListForPrompt, message, uiLanguage, modelOverride, providerOverride, localModelOverride, trace, signal)
   return { ...commandResult, reply: null, lookupEntities: null }
 }
 
@@ -810,12 +831,17 @@ export async function selectItem(
   message: string,
   searchText: string,
   uiLanguage: 'no' | 'en',
-  priorItemID?: string,
-  modelOverride?: store.AssistantModel,
-  historyContext?: string,
-  providerOverride?: store.AssistantProvider,
-  localModelOverride?: string,
+  options: {
+    priorItemID?: string
+    modelOverride?: store.AssistantModel
+    historyContext?: string
+    providerOverride?: store.AssistantProvider
+    localModelOverride?: string
+    /** See `ToolCallInput.signal`. */
+    signal?: AbortSignal
+  } = {},
 ): Promise<SelectItemResult> {
+  const { priorItemID, modelOverride, historyContext, providerOverride, localModelOverride, signal } = options
   const entity = requireAccessibleEntity(entityKey, session)
   if (!entity.listCandidates) throw new Error(`"${entityKey}" has nothing to select from.`)
 
@@ -860,6 +886,7 @@ export async function selectItem(
     provider: providerOverride,
     localModel: localModelOverride,
     trace,
+    signal,
   })
 
   return { itemID: result.itemID, candidates, trace }
@@ -909,6 +936,8 @@ export async function fillFields(
     history?: string
     /** An already-resolved value from an earlier call in the same turn (usually `selectIntent`'s). Mutually exclusive with `history`. */
     historyContext?: string
+    /** See `ToolCallInput.signal`. */
+    signal?: AbortSignal
   } = {},
 ): Promise<FillFieldsResult> {
   const entity = requireAccessibleEntity(entityKey, session)
@@ -932,6 +961,7 @@ export async function fillFields(
     options.providerOverride,
     options.localModelOverride,
     trace,
+    options.signal,
   )
 
   const systemPrompt = [
@@ -957,6 +987,7 @@ export async function fillFields(
     localModel: options.localModelOverride,
     localVisionModel: options.localVisionModelOverride,
     trace,
+    signal: options.signal,
   }
   const rawFields =
     posture === 'full'
@@ -1052,6 +1083,8 @@ export async function fillFieldsBatch(
     postureOverride?: AssistantIngestionPosture
     history?: string
     historyContext?: string
+    /** See `ToolCallInput.signal`. */
+    signal?: AbortSignal
   } = {},
 ): Promise<FillFieldsBatchResult> {
   const entity = requireAccessibleEntity(entityKey, session)
@@ -1081,6 +1114,7 @@ export async function fillFieldsBatch(
     options.providerOverride,
     options.localModelOverride,
     trace,
+    options.signal,
   )
 
   const systemPrompt = [
@@ -1102,6 +1136,7 @@ export async function fillFieldsBatch(
     provider: options.providerOverride,
     localModel: options.localModelOverride,
     trace,
+    signal: options.signal,
   }
   const result =
     posture === 'full'
@@ -1182,10 +1217,15 @@ export async function resolveClarificationChat(
   clarifications: FillFieldsClarification[],
   message: string,
   uiLanguage: 'no' | 'en',
-  modelOverride?: store.AssistantModel,
-  providerOverride?: store.AssistantProvider,
-  localModelOverride?: string,
+  options: {
+    modelOverride?: store.AssistantModel
+    providerOverride?: store.AssistantProvider
+    localModelOverride?: string
+    /** See `ToolCallInput.signal`. */
+    signal?: AbortSignal
+  } = {},
 ): Promise<{ resolvedFields: Record<string, string>; trace: AssistantTraceEntry[] }> {
+  const { modelOverride, providerOverride, localModelOverride, signal } = options
   const trace: AssistantTraceEntry[] = []
   const resolvedFields: Record<string, string> = {}
   const lower = message.toLowerCase()
@@ -1236,6 +1276,7 @@ export async function resolveClarificationChat(
     provider: providerOverride,
     localModel: localModelOverride,
     trace,
+    signal,
   })
 
   for (const clarification of remaining) {
@@ -1258,10 +1299,15 @@ export async function resolveClarificationChat(
 export async function generateTitle(
   transcriptText: string,
   uiLanguage: 'no' | 'en',
-  modelOverride?: store.AssistantModel,
-  providerOverride?: store.AssistantProvider,
-  localModelOverride?: string,
+  options: {
+    modelOverride?: store.AssistantModel
+    providerOverride?: store.AssistantProvider
+    localModelOverride?: string
+    /** See `ToolCallInput.signal`. */
+    signal?: AbortSignal
+  } = {},
 ): Promise<{ title: string }> {
+  const { modelOverride, providerOverride, localModelOverride, signal } = options
   const schema: AssistantJsonSchema = {
     type: 'object',
     properties: { title: { type: 'string', description: 'A short (3-6 word) title summarizing the conversation, with no surrounding quotes or trailing punctuation.' } },
@@ -1284,6 +1330,7 @@ export async function generateTitle(
     model: modelOverride,
     provider: providerOverride,
     localModel: localModelOverride,
+    signal,
   })
 }
 
@@ -1466,6 +1513,7 @@ async function buildEntityDataBlock(
   providerOverride: store.AssistantProvider | undefined,
   localModelOverride: string | undefined,
   trace: AssistantTraceEntry[],
+  signal: AbortSignal | undefined,
 ): Promise<string> {
   const data = await entity.listAll!(context)
   const records = Array.isArray(data) ? data : [data]
@@ -1504,6 +1552,7 @@ async function buildEntityDataBlock(
       provider: providerOverride,
       localModel: localModelOverride,
       trace,
+      signal,
     }
     const result = useVerifyPass ? await generateThenVerify<LookupBatchFacts>(batchCallArgs) : await callToolOnce<LookupBatchFacts>(batchCallArgs)
     totalMatchingCount += result.matchingCount
@@ -1592,6 +1641,7 @@ async function buildEntityQueryDataBlock(
   /** A prior turn's own `DialogFocus.lastSet.filter`, resolved by the pronoun prefilter (see `resolvePronounFocus`) — AND'd onto whatever filter this call's own `lookup_query` resolves, so a follow-up like "hvor mange av dem koster over 100 kr" composes with the set the admin was already looking at instead of starting over. `undefined`/empty for an ordinary, non-follow-up question. */
   baseFilters: LookupQueryFilterInput[] | undefined,
   trace: AssistantTraceEntry[],
+  signal: AbortSignal | undefined,
 ): Promise<EntityDataBlockResult> {
   const fields = await entity.lookupQueryFields!(context)
   const schema = buildLookupQuerySchema(fields)
@@ -1621,6 +1671,7 @@ async function buildEntityQueryDataBlock(
     provider: providerOverride,
     localModel: localModelOverride,
     trace,
+    signal,
   }
   const spec = useVerifyPass ? await generateThenVerify<LookupQuerySpec>(callArgs) : await callToolOnce<LookupQuerySpec>(callArgs)
 
@@ -1735,6 +1786,7 @@ async function answerFromRecord(
   localModelOverride: string | undefined,
   capability: AssistantModelCapability,
   trace: AssistantTraceEntry[],
+  signal: AbortSignal | undefined,
 ): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
   const systemPrompt = [
     languageInstruction(uiLanguage),
@@ -1764,6 +1816,7 @@ async function answerFromRecord(
     provider: providerOverride,
     localModel: localModelOverride,
     trace,
+    signal,
   }
   const result = capability.useVerifyPass ? await generateThenVerify<{ reply: string }>(callArgs) : await callToolOnce<{ reply: string }>(callArgs)
   return { ...result, trace }
@@ -1802,8 +1855,9 @@ async function resolveSingleEntityLookup(
   localModelOverride: string | undefined,
   baseFilters: LookupQueryFilterInput[] | undefined,
   trace: AssistantTraceEntry[],
+  signal: AbortSignal | undefined,
 ): Promise<LookupHalfResult> {
-  const dataBlockResult = await buildEntityQueryDataBlock(entity, context, message, uiLanguage, capability.useVerifyPass, modelOverride, providerOverride, localModelOverride, baseFilters, trace)
+  const dataBlockResult = await buildEntityQueryDataBlock(entity, context, message, uiLanguage, capability.useVerifyPass, modelOverride, providerOverride, localModelOverride, baseFilters, trace, signal)
 
   if (dataBlockResult.templatedReply) {
     return { reply: dataBlockResult.templatedReply, list: dataBlockResult.templatedList, focusUpdate: dataBlockResult.focusUpdate }
@@ -1850,6 +1904,7 @@ async function resolveSingleEntityLookup(
     provider: providerOverride,
     localModel: localModelOverride,
     trace,
+    signal,
   }
   const result = capability.useVerifyPass ? await generateThenVerify<{ reply: string }>(callArgs) : await callToolOnce<{ reply: string }>(callArgs)
   return { reply: result.reply }
@@ -1867,19 +1922,24 @@ export async function answerLookup(
   message: string,
   uiLanguage: 'no' | 'en',
   entityKeys: string[],
-  modelOverride?: store.AssistantModel,
-  chunkSizePreference?: ChunkSizePreference,
-  customChunkRecordCount?: number,
-  historyContext?: string,
-  providerOverride?: store.AssistantProvider,
-  /** Set by `selectIntent` (the same `searchText` field the update/delete flow uses to find a target item) when the question is actually about one specific, already-named item (e.g. "how much does the Chicken Fajitas wrap cost?") rather than a filter/count across many records — see the single-item fast path below. `undefined` for an ordinary filter/count/list question. */
-  itemSearchText?: string,
-  localModelOverride?: string,
-  /** See `buildEntityQueryDataBlock`'s own `baseFilters` doc comment — set by `selectIntent`'s pronoun prefilter, threaded straight through. */
-  baseFilters?: LookupQueryFilterInput[] | null,
-  /** This chat's own id (see `useAssistantFlow.ts`) — used only to write this turn's resolved `DialogFocus` once a final reply is known (see the single-item fast path and the query-engine branch below). Never touched by the legacy multi-entity path. */
-  conversationId?: string,
+  options: {
+    modelOverride?: store.AssistantModel
+    chunkSizePreference?: ChunkSizePreference
+    customChunkRecordCount?: number
+    historyContext?: string
+    providerOverride?: store.AssistantProvider
+    /** Set by `selectIntent` (the same `searchText` field the update/delete flow uses to find a target item) when the question is actually about one specific, already-named item (e.g. "how much does the Chicken Fajitas wrap cost?") rather than a filter/count across many records — see the single-item fast path below. `undefined` for an ordinary filter/count/list question. */
+    itemSearchText?: string
+    localModelOverride?: string
+    /** See `buildEntityQueryDataBlock`'s own `baseFilters` doc comment — set by `selectIntent`'s pronoun prefilter, threaded straight through. */
+    baseFilters?: LookupQueryFilterInput[] | null
+    /** This chat's own id (see `useAssistantFlow.ts`) — used only to write this turn's resolved `DialogFocus` once a final reply is known (see the single-item fast path and the query-engine branch below). Never touched by the legacy multi-entity path. */
+    conversationId?: string
+    /** See `ToolCallInput.signal`. */
+    signal?: AbortSignal
+  } = {},
 ): Promise<AnswerLookupResult> {
+  const { modelOverride, chunkSizePreference, customChunkRecordCount, historyContext, providerOverride, itemSearchText, localModelOverride, baseFilters, conversationId, signal } = options
   // Never trust the model's/client's own entity list — re-filter through the same session-scoped gate every other step uses, then drop anything with no `listAll` implemented (a sub-resource, or an entity that simply doesn't support lookup), then bound the total count regardless.
   const allowed = allowedEntitiesFor(session)
   const entities = entityKeys
@@ -1919,14 +1979,14 @@ export async function answerLookup(
   if (itemSearchText && entities.length === 1) {
     const [singleEntity] = entities
     if (singleEntity.listCandidates && singleEntity.getCurrent) {
-      const selection = await selectItem(singleEntity.key, 'update', session, message, itemSearchText, uiLanguage, undefined, modelOverride, historyContext, providerOverride, localModelOverride)
+      const selection = await selectItem(singleEntity.key, 'update', session, message, itemSearchText, uiLanguage, { historyContext, modelOverride, providerOverride, localModelOverride, signal })
       fastPathTrace = selection.trace
       if (selection.itemID) {
         const record = await singleEntity.getCurrent(selection.itemID, context)
         const matchedLabel = selection.candidates.find((candidate) => candidate.id === selection.itemID)?.label
         if (record) {
           const trace: AssistantTraceEntry[] = [...selection.trace]
-          const result = await answerFromRecord(singleEntity, record, matchedLabel, message, uiLanguage, historyContext, modelOverride, providerOverride, localModelOverride, capability, trace)
+          const result = await answerFromRecord(singleEntity, record, matchedLabel, message, uiLanguage, historyContext, modelOverride, providerOverride, localModelOverride, capability, trace, signal)
           setDialogFocus(conversationId, focusFromUpdate({ kind: 'item', entity: singleEntity.key, id: selection.itemID, label: matchedLabel ?? itemSearchText }))
           return { status: 'ready', ...result }
         }
@@ -1959,7 +2019,7 @@ export async function answerLookup(
   if (entities.length === 1 && entities[0].lookupQueryFields && entities[0].listQueryableRecords) {
     const [entity] = entities
     const halves = splitCompoundQuestion(message, uiLanguage)
-    const resolveHalf = (text: string) => resolveSingleEntityLookup(entity, context, text, uiLanguage, capability, modelOverride, providerOverride, localModelOverride, baseFilters ?? undefined, trace)
+    const resolveHalf = (text: string) => resolveSingleEntityLookup(entity, context, text, uiLanguage, capability, modelOverride, providerOverride, localModelOverride, baseFilters ?? undefined, trace, signal)
 
     let result: { reply: string; list?: AssistantReplyList }
     let focusUpdate: DialogFocusUpdate | undefined
@@ -1981,7 +2041,7 @@ export async function answerLookup(
 
   const dataBlockResults = await Promise.all(
     entities.map((entity) =>
-      buildEntityDataBlock(entity, context, message, uiLanguage, recordsPerBatch, capability.chunkCharBudget, capability.useVerifyPass, historyContext ?? null, modelOverride, providerOverride, localModelOverride, trace).then(
+      buildEntityDataBlock(entity, context, message, uiLanguage, recordsPerBatch, capability.chunkCharBudget, capability.useVerifyPass, historyContext ?? null, modelOverride, providerOverride, localModelOverride, trace, signal).then(
         (dataBlock) => ({ dataBlock }),
       ),
     ),
@@ -2035,6 +2095,7 @@ export async function answerLookup(
     provider: providerOverride,
     localModel: localModelOverride,
     trace,
+    signal,
   }
   const result = capability.useVerifyPass ? await generateThenVerify<{ reply: string }>(callArgs) : await callToolOnce<{ reply: string }>(callArgs)
   return { status: 'ready', ...result, trace }
@@ -2052,22 +2113,27 @@ export async function answerLookupForItem(
   message: string,
   uiLanguage: 'no' | 'en',
   session: AssistantSession,
-  historyContext?: string,
-  modelOverride?: store.AssistantModel,
-  providerOverride?: store.AssistantProvider,
-  localModelOverride?: string,
-  /** The picked candidate's own label (the client already has this from the `clarifyItem` candidate list it rendered) — used both to tell `answerFromRecord` which record this is and to write this turn's `DialogFocus`. */
-  label?: string,
-  /** This chat's own id (see `useAssistantFlow.ts`) — used only to write this turn's resolved `DialogFocus` once the reply is ready. */
-  conversationId?: string,
+  options: {
+    historyContext?: string
+    modelOverride?: store.AssistantModel
+    providerOverride?: store.AssistantProvider
+    localModelOverride?: string
+    /** The picked candidate's own label (the client already has this from the `clarifyItem` candidate list it rendered) — used both to tell `answerFromRecord` which record this is and to write this turn's `DialogFocus`. */
+    label?: string
+    /** This chat's own id (see `useAssistantFlow.ts`) — used only to write this turn's resolved `DialogFocus` once the reply is ready. */
+    conversationId?: string
+    /** See `ToolCallInput.signal`. */
+    signal?: AbortSignal
+  } = {},
 ): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
+  const { historyContext, modelOverride, providerOverride, localModelOverride, label, conversationId, signal } = options
   const entity = requireAccessibleEntity(entityKey, session)
   if (!entity.getCurrent) throw new Error(`"${entityKey}" has nothing to look up.`)
   const context: AssistantFillContext = { uiLanguage, session }
   const record = await entity.getCurrent(itemID, context)
   if (!record) throw new Error("Couldn't find that item anymore — it may have been deleted.")
   const capability = resolveModelCapability(modelOverride, providerOverride)
-  const result = await answerFromRecord(entity, record, label, message, uiLanguage, historyContext, modelOverride, providerOverride, localModelOverride, capability, [])
+  const result = await answerFromRecord(entity, record, label, message, uiLanguage, historyContext, modelOverride, providerOverride, localModelOverride, capability, [], signal)
   setDialogFocus(conversationId, focusFromUpdate({ kind: 'item', entity: entityKey, id: itemID, label: label ?? itemID }))
   return result
 }
@@ -2088,11 +2154,16 @@ export async function transcribeAttachment(
   message: string,
   uiLanguage: 'no' | 'en',
   image: AssistantImageInput,
-  modelOverride?: store.AssistantModel,
-  providerOverride?: store.AssistantProvider,
-  localModelOverride?: string,
-  localVisionModelOverride?: string,
+  options: {
+    modelOverride?: store.AssistantModel
+    providerOverride?: store.AssistantProvider
+    localModelOverride?: string
+    localVisionModelOverride?: string
+    /** See `ToolCallInput.signal`. */
+    signal?: AbortSignal
+  } = {},
 ): Promise<{ text: string; trace: AssistantTraceEntry[] }> {
+  const { modelOverride, providerOverride, localModelOverride, localVisionModelOverride, signal } = options
   const schema: AssistantJsonSchema = {
     type: 'object',
     properties: { text: { type: 'string', description: 'A complete, faithful transcription of the relevant text/numbers in the photo, following the admin\'s own instructions if given any.' } },
@@ -2124,6 +2195,7 @@ export async function transcribeAttachment(
     localModel: localModelOverride,
     localVisionModel: localVisionModelOverride,
     trace,
+    signal,
   })
   return { ...result, trace }
 }
