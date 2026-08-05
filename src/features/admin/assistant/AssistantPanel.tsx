@@ -160,7 +160,7 @@ function readFileAsBase64(file: File): Promise<string> {
  * what's already shown expanded in the chat itself.
  */
 function buildConversationClipboardText(transcript: TranscriptLine[], modelLabel: string | null, t: (key: string, vars?: Record<string, string | number>) => string): string {
-  const header = ['Wraps & Coffee — AI assistant conversation export', modelLabel ? `Model: ${modelLabel}` : null].filter(Boolean).join('\n')
+  const header = ['ADHDisplay — AI assistant conversation export', modelLabel ? `Model: ${modelLabel}` : null].filter(Boolean).join('\n')
 
   const body = transcript
     .map((line) => {

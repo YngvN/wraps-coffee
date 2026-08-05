@@ -68,7 +68,7 @@
 - Unlike the README, this should be kept up to date automatically without asking the user first.
 
 ## Backup
-- `server/backup.ts` mirrors every write in `server/store.ts`/`server/uploads.ts` to a sibling `WrapsCoffeeBackup` folder (next to the app's own install folder) automatically, via each of those files' own calls to `mirrorFile`.
+- `server/backup.ts` mirrors every write in `server/store.ts`/`server/uploads.ts` to a sibling `ADHDisplayBackup` folder (next to the app's own install folder) automatically, via each of those files' own calls to `mirrorFile`.
 - If a future feature persists data some other way (a new top-level directory, a different file location, a database) instead of through those existing `writeFileSync`-plus-`mirrorFile` call sites, update `server/backup.ts` (`mirrorFile`, `createBackupZip`, `restoreBackupFromZip`, `restoreFromBackupFolder`) to cover it too — the whole point of this rule is that new data doesn't silently fall outside the backup.
 - If a change would ever stop an older backup from restoring cleanly into a newer version of this app (or vice versa), bump `BACKUP_FORMAT_VERSION` in `server/backup.ts` and add an explicit migration/legacy fallback in `restoreBackupFromZip`/`restoreFromBackupFolder` rather than letting it fail silently.
 - Keep `DeveloperDocsView.tsx`'s "Backup" card (and its i18n keys) in sync with any change to the `/backups*` routes, same as the "Local server API docs" rule above.

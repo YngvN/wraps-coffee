@@ -1,8 +1,6 @@
 - Full menu with filter allergens function
 - Fetuered pane, where discounted items
-- Remove wraps-coffee naming
 - "Main pane" with a box shadow, 2 max
-- Each step can change pane amount. Need to slice borders in two
 - Order pane for employees with touch for when order is done
 - "Edit global text size"
 - "1. En "Webhook"-modul (Hvis du vil pushe data ut)
@@ -17,6 +15,10 @@
 - Custom CSS for panes
 - Display machines (Electron kiosk) store the server's LAN IP only once at setup (electron/roleSetup.cjs) and never re-resolve it — if the router reassigns the server's IP later, every display goes stale with no automatic recovery, only the tray's manual "Reconfigure role..." Consider re-probing on connection failure, or preferring the resolved .local hostname over a raw IP when persisting serverHost.
 
+Testing
+- UI, All views, Editor
+- Use different wording, not only "Legg til", but "Sett opp" "Lag X" etc
+- ordering needs AI updates for deletion among other things
 
 1. 
 - License tracker
@@ -25,6 +27,7 @@
 - Telix Amundo
 - Vipps
 Step slider in editor
+
 
 
 

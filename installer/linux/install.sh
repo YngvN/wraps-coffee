@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Linux/Raspberry Pi counterpart to installer/wraps-coffee.iss (the Windows
+# Linux/Raspberry Pi counterpart to installer/adhdisplay.iss (the Windows
 # Inno Setup installer) — installs Node.js, Ollama + the assistant's two
 # default local models (via scripts/setup-ollama.sh), builds the app, opens
 # the same firewall ports the Windows installer opens, and registers a
 # systemd service so it survives a reboot, the same way the Windows
-# installer's "autostart" task + start-wraps-coffee.bat watchdog do.
+# installer's "autostart" task + start-adhdisplay.bat watchdog do.
 #
 # Run this from the root of an already-cloned copy of this repo:
-#   git clone <this repo's URL> wraps-coffee && cd wraps-coffee
+#   git clone <this repo's URL> adhdisplay && cd adhdisplay
 #   bash installer/linux/install.sh
 set -euo pipefail
 
@@ -15,11 +15,11 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_DIR"
 
 if [ ! -f package.json ] || [ ! -f server/index.ts ]; then
-  echo "This doesn't look like a Wraps & Coffee checkout (expected package.json and server/index.ts next to installer/linux/) — aborting." >&2
+  echo "This doesn't look like an ADHDisplay checkout (expected package.json and server/index.ts next to installer/linux/) — aborting." >&2
   exit 1
 fi
 
-echo "== Wraps & Coffee installer (Linux) =="
+echo "== ADHDisplay installer (Linux) =="
 echo "Installing into: $REPO_DIR"
 echo ""
 
@@ -58,14 +58,14 @@ else
 fi
 
 # 5. systemd autostart service, same role as the Windows installer's
-#    "WrapsCoffeeLauncher" logon task + start-wraps-coffee.bat watchdog -------
+#    "ADHDisplayLauncher" logon task + start-adhdisplay.bat watchdog -------
 if command -v systemctl >/dev/null 2>&1; then
   echo ""
   echo "Registering the autostart service..."
   RUN_USER="${SUDO_USER:-$USER}"
-  sudo tee /etc/systemd/system/wraps-coffee.service >/dev/null <<EOF
+  sudo tee /etc/systemd/system/adhdisplay.service >/dev/null <<EOF
 [Unit]
-Description=Wraps & Coffee (admin dashboard + kiosk server)
+Description=ADHDisplay (admin dashboard + kiosk server)
 After=network-online.target ollama.service
 Wants=network-online.target ollama.service
 
@@ -81,13 +81,13 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
   sudo systemctl daemon-reload
-  sudo systemctl enable wraps-coffee.service
-  sudo systemctl restart wraps-coffee.service
+  sudo systemctl enable adhdisplay.service
+  sudo systemctl restart adhdisplay.service
 else
   echo "systemctl not found — skipping autostart service (start the app manually with 'npm run preview:kiosk')."
 fi
 
-# 6. Print the LAN URL / QR code, same as start-wraps-coffee.bat does ---------
+# 6. Print the LAN URL / QR code, same as start-adhdisplay.bat does ---------
 echo ""
 echo "Waiting for the server to come up..."
 for _ in $(seq 1 30); do
@@ -100,7 +100,7 @@ done
 LAN_IP="$(curl -fsS http://localhost:4000/server-info 2>/dev/null | node -e "process.stdin.on('data', d => { try { console.log(JSON.parse(d).lanIp ?? '') } catch { console.log('') } })" || echo "")"
 
 echo ""
-echo "Wraps & Coffee is running:"
+echo "ADHDisplay is running:"
 echo "  On this machine: http://localhost:4173/admin/login"
 if [ -n "$LAN_IP" ]; then
   echo "  On other devices: http://$LAN_IP:4173/admin/login"

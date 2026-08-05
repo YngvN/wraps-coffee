@@ -1,11 +1,11 @@
 /**
  * How this deployment's kiosk windows should open when a Windows machine
- * boots — read by `installer/start-wraps-coffee.bat`'s own `:launch_window`
+ * boots — read by `installer/start-adhdisplay.bat`'s own `:launch_window`
  * subroutine (via `GET /window-launch-method`), which is what actually acts
  * on it. `auto` (the default) keeps that script's original behavior: a
  * native Electron kiosk window if Electron installed successfully, falling
  * back to Microsoft Edge's own `--kiosk` mode otherwise (see
- * `wraps-coffee.iss` for why Electron's own binary download can fail even
+ * `adhdisplay.iss` for why Electron's own binary download can fail even
  * when the rest of `npm install` succeeds). `electron`/`edge` force one or
  * the other outright regardless of what's installed — mainly useful for
  * comparing the two on real hardware.

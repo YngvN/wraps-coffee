@@ -28,7 +28,7 @@ const HEARTBEAT_INTERVAL_MS = 20_000
 /**
  * Resolves once a GET request to `url` gets any HTTP response, or rejects
  * after `timeoutMs` — used to wait for the local `vite preview` + sync
- * server (started by start-wraps-coffee.bat just before this process) to
+ * server (started by start-adhdisplay.bat just before this process) to
  * finish booting, so the window doesn't load before it can respond.
  */
 function waitForServer(url, timeoutMs) {
@@ -83,7 +83,7 @@ function createTray() {
   const iconPath = path.join(__dirname, '..', 'public', 'android-chrome-192x192.png')
   const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
   tray = new Tray(icon)
-  tray.setToolTip('Wraps & Coffee')
+  tray.setToolTip('ADHDisplay')
 
   const showWindow = () => {
     if (!kioskWindow) return
@@ -93,7 +93,7 @@ function createTray() {
 
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'Show Wraps & Coffee', click: showWindow },
+      { label: 'Show ADHDisplay', click: showWindow },
       { type: 'separator' },
       {
         label: 'Reconfigure role...',
@@ -113,7 +113,7 @@ function createTray() {
         },
       },
       { type: 'separator' },
-      { label: 'Quit Wraps & Coffee', click: () => app.quit() },
+      { label: 'Quit ADHDisplay', click: () => app.quit() },
     ]),
   )
   tray.on('click', showWindow)
@@ -189,7 +189,7 @@ function instrumentWindow(window) {
   window.webContents.on('render-process-gone', (_event, details) => {
     console.error('[render-process-gone]', details)
   })
-  if (process.env.WRAPS_COFFEE_DEBUG === '1') {
+  if (process.env.ADHDISPLAY_DEBUG === '1') {
     window.webContents.openDevTools({ mode: 'detach' })
   }
 }
@@ -237,13 +237,13 @@ function startDisplayManagement(baseUrl, wsUrl, role, excludeDisplayId) {
   return () => clearInterval(heartbeatInterval)
 }
 
-/** `role: 'server'` — this machine runs the local server (started by `start-wraps-coffee.bat` before Electron launches). The primary window stays the admin dashboard, exactly as before this feature existed; any *additional* monitors get managed signage windows, and are the only ones ever reportable/assignable (the primary is deliberately excluded — see `displayManager.cjs`'s own note on why, closing the "admin could hijack their own login screen" hole). */
+/** `role: 'server'` — this machine runs the local server (started by `start-adhdisplay.bat` before Electron launches). The primary window stays the admin dashboard, exactly as before this feature existed; any *additional* monitors get managed signage windows, and are the only ones ever reportable/assignable (the primary is deliberately excluded — see `displayManager.cjs`'s own note on why, closing the "admin could hijack their own login screen" hole). */
 async function startServerRole(role) {
   const baseUrl = 'http://localhost:4173'
   const wsUrl = 'ws://localhost:4000'
-  const appUrl = process.env.WRAPS_COFFEE_URL ?? `${baseUrl}/admin/login`
+  const appUrl = process.env.ADHDISPLAY_URL ?? `${baseUrl}/admin/login`
 
-  const loadingWindow = splashWindow('Starting Wraps & Coffee…')
+  const loadingWindow = splashWindow('Starting ADHDisplay…')
 
   try {
     await waitForServer(appUrl, POLL_TIMEOUT_MS)

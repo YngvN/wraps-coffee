@@ -1360,7 +1360,7 @@ const httpServer = createServer((req, res) => {
   }
 
   // Which window a Windows machine opens the kiosk display in at boot (see
-  // Settings → Advanced) — read by installer/start-wraps-coffee.bat's own
+  // Settings → Advanced) — read by installer/start-adhdisplay.bat's own
   // `:launch_window` subroutine via a plain HTTP GET (a .bat script has no
   // WebSocket client). Public read (nothing sensitive, and a display-only
   // machine with no login of its own still needs to read it); admin/subadmin
@@ -1427,7 +1427,7 @@ const httpServer = createServer((req, res) => {
     const zipBuffer = backup.createBackupZip()
     res.writeHead(200, {
       'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="wrapscoffee-backup-${new Date().toISOString().slice(0, 10)}.zip"`,
+      'Content-Disposition': `attachment; filename="adhdisplay-backup-${new Date().toISOString().slice(0, 10)}.zip"`,
       ...CORS_HEADERS,
     })
     res.end(zipBuffer)
@@ -1477,7 +1477,7 @@ const httpServer = createServer((req, res) => {
       return
     }
     store.load()
-    console.log(`[backup] ${session.username} restored from the sibling WrapsCoffeeBackup folder`)
+    console.log(`[backup] ${session.username} restored from the sibling ADHDisplayBackup folder`)
     sendJson(res, 200, { ok: true })
     return
   }
@@ -1843,7 +1843,7 @@ mdns.apply(store.getScreenAddressSettings(), currentStoreName())
 // Always on, regardless of the opt-in hostname mode above — see
 // advertiseServerPresence's own doc comment for why this needs to be a
 // separate advertisement. 4173 matches vite preview's own default port
-// (see installer/start-wraps-coffee.bat and package.json's "preview" script).
+// (see installer/start-adhdisplay.bat and package.json's "preview" script).
 mdns.advertiseServerPresence(PORT, 4173)
 httpServer.listen(PORT, () => {
   console.log(`[server] listening on http://0.0.0.0:${PORT}`)

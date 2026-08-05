@@ -17,7 +17,7 @@ const PROBE_TIMEOUT_MS = 3000
 // Must match server/mdns.ts's own SERVER_PRESENCE_SERVICE_TYPE - this file
 // can't share that module directly (a separate Node/TS process), so the
 // service type string is deliberately duplicated here.
-const SERVER_PRESENCE_SERVICE_TYPE = 'wrapscoffee-server'
+const SERVER_PRESENCE_SERVICE_TYPE = 'adhdisplay-server'
 
 function readRole() {
   if (!existsSync(ROLE_FILE)) return null
@@ -35,7 +35,7 @@ function writeRole(role) {
 }
 
 /**
- * Browses the LAN briefly for an existing Wraps & Coffee server (see
+ * Browses the LAN briefly for an existing ADHDisplay server (see
  * `server/mdns.ts`'s `advertiseServerPresence`) - used only to pre-select a
  * sensible default in the first-run wizard below, never to silently
  * auto-configure without asking.

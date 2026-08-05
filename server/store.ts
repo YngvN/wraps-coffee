@@ -523,7 +523,7 @@ export function setScreenAddressSettings(settings: ScreenAddressSettings) {
 }
 
 // Which window a Windows machine opens the kiosk display in at boot (see
-// Settings → Advanced, and installer/start-wraps-coffee.bat's own
+// Settings → Advanced, and installer/start-adhdisplay.bat's own
 // `:launch_window` subroutine, the actual reader of this) — same
 // "small standalone file, not a synced key" shape as the two settings above.
 

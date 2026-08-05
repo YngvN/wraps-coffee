@@ -1,15 +1,15 @@
-; Inno Setup script for the Wraps & Coffee kiosk PC installer.
+; Inno Setup script for the ADHDisplay kiosk PC installer.
 ; Build with Inno Setup 6.3+ (https://jrsoftware.org/isinfo.php):
-;   ISCC.exe wraps-coffee.iss
-; produces Output\WrapsCoffeeSetup.exe. See the project's chat/README notes
+;   ISCC.exe adhdisplay.iss
+; produces Output\ADHDisplaySetup.exe. See the project's chat/README notes
 ; for the full build + install + uninstall walkthrough.
 ;
 ; Before compiling, download the Node.js LTS Windows x64 installer from
 ; https://nodejs.org/en/download and place it next to this file renamed to
 ; node-lts-x64.msi (not committed to the repo — it's a large third-party binary).
 
-#define AppName "Wraps & Coffee"
-#define AppExeName "start-wraps-coffee.bat"
+#define AppName "ADHDisplay"
+#define AppExeName "start-adhdisplay.bat"
 
 [Setup]
 ; Fixed GUID (not the app name) so the uninstall registry key stays the same
@@ -22,14 +22,14 @@
 AppId={{E4B0C442-1B1D-4B7A-9C2E-2D6D6E9E5A11}
 AppName={#AppName}
 AppVersion=1.0
-AppPublisher=Wraps & Coffee
-DefaultDirName=C:\WrapsCoffee
+AppPublisher=ADHDisplay
+DefaultDirName=C:\ADHDisplay
 DisableDirPage=no
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=Output
-OutputBaseFilename=WrapsCoffeeSetup
+OutputBaseFilename=ADHDisplaySetup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -46,7 +46,7 @@ Source: "..\tsconfig.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\tsconfig.app.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\tsconfig.node.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\index.html"; DestDir: "{app}"; Flags: ignoreversion
-Source: "start-wraps-coffee.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "start-adhdisplay.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "open-in-browser.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "print-qr.cjs"; DestDir: "{app}"; Flags: ignoreversion
 Source: "node-lts-x64.msi"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: not NodeIsInstalled
@@ -76,7 +76,7 @@ begin
   Result := True;
   if RegQueryStringValue(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{E4B0C442-1B1D-4B7A-9C2E-2D6D6E9E5A11}_is1', 'UninstallString', UninstallString) then
   begin
-    case MsgBox('Wraps & Coffee is already installed.' + #13#10 + #13#10 +
+    case MsgBox('ADHDisplay is already installed.' + #13#10 + #13#10 +
       'Click Yes to uninstall the existing version first (recommended), or No to install over it as-is.',
       mbConfirmation, MB_YESNOCANCEL) of
       IDYES:
@@ -171,10 +171,10 @@ begin
     // silently registering a logon task.
     if WizardIsTaskSelected('autostart') then
     begin
-      if not Exec('schtasks.exe', '/Create /TN "WrapsCoffeeLauncher" /TR "\"' + ExpandConstant('{app}') +
-        '\start-wraps-coffee.bat\"" /SC ONLOGON /RL HIGHEST /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+      if not Exec('schtasks.exe', '/Create /TN "ADHDisplayLauncher" /TR "\"' + ExpandConstant('{app}') +
+        '\start-adhdisplay.bat\"" /SC ONLOGON /RL HIGHEST /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
         MsgBox('Could not register the auto-start task (exit code ' + IntToStr(ResultCode) + '). ' +
-          'Wraps & Coffee is installed and can still be launched manually, but won''t start automatically on restart.',
+          'ADHDisplay is installed and can still be launched manually, but won''t start automatically on restart.',
           mbInformation, MB_OK);
     end;
   end;
@@ -188,7 +188,7 @@ end;
 ; one trusted network, not roam between networks like a laptop would.
 ; Left as a plain best-effort [Run] entry (unlike the steps above) since a
 ; failure here only affects LAN reachability, not whether the app runs at all.
-Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""Wraps & Coffee"" dir=in action=allow protocol=TCP localport=4000,4173 profile=any"; Flags: runhidden
+Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""ADHDisplay"" dir=in action=allow protocol=TCP localport=4000,4173 profile=any"; Flags: runhidden
 
 ; Same reasoning as above, but for mDNS (UDP 5353) - the port bonjour-service
 ; needs both to advertise this machine's own "<store name>.local" screen
@@ -196,17 +196,17 @@ Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""Wraps &
 ; first-run role setup (see electron/roleSetup.cjs). Without this rule the
 ; multicast traffic is silently dropped and .local names never publish or
 ; resolve, even though the app-level feature itself is otherwise working.
-Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""Wraps & Coffee (mDNS)"" dir=in action=allow protocol=UDP localport=5353 profile=any"; Flags: runhidden
+Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""ADHDisplay (mDNS)"" dir=in action=allow protocol=UDP localport=5353 profile=any"; Flags: runhidden
 
 ; Offer to launch right away, without waiting for a restart. "nowait" is
 ; required here: the script's own watchdog loop never returns, so waiting
 ; for it to exit would leave the wizard's Finish page open forever.
-Filename: "{app}\start-wraps-coffee.bat"; Description: "Launch Wraps & Coffee now"; Flags: postinstall shellexec nowait skipifsilent
+Filename: "{app}\start-adhdisplay.bat"; Description: "Launch ADHDisplay now"; Flags: postinstall shellexec nowait skipifsilent
 
 [UninstallRun]
-Filename: "schtasks.exe"; Parameters: "/Delete /TN ""WrapsCoffeeLauncher"" /F"; Flags: runhidden
-Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Wraps & Coffee"""; Flags: runhidden
-Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Wraps & Coffee (mDNS)"""; Flags: runhidden
+Filename: "schtasks.exe"; Parameters: "/Delete /TN ""ADHDisplayLauncher"" /F"; Flags: runhidden
+Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""ADHDisplay"""; Flags: runhidden
+Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""ADHDisplay (mDNS)"""; Flags: runhidden
 ; Harmless no-op if the "defenderexclusion" task was never selected at install time.
 Filename: "powershell.exe"; Parameters: "-NoProfile -Command ""Remove-MpPreference -ExclusionPath '{app}'; Remove-MpPreference -ExclusionPath '{localappdata}\npm-cache'"""; Flags: runhidden
 
@@ -231,7 +231,7 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 Name: "defenderexclusion"; Description: "Add a Windows Defender exclusion for the install folder (helps avoid install failures caused by antivirus interference, e.g. ""corrupted tarball"" errors during npm install)"; GroupDescription: "Troubleshooting:"; Flags: unchecked
 
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\start-wraps-coffee.bat"
+Name: "{autoprograms}\{#AppName}"; Filename: "{app}\start-adhdisplay.bat"
 Name: "{autoprograms}\{#AppName} (Open in Browser)"; Filename: "{app}\open-in-browser.bat"
 Name: "{autoprograms}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\start-wraps-coffee.bat"; Tasks: desktopicon
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\start-adhdisplay.bat"; Tasks: desktopicon

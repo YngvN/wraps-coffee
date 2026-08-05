@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-rem Installed by wraps-coffee.iss as a "run at logon" scheduled task, so this
+rem Installed by adhdisplay.iss as a "run at logon" scheduled task, so this
 rem fires on every restart of the kiosk PC. Branches on this machine's own
 rem role (electron/roleSetup.cjs's display-role.json, written by Electron's
 rem own first-run wizard - absent on a genuinely first-ever run, defaulting
@@ -13,7 +13,7 @@ rem cancel it):
 rem   - "server": starts the local server, waits for it, then opens the app
 rem     in a native Electron kiosk window if one was successfully installed,
 rem     falling back to a kiosk browser window otherwise (see
-rem     wraps-coffee.iss for why Electron's own binary download can fail on
+rem     adhdisplay.iss for why Electron's own binary download can fail on
 rem     a restrictive network even when the rest of npm install succeeds).
 rem   - "display": no local server at all (a display-only machine has no
 rem     data of its own - starting a second, independently-seeded server
@@ -38,9 +38,9 @@ if exist "server\data\display-role.json" (
 if /i "%ROLE%"=="display" goto display_role
 
 :server_role
-set "WRAPS_COFFEE_URL=http://localhost:4173/admin/login"
+set "ADHDISPLAY_URL=http://localhost:4173/admin/login"
 
-echo Starting Wraps ^& Coffee...
+echo Starting ADHDisplay...
 call :start_ollama
 call :start_server
 
@@ -54,7 +54,7 @@ rem Electron-else-Edge-kiosk detection below.
 set "LAUNCH_METHOD=auto"
 for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "try { (Invoke-RestMethod -Uri 'http://localhost:4000/window-launch-method' -TimeoutSec 3).method } catch {}"`) do set "LAUNCH_METHOD=%%i"
 
-call :launch_window "%WRAPS_COFFEE_URL%"
+call :launch_window "%ADHDISPLAY_URL%"
 
 rem Looks up the LAN IP fresh from the server itself (server/index.ts's own
 rem /server-info endpoint - the same source of truth the app uses internally
@@ -63,8 +63,8 @@ rem across Windows locales (its output is translated).
 for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "try { (Invoke-RestMethod -Uri 'http://localhost:4000/server-info' -TimeoutSec 3).lanIp } catch {}"`) do set "LAN_IP=%%i"
 
 echo.
-echo   Wraps ^& Coffee is running:
-echo     On this PC:        %WRAPS_COFFEE_URL%
+echo   ADHDisplay is running:
+echo     On this PC:        %ADHDISPLAY_URL%
 rem Note: LAN_IP was set outside this block (line above, top-level), which is
 rem why plain %LAN_IP% expansion is safe to read here - a variable set *and*
 rem read within the same parenthesized block would need delayed expansion
@@ -157,7 +157,7 @@ goto launch_window_edge
 :launch_window_electron
 set "LAUNCHED_VIA=electron"
 echo Launching the native app window (Electron)...
-start "WrapsCoffeeWindow" cmd /c "npm run start:electron >> logs\electron.log 2>&1"
+start "ADHDisplayWindow" cmd /c "npm run start:electron >> logs\electron.log 2>&1"
 goto :eof
 
 :launch_window_edge
@@ -183,7 +183,7 @@ if not errorlevel 1 goto :eof
 where ollama >nul 2>&1
 if errorlevel 1 goto :eof
 echo Starting Ollama...
-start "WrapsCoffeeOllama" /min cmd /c "ollama serve >> logs\ollama.log 2>&1"
+start "ADHDisplayOllama" /min cmd /c "ollama serve >> logs\ollama.log 2>&1"
 goto :eof
 
 :start_server
@@ -191,7 +191,7 @@ rem preview:kiosk (package.json) is "npm run preview" plus --kill-others, so the
 rem frontend static server and the WS backend live and die together. Calling
 rem the npm script (rather than inlining concurrently's own quoted arguments
 rem here) avoids nested-quote parsing that cmd.exe handles unreliably.
-start "WrapsCoffeeServer" /min cmd /c "npm run preview:kiosk >> logs\server.log 2>&1"
+start "ADHDisplayServer" /min cmd /c "npm run preview:kiosk >> logs\server.log 2>&1"
 goto :eof
 
 :wait_until_healthy
@@ -209,5 +209,5 @@ rem concurrently) commonly rename their own console window as they run,
 rem which made an earlier window-title-based check report "gone" on a
 rem perfectly healthy server and spawn a duplicate instance fighting over
 rem the same ports.
-powershell -NoProfile -Command "try { Invoke-WebRequest -Uri '%WRAPS_COFFEE_URL%' -UseBasicParsing -TimeoutSec 3 | Out-Null; exit 0 } catch { exit 1 }" >nul 2>&1
+powershell -NoProfile -Command "try { Invoke-WebRequest -Uri '%ADHDISPLAY_URL%' -UseBasicParsing -TimeoutSec 3 | Out-Null; exit 0 } catch { exit 1 }" >nul 2>&1
 exit /b %errorlevel%

@@ -1,8 +1,8 @@
 import type { LookupQueryField, LookupQueryFilterInput, LookupQuerySpec } from '../lookupQuery'
 import type { PostCheck } from './framework'
 
-/** This app's own hardcoded brand string — used inline across several `steps.ts` prompt strings (e.g. "...from the Wraps & Coffee admin dashboard"); there is no per-tenant configurable store name to read from `store.ts` instead. Kept as its own local constant here rather than duplicating the literal at each check-inventory call site below. */
-const BRAND_NAME = 'Wraps & Coffee'
+/** This app's own hardcoded brand string — used inline across several `steps.ts` prompt strings (e.g. "...from the ADHDisplay admin dashboard"); there is no per-tenant configurable store name to read from `store.ts` instead. Kept as its own local constant here rather than duplicating the literal at each check-inventory call site below. */
+const BRAND_NAME = 'ADHDisplay'
 
 /** Phrases that mean "match anything containing this," never "match exactly this" — used by `filterOpShapeMismatch` below, and reused by `selectCommand.ts`'s `entity-action-consistency` check as the same "this phrasing implies a lookup, not a command" signal. Kept small and literal on purpose, same "deterministic, no judgment call" posture as this whole check family; a phrase not in this list simply doesn't trigger the check; it does not fall back to guessing. */
 export const KEYWORD_MATCH_PHRASES: Record<'no' | 'en', string[]> = {
@@ -42,8 +42,8 @@ const filterFieldExists: PostCheck<LookupQuerySpec, LookupQueryCheckContext> = {
 /**
  * A string/enum filter's value shouldn't be this app's own brand name — real
  * QA testing found a local model repeatedly hallucinating a filter against
- * the store's own name (e.g. matching a product's name against "Wraps &
- * Coffee") on a plain "list everything" question. `buildEntityQueryDataBlock`'s
+ * the store's own name (e.g. matching a product's name against "ADHDisplay")
+ * on a plain "list everything" question. `buildEntityQueryDataBlock`'s
  * own `groundedFilters` check already requires a string/enum filter's value
  * to appear somewhere in the admin's message — this catches the one case
  * that can still slip past that (the admin's own message happens to mention

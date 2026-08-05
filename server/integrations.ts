@@ -3,9 +3,9 @@ import type { NearbyStop } from '../src/types/integrations'
 import { sendJson } from './http'
 
 /** Identifies this app to Entur's APIs, per their usage terms — no personal/secret info needed, just a stable `<company>-<application>` string. */
-const ENTUR_CLIENT_NAME = 'wraps-coffee-cafe-kiosk'
+const ENTUR_CLIENT_NAME = 'adhdisplay-cafe-kiosk'
 /** MET Norway's terms ask for an identifying `User-Agent`, ideally with a way to reach the operator — override via the `WEATHER_USER_AGENT` env var to include a real contact if desired; functions fine without it either way. */
-const WEATHER_USER_AGENT = process.env.WEATHER_USER_AGENT ?? 'wraps-coffee-kiosk (self-hosted cafe display)'
+const WEATHER_USER_AGENT = process.env.WEATHER_USER_AGENT ?? 'adhdisplay-kiosk (self-hosted cafe display)'
 
 const DEPARTURES_CACHE_MS = 20_000
 const WEATHER_CACHE_MS = 10 * 60_000

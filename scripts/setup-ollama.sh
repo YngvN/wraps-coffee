@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Provisions Ollama for the Wraps & Coffee AI assistant's local/offline
+# Provisions Ollama for the ADHDisplay AI assistant's local/offline
 # provider (see src/features/admin/settings/AssistantProviderSection.tsx's
 # "Local" option and server/assistant/ollamaClient.ts). Idempotent — safe to
 # re-run any time, e.g. after changing which model tags are configured on

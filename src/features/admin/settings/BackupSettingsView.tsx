@@ -17,7 +17,7 @@ import './BackupSettingsView.scss'
 
 /**
  * Everything the local server persists (every synced key, user accounts, and
- * uploaded images) is continuously mirrored to a sibling `WrapsCoffeeBackup`
+ * uploaded images) is continuously mirrored to a sibling `ADHDisplayBackup`
  * folder next to the app's own install folder (see `server/backup.ts`) —
  * that happens automatically, with nothing to configure here. This view is
  * the manual side of it: download a point-in-time zip snapshot, or restore
@@ -86,7 +86,7 @@ export function BackupSettingsView() {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `wrapscoffee-backup-${new Date().toISOString().slice(0, 10)}.zip`
+      link.download = `adhdisplay-backup-${new Date().toISOString().slice(0, 10)}.zip`
       link.click()
       URL.revokeObjectURL(url)
     } catch (err) {

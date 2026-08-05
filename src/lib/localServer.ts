@@ -991,7 +991,7 @@ export async function getWindowLaunchSettings(): Promise<WindowLaunchSettings> {
   return response.json() as Promise<WindowLaunchSettings>
 }
 
-/** Saves the window launch method — takes effect next time `start-wraps-coffee.bat` runs (on the next restart), not live. `admin`/`subadmin` only. */
+/** Saves the window launch method — takes effect next time `start-adhdisplay.bat` runs (on the next restart), not live. `admin`/`subadmin` only. */
 export async function setWindowLaunchSettings(token: string, settings: WindowLaunchSettings): Promise<WindowLaunchSettings> {
   const response = await fetch(`${serverBaseUrl()}/window-launch-method`, {
     method: 'POST',
@@ -1066,7 +1066,7 @@ export async function resetUserPassword(token: string, id: string, password: str
 
 // --- Backup (Settings → Backup) ----------------------------------------------
 
-/** Whether the server-side sibling `WrapsCoffeeBackup` folder exists, and when it was last updated — `null` if it's never been written to yet. `admin`/`subadmin` only. */
+/** Whether the server-side sibling `ADHDisplayBackup` folder exists, and when it was last updated — `null` if it's never been written to yet. `admin`/`subadmin` only. */
 export async function getBackupStatus(token: string): Promise<{ folderBackupAvailable: boolean; updatedAt: string | null }> {
   const response = await fetch(`${serverBaseUrl()}/backups/status`, { headers: { Authorization: `Bearer ${token}` } })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
@@ -1098,7 +1098,7 @@ export async function restoreBackupFromZip(token: string, file: File): Promise<v
   }
 }
 
-/** Restores directly from the sibling `WrapsCoffeeBackup` folder on the server's own disk, overwriting all current data. `admin`/`subadmin` only. */
+/** Restores directly from the sibling `ADHDisplayBackup` folder on the server's own disk, overwriting all current data. `admin`/`subadmin` only. */
 export async function restoreFromBackupFolder(token: string): Promise<void> {
   const response = await fetch(`${serverBaseUrl()}/backups/restore-from-folder`, {
     method: 'POST',

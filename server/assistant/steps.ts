@@ -384,7 +384,7 @@ const REFERENCE_RESOLUTION_LINE =
 
 /** The "who you are" line every `selectIntent` prompt (single-pass or cascaded) opens with. */
 const ASSISTANT_INTRO_LINE =
-  'You are the AI assistant built into the Wraps & Coffee admin dashboard — a flexible catalogue/category/product system a business uses to manage whatever it sells, not limited to food and drink: a catalogue and its categories can represent any product line (e.g. a "Cars" catalogue with categories like "Sedans"/"SUVs", using custom fields such as "Mileage"/"Fuel type" the same way a food category might use its own custom fields), plus events, message boards, and staff accounts.'
+  'You are the AI assistant built into the ADHDisplay admin dashboard — a flexible catalogue/category/product system a business uses to manage whatever it sells, not limited to food and drink: a catalogue and its categories can represent any product line (e.g. a "Cars" catalogue with categories like "Sedans"/"SUVs", using custom fields such as "Mileage"/"Fuel type" the same way a food category might use its own custom fields), plus events, message boards, and staff accounts.'
 
 function entityListLine(entityListForPrompt: string, hasUserEntity: boolean): string {
   return `You can create, update, or delete: ${entityListForPrompt}${hasUserEntity ? ' (non-admin accounts only)' : ''}.`
@@ -1415,7 +1415,7 @@ export async function generateTitle(
 
   const systemPrompt = [
     languageInstruction(uiLanguage),
-    'You are naming a past conversation from the Wraps & Coffee admin dashboard\'s AI assistant, for a history list the admin browses later.',
+    'You are naming a past conversation from the ADHDisplay admin dashboard\'s AI assistant, for a history list the admin browses later.',
     'Write a short (3-6 word) title summarizing what the conversation below was actually about — specific enough to tell it apart from other conversations (e.g. name the product/event/setting involved), not a generic label like "Chat" or "Conversation".',
   ].join('\n')
 
@@ -1650,7 +1650,7 @@ async function buildEntityDataBlock(
     const batchSystemPrompt = [
       languageInstruction(uiLanguage),
       currentDateInstruction(),
-      `You're analyzing one batch of "${entity.key}" records from the Wraps & Coffee admin dashboard, out of several batches covering the full current data — only use the data below, never invent records that aren't there.`,
+      `You're analyzing one batch of "${entity.key}" records from the ADHDisplay admin dashboard, out of several batches covering the full current data — only use the data below, never invent records that aren't there.`,
       'A zero/empty result for this batch is a valid, complete, and common answer if nothing in it is relevant — do not default to including a record just because it appears in the data. Every match must be traceable to an explicit field value in that specific record (e.g. a real discount/price/stock/tag field actually set on it) — never inferred from a category, a shared trait with a record you already matched, or the record simply being a real, currently-listed item. When you are not sure whether one specific record satisfies the question, exclude it rather than include it — but first check whether the guidance below already resolves that uncertainty for you.',
       entity.lookupGuidance ?? '',
       historyContextPromptLine(historyContext),
@@ -1772,7 +1772,7 @@ async function buildEntityQueryDataBlock(
   const systemPrompt = [
     languageInstruction(uiLanguage),
     currentDateInstruction(),
-    `You're building a structured query to answer a factual question about "${entity.key}" records from the Wraps & Coffee admin dashboard — pick filters only from the fields you're given below, never invent a field, and never add a condition the admin's question doesn't actually ask for.`,
+    `You're building a structured query to answer a factual question about "${entity.key}" records from the ADHDisplay admin dashboard — pick filters only from the fields you're given below, never invent a field, and never add a condition the admin's question doesn't actually ask for.`,
     entity.lookupGuidance ?? '',
     `Admin's question: ${message}`,
   ]
@@ -1937,7 +1937,7 @@ async function answerFromRecord(
   const systemPrompt = [
     languageInstruction(uiLanguage),
     currentDateInstruction(),
-    `You are answering a factual question about one specific "${entity.key}" record from the Wraps & Coffee admin dashboard's own current data (the admin already named/picked it) — using only the record below, never outside/general knowledge, and never inventing a fact it doesn't support.`,
+    `You are answering a factual question about one specific "${entity.key}" record from the ADHDisplay admin dashboard's own current data (the admin already named/picked it) — using only the record below, never outside/general knowledge, and never inventing a fact it doesn't support.`,
     entity.lookupGuidance ?? '',
     'Write your own complete sentence in the admin\'s own language — never literally copy a label or field name straight out of the record below.',
     'If the question is about a price/cost, give the actual concrete amount (e.g. "80 kr") — never just a relative/percentage description like "80% of the normal price" on its own. If the record has its own already-computed effective/final price field, always read the answer directly from that field — never calculate a discounted price yourself from a base price and a discount percentage/amount, even if both are right there in the record: real testing showed that arithmetic gets it wrong. Only mention a discount percentage/amount as additional context alongside the real price, never as a substitute for it, and never as something to compute from.',
@@ -2015,7 +2015,7 @@ async function resolveSingleEntityLookup(
   const systemPrompt = [
     languageInstruction(uiLanguage),
     currentDateInstruction(),
-    "You are answering a factual question about the Wraps & Coffee admin dashboard's own current data, using only the data provided below — never use outside/general knowledge, and never invent a fact the data doesn't support.",
+    "You are answering a factual question about the ADHDisplay admin dashboard's own current data, using only the data provided below — never use outside/general knowledge, and never invent a fact the data doesn't support.",
     'An empty list, a zero count, or "no matches" in the data below is itself a complete, valid answer (e.g. "there are currently none") — do not treat it as missing information to hedge about.',
     'A data block below with a "matchingCount"/"matchingNames" pair has already been fully, completely checked against that exact question, record by record — that count and name list are the final answer, not a sample or a subset needing further detail. Report the count as a definite fact (e.g. "there are 7") — never hedge with "I only have example data" or "I\'d need more detail (like dates) to know for sure" when that checking has already been done for you.',
     'Write your own complete sentence in the admin\'s own language — never literally copy a label or phrase straight out of the data block below (e.g. never answer with something like "7 record(s) satisfy it"). If the question asks "which"/"what" ones (not just a count), your sentence must actually name every one of them from "matchingNames" — a bare count alone does not answer a "which" question.',
@@ -2206,7 +2206,7 @@ export async function answerLookup(
   const systemPrompt = [
     languageInstruction(uiLanguage),
     currentDateInstruction(),
-    "You are answering a factual question about the Wraps & Coffee admin dashboard's own current data, using only the data provided below — never use outside/general knowledge, and never invent a fact the data doesn't support.",
+    "You are answering a factual question about the ADHDisplay admin dashboard's own current data, using only the data provided below — never use outside/general knowledge, and never invent a fact the data doesn't support.",
     'An empty list, a zero count, or "no matches" in the data below is itself a complete, valid answer (e.g. "there are currently none") — do not treat it as missing information to hedge about.',
     'A data block below with a "matchingCount"/"matchingNames" pair has already been fully, completely checked against that exact question, record by record — that count and name list are the final answer, not a sample or a subset needing further detail. Report the count as a definite fact (e.g. "there are 7") — never hedge with "I only have example data" or "I\'d need more detail (like dates) to know for sure" when that checking has already been done for you.',
     'Write your own complete sentence in the admin\'s own language — never literally copy a label or phrase straight out of the data block below (e.g. never answer with something like "7 record(s) satisfy it"). If the question asks "which"/"what" ones (not just a count), your sentence must actually name every one of them from "matchingNames" — a bare count alone does not answer a "which" question.',

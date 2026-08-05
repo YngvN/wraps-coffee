@@ -14,13 +14,30 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = join(__dirname, 'data')
 const UPLOADS_DIR = join(__dirname, 'uploads')
 
-// Sibling of the app's own root folder (e.g. C:\WrapsCoffee -> C:\WrapsCoffeeBackup)
+// Sibling of the app's own root folder (e.g. C:\ADHDisplay -> C:\ADHDisplayBackup)
 // so deleting the main install folder can't take the backup down with it.
 const APP_ROOT = join(__dirname, '..')
-export const BACKUP_ROOT = join(APP_ROOT, '..', 'WrapsCoffeeBackup')
+export const BACKUP_ROOT = join(APP_ROOT, '..', 'ADHDisplayBackup')
 const BACKUP_DATA_DIR = join(BACKUP_ROOT, 'data')
 const BACKUP_UPLOADS_DIR = join(BACKUP_ROOT, 'uploads')
 const MANIFEST_FILE = join(BACKUP_ROOT, 'backup-manifest.json')
+
+// Pre-rename sibling folder name, from when this app was called "Wraps
+// Coffee". New writes (`mirrorFileNow`) always target BACKUP_ROOT above -
+// these are only ever read from, as a fallback, so an install upgrading from
+// before the rename doesn't lose access to a backup it already has on disk
+// under the old folder name. See `resolveBackupReadDirs`.
+const LEGACY_BACKUP_ROOT = join(APP_ROOT, '..', 'WrapsCoffeeBackup')
+const LEGACY_BACKUP_DATA_DIR = join(LEGACY_BACKUP_ROOT, 'data')
+const LEGACY_BACKUP_UPLOADS_DIR = join(LEGACY_BACKUP_ROOT, 'uploads')
+const LEGACY_MANIFEST_FILE = join(LEGACY_BACKUP_ROOT, 'backup-manifest.json')
+
+/** Resolves which sibling backup folder to read from: the current-named one if present, else the pre-rename `WrapsCoffeeBackup` one - so a backup from before the app's rename to ADHDisplay is still found and restorable. */
+function resolveBackupReadDirs(): { dataDir: string; uploadsDir: string; manifestFile: string } {
+  if (existsSync(BACKUP_DATA_DIR)) return { dataDir: BACKUP_DATA_DIR, uploadsDir: BACKUP_UPLOADS_DIR, manifestFile: MANIFEST_FILE }
+  if (existsSync(LEGACY_BACKUP_DATA_DIR)) return { dataDir: LEGACY_BACKUP_DATA_DIR, uploadsDir: LEGACY_BACKUP_UPLOADS_DIR, manifestFile: LEGACY_MANIFEST_FILE }
+  return { dataDir: BACKUP_DATA_DIR, uploadsDir: BACKUP_UPLOADS_DIR, manifestFile: MANIFEST_FILE }
+}
 
 // Bump this - and add an explicit migration/fallback in restoreBackupFromZip/
 // restoreFromBackupFolder below - if a future change would ever stop an older
@@ -79,7 +96,7 @@ function mirrorFileNow(absolutePath: string) {
 
 /**
  * Mirrors a single file under server/data or server/uploads to the
- * equivalent path under the sibling WrapsCoffeeBackup folder, or removes the
+ * equivalent path under the sibling ADHDisplayBackup folder, or removes the
  * mirrored copy if `absolutePath` no longer exists (a deletion). Called
  * right after every real write (or delete) in store.ts/uploads.ts. Debounced
  * per-path (see `MIRROR_DEBOUNCE_MS`) rather than mirrored instantly every
@@ -126,23 +143,27 @@ function hasAnyDataFiles(): boolean {
 /**
  * Runs once at server startup, before `store.load()` seeds anything. On a
  * genuinely fresh install (no per-key files under server/data yet) with a
- * sibling WrapsCoffeeBackup folder present, restores from it first - this is
- * the "check if the backup folder is there and import" behavior, done here
- * (once, cross-platform) rather than in the Windows-only installer.
+ * sibling ADHDisplayBackup folder present (or the pre-rename WrapsCoffeeBackup
+ * one, see `resolveBackupReadDirs`), restores from it first - this is the
+ * "check if the backup folder is there and import" behavior, done here (once,
+ * cross-platform) rather than in the Windows-only installer.
  */
 export function restoreFromSiblingBackupIfFresh() {
-  if (hasAnyDataFiles() || !existsSync(BACKUP_DATA_DIR)) return
-  console.log('[backup] fresh install with a sibling WrapsCoffeeBackup folder present — restoring from it')
-  copyDirContents(BACKUP_DATA_DIR, DATA_DIR)
-  if (existsSync(BACKUP_UPLOADS_DIR)) copyDirContents(BACKUP_UPLOADS_DIR, UPLOADS_DIR)
+  if (hasAnyDataFiles()) return
+  const { dataDir, uploadsDir } = resolveBackupReadDirs()
+  if (!existsSync(dataDir)) return
+  console.log('[backup] fresh install with a sibling backup folder present — restoring from it')
+  copyDirContents(dataDir, DATA_DIR)
+  if (existsSync(uploadsDir)) copyDirContents(uploadsDir, UPLOADS_DIR)
 }
 
 /** Whether a usable sibling backup folder exists, and when it was last updated — lets the Settings UI show/hide "Restore from backup folder". */
 export function backupStatus(): { folderBackupAvailable: boolean; updatedAt: string | null } {
-  if (!existsSync(BACKUP_DATA_DIR)) return { folderBackupAvailable: false, updatedAt: null }
-  if (!existsSync(MANIFEST_FILE)) return { folderBackupAvailable: true, updatedAt: null }
+  const { dataDir, manifestFile } = resolveBackupReadDirs()
+  if (!existsSync(dataDir)) return { folderBackupAvailable: false, updatedAt: null }
+  if (!existsSync(manifestFile)) return { folderBackupAvailable: true, updatedAt: null }
   flushPendingMirrors()
-  const manifest = JSON.parse(readFileSync(MANIFEST_FILE, 'utf-8')) as BackupManifest
+  const manifest = JSON.parse(readFileSync(manifestFile, 'utf-8')) as BackupManifest
   return { folderBackupAvailable: true, updatedAt: manifest.updatedAt }
 }
 
@@ -180,7 +201,7 @@ export function restoreBackupFromZip(zipBuffer: Buffer): { ok: true } | { ok: fa
   const zip = new AdmZip(zipBuffer)
   const entries = zip.getEntries()
   if (!entries.some((entry) => entry.entryName.startsWith('data/'))) {
-    return { ok: false, error: "This doesn't look like a Wraps & Coffee backup zip — no data/ folder found inside it." }
+    return { ok: false, error: "This doesn't look like an ADHDisplay backup zip — no data/ folder found inside it." }
   }
 
   const stagingDir = join(BACKUP_ROOT, '.restore-staging')
@@ -196,17 +217,18 @@ export function restoreBackupFromZip(zipBuffer: Buffer): { ok: true } | { ok: fa
   return { ok: true }
 }
 
-/** Same idea as `restoreBackupFromZip`, but reads straight from the sibling WrapsCoffeeBackup folder on this same machine's disk — no upload needed. */
+/** Same idea as `restoreBackupFromZip`, but reads straight from the sibling ADHDisplayBackup folder (or the pre-rename WrapsCoffeeBackup one, see `resolveBackupReadDirs`) on this same machine's disk — no upload needed. */
 export function restoreFromBackupFolder(): { ok: true } | { ok: false; error: string } {
-  if (!existsSync(BACKUP_DATA_DIR)) {
-    return { ok: false, error: 'No WrapsCoffeeBackup folder found next to the app.' }
+  const { dataDir, uploadsDir } = resolveBackupReadDirs()
+  if (!existsSync(dataDir)) {
+    return { ok: false, error: 'No ADHDisplayBackup folder found next to the app.' }
   }
   // A still-pending debounced mirror (see `mirrorFile`) means the backup
   // folder could be up to `MIRROR_DEBOUNCE_MS` behind the live data this
   // exact moment — force those through first so a restore never pulls in a
   // copy that's staler than it needs to be.
   flushPendingMirrors()
-  copyDirContents(BACKUP_DATA_DIR, DATA_DIR)
-  if (existsSync(BACKUP_UPLOADS_DIR)) copyDirContents(BACKUP_UPLOADS_DIR, UPLOADS_DIR)
+  copyDirContents(dataDir, DATA_DIR)
+  if (existsSync(uploadsDir)) copyDirContents(uploadsDir, UPLOADS_DIR)
   return { ok: true }
 }

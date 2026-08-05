@@ -26,7 +26,7 @@ const LAUNCH_METHODS: WindowLaunchMethod[] = ['auto', 'electron', 'edge']
  * hostname/IP they've made stable themselves (e.g. a router DHCP
  * reservation).
  * Also holds the "window launch method" choice (`electron`/`edge`/`auto`) —
- * which window `installer/start-wraps-coffee.bat` opens the kiosk display in
+ * which window `installer/start-adhdisplay.bat` opens the kiosk display in
  * at boot, normally auto-detected (a native Electron kiosk window if
  * installed, else Microsoft Edge's own `--kiosk` mode) but forceable either
  * way here, mainly for comparing the two on real hardware. A separate

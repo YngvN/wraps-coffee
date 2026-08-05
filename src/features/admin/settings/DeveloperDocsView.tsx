@@ -296,7 +296,7 @@ window, e.g. a Display window — a no-op on a plain browser tab a user navigate
 → 200 { "folderBackupAvailable": boolean, "updatedAt": string | null }
 
 GET /backups                      (Authorization: Bearer <token>, admin/subadmin only)
-→ 200, Content-Type: application/zip, Content-Disposition: attachment; filename="wrapscoffee-backup-...zip"
+→ 200, Content-Type: application/zip, Content-Disposition: attachment; filename="adhdisplay-backup-...zip"
 
 POST /backups/restore              (Authorization: Bearer <token>, admin/subadmin only, Content-Type: application/zip, body = raw zip bytes)
 → 200 { "ok": true }
@@ -304,7 +304,7 @@ POST /backups/restore              (Authorization: Bearer <token>, admin/subadmi
 
 POST /backups/restore-from-folder  (Authorization: Bearer <token>, admin/subadmin only, no body)
 → 200 { "ok": true }
-→ 400 { "error": "..." }   (no sibling WrapsCoffeeBackup folder found)`}</code>
+→ 400 { "error": "..." }   (no sibling ADHDisplayBackup folder found)`}</code>
         </pre>
       </Card>
 

@@ -258,7 +258,7 @@ export async function deleteOllamaModel(tag: string): Promise<{ ok: boolean; err
  * runs whichever way the server itself happens to be launched (`npm run
  * dev`, a plain `npm run preview`, etc.) — the Linux systemd service
  * (`installer/linux/install.sh`'s own `Wants=ollama.service`) and the
- * Windows launcher script (`installer/start-wraps-coffee.bat`'s own
+ * Windows launcher script (`installer/start-adhdisplay.bat`'s own
  * `:start_ollama`) already give this same guarantee at their own startup
  * moment, but neither covers a manually-run dev server.
  *

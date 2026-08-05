@@ -3,7 +3,7 @@ name: Build Windows installer
 # Manually triggered (Actions tab -> Build Windows installer -> Run workflow)
 # rather than on every push, since compiling the installer isn't needed for
 # most commits and this keeps Actions usage to only when you actually want
-# a new WrapsCoffeeSetup.exe to hand to the client.
+# a new ADHDisplaySetup.exe to hand to the client.
 on:
   workflow_dispatch: {}
 
@@ -28,10 +28,10 @@ jobs:
 
       - name: Compile installer
         shell: cmd
-        run: '"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\wraps-coffee.iss'
+        run: '"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\adhdisplay.iss'
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WrapsCoffeeSetup
-          path: installer/Output/WrapsCoffeeSetup.exe
+          name: ADHDisplaySetup
+          path: installer/Output/ADHDisplaySetup.exe

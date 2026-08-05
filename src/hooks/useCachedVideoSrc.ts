@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 /** Shared with the pre-warm/eviction pass in `ScreenDisplay.tsx`, which needs the same cache name to prune entries this hook isn't actively resolving right now. */
-export const VIDEO_CACHE_NAME = 'wraps-coffee-video-cache-v1'
+export const VIDEO_CACHE_NAME = 'adhdisplay-video-cache-v1'
 const MAX_RETRY_DELAY_MS = 15_000
 
 /** A `404` (the display resolving a pane's video moments after upload, while the server is still transcoding it) is treated the same as a transient network hiccup — both are worth retrying with backoff, neither is a reason to give up. */

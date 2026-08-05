@@ -4,7 +4,7 @@ import { ScreenToolbar } from '../features/screens/ScreenToolbar'
 import { useDisplayMachineRegistration } from '../hooks/useDisplayMachineRegistration'
 import { DisplayStandby } from './DisplayStandby'
 
-const DEVICE_ID_STORAGE_KEY = 'wrapsCoffeeDisplayDeviceId'
+const DEVICE_ID_STORAGE_KEY = 'adhdisplayDeviceId'
 /** A `url`-connection machine only ever has itself to report — this browser tab — so it always reports exactly one synthetic "monitor" under this fixed id. */
 const MONITOR_ID = 'browser-tab'
 

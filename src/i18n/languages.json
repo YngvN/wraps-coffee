@@ -1175,7 +1175,7 @@
             "displayManagerTitle": "Display Manager",
             "displayManagerIntro": "How a machine or browser tab registers itself as a display (see the Display Manager sidebar section) and how a Screen gets assigned to one of its monitors.",
             "backupTitle": "Backup",
-            "backupIntro": "server/backup.ts mirrors server/data and server/uploads to a sibling WrapsCoffeeBackup folder continuously (see Settings → Backup). These routes are the manual side of it — a point-in-time zip download, and two ways to restore.",
+            "backupIntro": "server/backup.ts mirrors server/data and server/uploads to a sibling ADHDisplayBackup folder continuously (see Settings → Backup). These routes are the manual side of it — a point-in-time zip download, and two ways to restore.",
             "storageCleanupTitle": "Storage cleanup",
             "storageCleanupIntro": "server/storageCleanup.ts (see Settings → Backup's own \"Storage cleanup\" section). The preview route only ever computes what's prunable; the apply route deletes only the ids/filenames it's given, after re-checking each one right before deletion.",
             "integrationsTitle": "Integrations proxy (transit + weather)",
@@ -1211,7 +1211,7 @@
             "developerKeyRoutesTitle": "Developer key routes",
             "keyCatalogues": "Catalogues, categories and their default prices/images — the admin Products feature's own hierarchy.",
             "screenAddressText": "How a screen's own display link is addressed (see Settings → Advanced):",
-            "windowLaunchMethodText": "Which window a Windows machine opens the kiosk display in at boot (see Settings → Advanced) — read by installer/start-wraps-coffee.bat, not applied live:"
+            "windowLaunchMethodText": "Which window a Windows machine opens the kiosk display in at boot (see Settings → Advanced) — read by installer/start-adhdisplay.bat, not applied live:"
           },
           "description": "Interface language, the store's default pane language, clock format, and which sidebar sections this dashboard shows.",
           "developersDescription": "Reference documentation for the local server's own HTTP and WebSocket API, for building a custom client against this store's data.",
@@ -1245,7 +1245,7 @@
             "launchMethodElectronDescription": "Always opens the native Electron kiosk window, even if it failed to install last time.",
             "launchMethodEdgeLabel": "Microsoft Edge (kiosk mode)",
             "launchMethodEdgeDescription": "Always opens a fullscreen Microsoft Edge window instead of Electron — useful for comparing the two.",
-            "launchMethodCaveat": "Takes effect the next time this machine starts (or restarts) Wraps & Coffee, not immediately.",
+            "launchMethodCaveat": "Takes effect the next time this machine starts (or restarts) ADHDisplay, not immediately.",
             "assistantProviderLegend": "AI assistant model",
             "assistantProviderClaudeLabel": "Claude API",
             "assistantProviderClaudeDescription": "Uses the Claude API — needs an API key, saved on the Integrations page.",
@@ -2004,7 +2004,7 @@
         "description": "This page ran into an unexpected error. You can try refreshing, or send a crash report so it can be looked into.",
         "goBackButton": "Go back",
         "sendReportButton": "Send crash report",
-        "reportSubject": "Crash report - Wraps Coffee",
+        "reportSubject": "Crash report - ADHDisplay",
         "reportSent": "Your email app should now be open with the report ready to send."
       }
     }
@@ -3185,7 +3185,7 @@
             "displayManagerTitle": "Skjermbehandling",
             "displayManagerIntro": "Hvordan en maskin eller nettleserfane registrerer seg selv som en skjerm (se Skjermbehandling-seksjonen i sidemenyen) og hvordan en Skjerm tildeles en av dens monitorer.",
             "backupTitle": "Sikkerhetskopi",
-            "backupIntro": "server/backup.ts speiler server/data og server/uploads kontinuerlig til en søsteremappe kalt WrapsCoffeeBackup (se Innstillinger → Sikkerhetskopi). Disse rutene er den manuelle siden av det — en zip-nedlasting på et gitt tidspunkt, og to måter å gjenopprette på.",
+            "backupIntro": "server/backup.ts speiler server/data og server/uploads kontinuerlig til en søsteremappe kalt ADHDisplayBackup (se Innstillinger → Sikkerhetskopi). Disse rutene er den manuelle siden av det — en zip-nedlasting på et gitt tidspunkt, og to måter å gjenopprette på.",
             "storageCleanupTitle": "Lagringsopprydding",
             "storageCleanupIntro": "server/storageCleanup.ts (se Innstillinger → Sikkerhetskopi sin egen \"Lagringsopprydding\"-seksjon). Forhåndsvisningsruten beregner kun hva som kan ryddes bort; anvend-ruten sletter bare de id-ene/filnavnene den får oppgitt, etter å ha sjekket hver enkelt på nytt rett før sletting.",
             "integrationsTitle": "Integrations-proxy (kollektivtransport + vær)",
@@ -3221,7 +3221,7 @@
             "developerKeyRoutesTitle": "Ruter for utviklernøkkel",
             "keyCatalogues": "Kataloger, kategorier og deres standardpriser/bilder — admin-produktfunksjonens egen hierarki.",
             "screenAddressText": "Hvordan en skjerms egen visningslenke adresseres (se Innstillinger → Avansert):",
-            "windowLaunchMethodText": "Hvilket vindu en Windows-maskin åpner kioskskjermen i ved oppstart (se Innstillinger → Avansert) — leses av installer/start-wraps-coffee.bat, trer ikke i kraft umiddelbart:"
+            "windowLaunchMethodText": "Hvilket vindu en Windows-maskin åpner kioskskjermen i ved oppstart (se Innstillinger → Avansert) — leses av installer/start-adhdisplay.bat, trer ikke i kraft umiddelbart:"
           },
           "description": "Grensesnittspråk, butikkens standardspråk for paneler, klokkeformat, og hvilke sidemeny-seksjoner dette dashbordet viser.",
           "developersDescription": "Referansedokumentasjon for den lokale serverens eget HTTP- og WebSocket-API, for å bygge en egen klient mot butikkens data.",
@@ -3255,7 +3255,7 @@
             "launchMethodElectronDescription": "Åpner alltid det native Electron-kioskvinduet, selv om det ikke ble installert forrige gang.",
             "launchMethodEdgeLabel": "Microsoft Edge (kioskmodus)",
             "launchMethodEdgeDescription": "Åpner alltid et fullskjerms Microsoft Edge-vindu i stedet for Electron — nyttig for å sammenligne de to.",
-            "launchMethodCaveat": "Trer i kraft neste gang denne maskinen starter (eller starter på nytt) Wraps & Coffee, ikke umiddelbart.",
+            "launchMethodCaveat": "Trer i kraft neste gang denne maskinen starter (eller starter på nytt) ADHDisplay, ikke umiddelbart.",
             "assistantProviderLegend": "AI-assistentmodell",
             "assistantProviderClaudeLabel": "Claude API",
             "assistantProviderClaudeDescription": "Bruker Claude API-et — krever en API-nøkkel, lagret på Integrasjoner-siden.",
@@ -4014,7 +4014,7 @@
         "description": "Denne siden støtte på en uventet feil. Du kan prøve å oppdatere, eller sende en feilrapport slik at den kan undersøkes.",
         "goBackButton": "Gå tilbake",
         "sendReportButton": "Send feilrapport",
-        "reportSubject": "Feilrapport - Wraps Coffee",
+        "reportSubject": "Feilrapport - ADHDisplay",
         "reportSent": "E-postappen din skal nå være åpen med rapporten klar til å sendes."
       }
     }

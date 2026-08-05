@@ -7,8 +7,8 @@ import { useDisplayMachines } from '../hooks/useDisplayMachines'
 import type { DisplayMachine } from '../types/displayMachine'
 import './DisplayWindow.scss'
 
-const DEVICE_ID_STORAGE_KEY = 'wrapsCoffeeDisplayWindowId'
-const LABEL_STORAGE_KEY = 'wrapsCoffeeDisplayWindowLabel'
+const DEVICE_ID_STORAGE_KEY = 'adhdisplayWindowId'
+const LABEL_STORAGE_KEY = 'adhdisplayWindowLabel'
 const MONITOR_ID = 'display-window'
 const LABEL_PATTERN = /^Display (\d+)$/
 
