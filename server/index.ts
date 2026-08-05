@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { WebSocketServer, type WebSocket } from 'ws'
@@ -29,6 +30,9 @@ import * as woltAdapter from './woltAdapter'
 import * as woltPoller from './woltPoller'
 
 const PORT = Number(process.env.WS_PORT ?? 4000)
+
+/** The app's own version, read once at startup from the repo root `package.json` — the single source of truth also mirrored in `installer/wraps-coffee.iss`'s `AppVersion`. Surfaced via `GET /server-info` for the Settings → About card. */
+const APP_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version
 
 /** Maps each synced key to the dashboard section that edits it, for the `limited`-role write check below. Keys with no admin-editable section (kiosk-only config) aren't section-gated at all — any authenticated write is enough. */
 const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
@@ -134,11 +138,12 @@ const httpServer = createServer((req, res) => {
     return
   }
 
-  // Public, no auth — just this machine's own network address, needed to build
-  // a LAN-reachable URL (e.g. a screen's link) from a page that may itself
-  // have been opened via `localhost`.
+  // Public, no auth — this machine's own network address, needed to build a
+  // LAN-reachable URL (e.g. a screen's link) from a page that may itself have
+  // been opened via `localhost`, plus the running app's own version (see
+  // Settings → About).
   if (req.method === 'GET' && url.pathname === '/server-info') {
-    sendJson(res, 200, { lanIp: getLanIp() })
+    sendJson(res, 200, { lanIp: getLanIp(), version: APP_VERSION })
     return
   }
 
@@ -1828,6 +1833,25 @@ process.on('unhandledRejection', (error) => {
   console.error('[server] unhandled rejection:', error)
   process.exit(1)
 })
+
+// A clean stop for `systemctl stop` (sends SIGTERM) and the installer/uninstaller
+// scripts (see installer/wraps-coffee.iss, installer/linux/uninstall.sh) to ask
+// for instead of a hard `taskkill`/`pkill -9` — tears down every background
+// subsystem started below before actually exiting.
+let shuttingDown = false
+function shutdown(signal: NodeJS.Signals) {
+  if (shuttingDown) return
+  shuttingDown = true
+  console.log(`[server] received ${signal}, shutting down...`)
+  woltPoller.stop()
+  foodoraPoller.stop()
+  neonBridge.stop()
+  mdns.stop()
+  wss.close()
+  httpServer.close(() => process.exit(0))
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
 
 backup.restoreFromSiblingBackupIfFresh()
 store.load()

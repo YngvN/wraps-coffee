@@ -10,6 +10,7 @@ import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { useSidebarSettings } from '../../../hooks/useSidebarSettings'
 import { goBack } from '../../../lib/backStack'
+import { getAppVersion } from '../../../lib/localServer'
 import type { ToggleableSidebarItem } from '../../../types/sidebarSettings'
 import { IntegrationsView } from '../integrations/IntegrationsView'
 import { ADMIN_NAV_ICONS, NAV_ITEMS } from '../layout/adminNavItems'
@@ -37,6 +38,7 @@ export function SettingsView() {
   const [screensaverSettings, setScreensaverSettings] = useDashboardScreensaverSettings()
   const toggleableItems = NAV_ITEMS.filter((item) => item.toggleable)
   const [searchParams, setSearchParams] = useSearchParams()
+  const [appVersion, setAppVersion] = useState<string | null>(null)
   /**
    * Which sub-view (replacing the whole settings list until its own Back
    * button is pressed) is open, if any — seeded from `?view=` (the
@@ -60,6 +62,13 @@ export function SettingsView() {
       return current
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only meant to run once, right on mount, clearing whatever deep-link param this page happened to be opened with.
+  }, [])
+
+  /** For the About card at the bottom of the main list, below. */
+  useEffect(() => {
+    getAppVersion()
+      .then(setAppVersion)
+      .catch(() => setAppVersion(null))
   }, [])
 
   const toggleSidebarItem = (item: ToggleableSidebarItem, visible: boolean) => {
@@ -268,6 +277,11 @@ export function SettingsView() {
               </Button>
             </Card>
           )}
+          <Card title={t('admin.settings.about.title')}>
+            <p className="settings-view__developers-hint">
+              {appVersion ? t('admin.settings.about.versionLabel', { version: appVersion }) : t('admin.settings.about.loading')}
+            </p>
+          </Card>
         </div>
       )}
     </SlideTransition>

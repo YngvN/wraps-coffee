@@ -63,6 +63,12 @@ interface GlobalTextSizeScalerProps {
   }
   /** Shows a "Background" button that navigates to the screen's own background color/image sub-view — omit to hide it. Only passed by the on-screen "Edit appearance" panel; the admin form's Global tab already has its own "Background" button directly, alongside this panel's own "Edit text size" one. */
   onOpenBackground?: () => void
+  /** Shows a "Borders" button that navigates to the shared pane-border visibility/color sub-view (`BorderSettingsEditor`) — omit to hide it. Only passed while the screen has more than one pane (borders are meaningless with just one), same `leaves.length > 1` gate `ScreenForm.tsx`'s own "Borders" menu button uses. */
+  onOpenBorders?: () => void
+  /** Shows a "Transitions" button that navigates to the shared content-transition-style/pane-growth-fallback sub-view (`TransitionSettingsEditor`) — omit to hide it. */
+  onOpenTransitions?: () => void
+  /** Shows an "Other settings" button that navigates to the shared catch-all sub-view (`OtherSettingsEditor`, currently just `hideScrollbar`) — omit to hide it. */
+  onOpenOtherSettings?: () => void
   onDone: () => void
 }
 
@@ -79,9 +85,11 @@ export interface GlobalTextSizeScalerHandle {
  * value — all keep their own current size and are scaled relative to the
  * reference point captured when the panel opened (or reset to, if "Reset"
  * was used since). The
- * screen's own overall background (color and image) lives in its own
- * separate sub-view (`onOpenBackground`), not here, since it's always live
- * and has no restore/reset semantics of its own. "Restore previous" undoes
+ * screen's own overall background (color and image), pane borders,
+ * transitions, and other catch-all settings each live in their own separate
+ * sub-view (`onOpenBackground`/`onOpenBorders`/`onOpenTransitions`/
+ * `onOpenOtherSettings`), not here, since they're always live and have no
+ * restore/reset semantics of their own. "Restore previous" undoes
  * everything back to how the screen was when the panel opened; "Reset"
  * instead sets every size to the hardcoded standard and clears every slot's
  * own color/image (at every stage) back to a single fresh default. Also
@@ -91,7 +99,7 @@ export interface GlobalTextSizeScalerHandle {
  * wrapping `Modal`'s header.
  */
 export const GlobalTextSizeScaler = forwardRef<GlobalTextSizeScalerHandle, GlobalTextSizeScalerProps>(function GlobalTextSizeScaler(
-  { screen, onChange, screensaver, onOpenBackground, onDone },
+  { screen, onChange, screensaver, onOpenBackground, onOpenBorders, onOpenTransitions, onOpenOtherSettings, onDone },
   ref,
 ) {
   const { t } = useLanguage()
@@ -173,6 +181,24 @@ export const GlobalTextSizeScaler = forwardRef<GlobalTextSizeScalerHandle, Globa
       {onOpenBackground && (
         <Button type="button" variant="secondary" onClick={onOpenBackground}>
           {t('admin.screens.backgroundLabel')}
+        </Button>
+      )}
+
+      {onOpenBorders && (
+        <Button type="button" variant="secondary" onClick={onOpenBorders}>
+          {t('admin.screens.bordersLabel')}
+        </Button>
+      )}
+
+      {onOpenTransitions && (
+        <Button type="button" variant="secondary" onClick={onOpenTransitions}>
+          {t('admin.screens.transitionsLabel')}
+        </Button>
+      )}
+
+      {onOpenOtherSettings && (
+        <Button type="button" variant="secondary" onClick={onOpenOtherSettings}>
+          {t('admin.screens.otherSettingsLabel')}
         </Button>
       )}
 

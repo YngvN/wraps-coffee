@@ -10,10 +10,12 @@ import { FullscreenToggle } from '../features/screens/FullscreenToggle'
 import { GlobalTextSizeScaler, type GlobalTextSizeScalerHandle, type SizeSnapshot } from '../features/screens/GlobalTextSizeScaler'
 import { KeepEditPrompt, type SlotEditChanges } from '../features/screens/KeepEditPrompt'
 import { NoConnectionIcon } from '../features/screens/NoConnectionIcon'
+import { OtherSettingsEditor } from '../features/screens/OtherSettingsEditor'
 import { ScreenToolbar } from '../features/screens/ScreenToolbar'
 import { SlotEditor } from '../features/screens/SlotEditor'
 import { SplitLayout } from '../features/screens/SplitLayout'
 import { StagePlaybackControls } from '../features/screens/StagePlaybackControls'
+import { TransitionSettingsEditor } from '../features/screens/TransitionSettingsEditor'
 import { useIdleVisibility } from '../features/screens/useIdleVisibility'
 import { useAdminSession } from '../hooks/useAdminSession'
 import { evictUnusedVideoCache, prewarmVideoCache } from '../hooks/useCachedVideoSrc'
@@ -31,10 +33,12 @@ import {
   type BackgroundImage,
   type DraftableScreenFields,
   type LayoutNode,
+  type PaneGrowthFallback,
   type PaneId,
   type ScreenConfig,
   type ScreenSlot,
   type ScreenSlotContent,
+  type ScreenTransitionStyle,
   type SplitDirection,
   type TextSizes,
 } from '../types/screen'
@@ -139,18 +143,28 @@ function redoScreenState(screens: ScreenConfig[], current: ScreenConfig, undoSta
  * make a change: the toolbar's "Edit appearance" button opens a
  * percentage-based scaler (`GlobalTextSizeScaler`) that grows/shrinks the
  * screen's default and every pane's own size (across every stage they
- * have) all together, relative to whatever each currently is — plus its
- * own "Background" button, opening a sub-view (`BackgroundEditor`) for the
- * screen's own overall background color and an optional whole-screen
- * background image (blurred and scaled to cover, same technique as a
- * pane's own — see `SplitLayout.tsx`'s own `screenBackgroundImage`, which
- * renders it for every one of that component's callers, not just this
- * page), shown through any pane that doesn't have its own background
- * color/image (a pane's own individual background is only editable from
- * that pane's own editor, not here).
- * Unlike the scaler's own fields, both write on every change, with no
- * local draft/"restore previous" step of their own (they're still subject
- * to the toolbar's own Live editing toggle, like everything else — see
+ * have) all together, relative to whatever each currently is — plus four
+ * further buttons of its own, each mirroring the identically-named menu
+ * button in `ScreenForm.tsx`'s own main view: "Background", opening a
+ * sub-view (`BackgroundEditor`) for the screen's own overall background
+ * color and an optional whole-screen background image (blurred and scaled
+ * to cover, same technique as a pane's own — see `SplitLayout.tsx`'s own
+ * `screenBackgroundImage`, which renders it for every one of that
+ * component's callers, not just this page), shown through any pane that
+ * doesn't have its own background color/image; "Borders" (only shown once
+ * there's more than one pane to have a border between, same gate
+ * `ScreenForm.tsx`'s own "Borders" menu button uses), opening
+ * `BorderSettingsEditor` for whether shared pane borders show at all and
+ * their color — mirroring the same sub-view a plain (non-drag) click
+ * directly on a pane divider also opens (`openBorderEditor`); "Transitions",
+ * opening `TransitionSettingsEditor` for the slide-change animation style
+ * and the pane-growth fallback; and "Other settings", opening
+ * `OtherSettingsEditor` for the remaining catch-all screen fields
+ * (currently just `hideScrollbar`). A pane's own individual background is
+ * only editable from that pane's own editor, not any of these. Unlike the
+ * scaler's own fields, all four write on every change, with no local
+ * draft/"restore previous" step of their own (they're still subject to the
+ * toolbar's own Live editing toggle, like everything else — see
  * `applyScreenPatch`). Hovering any individual pane instead
  * reveals a small "Edit pane" button covering that whole pane: once
  * `screen.useStages` is on and there's more than one stage, a stage-tab bar
@@ -259,9 +273,9 @@ export function ScreenDisplay() {
   /** The inverse of `undoStack` — what Ctrl+Shift+Z / the toolbar's own redo button restores, populated only by `handleUndo` itself and cleared by any *new* edit (see `applyScreenPatch`), matching how redo history works everywhere else once you diverge from it with a fresh change. */
   const [redoStack, setRedoStack] = useState<ScreenConfig[]>([])
   const [screenDraftSnapshot, setScreenDraftSnapshot] = useState<SizeSnapshot | null>(null)
-  /** Whether the whole-screen editor is showing its own "Background" or "Borders" sub-view instead of the main percentage scaler — reset whenever the editor (re)opens. Both write straight through `applyScreenPatch` on every change (see `handleScreenBackgroundColorChange`/`handleScreenBackgroundImageChange`/`handleShowSlotBordersChange`/`handleBorderColorChange`), so unlike the scaler's own fields neither has any local draft/restore state of its own. */
-  const [screenSubview, setScreenSubview] = useState<'background' | 'border' | null>(null)
-  /** Lets the "Edit screen" modal's own header undo button (see the `Modal`'s `onUndo`) trigger `GlobalTextSizeScaler`'s own "Restore previous" from outside its action row — only actually passed to the modal while `screenSubview` is `null` (its own main view), since the background/border sub-views have no restore semantics of their own. */
+  /** Whether the whole-screen editor is showing its own "Background", "Borders", "Transitions", or "Other settings" sub-view instead of the main percentage scaler — reset whenever the editor (re)opens. All four write straight through `applyScreenPatch` on every change (see `handleScreenBackgroundColorChange`/`handleScreenBackgroundImageChange`/`handleShowSlotBordersChange`/`handleBorderColorChange`/`handleTransitionStyleChange`/`handlePaneGrowthFallbackChange`/`handleHideScrollbarChange`), so unlike the scaler's own fields none of them has any local draft/restore state of its own. */
+  const [screenSubview, setScreenSubview] = useState<'background' | 'border' | 'transitions' | 'other' | null>(null)
+  /** Lets the "Edit screen" modal's own header undo button (see the `Modal`'s `onUndo`) trigger `GlobalTextSizeScaler`'s own "Restore previous" from outside its action row — only actually passed to the modal while `screenSubview` is `null` (its own main view), since none of the other sub-views has restore semantics of their own. */
   const globalTextSizeScalerRef = useRef<GlobalTextSizeScalerHandle>(null)
   const [draftSlot, setDraftSlot] = useState<ScreenSlot>(emptySlot())
   const [originalSlot, setOriginalSlot] = useState<ScreenSlot>(emptySlot())
@@ -932,6 +946,15 @@ export function ScreenDisplay() {
   /** Writes the shared pane borders' own color — same reasoning as `handleScreenBackgroundColorChange`. */
   const handleBorderColorChange = (borderColor: string | undefined) => applyScreenPatch({ borderColor })
 
+  /** Writes how a slot's slide change is animated — same reasoning as `handleScreenBackgroundColorChange`. */
+  const handleTransitionStyleChange = (transitionStyle: ScreenTransitionStyle) => applyScreenPatch({ transitionStyle })
+
+  /** Writes the fallback entrance/exit a pane with no existing divider to grow from/collapse into uses — same reasoning as `handleScreenBackgroundColorChange`. */
+  const handlePaneGrowthFallbackChange = (paneGrowthFallback: PaneGrowthFallback) => applyScreenPatch({ paneGrowthFallback })
+
+  /** Writes whether a scrolling pane's own scrollbar is hidden — same reasoning as `handleScreenBackgroundColorChange`. */
+  const handleHideScrollbarChange = (hideScrollbar: boolean) => applyScreenPatch({ hideScrollbar })
+
   /** Resets the pane (content/color), its text-size drafts, and which stage tab is active back to the values captured when the editor was opened — the actual persisting still only happens once the editor closes. The whole-screen scaler restores itself internally. */
   const handleRestore = () => {
     setDraftSlot(originalSlot)
@@ -1177,7 +1200,15 @@ export function ScreenDisplay() {
         onClose={requestCloseEditor}
         title={t('screenDisplay.textSizeEditor.title')}
         route={
-          screenSubview === 'background' ? t('admin.screens.backgroundLabel') : screenSubview === 'border' ? t('admin.screens.bordersLabel') : undefined
+          screenSubview === 'background'
+            ? t('admin.screens.backgroundLabel')
+            : screenSubview === 'border'
+              ? t('admin.screens.bordersLabel')
+              : screenSubview === 'transitions'
+                ? t('admin.screens.transitionsLabel')
+                : screenSubview === 'other'
+                  ? t('admin.screens.otherSettingsLabel')
+                  : undefined
         }
         onUndo={screenSubview === null ? () => globalTextSizeScalerRef.current?.restore() : undefined}
       >
@@ -1201,6 +1232,21 @@ export function ScreenDisplay() {
               onBorderColorChange={handleBorderColorChange}
             />
           </>
+        ) : screenSubview === 'transitions' ? (
+          <>
+            <BackButton onClick={() => setScreenSubview(null)}>{t('admin.common.back')}</BackButton>
+            <TransitionSettingsEditor
+              transitionStyle={viewScreen.transitionStyle}
+              onTransitionStyleChange={handleTransitionStyleChange}
+              paneGrowthFallback={viewScreen.paneGrowthFallback ?? 'screenEdge'}
+              onPaneGrowthFallbackChange={handlePaneGrowthFallbackChange}
+            />
+          </>
+        ) : screenSubview === 'other' ? (
+          <>
+            <BackButton onClick={() => setScreenSubview(null)}>{t('admin.common.back')}</BackButton>
+            <OtherSettingsEditor hideScrollbar={viewScreen.hideScrollbar ?? false} onHideScrollbarChange={handleHideScrollbarChange} />
+          </>
         ) : (
           <GlobalTextSizeScaler
             ref={globalTextSizeScalerRef}
@@ -1217,6 +1263,9 @@ export function ScreenDisplay() {
                 : undefined
             }
             onOpenBackground={() => setScreenSubview('background')}
+            onOpenBorders={editingLeaves.length > 1 ? () => setScreenSubview('border') : undefined}
+            onOpenTransitions={() => setScreenSubview('transitions')}
+            onOpenOtherSettings={() => setScreenSubview('other')}
             onDone={requestCloseEditor}
           />
         )}

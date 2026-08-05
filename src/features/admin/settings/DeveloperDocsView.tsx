@@ -141,7 +141,7 @@ export function DeveloperDocsView() {
         <p>{t('admin.settings.developerDocs.serverInfoText')}</p>
         <pre>
           <code>{`GET /server-info                  (public — no token needed)
-→ 200 { "lanIp": "192.168.1.23" | null }`}</code>
+→ 200 { "lanIp": "192.168.1.23" | null, "version": "0.1.0" }`}</code>
         </pre>
 
         <p>{t('admin.settings.developerDocs.screenAddressText')}</p>

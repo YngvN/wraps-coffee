@@ -76,3 +76,9 @@ export function start(applyUpdate: ApplyUpdate) {
 export function restart() {
   void pollOnce()
 }
+
+/** Stops the poll interval — called on graceful shutdown (SIGTERM/SIGINT). */
+export function stop() {
+  if (timer) clearInterval(timer)
+  timer = null
+}

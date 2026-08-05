@@ -36,6 +36,14 @@ export async function getLanIp(): Promise<string | null> {
   return lanIp
 }
 
+/** The running app's own version (from `package.json`, mirrored in `installer/wraps-coffee.iss`'s `AppVersion`) — public, no auth needed. Used by the Settings → About card. */
+export async function getAppVersion(): Promise<string> {
+  const response = await fetch(`${serverBaseUrl()}/server-info`)
+  if (!response.ok) throw new Error('Could not fetch server info')
+  const { version } = (await response.json()) as { version: string }
+  return version
+}
+
 // --- Display Manager (Settings-adjacent, but a public/no-auth machine self-report — see server/index.ts's own comment on this route) ---
 
 /** Self-reports this machine/tab's presence and current monitor list — best-effort, same posture as `logout`: a failure (server unreachable) just means this display doesn't show up in the Display Manager yet, not something worth surfacing to whoever's looking at an otherwise-working kiosk screen. */

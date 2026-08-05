@@ -90,10 +90,13 @@ if errorlevel 1 (
   call :check_health
   if errorlevel 1 (
     echo Server isn't responding, restarting it...
-    rem Electron shows up as electron.exe, not node.exe, so this can't touch
-    rem the app window - it only clears out the dead/hung vite+tsx processes
-    rem before starting a fresh pair on the same ports.
-    taskkill /F /IM node.exe >nul 2>&1
+    rem Scoped to whatever's actually bound to this app's own ports
+    rem (4000/4173) rather than every node.exe on the machine - a plain
+    rem "taskkill /IM node.exe" used to also kill unrelated Node processes
+    rem someone else might be running on this PC. Electron shows up as
+    rem electron.exe, not node.exe, so this still can't touch the app window
+    rem either way.
+    powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 4000,4173 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }" >nul 2>&1
     call :start_server
     call :wait_until_healthy
   )
