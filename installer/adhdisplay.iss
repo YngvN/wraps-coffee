@@ -63,14 +63,40 @@ begin
   Result := RegKeyExists(HKLM, 'SOFTWARE\Node.js');
 end;
 
+// Stops this app's own running processes so neither an in-place update/repair
+// nor a full uninstall runs into locked files - scoped to the app's own ports
+// (4000 = the sync server, 4173 = vite preview) rather than a blanket "kill
+// every node.exe on this machine", which would also take down unrelated Node
+// processes. Tries a plain Stop-Process first (lets the server's own
+// SIGTERM-equivalent graceful shutdown - see server/index.ts's shutdown() -
+// run) and only falls back to -Force if something's still listening a moment
+// later. Also used by [UninstallRun] below (as plain commands there, since
+// that section can't call into this script's own Pascal procedures).
+procedure StopRunningProcesses();
+var
+  ResultCode: Integer;
+begin
+  Exec('powershell.exe',
+    '-NoProfile -Command "' +
+    '$ids = Get-NetTCPConnection -LocalPort 4000,4173 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; ' +
+    'foreach ($procId in $ids) { Stop-Process -Id $procId -ErrorAction SilentlyContinue }; ' +
+    'Start-Sleep -Milliseconds 1500; ' +
+    '$ids = Get-NetTCPConnection -LocalPort 4000,4173 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; ' +
+    'foreach ($procId in $ids) { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue }"',
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('taskkill.exe', '/F /IM electron.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
 // Runs before the wizard even shows its first page. Without this, running the
 // installer again just overwrites the existing install's files in place with
 // no warning - which is fine for the app files themselves (ignoreversion), but
 // silently re-runs the full "install Node/npm install/npm build" sequence
-// every time and gives no chance to cleanly remove a previous install first.
+// every time and gives no chance to cleanly remove a previous install first,
+// or to stop the running app before touching its own files.
 function InitializeSetup(): Boolean;
 var
   UninstallString: String;
+  InstalledVersion: String;
   ResultCode: Integer;
 begin
   Result := True;
@@ -80,13 +106,22 @@ begin
       'Click Yes to uninstall the existing version first (recommended), or No to install over it as-is.',
       mbConfirmation, MB_YESNOCANCEL) of
       IDYES:
+        // Update in place - stop whatever's running so files aren't locked,
+        // then fall through to the normal install steps below
+        // (CurStepChanged), which already overwrite [Files] (ignoreversion)
+        // and re-run npm install / npm run build. Data (server\data,
+        // server\uploads) is excluded from [Files], so it's untouched.
+        // Tick the "repair" task (see [Tasks] below) on the next wizard page
+        // for a clean node_modules/dist wipe too, if a plain update alone
+        // doesn't fix a broken install.
+        StopRunningProcesses();
+      IDNO:
         begin
           UninstallString := RemoveQuotes(UninstallString);
           Exec(UninstallString, '/SILENT /NORESTART /SUPPRESSMSGBOXES', '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
         end;
       IDCANCEL:
         Result := False;
-      // IDNO: fall through and install over the existing copy.
     end;
   end;
 end;
@@ -143,6 +178,17 @@ begin
         '-NoProfile -Command "Add-MpPreference -ExclusionPath ' + #39 + ExpandConstant('{app}') + #39 +
         '; Add-MpPreference -ExclusionPath ' + #39 + ExpandConstant('{localappdata}') + '\npm-cache' + #39 + '"',
         '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    end;
+
+    // Opt-in (see [Tasks] below) - for when a plain update-in-place doesn't
+    // fix a broken install (corrupted node_modules, a stale/half-built
+    // dist). Deleted before npm install/build below so both regenerate
+    // from scratch; harmless no-op on a fresh install where neither exists yet.
+    if WizardIsTaskSelected('repair') then
+    begin
+      WizardForm.StatusLabel.Caption := 'Removing node_modules and dist for a clean reinstall...';
+      DelTree(ExpandConstant('{app}\node_modules'), True, True, True);
+      DelTree(ExpandConstant('{app}\dist'), True, True, True);
     end;
 
     NpmCmd := NodeBinDir('') + 'npm.cmd';
@@ -229,6 +275,7 @@ Type: filesandordirs; Name: "{app}\server\uploads"
 Name: "autostart"; Description: "Launch automatically when Windows starts (recommended)"; GroupDescription: "Additional shortcuts:"
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 Name: "defenderexclusion"; Description: "Add a Windows Defender exclusion for the install folder (helps avoid install failures caused by antivirus interference, e.g. ""corrupted tarball"" errors during npm install)"; GroupDescription: "Troubleshooting:"; Flags: unchecked
+Name: "repair"; Description: "Force a clean reinstall (delete node_modules and dist before reinstalling - use if updating doesn't fix a broken install)"; GroupDescription: "Troubleshooting:"; Flags: unchecked
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\start-adhdisplay.bat"

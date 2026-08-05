@@ -3,8 +3,8 @@ import type { BilingualText } from './bilingual'
 /** A price in NOK: either a single amount, or separate takeaway / eat-in amounts. */
 export type Price = number | { takeaway: number; eatIn: number }
 
-/** Abbreviated allergen code a product can be marked with, shown to staff (in the admin Products view and form) as a compact letter — customer-facing displays (the kiosk screens) instead show each one's full name via `ALLERGEN_OPTIONS`. */
-export type AllergenCode = 'G' | 'M' | 'F' | 'N'
+/** Abbreviated allergen code a product can be marked with, shown to staff (in the admin Products view and form) as a compact letter — customer-facing displays (the kiosk screens) instead show each one's full name via `ALLERGEN_OPTIONS`. Covers the Norwegian Food Safety Authority's (Mattilsynet) 14 mandatory allergens; wheat is folded into `'G'`/gluten rather than broken out on its own, since wheat is itself a gluten source. */
+export type AllergenCode = 'G' | 'M' | 'F' | 'N' | 'E' | 'P' | 'S' | 'C' | 'MU' | 'SE' | 'SU' | 'L' | 'MO'
 
 /** Every allergen code paired with its own i18n key (`menu.allergens.items.<i18nKey>.title`) — shared by the admin product form's checkboxes and anywhere a product's allergens are shown by their full name. */
 export const ALLERGEN_OPTIONS: { code: AllergenCode; i18nKey: string }[] = [
@@ -12,6 +12,15 @@ export const ALLERGEN_OPTIONS: { code: AllergenCode; i18nKey: string }[] = [
   { code: 'M', i18nKey: 'milk' },
   { code: 'F', i18nKey: 'fishShellfish' },
   { code: 'N', i18nKey: 'cashews' },
+  { code: 'E', i18nKey: 'egg' },
+  { code: 'P', i18nKey: 'peanuts' },
+  { code: 'S', i18nKey: 'soy' },
+  { code: 'C', i18nKey: 'celery' },
+  { code: 'MU', i18nKey: 'mustard' },
+  { code: 'SE', i18nKey: 'sesame' },
+  { code: 'SU', i18nKey: 'sulphites' },
+  { code: 'L', i18nKey: 'lupin' },
+  { code: 'MO', i18nKey: 'molluscs' },
 ]
 
 /**
@@ -39,6 +48,8 @@ export interface Product {
   /** Set exactly when `category` is unset — this product lives directly in this `Catalogue.id`, not grouped under any of its categories (e.g. a one-off item that doesn't fit the catalogue's usual categories). Use `resolveProductCatalogue` (`src/utils/productCatalogue.ts`) rather than reading either field directly, since call sites need to handle both cases. */
   catalogueId?: string
   name: BilingualText
+  /** `fold(name.no)`/`fold(name.en)` (see `src/lib/textFold.ts`) — recomputed server-side on every write (`applyUpdate` in `server/index.ts`), never edited directly. Powers the product-name resolution ladder's tiers 2-3 (`server/assistant/productNameResolution.ts`) so a free-text lookup like "mokka" can match a product actually named "Mocha" without a model call. Absent on a product that predates this field until the next write recomputes it. */
+  nameFolded?: BilingualText
   description: BilingualText
   /** Optional photo, set via `ImageUploadField` — shown as a thumbnail in the admin product list row and beside the item on the kiosk "Catalogue" slide. */
   image?: string

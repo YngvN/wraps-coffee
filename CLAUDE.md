@@ -83,6 +83,11 @@
 - The assistant never writes app data itself — every one of its own routes (`/assistant/intent`, `/assistant/select-item`, `/assistant/fill-fields`) only ever proposes a draft; the actual write always goes through the same existing save/delete path the manual UI already uses (see `server/assistant/types.ts`'s own module doc comment). Don't add a write inside `server/assistant/*` to "simplify" a future entity — that would break this invariant.
 - Unlike the README, this should be kept up to date automatically without asking the user first.
 
+## Versioning
+- On completing any requested change (a fix, a feature, etc.), bump the version by +0.05: `package.json`'s `version` field and `installer/wraps-coffee.iss`'s `AppVersion` must both be updated together, in the same change — they're required to stay in sync (see the comment above `AppVersion` in the `.iss` file).
+- The +0.05 step applies to the two-decimal part, e.g. `0.15.0` → `0.20.0` (and `AppVersion` `0.15` → `0.20`), not standard semver incrementing.
+- Unlike the README, this should be kept up to date automatically without asking the user first.
+
 ## README
 - After implementing new functionality, check whether `README.md` (Features / Project structure / Getting started) should be updated to describe it.
 - Don't update `README.md` automatically — ask the user whether they want it updated. Ask this as the last step, after the functionality itself is complete.

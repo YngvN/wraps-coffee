@@ -106,6 +106,19 @@ export const lookupQueryChecks: PostCheck<LookupQuerySpec, LookupQueryCheckConte
 export function reconsiderEmptyResult<TRecord>(
   filters: LookupQueryFilterInput[],
   executeQuery: (filters: LookupQueryFilterInput[]) => TRecord[],
+  /**
+   * The total unfiltered record count, and exactly one field key this call site can *prove* is
+   * already intercepted upstream before ever reaching here (see `buildEntityQueryDataBlock`'s own
+   * product-name branch) — used only by the structural guard below, never the "retry" logic itself.
+   * Deliberately a single named field, not "any string-type field": a product's own `locationLabel`/
+   * `allergens`/`dietaryTags` fields are also free text with no resolution ladder behind them, and
+   * *should* keep today's "show the rest instead" fallback — only `name` on `product` has a ladder to
+   * bounce to, so only that exact combination is a provable invariant worth throwing on. Optional so
+   * any call site with no such guarantee (every entity/field other than `product`'s own `name`) just
+   * gets the original, unguarded behavior — throwing there would convert a merely-suboptimal reply
+   * into a live regression for something this feature was never scoped to touch.
+   */
+  guard?: { totalRecordCount: number; guardedFieldKey: string },
 ): { matches: TRecord[]; filtersUsed: LookupQueryFilterInput[]; droppedFilter: boolean } {
   const matches = executeQuery(filters)
   if (matches.length > 0 || filters.length === 0) return { matches, filtersUsed: filters, droppedFilter: false }
@@ -113,6 +126,15 @@ export function reconsiderEmptyResult<TRecord>(
   const narrowedFilters = filters.slice(0, -1)
   const widerMatches = executeQuery(narrowedFilters)
   if (widerMatches.length === 0) return { matches, filtersUsed: filters, droppedFilter: false }
+
+  // Structural backstop for the exact "Har vi mokka?" bug mechanism: the single filter that was
+  // just dropped is the one field this call site can prove is already intercepted before ever
+  // reaching here — so this should be provably unreachable. If it ever fires, the interception
+  // upstream broke, and that's a bug worth a loud failure, not a silent 69-product dump.
+  if (guard && narrowedFilters.length === 0 && widerMatches.length === guard.totalRecordCount && filters[filters.length - 1].field === guard.guardedFieldKey) {
+    const droppedFilter = filters[filters.length - 1]
+    throw new Error(`reconsiderEmptyResult: refusing to fall back to every record after dropping the only filter ("${droppedFilter.field}") — this field is supposed to already be intercepted before this function runs.`)
+  }
 
   return { matches: widerMatches, filtersUsed: narrowedFilters, droppedFilter: true }
 }

@@ -1851,7 +1851,8 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
 
                   {flow.state.status === 'clarifyingLookupItem' && (
                     <div className="assistant-panel__confirm-item">
-                      <p>{t('admin.assistant.clarifyLookupItemQuestion')}</p>
+                      {/* A single candidate here only ever comes from the product-name resolution ladder's tier 4 (an inexact single match, see `productNameResolution.ts`) — "which one did you mean?" reads oddly over one option, so it gets its own, more accurate "did you mean this?" phrasing. The pre-existing multi-candidate question (tier 3/5 ambiguity, or the unrelated `selectItem`-based case) is unchanged. */}
+                      <p>{flow.state.candidates.length === 1 ? t('admin.assistant.suggestLookupMatchQuestion') : t('admin.assistant.clarifyLookupItemQuestion')}</p>
                       <ul>
                         {flow.state.candidates.map((candidate) => (
                           <li key={candidate.id}>

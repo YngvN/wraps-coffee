@@ -10,6 +10,8 @@ import { DEFAULT_SIDEBAR_SETTINGS } from '../src/types/sidebarSettings'
 import { SYNCED_KEYS, type AdminRole, type DashboardSection, type SyncedKey } from '../src/types/sync'
 import { DEFAULT_FOODORA_CONFIG, DEFAULT_WOLT_CONFIG } from '../src/types/delivery'
 import { DEFAULT_WINDOW_LAUNCH_SETTINGS, type WindowLaunchSettings } from '../src/types/windowLaunch'
+import { logProductNameFoldedCollisions, withRecomputedNameFolded } from '../src/lib/productNameFold'
+import type { Product } from '../src/types/product'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = join(__dirname, 'data')
@@ -189,6 +191,35 @@ function persistSessions() {
   mirrorFile(SESSIONS_FILE)
 }
 
+/**
+ * Recomputes every product's `nameFolded` at every boot (not just when it's missing) — cheap at this
+ * catalog's size (a couple hundred bytes of work per product), and it means two things never need a
+ * separate migration step: a product written before `nameFolded` existed gets backfilled, and a
+ * `FOLD_VERSION` rule change (see `src/lib/textFold.ts`) takes effect on the next restart, since
+ * nothing here ever trusts a previously-computed value as still correct — `applyUpdate`
+ * (`server/index.ts`) does the same recompute-every-time on every real write, this is just the
+ * boot-time equivalent for whatever a write path might have bypassed it. Preserves the entry's own
+ * `seeded` flag (unlike the public `set()`) since this isn't a real client write; only actually
+ * touches disk when something changed.
+ */
+function backfillProductNameFolded() {
+  const entry = state.get('admin.products')
+  if (!entry) return
+  const products = entry.value as Product[]
+  if (products.length === 0) return
+
+  const recomputed = withRecomputedNameFolded(products)
+  const changed = products.some((product, index) => product.nameFolded?.no !== recomputed[index].nameFolded?.no || product.nameFolded?.en !== recomputed[index].nameFolded?.en)
+  if (changed) {
+    const updatedEntry: StoredEntry = { seeded: entry.seeded, value: recomputed }
+    state.set('admin.products', updatedEntry)
+    const filePath = dataFilePath('admin.products')
+    writeFileSync(filePath, JSON.stringify(updatedEntry), 'utf-8')
+    mirrorFile(filePath)
+  }
+  logProductNameFoldedCollisions(recomputed)
+}
+
 /** Loads (or seeds, on first boot) every synced key, the admin users file, and any still-valid sessions. Call once at server startup. */
 export function load() {
   migrateLegacyDataFile('admin.extensions', 'admin.integrations')
@@ -198,6 +229,7 @@ export function load() {
   // picking up an edit to a server/ file — doesn't silently log everyone
   // out with a confusing 401 on their very next request.
   loadSessions()
+  backfillProductNameFolded()
 }
 
 export function get(key: SyncedKey): StoredEntry | undefined {
@@ -429,9 +461,11 @@ interface AnthropicCredentials {
   apiKey: string | null
   provider: AssistantProvider
   model: AssistantModel
+  /** Tier 5 of the product-name resolution ladder (`server/assistant/productNameResolution.ts`) — a model call that picks among candidates when the deterministic fold/alias/Levenshtein tiers all miss. Its output is never auto-applied regardless of this setting (always routed through admin confirmation), so this only controls whether that fallback fires at all, not whether a bad guess could silently land. Defaults on; the admin can turn it off from Settings if a weaker local model's suggestions turn out to be more distracting than helpful. */
+  productNameCandidateSuggestionsEnabled: boolean
 }
 
-const EMPTY_ANTHROPIC_CREDENTIALS: AnthropicCredentials = { apiKey: null, provider: 'claude', model: 'claude-haiku-4-5' }
+const EMPTY_ANTHROPIC_CREDENTIALS: AnthropicCredentials = { apiKey: null, provider: 'claude', model: 'claude-haiku-4-5', productNameCandidateSuggestionsEnabled: true }
 
 function readAnthropicCredentials(): AnthropicCredentials {
   if (!existsSync(ANTHROPIC_CREDENTIALS_FILE)) return EMPTY_ANTHROPIC_CREDENTIALS
@@ -455,6 +489,14 @@ export function getAssistantProvider(): AssistantProvider {
   return readAnthropicCredentials().provider
 }
 
+export function getProductNameCandidateSuggestionsEnabled(): boolean {
+  return readAnthropicCredentials().productNameCandidateSuggestionsEnabled
+}
+
+export function setProductNameCandidateSuggestionsEnabled(enabled: boolean) {
+  writeAnthropicCredentials({ ...readAnthropicCredentials(), productNameCandidateSuggestionsEnabled: enabled })
+}
+
 export function setAssistantProvider(provider: AssistantProvider) {
   writeAnthropicCredentials({ ...readAnthropicCredentials(), provider })
 }
@@ -465,6 +507,92 @@ export function getAssistantModel(): AssistantModel {
 
 export function setAssistantModel(model: AssistantModel) {
   writeAnthropicCredentials({ ...readAnthropicCredentials(), model })
+}
+
+// --- Product-name resolution ladder: confirmed aliases + harvest log --------
+//
+// Same "small standalone file, not a synced key" shape as the settings above
+// — this is server-internal bookkeeping for `server/assistant/
+// productNameResolution.ts`'s resolution ladder, not something a dashboard
+// client edits or needs broadcast to it live. Fully covered by backup/restore
+// for free (see `server/backup.ts` — it mirrors the whole `server/data/`
+// directory, not just registered `SyncedKey`s) via the same `mirrorFile()`
+// call every other write in this module already makes.
+
+const PRODUCT_NAME_ALIASES_FILE = join(DATA_DIR, 'product-name-aliases.json')
+
+/** One admin-confirmed "this misspelling/variant means this product" mapping — written the moment an admin taps a tier-3/4/5 suggestion (see `confirmProductNameAlias` below), so the same query resolves instantly at tier 1.5 next time, no fold/Levenshtein/model call needed. */
+export interface ProductNameAlias {
+  id: string
+  /** `fold(query)`, not the raw query — one row then covers every casing/whitespace variant of the same misspelling. */
+  foldedQuery: string
+  productId: string
+  /** Which tier the suggestion that got confirmed came from — `'4'` (Levenshtein) or `'5'` (model pick); purely informational (harvest-log analysis), never read back to change resolution behavior. */
+  sourceTier: string
+  confirmedAt: string
+  /** `FOLD_VERSION` (`src/lib/textFold.ts`) at confirmation time — a row whose version doesn't match the current fold rules is treated as absent by the ladder (never actively migrated/deleted), since a real re-confirmation naturally repopulates it under the new rules. */
+  foldVersion: number
+}
+
+function readProductNameAliases(): ProductNameAlias[] {
+  if (!existsSync(PRODUCT_NAME_ALIASES_FILE)) return []
+  return JSON.parse(readFileSync(PRODUCT_NAME_ALIASES_FILE, 'utf-8')) as ProductNameAlias[]
+}
+
+export function getProductNameAliases(): ProductNameAlias[] {
+  return readProductNameAliases()
+}
+
+export function addProductNameAlias(alias: Omit<ProductNameAlias, 'id'>): ProductNameAlias {
+  const aliases = readProductNameAliases()
+  const created: ProductNameAlias = { ...alias, id: randomUUID() }
+  aliases.push(created)
+  writeFileSync(PRODUCT_NAME_ALIASES_FILE, JSON.stringify(aliases), 'utf-8')
+  mirrorFile(PRODUCT_NAME_ALIASES_FILE)
+  return created
+}
+
+const PRODUCT_NAME_RESOLUTION_LOG_FILE = join(DATA_DIR, 'product-name-resolution-log.json')
+
+/** Most recent entries kept on disk — this is a debug/measurement surface (see the assistant's Developer Docs "Backup"-style card), not an audit trail that needs to be complete forever; unbounded growth would otherwise make an already-append-only JSON file grow forever. */
+const PRODUCT_NAME_RESOLUTION_LOG_MAX_ENTRIES = 2000
+
+/**
+ * One row per tier-2-and-below resolution attempt (see `resolveProductName` in `server/assistant/
+ * productNameResolution.ts`) — the measurement surface for the whole ladder. A `'suggest'`/`'ambiguous'`
+ * outcome (tier 3/4/5) is logged twice under the same `presentationId`: once at generation time
+ * (`confirmed: false`) and again if the admin actually taps a candidate (`confirmed: true`,
+ * `resolvedProductId` set) — `presentationId` is what lets those two rows be paired reliably even if
+ * the exact same query text is asked more than once with different outcomes (a plain "no later
+ * confirmed:true row for this query" check would misattribute across repeats). A `presentationId` with
+ * no `confirmed: true` companion was implicitly rejected — there's no separate reject event to log.
+ */
+export interface ProductNameResolutionLogEntry {
+  query: string
+  foldedQuery: string
+  tier: string
+  resolvedProductId: string | null
+  confirmed: boolean
+  timestamp: string
+  /** Correlates a `'suggest'`/`'ambiguous'` presentation with its later confirmation — see this interface's own doc comment. Always present; a hit/miss row that nothing will ever confirm still gets a fresh one, simplest to reason about than making it conditionally optional. */
+  presentationId: string
+}
+
+function readProductNameResolutionLog(): ProductNameResolutionLogEntry[] {
+  if (!existsSync(PRODUCT_NAME_RESOLUTION_LOG_FILE)) return []
+  return JSON.parse(readFileSync(PRODUCT_NAME_RESOLUTION_LOG_FILE, 'utf-8')) as ProductNameResolutionLogEntry[]
+}
+
+export function getProductNameResolutionLog(): ProductNameResolutionLogEntry[] {
+  return readProductNameResolutionLog()
+}
+
+export function appendProductNameResolutionLogEntry(entry: ProductNameResolutionLogEntry) {
+  const log = readProductNameResolutionLog()
+  log.push(entry)
+  const trimmed = log.length > PRODUCT_NAME_RESOLUTION_LOG_MAX_ENTRIES ? log.slice(log.length - PRODUCT_NAME_RESOLUTION_LOG_MAX_ENTRIES) : log
+  writeFileSync(PRODUCT_NAME_RESOLUTION_LOG_FILE, JSON.stringify(trimmed), 'utf-8')
+  mirrorFile(PRODUCT_NAME_RESOLUTION_LOG_FILE)
 }
 
 // --- AI assistant (Ollama/local) settings ------------------------------------

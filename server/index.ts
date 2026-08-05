@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { WebSocketServer, type WebSocket } from 'ws'
@@ -8,6 +9,7 @@ import type { ScreenAddressSettings } from '../src/types/screenAddress'
 import type { WindowLaunchSettings } from '../src/types/windowLaunch'
 import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
+import { logProductNameFoldedCollisions, withRecomputedNameFolded } from '../src/lib/productNameFold'
 import * as assistantSteps from './assistant/steps'
 import type { LookupQueryFilterInput } from './assistant/lookupQuery'
 import { deleteOllamaModel, ensureOllamaRunning, listOllamaModels, pullOllamaModel, testOllamaConnection } from './assistant/ollamaClient'
@@ -29,6 +31,9 @@ import * as woltAdapter from './woltAdapter'
 import * as woltPoller from './woltPoller'
 
 const PORT = Number(process.env.WS_PORT ?? 4000)
+
+/** The app's own version, read once at startup from the repo root `package.json` — the single source of truth also mirrored in `installer/wraps-coffee.iss`'s `AppVersion`. Surfaced via `GET /server-info` for the Settings → About card. */
+const APP_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version
 
 /** Maps each synced key to the dashboard section that edits it, for the `limited`-role write check below. Keys with no admin-editable section (kiosk-only config) aren't section-gated at all — any authenticated write is enough. */
 const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
@@ -134,11 +139,12 @@ const httpServer = createServer((req, res) => {
     return
   }
 
-  // Public, no auth — just this machine's own network address, needed to build
-  // a LAN-reachable URL (e.g. a screen's link) from a page that may itself
-  // have been opened via `localhost`.
+  // Public, no auth — this machine's own network address, needed to build a
+  // LAN-reachable URL (e.g. a screen's link) from a page that may itself have
+  // been opened via `localhost`, plus the running app's own version (see
+  // Settings → About).
   if (req.method === 'GET' && url.pathname === '/server-info') {
-    sendJson(res, 200, { lanIp: getLanIp() })
+    sendJson(res, 200, { lanIp: getLanIp(), version: APP_VERSION })
     return
   }
 
@@ -639,7 +645,12 @@ const httpServer = createServer((req, res) => {
       sendJson(res, 403, { error: 'Only admin/subadmin accounts can view the assistant configuration' })
       return
     }
-    sendJson(res, 200, { hasKey: Boolean(store.getAnthropicApiKey()), provider: store.getAssistantProvider(), model: store.getAssistantModel() })
+    sendJson(res, 200, {
+      hasKey: Boolean(store.getAnthropicApiKey()),
+      provider: store.getAssistantProvider(),
+      model: store.getAssistantModel(),
+      productNameCandidateSuggestionsEnabled: store.getProductNameCandidateSuggestionsEnabled(),
+    })
     return
   }
 
@@ -655,12 +666,23 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then((body) => {
-        const { apiKey, provider, model } = body as { apiKey?: string | null; provider?: 'local' | 'claude'; model?: store.AssistantModel }
+        const { apiKey, provider, model, productNameCandidateSuggestionsEnabled } = body as {
+          apiKey?: string | null
+          provider?: 'local' | 'claude'
+          model?: store.AssistantModel
+          productNameCandidateSuggestionsEnabled?: boolean
+        }
         if (apiKey !== undefined) store.setAnthropicApiKey(typeof apiKey === 'string' && apiKey.trim() ? apiKey.trim() : null)
         if (provider === 'local' || provider === 'claude') store.setAssistantProvider(provider)
         if (isAssistantModel(model)) store.setAssistantModel(model)
+        if (typeof productNameCandidateSuggestionsEnabled === 'boolean') store.setProductNameCandidateSuggestionsEnabled(productNameCandidateSuggestionsEnabled)
         console.log(`[assistant] ${session.username} updated the assistant configuration`)
-        sendJson(res, 200, { hasKey: Boolean(store.getAnthropicApiKey()), provider: store.getAssistantProvider(), model: store.getAssistantModel() })
+        sendJson(res, 200, {
+          hasKey: Boolean(store.getAnthropicApiKey()),
+          provider: store.getAssistantProvider(),
+          model: store.getAssistantModel(),
+          productNameCandidateSuggestionsEnabled: store.getProductNameCandidateSuggestionsEnabled(),
+        })
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
     return
@@ -909,7 +931,7 @@ const httpServer = createServer((req, res) => {
     res.on('close', () => { if (!res.writableEnded) abortController.abort() })
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, itemID, message, uiLanguage, historyContext, model, provider, localModel, label, conversationId, turnVersion } = body as {
+        const { entity, itemID, message, uiLanguage, historyContext, model, provider, localModel, label, conversationId, aliasHarvest, turnVersion } = body as {
           entity?: string
           itemID?: string
           message?: string
@@ -920,6 +942,7 @@ const httpServer = createServer((req, res) => {
           localModel?: string
           label?: string
           conversationId?: string
+          aliasHarvest?: { query: string; tier: '4' | '5'; presentationId: string }
           turnVersion?: number
         }
         if (!entity || !itemID || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
@@ -938,6 +961,10 @@ const httpServer = createServer((req, res) => {
                 localModelOverride: typeof localModel === 'string' ? localModel : undefined,
                 label: typeof label === 'string' ? label : undefined,
                 conversationId: typeof conversationId === 'string' ? conversationId : undefined,
+                aliasHarvest:
+                  aliasHarvest && (aliasHarvest.tier === '4' || aliasHarvest.tier === '5') && typeof aliasHarvest.query === 'string' && typeof aliasHarvest.presentationId === 'string'
+                    ? aliasHarvest
+                    : undefined,
                 signal: abortController.signal,
               }),
               typeof turnVersion === 'number' ? turnVersion : undefined,
@@ -949,6 +976,27 @@ const httpServer = createServer((req, res) => {
         }
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // Debug/measurement surface for the product-name resolution ladder (see `productNameResolution.ts`'s
+  // own module doc comment) — the most recent resolution attempts, most recent last. Not a `SyncedKey`
+  // (no dashboard form edits this), same admin/subadmin gate as `/assistant/credentials`. See
+  // `DeveloperDocsView.tsx`'s "Product-name resolution log" card for the documented response shape.
+  if (req.method === 'GET' && url.pathname === '/assistant/product-name-resolution-log') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view the assistant configuration' })
+      return
+    }
+    const limitParam = Number(url.searchParams.get('limit'))
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 100
+    const log = store.getProductNameResolutionLog()
+    sendJson(res, 200, { entries: log.slice(Math.max(0, log.length - limit)) })
     return
   }
 
@@ -1728,6 +1776,14 @@ function applyUpdate(key: SyncedKey, value: unknown) {
   if (key === 'admin.orders') {
     reconcileStockForOrders((store.get('admin.orders')?.value as OrderRecord[] | undefined) ?? [], value as OrderRecord[])
   }
+  if (key === 'admin.products') {
+    // Kept current on every write (both a real client edit and a Neon-bridge
+    // pull go through this same path) rather than computed lazily on read —
+    // see `Product.nameFolded`'s own doc comment.
+    const recomputed = withRecomputedNameFolded(value as Product[])
+    value = recomputed
+    logProductNameFoldedCollisions(recomputed)
+  }
   store.set(key, value)
   broadcastUpdate(key, value)
 }
@@ -1828,6 +1884,25 @@ process.on('unhandledRejection', (error) => {
   console.error('[server] unhandled rejection:', error)
   process.exit(1)
 })
+
+// A clean stop for `systemctl stop` (sends SIGTERM) and the installer/uninstaller
+// scripts (see installer/wraps-coffee.iss, installer/linux/uninstall.sh) to ask
+// for instead of a hard `taskkill`/`pkill -9` — tears down every background
+// subsystem started below before actually exiting.
+let shuttingDown = false
+function shutdown(signal: NodeJS.Signals) {
+  if (shuttingDown) return
+  shuttingDown = true
+  console.log(`[server] received ${signal}, shutting down...`)
+  woltPoller.stop()
+  foodoraPoller.stop()
+  neonBridge.stop()
+  mdns.stop()
+  wss.close()
+  httpServer.close(() => process.exit(0))
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
 
 backup.restoreFromSiblingBackupIfFresh()
 store.load()

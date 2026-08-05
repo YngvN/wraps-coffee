@@ -70,3 +70,17 @@ export function advertiseServerPresence(wsPort: number, contentPort: number) {
   })
   console.log('[mdns] advertising server presence for LAN auto-discovery')
 }
+
+/** Tears down both advertisements (the opt-in hostname one and the always-on presence one) — called on graceful shutdown (SIGTERM/SIGINT) so this machine stops answering mDNS queries for a server that's no longer running. */
+export function stop() {
+  if (bonjour) {
+    bonjour.unpublishAll()
+    bonjour.destroy()
+    bonjour = null
+  }
+  if (presenceBonjour) {
+    presenceBonjour.unpublishAll()
+    presenceBonjour.destroy()
+    presenceBonjour = null
+  }
+}

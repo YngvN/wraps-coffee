@@ -358,6 +358,42 @@
             "fishShellfish": {
               "title": "Fish & shellfish",
               "description": "Tuna, shrimp."
+            },
+            "egg": {
+              "title": "Egg",
+              "description": "Mayonnaise, dressings, baked goods."
+            },
+            "peanuts": {
+              "title": "Peanuts",
+              "description": "Peanut sauce, satay."
+            },
+            "soy": {
+              "title": "Soy",
+              "description": "Soy sauce, tofu, some dressings."
+            },
+            "celery": {
+              "title": "Celery",
+              "description": "Soups, stocks, some dressings."
+            },
+            "mustard": {
+              "title": "Mustard",
+              "description": "Dressings, sauces."
+            },
+            "sesame": {
+              "title": "Sesame",
+              "description": "Tahini, hummus, some breads."
+            },
+            "sulphites": {
+              "title": "Sulphites",
+              "description": "Dried fruit, some sauces and dressings."
+            },
+            "lupin": {
+              "title": "Lupin",
+              "description": "Some baked goods and flatbreads."
+            },
+            "molluscs": {
+              "title": "Molluscs",
+              "description": "Mussels, squid."
             }
           }
         },
@@ -521,6 +557,7 @@
           "confirmMatchYes": "Yes",
           "confirmMatchShowOthers": "No, show others",
           "clarifyLookupItemQuestion": "There's more than one match — which one did you mean?",
+          "suggestLookupMatchQuestion": "Did you mean this?",
           "noMatchFound": "No matching item found.",
           "staleResponseDiscarded": "Discarded a late response from an earlier, cancelled turn (v{{previous}}, now on v{{current}}).",
           "typeToConfirmLabel": "Type \"{{phrase}}\" to confirm",
@@ -1135,7 +1172,7 @@
             "loginText": "Sign in to get a token:",
             "logoutText": "Sign out — invalidates the token:",
             "roleText": "role is \"admin\", \"subadmin\", or \"limited\". A limited account's own allowedSections restricts which write below it's allowed to make.",
-            "serverInfoText": "A screen's own link (below, in Screens) is built from this page's own address — if this dashboard was opened via \"localhost\", it also asks the local server for this machine's own network address, so the link still works when pasted into a different device on the network.",
+            "serverInfoText": "A screen's own link (below, in Screens) is built from this page's own address — if this dashboard was opened via \"localhost\", it also asks the local server for this machine's own network address, so the link still works when pasted into a different device on the network. Also reports the running app's own version, shown in Settings → About.",
             "usersTitle": "Users",
             "usersIntro": "Account management (the dashboard's own \"Users\" tab): listing every configured account, creating one, resetting a password, and deleting one. Admin/subadmin only — a \"limited\" token gets a 403 on every route below. A \"subadmin\" token can do everything an \"admin\" token can except create or delete an \"admin\"-role account; the very last \"admin\" account can never be deleted by anyone.",
             "syncTitle": "Live data (WebSocket)",
@@ -1251,7 +1288,8 @@
             "assistantProviderClaudeDescription": "Uses the Claude API — needs an API key, saved on the Integrations page.",
             "assistantProviderLocalLabel": "Local (free)",
             "assistantProviderLocalDescription": "Runs a local Ollama model on this device — free, fully offline, no API key. Configure the host and models on the Integrations page.",
-            "assistantProviderNoKey": "No Claude API key has been saved yet — the assistant won't work until one is added."
+            "assistantProviderNoKey": "No Claude API key has been saved yet — the assistant won't work until one is added.",
+            "assistantCandidateSuggestionsLabel": "Suggest a candidate product for an unmatched name lookup (e.g. \"Har vi mokka?\"), using a model call — the suggestion is always shown as a \"did you mean...?\" prompt, never applied automatically."
           },
           "backup": {
             "title": "Backup",
@@ -1312,6 +1350,11 @@
             "description": "Connect public transport departures, weather, news, and delivery-platform orders.",
             "hint": "Connect live transit departures, weather, news, and delivery-platform orders.",
             "button": "Integration settings"
+          },
+          "about": {
+            "title": "About",
+            "versionLabel": "Wraps & Coffee v{{version}}",
+            "loading": "Loading…"
           }
         },
         "integrations": {
@@ -2368,6 +2411,42 @@
             "fishShellfish": {
               "title": "Fisk & skalldyr",
               "description": "Tunfisk, reker."
+            },
+            "egg": {
+              "title": "Egg",
+              "description": "Majones, dressinger, bakverk."
+            },
+            "peanuts": {
+              "title": "Peanøtter",
+              "description": "Peanøttsaus, satay."
+            },
+            "soy": {
+              "title": "Soya",
+              "description": "Soyasaus, tofu, enkelte dressinger."
+            },
+            "celery": {
+              "title": "Selleri",
+              "description": "Supper, buljong, enkelte dressinger."
+            },
+            "mustard": {
+              "title": "Sennep",
+              "description": "Dressinger, sauser."
+            },
+            "sesame": {
+              "title": "Sesamfrø",
+              "description": "Tahini, hummus, enkelte brød."
+            },
+            "sulphites": {
+              "title": "Sulfitter",
+              "description": "Tørket frukt, enkelte sauser og dressinger."
+            },
+            "lupin": {
+              "title": "Lupin",
+              "description": "Enkelte bakverk og lefser."
+            },
+            "molluscs": {
+              "title": "Bløtdyr",
+              "description": "Blåskjell, blekksprut."
             }
           }
         },
@@ -2531,6 +2610,7 @@
           "confirmMatchYes": "Ja",
           "confirmMatchShowOthers": "Nei, vis andre",
           "clarifyLookupItemQuestion": "Det er mer enn én match — hvilken mente du?",
+          "suggestLookupMatchQuestion": "Mente du denne?",
           "noMatchFound": "Fant ingen match.",
           "staleResponseDiscarded": "Forkastet et sent svar fra en tidligere, avbrutt runde (v{{previous}}, nå på v{{current}}).",
           "typeToConfirmLabel": "Skriv «{{phrase}}» for å bekrefte",
@@ -3145,7 +3225,7 @@
             "loginText": "Logg inn for å få et token:",
             "logoutText": "Logg ut — ugyldiggjør tokenet:",
             "roleText": "role er «admin», «subadmin» eller «limited». En limited-konto sin egen allowedSections begrenser hvilken skriving under den har lov til å gjøre.",
-            "serverInfoText": "En skjerms egen lenke (under, i Skjermer) bygges fra denne sidens egen adresse — hvis dashbordet ble åpnet via «localhost», spør den også den lokale serveren om denne maskinens egen nettverksadresse, slik at lenken fortsatt fungerer når den limes inn på en annen enhet på nettverket.",
+            "serverInfoText": "En skjerms egen lenke (under, i Skjermer) bygges fra denne sidens egen adresse — hvis dashbordet ble åpnet via «localhost», spør den også den lokale serveren om denne maskinens egen nettverksadresse, slik at lenken fortsatt fungerer når den limes inn på en annen enhet på nettverket. Rapporterer også den kjørende appens egen versjon, vist i Innstillinger → Om.",
             "usersTitle": "Brukere",
             "usersIntro": "Kontoadministrasjon (dashbordets egen «Brukere»-fane): liste opp alle konfigurerte kontoer, opprette en, tilbakestille et passord, og slette en. Kun admin/underadmin — en «limited»-token får 403 på hver rute under. En «subadmin»-token kan gjøre alt en «admin»-token kan, bortsett fra å opprette eller slette en konto med rollen «admin»; den aller siste «admin»-kontoen kan aldri slettes av noen.",
             "syncTitle": "Live-data (WebSocket)",
@@ -3261,7 +3341,8 @@
             "assistantProviderClaudeDescription": "Bruker Claude API-et — krever en API-nøkkel, lagret på Integrasjoner-siden.",
             "assistantProviderLocalLabel": "Lokal (gratis)",
             "assistantProviderLocalDescription": "Kjører en lokal Ollama-modell på denne enheten — gratis, helt frakoblet, ingen API-nøkkel. Sett opp vert og modeller på Integrasjoner-siden.",
-            "assistantProviderNoKey": "Ingen Claude API-nøkkel er lagret ennå — assistenten fungerer ikke før én er lagt til."
+            "assistantProviderNoKey": "Ingen Claude API-nøkkel er lagret ennå — assistenten fungerer ikke før én er lagt til.",
+            "assistantCandidateSuggestionsLabel": "Foreslå et kandidatprodukt for et produktnavn-søk uten treff (f.eks. «Har vi mokka?»), ved hjelp av et modellkall — forslaget vises alltid som et «mente du...?»-spørsmål, og blir aldri brukt automatisk."
           },
           "backup": {
             "title": "Sikkerhetskopi",
@@ -3322,6 +3403,11 @@
             "description": "Koble til kollektivavganger, vær, nyheter og bestillinger fra leveringsplattformer.",
             "hint": "Koble til sanntidsavganger, vær, nyheter og bestillinger fra leveringsplattformer.",
             "button": "Integrasjonsinnstillinger"
+          },
+          "about": {
+            "title": "Om",
+            "versionLabel": "Wraps & Coffee v{{version}}",
+            "loading": "Laster…"
           }
         },
         "integrations": {

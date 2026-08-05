@@ -83,6 +83,8 @@ let reconnectDelay = INITIAL_RECONNECT_DELAY_MS
 let applyUpdateRef: ApplyUpdate | null = null
 let reportErrorRef: ReportError | null = null
 const debounceTimers = new Map<SyncedKey, NodeJS.Timeout>()
+/** Set by `stop()` so a reconnect attempt already in flight (or scheduled via `setTimeout`) doesn't resurrect the connection after graceful shutdown has started. */
+let stopped = false
 
 function errorDetail(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -192,11 +194,13 @@ async function reconcile(activeClient: Client) {
 }
 
 function scheduleReconnect() {
+  if (stopped) return
   setTimeout(() => void connect(), reconnectDelay)
   reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY_MS)
 }
 
 async function connect() {
+  if (stopped) return
   const connectionString = store.getNeonDatabaseUrl()
   if (!connectionString) return
 
@@ -282,6 +286,19 @@ export function restart() {
   }
 
   void connect()
+}
+
+/** Disconnects and stops any further reconnect attempts — called on graceful shutdown (SIGTERM/SIGINT). */
+export function stop() {
+  stopped = true
+  for (const timer of debounceTimers.values()) clearTimeout(timer)
+  debounceTimers.clear()
+
+  if (client) {
+    const oldClient = client
+    client = null
+    oldClient.end().catch(() => {})
+  }
 }
 
 /** Pushes a client-originated write up to Neon if the bridge is connected and owns this key outbound. Silently no-ops otherwise (including while disconnected — the connection-loss itself already reported once, repeating "failed to push" on every subsequent edit would just be noise). */

@@ -24,10 +24,19 @@ type Fields = Record<string, unknown>
  * used for this one check's own "was this actually mentioned" heuristic.
  */
 const ALLERGEN_CODE_KEYWORDS: Record<string, { no: string[]; en: string[] }> = {
-  G: { no: ['gluten'], en: ['gluten'] },
+  G: { no: ['gluten', 'hvete'], en: ['gluten', 'wheat'] },
   M: { no: ['melk', 'melke', 'laktose'], en: ['milk', 'dairy', 'lactose'] },
   F: { no: ['fisk', 'skalldyr'], en: ['fish', 'shellfish'] },
   N: { no: ['nøtt', 'nøtter', 'cashew'], en: ['nut', 'nuts', 'cashew'] },
+  E: { no: ['egg'], en: ['egg', 'eggs'] },
+  P: { no: ['peanøtt', 'peanøtter'], en: ['peanut', 'peanuts'] },
+  S: { no: ['soya'], en: ['soy', 'soya'] },
+  C: { no: ['selleri'], en: ['celery'] },
+  MU: { no: ['sennep'], en: ['mustard'] },
+  SE: { no: ['sesam', 'sesamfrø'], en: ['sesame'] },
+  SU: { no: ['sulfitt', 'sulfitter'], en: ['sulphite', 'sulphites', 'sulfite', 'sulfites'] },
+  L: { no: ['lupin'], en: ['lupin'] },
+  MO: { no: ['bløtdyr', 'blåskjell', 'blekksprut'], en: ['mollusc', 'molluscs', 'mussel', 'mussels', 'squid'] },
 }
 
 const DIETARY_TAG_KEYWORDS: Record<string, { no: string[]; en: string[] }> = {

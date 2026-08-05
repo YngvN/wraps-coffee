@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Button } from '../../../components'
+import { Alert, Button, Checkbox } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
 import { getAssistantCredentialStatus, setAssistantCredentials } from '../../../lib/localServer'
@@ -22,6 +22,7 @@ export function AssistantProviderSection() {
   const [provider, setProvider] = useState<AssistantProvider>('claude')
   const [hasKey, setHasKey] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [candidateSuggestionsEnabled, setCandidateSuggestionsEnabled] = useState(true)
 
   useEffect(() => {
     if (!session || session.role === 'limited') return
@@ -29,6 +30,7 @@ export function AssistantProviderSection() {
       .then((status) => {
         setProvider(status.provider)
         setHasKey(status.hasKey)
+        setCandidateSuggestionsEnabled(status.productNameCandidateSuggestionsEnabled)
       })
       .catch(() => {})
   }, [session])
@@ -48,6 +50,15 @@ export function AssistantProviderSection() {
     setIsSaving(true)
     setAssistantCredentials(session.token, { provider: 'local' })
       .then((status) => setProvider(status.provider))
+      .finally(() => setIsSaving(false))
+  }
+
+  const handleToggleCandidateSuggestions = () => {
+    const next = !candidateSuggestionsEnabled
+    setCandidateSuggestionsEnabled(next)
+    setIsSaving(true)
+    setAssistantCredentials(session.token, { productNameCandidateSuggestionsEnabled: next })
+      .then((status) => setCandidateSuggestionsEnabled(status.productNameCandidateSuggestionsEnabled))
       .finally(() => setIsSaving(false))
   }
 
@@ -79,6 +90,13 @@ export function AssistantProviderSection() {
           </Button>
         </Alert>
       )}
+
+      <Checkbox
+        checked={candidateSuggestionsEnabled}
+        disabled={isSaving}
+        onChange={handleToggleCandidateSuggestions}
+        label={t('admin.settings.advanced.assistantCandidateSuggestionsLabel')}
+      />
     </div>
   )
 }

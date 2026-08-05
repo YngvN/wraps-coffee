@@ -36,7 +36,7 @@ function liveCategoryPrices(): CategoryPrices {
  * report the result. `undefined` when the product has no price of its own
  * and no category default either (nothing to show).
  */
-function resolveProductEffectivePrice(product: Product): EffectivePrice | undefined {
+export function resolveProductEffectivePrice(product: Product): EffectivePrice | undefined {
   const price = product.price ?? (product.category ? liveCategoryPrices()[product.category] : undefined)
   return getEffectivePrice(price, product.discount)
 }
@@ -47,7 +47,7 @@ function priceToNumber(price: Price): number {
 }
 
 /** The category (or, for a no-category product, the catalogue) a product's own candidate label names alongside it — several products can easily share the same name (e.g. "Chicken" appearing near-identically across many categories), so this is what actually lets the admin tell candidates apart in a "which one did you mean?" list. Reads only the admin's own chat language's side, not every language at once. */
-function productLocationLabel(product: Product, uiLanguage: 'no' | 'en'): string {
+export function productLocationLabel(product: Product, uiLanguage: 'no' | 'en'): string {
   if (product.category) {
     const category = liveCategories().find((candidate) => candidate.id === product.category)
     if (category) return resolveBilingualField(category.name, uiLanguage)

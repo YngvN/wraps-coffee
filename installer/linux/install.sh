@@ -23,6 +23,46 @@ echo "== ADHDisplay installer (Linux) =="
 echo "Installing into: $REPO_DIR"
 echo ""
 
+# 0. Update/repair detection --------------------------------------------------
+# Re-running this script used to always silently overwrite in place with no
+# warning, and — unlike the Windows Update/Repair prompt in wraps-coffee.iss —
+# never stopped the running service first, risking locked-file failures
+# during npm install/build. Mirrors that same Update/Repair/Cancel choice.
+NEW_VERSION="$(node -p "require('$REPO_DIR/package.json').version" 2>/dev/null || echo "unknown")"
+if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files wraps-coffee.service >/dev/null 2>&1; then
+  RUNNING_VERSION="$(curl -fsS http://localhost:4000/server-info 2>/dev/null | node -e "process.stdin.on('data', d => { try { console.log(JSON.parse(d).version ?? 'unknown') } catch { console.log('unknown') } })" 2>/dev/null || echo "unknown")"
+  echo "Wraps & Coffee is already installed (currently running: $RUNNING_VERSION). This checkout is version $NEW_VERSION."
+  echo ""
+  echo "  [U]pdate — stop the running app, keep server/data and server/uploads, then reinstall/rebuild (recommended)"
+  echo "  [R]epair — same as Update, but also deletes node_modules and dist first for a clean reinstall"
+  echo "  [C]ancel"
+  read -rp "Choice [U/r/c]: " CHOICE
+  CHOICE="${CHOICE:-U}"
+  case "$CHOICE" in
+    [Cc]*)
+      echo "Cancelled."
+      exit 0
+      ;;
+    [Rr]*)
+      echo ""
+      echo "Stopping the running service before a clean reinstall..."
+      sudo systemctl stop wraps-coffee.service 2>/dev/null || true
+      pkill -f "tsx server/index.ts" 2>/dev/null || true
+      pkill -f "vite preview" 2>/dev/null || true
+      echo "Removing node_modules and dist..."
+      rm -rf "$REPO_DIR/node_modules" "$REPO_DIR/dist"
+      ;;
+    *)
+      echo ""
+      echo "Stopping the running service before updating..."
+      sudo systemctl stop wraps-coffee.service 2>/dev/null || true
+      pkill -f "tsx server/index.ts" 2>/dev/null || true
+      pkill -f "vite preview" 2>/dev/null || true
+      ;;
+  esac
+  echo ""
+fi
+
 # 1. Node.js -----------------------------------------------------------------
 if command -v node >/dev/null 2>&1; then
   echo "Node.js already installed ($(node --version)), skipping."

@@ -1,11 +1,13 @@
 import type { DialogFocusUpdate } from './dialogFocus'
-import type { AssistantReplyList } from './types'
+import type { AssistantCandidate, AssistantReplyList } from './types'
 
 /** What resolving one half (or an un-split whole message) of a single-entity lookup question produces — see `steps.ts`'s `resolveSingleEntityLookup`. */
 export interface LookupHalfResult {
   reply: string
   list?: AssistantReplyList
   focusUpdate?: DialogFocusUpdate
+  /** Set only for an un-split whole message whose product-name resolution ladder produced a tier-3/4/5 suggestion needing confirmation (see `productNameResolution.ts`) — `answerLookup`'s own compound-halves path (`combineCompoundReplies`) never reads this; only the single, non-compound path escalates it to a real `'clarifyItem'` status. `reply` is still a sensible plain-text fallback either way. */
+  clarifyItem?: { candidates: AssistantCandidate[]; aliasHarvest?: { query: string; tier: '4' | '5'; presentationId: string } }
 }
 
 const SPLIT_WORDS: Record<'no' | 'en', string[]> = { no: [' og ', ' eller ', ' samt '], en: [' and ', ' or '] }
