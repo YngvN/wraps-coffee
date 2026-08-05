@@ -266,7 +266,7 @@ Filename: "{app}\start-wraps-coffee.bat"; Description: "Launch Wraps & Coffee no
 ; remove node_modules/dist/etc. while the server/kiosk window still has them
 ; open, and the app itself would keep running even though its scheduled task
 ; is gone until the next reboot.
-Filename: "powershell.exe"; Parameters: "-NoProfile -Command ""$ids = Get-NetTCPConnection -LocalPort 4000,4173 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; foreach ($procId in $ids) { Stop-Process -Id $procId -ErrorAction SilentlyContinue }; Start-Sleep -Milliseconds 1500; $ids = Get-NetTCPConnection -LocalPort 4000,4173 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; foreach ($procId in $ids) { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue }"""; Flags: runhidden
+Filename: "powershell.exe"; Parameters: "-NoProfile -Command ""$ids = Get-NetTCPConnection -LocalPort 4000,4173 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; foreach ($procId in $ids) {{ Stop-Process -Id $procId -ErrorAction SilentlyContinue }}; Start-Sleep -Milliseconds 1500; $ids = Get-NetTCPConnection -LocalPort 4000,4173 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; foreach ($procId in $ids) {{ Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue }}"""; Flags: runhidden
 Filename: "taskkill.exe"; Parameters: "/F /IM electron.exe"; Flags: runhidden
 Filename: "schtasks.exe"; Parameters: "/Delete /TN ""WrapsCoffeeLauncher"" /F"; Flags: runhidden
 Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Wraps & Coffee"""; Flags: runhidden
