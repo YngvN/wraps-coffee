@@ -9,6 +9,7 @@ import type { ScreenAddressSettings } from '../src/types/screenAddress'
 import type { WindowLaunchSettings } from '../src/types/windowLaunch'
 import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
+import { logProductNameFoldedCollisions, withRecomputedNameFolded } from '../src/lib/productNameFold'
 import * as assistantSteps from './assistant/steps'
 import type { LookupQueryFilterInput } from './assistant/lookupQuery'
 import { deleteOllamaModel, ensureOllamaRunning, listOllamaModels, pullOllamaModel, testOllamaConnection } from './assistant/ollamaClient'
@@ -644,7 +645,12 @@ const httpServer = createServer((req, res) => {
       sendJson(res, 403, { error: 'Only admin/subadmin accounts can view the assistant configuration' })
       return
     }
-    sendJson(res, 200, { hasKey: Boolean(store.getAnthropicApiKey()), provider: store.getAssistantProvider(), model: store.getAssistantModel() })
+    sendJson(res, 200, {
+      hasKey: Boolean(store.getAnthropicApiKey()),
+      provider: store.getAssistantProvider(),
+      model: store.getAssistantModel(),
+      productNameCandidateSuggestionsEnabled: store.getProductNameCandidateSuggestionsEnabled(),
+    })
     return
   }
 
@@ -660,12 +666,23 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then((body) => {
-        const { apiKey, provider, model } = body as { apiKey?: string | null; provider?: 'local' | 'claude'; model?: store.AssistantModel }
+        const { apiKey, provider, model, productNameCandidateSuggestionsEnabled } = body as {
+          apiKey?: string | null
+          provider?: 'local' | 'claude'
+          model?: store.AssistantModel
+          productNameCandidateSuggestionsEnabled?: boolean
+        }
         if (apiKey !== undefined) store.setAnthropicApiKey(typeof apiKey === 'string' && apiKey.trim() ? apiKey.trim() : null)
         if (provider === 'local' || provider === 'claude') store.setAssistantProvider(provider)
         if (isAssistantModel(model)) store.setAssistantModel(model)
+        if (typeof productNameCandidateSuggestionsEnabled === 'boolean') store.setProductNameCandidateSuggestionsEnabled(productNameCandidateSuggestionsEnabled)
         console.log(`[assistant] ${session.username} updated the assistant configuration`)
-        sendJson(res, 200, { hasKey: Boolean(store.getAnthropicApiKey()), provider: store.getAssistantProvider(), model: store.getAssistantModel() })
+        sendJson(res, 200, {
+          hasKey: Boolean(store.getAnthropicApiKey()),
+          provider: store.getAssistantProvider(),
+          model: store.getAssistantModel(),
+          productNameCandidateSuggestionsEnabled: store.getProductNameCandidateSuggestionsEnabled(),
+        })
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
     return
@@ -914,7 +931,7 @@ const httpServer = createServer((req, res) => {
     res.on('close', () => { if (!res.writableEnded) abortController.abort() })
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, itemID, message, uiLanguage, historyContext, model, provider, localModel, label, conversationId, turnVersion } = body as {
+        const { entity, itemID, message, uiLanguage, historyContext, model, provider, localModel, label, conversationId, aliasHarvest, turnVersion } = body as {
           entity?: string
           itemID?: string
           message?: string
@@ -925,6 +942,7 @@ const httpServer = createServer((req, res) => {
           localModel?: string
           label?: string
           conversationId?: string
+          aliasHarvest?: { query: string; tier: '4' | '5'; presentationId: string }
           turnVersion?: number
         }
         if (!entity || !itemID || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
@@ -943,6 +961,10 @@ const httpServer = createServer((req, res) => {
                 localModelOverride: typeof localModel === 'string' ? localModel : undefined,
                 label: typeof label === 'string' ? label : undefined,
                 conversationId: typeof conversationId === 'string' ? conversationId : undefined,
+                aliasHarvest:
+                  aliasHarvest && (aliasHarvest.tier === '4' || aliasHarvest.tier === '5') && typeof aliasHarvest.query === 'string' && typeof aliasHarvest.presentationId === 'string'
+                    ? aliasHarvest
+                    : undefined,
                 signal: abortController.signal,
               }),
               typeof turnVersion === 'number' ? turnVersion : undefined,
@@ -954,6 +976,27 @@ const httpServer = createServer((req, res) => {
         }
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // Debug/measurement surface for the product-name resolution ladder (see `productNameResolution.ts`'s
+  // own module doc comment) — the most recent resolution attempts, most recent last. Not a `SyncedKey`
+  // (no dashboard form edits this), same admin/subadmin gate as `/assistant/credentials`. See
+  // `DeveloperDocsView.tsx`'s "Product-name resolution log" card for the documented response shape.
+  if (req.method === 'GET' && url.pathname === '/assistant/product-name-resolution-log') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view the assistant configuration' })
+      return
+    }
+    const limitParam = Number(url.searchParams.get('limit'))
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : 100
+    const log = store.getProductNameResolutionLog()
+    sendJson(res, 200, { entries: log.slice(Math.max(0, log.length - limit)) })
     return
   }
 
@@ -1732,6 +1775,14 @@ function reconcileStockForOrders(previousOrders: OrderRecord[], incomingOrders: 
 function applyUpdate(key: SyncedKey, value: unknown) {
   if (key === 'admin.orders') {
     reconcileStockForOrders((store.get('admin.orders')?.value as OrderRecord[] | undefined) ?? [], value as OrderRecord[])
+  }
+  if (key === 'admin.products') {
+    // Kept current on every write (both a real client edit and a Neon-bridge
+    // pull go through this same path) rather than computed lazily on read —
+    // see `Product.nameFolded`'s own doc comment.
+    const recomputed = withRecomputedNameFolded(value as Product[])
+    value = recomputed
+    logProductNameFoldedCollisions(recomputed)
   }
   store.set(key, value)
   broadcastUpdate(key, value)

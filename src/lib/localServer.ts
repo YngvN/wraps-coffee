@@ -463,6 +463,8 @@ export interface AssistantCredentialStatus {
   hasKey: boolean
   provider: AssistantProvider
   model: AssistantModel
+  /** Tier 5 of the product-name resolution ladder (`server/assistant/productNameResolution.ts`) — a model call that fires only once the deterministic fold/alias/Levenshtein tiers all miss, and whose output is never auto-applied regardless of this setting. See the checkbox in `AssistantProviderSection.tsx`. */
+  productNameCandidateSuggestionsEnabled: boolean
 }
 
 /** Whether a Claude API key is configured, and which provider is selected (see Settings → AI Assistant and the Integrations page's Claude card) — never the raw key itself. `admin`/`subadmin` only. */
@@ -477,7 +479,7 @@ export async function getAssistantCredentialStatus(token: string): Promise<Assis
 /** Saves the Claude API key, selected provider, and/or selected model — pass only the field(s) being changed, `undefined` leaves the others untouched. `admin`/`subadmin` only. */
 export async function setAssistantCredentials(
   token: string,
-  input: { apiKey?: string | null; provider?: AssistantProvider; model?: AssistantModel },
+  input: { apiKey?: string | null; provider?: AssistantProvider; model?: AssistantModel; productNameCandidateSuggestionsEnabled?: boolean },
 ): Promise<AssistantCredentialStatus> {
   const response = await fetch(`${serverBaseUrl()}/assistant/credentials`, {
     method: 'POST',
@@ -778,7 +780,15 @@ export type AssistantIngestionPosture = 'auto' | 'safe' | 'full'
  */
 export type AssistantLookupResult =
   | { status: 'ready'; reply: string; list?: AssistantReplyList; trace: AssistantTraceEntry[]; turnVersion?: number }
-  | { status: 'clarifyItem'; entityKey: string; candidates: { id: string; label: string }[]; trace: AssistantTraceEntry[]; turnVersion?: number }
+  | {
+      status: 'clarifyItem'
+      entityKey: string
+      candidates: { id: string; label: string }[]
+      trace: AssistantTraceEntry[]
+      turnVersion?: number
+      /** Set only when these candidates came from the product-name resolution ladder's tier 4/5 (see `server/assistant/steps.ts`'s `AnswerLookupResult`) — pass this straight back, unchanged, as `assistantAnswerLookupForItem`'s own `aliasHarvest` once the admin picks one. */
+      aliasHarvest?: { query: string; tier: '4' | '5'; presentationId: string }
+    }
 
 /** Answers a factual question about the cafe's own current dashboard data — called when `assistantSelectIntent` returns a non-empty `lookupEntities` instead of a plain `reply`. Never writes anything; same posture as the other assistant steps. `model` overrides the admin-configured default for this one call only; `chunkSizePreference`/`customChunkRecordCount` override how much data is processed per call at once — see `AssistantPanel`'s kebab menu for both. `historyContext` is this turn's already-resolved conversation context (from `assistantSelectIntent`'s own result). `itemSearchText` (`assistantSelectIntent`'s own `searchText`) engages the server's single-item fast path when the question named one specific item, skipping the batch scan entirely for it — see `AssistantLookupResult`'s own doc comment for what happens when that's still ambiguous. */
 export async function assistantAnswerLookup(
@@ -828,6 +838,8 @@ export async function assistantAnswerLookupForItem(
     localModel?: string
     label?: string
     conversationId?: string
+    /** See `AssistantLookupResult`'s own `clarifyItem.aliasHarvest` doc comment — pass back exactly what that result carried, unchanged. */
+    aliasHarvest?: { query: string; tier: '4' | '5'; presentationId: string }
     turnVersion?: number
   },
   signal?: AbortSignal,

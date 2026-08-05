@@ -256,7 +256,15 @@ type FlowState =
    * unlike `confirmItem` there's no entity/action/draft to carry, just enough to re-ask the same
    * question once the admin resolves which item they meant.
    */
-  | { status: 'clarifyingLookupItem'; entityKey: string; candidates: AssistantCandidate[]; message: string; historyContext: string | null }
+  | {
+      status: 'clarifyingLookupItem'
+      entityKey: string
+      candidates: AssistantCandidate[]
+      message: string
+      historyContext: string | null
+      /** See `AssistantLookupResult`'s own `clarifyItem.aliasHarvest` doc comment — threaded through unchanged to `pickLookupItem`'s own `assistantAnswerLookupForItem` call once the admin picks. `undefined` for the pre-existing `selectItem`-based ambiguity this same state also covers. */
+      aliasHarvest?: { query: string; tier: '4' | '5'; presentationId: string }
+    }
 
 export interface AttachedImage {
   mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif'
@@ -1029,7 +1037,7 @@ export function useAssistantFlow(
             recordTrace(lookup.trace)
             if (lookup.status === 'clarifyItem') {
               finalizeThought()
-              setState({ status: 'clarifyingLookupItem', entityKey: lookup.entityKey, candidates: lookup.candidates, message, historyContext: result.historyContext })
+              setState({ status: 'clarifyingLookupItem', entityKey: lookup.entityKey, candidates: lookup.candidates, message, historyContext: result.historyContext, aliasHarvest: lookup.aliasHarvest })
               return
             }
             finalizeThought()
@@ -1132,7 +1140,7 @@ export function useAssistantFlow(
     async (itemID: string) => {
       if (state.status !== 'clarifyingLookupItem') return
       if (!session) return
-      const { entityKey, message, historyContext, candidates } = state
+      const { entityKey, message, historyContext, candidates, aliasHarvest } = state
       abortRef.current = new AbortController()
       beginBusy('thinking')
       const requestVersion = beginTurn()
@@ -1150,6 +1158,7 @@ export function useAssistantFlow(
             localModel: localModelOverride,
             label: candidates.find((candidate) => candidate.id === itemID)?.label,
             conversationId: conversationIdRef.current,
+            aliasHarvest,
             turnVersion: requestVersion,
           },
           abortRef.current.signal,

@@ -7,6 +7,7 @@ import { buildLookupQuerySchema, executeLookupQuery, type LookupQueryField, type
 import { applyChecksNoRetry, runStepWithChecks } from './postChecks/framework'
 import { fillFieldsChecks, type FillFieldsCheckContext } from './postChecks/fillFields'
 import { lookupQueryChecks, reconsiderEmptyResult, type LookupQueryCheckContext } from './postChecks/lookupQuery'
+import { confirmProductNameAlias, isExistenceQuestion, renderDirectHitExistenceReply, renderProductNameQuery } from './productNameResolution'
 import { lookupTargetChecks, type LookupTargetCheckContext } from './postChecks/selectLookupTarget'
 import { selectCommandChecks, type SelectCommandCheckContext } from './postChecks/selectCommand'
 import { selectItemChecks, type SelectItemCheckContext } from './postChecks/selectItem'
@@ -1731,6 +1732,8 @@ interface EntityDataBlockResult {
   templatedList?: AssistantReplyList
   /** Set for a `'count'`/`'list'` shape (never `'report'`) — see `DialogFocusUpdate`'s own doc comment for how `answerLookup` applies this to the conversation's `DialogFocus`. */
   focusUpdate?: DialogFocusUpdate
+  /** Set only by the product-name resolution ladder (`productNameResolution.ts`'s `renderProductNameQuery`) when a zero-result product-name query resolved to a tier-3/4/5 `'suggest'`/`'ambiguous'` candidate set — see `AnswerLookupResult`'s own `clarifyItem.aliasHarvest` doc comment for how this reaches confirmation. */
+  clarifyItem?: { candidates: AssistantCandidate[]; aliasHarvest?: { query: string; tier: '4' | '5'; presentationId: string } }
 }
 
 /** `record.label` alongside its `sublabel` (if any), reconstructed as the single combined string every compose-LLM-facing prompt (`matchingNames`, a report's per-match line) has always used — kept byte-identical to before `sublabel` existed as its own field, so splitting `label`/`sublabel` for the new deterministic list reply (see `AssistantReplyList`) never changes what any LLM-facing prompt sees. */
@@ -1858,15 +1861,44 @@ async function buildEntityQueryDataBlock(
     const noun = entity.countLabel?.[uiLanguage]
     const nounPlural = noun?.plural ?? entity.key
 
+    // "Har vi X?" needs its own Ja/Nei-shaped reply regardless of *how* the matching product(s) were
+    // found — both when the original filter already matched directly (a correctly-spelled "Har vi
+    // Mocha?") and when the ladder below had to resolve a misspelling first. Checked here, once, for
+    // both paths, rather than only inside the zero-result branch (which would silently give the
+    // correctly-spelled, far more common case the wrong reply shape).
+    const nameFilter = entity.key === 'product' ? filters.find((filter) => filter.field === 'name') : undefined
+    if (nameFilter && matches.length > 0 && isExistenceQuestion(message, uiLanguage)) {
+      const resolved = renderDirectHitExistenceReply(matches, uiLanguage)
+      return { dataBlock: '', templatedReply: resolved.templatedReply, templatedList: resolved.templatedList, focusUpdate: resolved.focusUpdate }
+    }
+
     if (matches.length === 0) {
+      // A zero-result *product name* query is a resolution problem, not a "the model attached an
+      // unnecessary filter" problem — dropping the (only) name filter and showing every product
+      // instead is exactly the bug this ladder replaces (see `productNameResolution.ts`'s own module
+      // doc comment for the motivating "Har vi mokka?" trace). This branch never falls through to
+      // `reconsiderEmptyResult` below for a product-name filter, so that bug mechanism is
+      // structurally unreachable here, not just avoided by convention.
+      if (nameFilter) {
+        const otherFilters = filters.filter((filter) => filter.field !== 'name')
+        const replyShape: 'existence' | 'plain' = isExistenceQuestion(message, uiLanguage) ? 'existence' : 'plain'
+        const resolved = await renderProductNameQuery(nameFilter.value, uiLanguage, replyShape, context, otherFilters, records, fields, modelOverride, providerOverride, localModelOverride, trace, signal)
+        return { dataBlock: '', templatedReply: resolved.templatedReply, templatedList: resolved.templatedList, focusUpdate: resolved.focusUpdate, clarifyItem: resolved.clarifyItem }
+      }
+
       // Real testing found a "list all X" question coming back with a confusing empty answer
       // because the model attached an unnecessary filter clause nobody asked for — re-running
       // with the single most restrictive filter dropped and surfacing a "found none with the
       // full filter, showing all X instead" note is the honest middle ground between that and
       // silently discarding a real filter the admin actually did ask for. Not a `PostCheck` (see
       // `reconsiderEmptyResult`'s own doc comment) — its "retry" is a deterministic re-query, not
-      // a model re-call.
-      const reconsidered = reconsiderEmptyResult(filters, (candidateFilters) => executeLookupQuery(records, { filters: candidateFilters, reportField: null }, fields))
+      // a model re-call. Guarded only for `product`'s own `name` field (see `reconsiderEmptyResult`'s
+      // own doc comment) — every other entity/field keeps this exact fallback behavior unchanged.
+      const reconsidered = reconsiderEmptyResult(
+        filters,
+        (candidateFilters) => executeLookupQuery(records, { filters: candidateFilters, reportField: null }, fields),
+        entity.key === 'product' ? { totalRecordCount: records.length, guardedFieldKey: 'name' } : undefined,
+      )
       if (reconsidered.droppedFilter) {
         const narrowedSuffix = buildFilterSuffix(reconsidered.filtersUsed, fields, uiLanguage)
         const items: AssistantListItem[] = reconsidered.matches.map((record) => ({ label: record.label, sublabel: record.sublabel }))
@@ -1980,7 +2012,21 @@ async function answerFromRecord(
  */
 export type AnswerLookupResult =
   | { status: 'ready'; reply: string; list?: AssistantReplyList; trace: AssistantTraceEntry[] }
-  | { status: 'clarifyItem'; entityKey: string; candidates: AssistantCandidate[]; trace: AssistantTraceEntry[] }
+  | {
+      status: 'clarifyItem'
+      entityKey: string
+      candidates: AssistantCandidate[]
+      trace: AssistantTraceEntry[]
+      /**
+       * Set only when these candidates came from the product-name resolution ladder's tier 3/4/5
+       * (`productNameResolution.ts`), never from this same status's other source (`selectItem`'s
+       * own real-candidate ambiguity in the single-item fast path above). Threaded back through
+       * `/assistant/lookup-item` unchanged by the client once the admin picks one, so
+       * `answerLookupForItem` can call `confirmProductNameAlias` — see that function's own doc
+       * comment for why tier 3 is deliberately excluded from ever setting this.
+       */
+      aliasHarvest?: { query: string; tier: '4' | '5'; presentationId: string }
+    }
 
 /**
  * Resolves one single-entity, query-engine-capable lookup question — either the whole message
@@ -2006,7 +2052,7 @@ async function resolveSingleEntityLookup(
   const dataBlockResult = await buildEntityQueryDataBlock(entity, context, message, uiLanguage, capability.useVerifyPass.lookupQuery, modelOverride, providerOverride, localModelOverride, baseFilters, trace, signal)
 
   if (dataBlockResult.templatedReply) {
-    return { reply: dataBlockResult.templatedReply, list: dataBlockResult.templatedList, focusUpdate: dataBlockResult.focusUpdate }
+    return { reply: dataBlockResult.templatedReply, list: dataBlockResult.templatedList, focusUpdate: dataBlockResult.focusUpdate, clarifyItem: dataBlockResult.clarifyItem }
   }
 
   // Same compose prompt/schema `answerLookup` itself used before this was extracted — scoped to
@@ -2175,6 +2221,9 @@ export async function answerLookup(
       focusUpdate = combineFocusUpdates(a, b)
     } else {
       const single = await resolveHalf(message)
+      if (single.clarifyItem) {
+        return { status: 'clarifyItem', entityKey: entity.key, candidates: single.clarifyItem.candidates, trace, aliasHarvest: single.clarifyItem.aliasHarvest }
+      }
       result = single
       focusUpdate = single.focusUpdate
     }
@@ -2268,16 +2317,19 @@ export async function answerLookupForItem(
     label?: string
     /** This chat's own id (see `useAssistantFlow.ts`) — used only to write this turn's resolved `DialogFocus` once the reply is ready. */
     conversationId?: string
+    /** Set only when the `clarifyItem` result being resolved came from the product-name resolution ladder's tier 4/5 (see `AnswerLookupResult`'s own doc comment) — the client sends back exactly what it received, unchanged. Confirms the picked `itemID` as this query's alias (see `confirmProductNameAlias`) before answering, so the same misspelling resolves instantly at tier 1.5 next time. */
+    aliasHarvest?: { query: string; tier: '4' | '5'; presentationId: string }
     /** See `ToolCallInput.signal`. */
     signal?: AbortSignal
   } = {},
 ): Promise<{ reply: string; trace: AssistantTraceEntry[] }> {
-  const { historyContext, modelOverride, providerOverride, localModelOverride, label, conversationId, signal } = options
+  const { historyContext, modelOverride, providerOverride, localModelOverride, label, conversationId, aliasHarvest, signal } = options
   const entity = requireAccessibleEntity(entityKey, session)
   if (!entity.getCurrent) throw new Error(`"${entityKey}" has nothing to look up.`)
   const context: AssistantFillContext = { uiLanguage, session }
   const record = await entity.getCurrent(itemID, context)
   if (!record) throw new Error("Couldn't find that item anymore — it may have been deleted.")
+  if (aliasHarvest) confirmProductNameAlias(aliasHarvest.query, aliasHarvest.tier, itemID, aliasHarvest.presentationId)
   const capability = resolveModelCapability(modelOverride, providerOverride)
   const result = await answerFromRecord(entity, record, label, message, uiLanguage, historyContext, modelOverride, providerOverride, localModelOverride, capability, [], signal)
   setDialogFocus(conversationId, focusFromUpdate({ kind: 'item', entity: entityKey, id: itemID, label: label ?? itemID }))

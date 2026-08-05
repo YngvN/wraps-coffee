@@ -48,6 +48,8 @@ export interface Product {
   /** Set exactly when `category` is unset — this product lives directly in this `Catalogue.id`, not grouped under any of its categories (e.g. a one-off item that doesn't fit the catalogue's usual categories). Use `resolveProductCatalogue` (`src/utils/productCatalogue.ts`) rather than reading either field directly, since call sites need to handle both cases. */
   catalogueId?: string
   name: BilingualText
+  /** `fold(name.no)`/`fold(name.en)` (see `src/lib/textFold.ts`) — recomputed server-side on every write (`applyUpdate` in `server/index.ts`), never edited directly. Powers the product-name resolution ladder's tiers 2-3 (`server/assistant/productNameResolution.ts`) so a free-text lookup like "mokka" can match a product actually named "Mocha" without a model call. Absent on a product that predates this field until the next write recomputes it. */
+  nameFolded?: BilingualText
   description: BilingualText
   /** Optional photo, set via `ImageUploadField` — shown as a thumbnail in the admin product list row and beside the item on the kiosk "Catalogue" slide. */
   image?: string

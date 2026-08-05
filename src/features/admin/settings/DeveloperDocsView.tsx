@@ -418,11 +418,12 @@ POST /foodora/status/<orderId>     (Authorization: Bearer <token>, admin/subadmi
         <p>{t('admin.settings.developerDocs.assistantIntro')}</p>
         <pre>
           <code>{`GET /assistant/credentials         (Authorization: Bearer <token>, admin/subadmin only)
-→ 200 { "hasKey": boolean, "provider": "local" | "claude" }   (never the raw key)
+→ 200 { "hasKey": boolean, "provider": "local" | "claude", "productNameCandidateSuggestionsEnabled": boolean }   (never the raw key)
 
 POST /assistant/credentials        (Authorization: Bearer <token>, admin/subadmin only)
-{ "apiKey"?: string | null, "provider"?: "local" | "claude" }   (either field independently updatable)
-→ 200 { "hasKey": boolean, "provider": "local" | "claude" }
+{ "apiKey"?: string | null, "provider"?: "local" | "claude", "productNameCandidateSuggestionsEnabled"?: boolean }   (any field independently updatable)
+→ 200 { "hasKey": boolean, "provider": "local" | "claude", "productNameCandidateSuggestionsEnabled": boolean }
+   ("productNameCandidateSuggestionsEnabled" gates tier 5 of the product-name resolution ladder — see /assistant/lookup's own "clarifyItem"/"aliasHarvest" note below — a model call over the full product list that only ever fires once the deterministic fold/alias/Levenshtein tiers all miss, and whose output is never auto-applied regardless of this setting; defaults true)
 
 POST /assistant/intent             (Authorization: Bearer <token>, any authenticated session)
 { "message": string, "uiLanguage": "no" | "en", "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5", "history"?: string, "provider"?: "local" | "claude" }
@@ -445,14 +446,15 @@ POST /assistant/fill-fields        (Authorization: Bearer <token>, any authentic
 POST /assistant/lookup             (Authorization: Bearer <token>, any authenticated session)
 { "message": string, "uiLanguage": "no" | "en", "entities": string[], "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5", "chunkSizePreference"?: "auto"|"small"|"medium"|"large"|"custom", "customChunkRecordCount"?: number, "historyContext"?: string, "provider"?: "local" | "claude", "itemSearchText"?: string }
 → 200 { "status": "ready", "reply": string }         (answers a factual question about the cafe's own current data, grounded only in that entity's real live records — never outside knowledge; re-filters "entities" through the session's own access the same way every other route does)
-→ 200 { "status": "clarifyItem", "entityKey": string, "candidates": [{ "id", "label" }] }   ("itemSearchText" resolved to 2+ real candidates with no confident single pick — show them as a plain pick-one list, same shape as /assistant/select-item's own, and re-answer via /assistant/lookup-item once the admin picks one, rather than silently guessing)
+→ 200 { "status": "clarifyItem", "entityKey": string, "candidates": [{ "id", "label" }], "aliasHarvest"?: { "query": string, "tier": "4" | "5", "presentationId": string } }   ("itemSearchText" resolved to 2+ real candidates with no confident single pick — show them as a plain pick-one list, same shape as /assistant/select-item's own, and re-answer via /assistant/lookup-item once the admin picks one, rather than silently guessing. "aliasHarvest" is set only when these candidates came from the product-name resolution ladder's own tier 4/5 fuzzy match — see server/assistant/productNameResolution.ts — rather than this same status's other, unrelated source (2+ real items sharing a searched-for name); pass it straight back, unchanged, as /assistant/lookup-item's own "aliasHarvest" once the admin picks one, so that exact query resolves instantly next time)
 → 400 { "error": "..." }           (missing message, uiLanguage, or entities)
    ("itemSearchText" — from /assistant/intent's own "searchText" — engages a single-item fast path when "entities" names exactly one entity and the question was actually about one specific, already-named item (e.g. "how much does the Chicken Fajitas wrap cost?"): resolved to a candidate the same deterministic way /assistant/select-item does, then answered directly from that one record — no batch scan of the whole dataset. Falls through to the normal batch/full-list behavior below only if it's absent or there are 0 real candidates; 2+ candidates with no confident pick returns "clarifyItem" instead, see above)
+   (for the "product" entity specifically, a name/label filter that matches zero real records is never answered "found none, here's the whole catalog instead" — it's re-resolved through a deterministic ladder — orthographic fold, confirmed alias memory, folded substring, single-edit typo match, and only then the model-pick tier gated by "productNameCandidateSuggestionsEnabled" above — before falling back to a genuine "no matches" reply; see server/assistant/productNameResolution.ts)
 → 409 { "error": "..." }           (Claude: no API key configured; Local: the Ollama host/models aren't configured yet, or a local model's reply still wasn't usable after retrying)
 
 POST /assistant/lookup-item        (Authorization: Bearer <token>, any authenticated session)
-{ "entity": string, "itemID": string, "message": string, "uiLanguage": "no" | "en", "historyContext"?: string, "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5", "provider"?: "local" | "claude" }
-→ 200 { "reply": string }         (the continuation call once the admin has picked one candidate off a "clarifyItem" result above — answers directly from that one, now-unambiguous record; never searches or picks anything itself)
+{ "entity": string, "itemID": string, "message": string, "uiLanguage": "no" | "en", "historyContext"?: string, "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5", "provider"?: "local" | "claude", "aliasHarvest"?: { "query": string, "tier": "4" | "5", "presentationId": string } }
+→ 200 { "reply": string }         (the continuation call once the admin has picked one candidate off a "clarifyItem" result above — answers directly from that one, now-unambiguous record; never searches or picks anything itself. When "aliasHarvest" is present — passed straight back from the "clarifyItem" result unchanged, see above — this also confirms "itemID" as that exact query's alias before answering)
 → 400 { "error": "..." }           (missing entity, itemID, message, or uiLanguage)
 → 409 { "error": "..." }           (same as /assistant/intent above)
    (large datasets are automatically split into batches and summarized rather than truncated — "chunkSizePreference"/"customChunkRecordCount" override how much data is processed per call at once; both come from AssistantPanel's own kebab-menu chunk-size setting, and an out-of-range "customChunkRecordCount" is clamped server-side, never trusted as-is)
@@ -495,7 +497,12 @@ POST /assistant/transcribe         (Authorization: Bearer <token>, any authentic
 { "message": string, "uiLanguage": "no" | "en", "image": { "mediaType", "base64Data" }, "model"?: "claude-haiku-4-5"|"claude-sonnet-4-5"|"claude-opus-4-5", "provider"?: "local" | "claude" }
 → 200 { "text": string }          (the generic "just read this photo" mode — reads any photographed document, not limited to this dashboard's own data, e.g. a menu, a price list, a house listing; never writes anything or proposes a draft, same posture as the five routes above)
 → 400 { "error": "..." }           (missing uiLanguage or image)
-→ 409 { "error": "..." }           (same as /assistant/intent above)`}</code>
+→ 409 { "error": "..." }           (same as /assistant/intent above)
+
+GET /assistant/product-name-resolution-log   (Authorization: Bearer <token>, admin/subadmin only)
+?limit=number               (optional, defaults to 100, clamped to 500)
+→ 200 { "entries": [{ "query": string, "foldedQuery": string, "tier": string, "resolvedProductId": string | null, "confirmed": boolean, "timestamp": string, "presentationId": string }] }
+   (debug/measurement surface for the product-name resolution ladder — every tier-2-and-below resolution attempt, most recent last, kept on disk up to the most recent 2000; not a "SyncedKey", nothing here is editable from the dashboard. "confirmed": false is the attempt as first presented; a later "confirmed": true row for the same query/tier is written once an admin actually taps a "did you mean...?" suggestion — see /assistant/lookup-item's own "aliasHarvest" above. "presentationId" pairs a "confirmed": true row with the "confirmed": false row it confirms — needed since the same query text can be asked more than once with different outcomes, so "no later confirmed:true row for this query" alone would misattribute; a "presentationId" that never gets a matching "confirmed": true row was implicitly rejected — there's no separate reject event)`}</code>
         </pre>
       </Card>
 

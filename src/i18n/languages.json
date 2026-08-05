@@ -557,6 +557,7 @@
           "confirmMatchYes": "Yes",
           "confirmMatchShowOthers": "No, show others",
           "clarifyLookupItemQuestion": "There's more than one match — which one did you mean?",
+          "suggestLookupMatchQuestion": "Did you mean this?",
           "noMatchFound": "No matching item found.",
           "staleResponseDiscarded": "Discarded a late response from an earlier, cancelled turn (v{{previous}}, now on v{{current}}).",
           "typeToConfirmLabel": "Type \"{{phrase}}\" to confirm",
@@ -1287,7 +1288,8 @@
             "assistantProviderClaudeDescription": "Uses the Claude API — needs an API key, saved on the Integrations page.",
             "assistantProviderLocalLabel": "Local (free)",
             "assistantProviderLocalDescription": "Runs a local Ollama model on this device — free, fully offline, no API key. Configure the host and models on the Integrations page.",
-            "assistantProviderNoKey": "No Claude API key has been saved yet — the assistant won't work until one is added."
+            "assistantProviderNoKey": "No Claude API key has been saved yet — the assistant won't work until one is added.",
+            "assistantCandidateSuggestionsLabel": "Suggest a candidate product for an unmatched name lookup (e.g. \"Har vi mokka?\"), using a model call — the suggestion is always shown as a \"did you mean...?\" prompt, never applied automatically."
           },
           "backup": {
             "title": "Backup",
@@ -2608,6 +2610,7 @@
           "confirmMatchYes": "Ja",
           "confirmMatchShowOthers": "Nei, vis andre",
           "clarifyLookupItemQuestion": "Det er mer enn én match — hvilken mente du?",
+          "suggestLookupMatchQuestion": "Mente du denne?",
           "noMatchFound": "Fant ingen match.",
           "staleResponseDiscarded": "Forkastet et sent svar fra en tidligere, avbrutt runde (v{{previous}}, nå på v{{current}}).",
           "typeToConfirmLabel": "Skriv «{{phrase}}» for å bekrefte",
@@ -3338,7 +3341,8 @@
             "assistantProviderClaudeDescription": "Bruker Claude API-et — krever en API-nøkkel, lagret på Integrasjoner-siden.",
             "assistantProviderLocalLabel": "Lokal (gratis)",
             "assistantProviderLocalDescription": "Kjører en lokal Ollama-modell på denne enheten — gratis, helt frakoblet, ingen API-nøkkel. Sett opp vert og modeller på Integrasjoner-siden.",
-            "assistantProviderNoKey": "Ingen Claude API-nøkkel er lagret ennå — assistenten fungerer ikke før én er lagt til."
+            "assistantProviderNoKey": "Ingen Claude API-nøkkel er lagret ennå — assistenten fungerer ikke før én er lagt til.",
+            "assistantCandidateSuggestionsLabel": "Foreslå et kandidatprodukt for et produktnavn-søk uten treff (f.eks. «Har vi mokka?»), ved hjelp av et modellkall — forslaget vises alltid som et «mente du...?»-spørsmål, og blir aldri brukt automatisk."
           },
           "backup": {
             "title": "Sikkerhetskopi",
