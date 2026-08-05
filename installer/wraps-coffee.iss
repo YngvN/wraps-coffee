@@ -14,7 +14,7 @@
 ; running app reports at GET /server-info and shows in Settings -> About) -
 ; the two are separate files with no automated link between them, so a
 ; version bump needs both edited together.
-#define AppVersion "0.1"
+#define AppVersion "0.15"
 
 [Setup]
 ; Fixed GUID (not the app name) so the uninstall registry key stays the same
