@@ -5,8 +5,14 @@ import path from 'node:path'
 
 export const BASE_URL = 'http://localhost:5173'
 export const REPO_ROOT = '/Users/yngve/Desktop/GitHub/wraps-coffee'
-export const SCREEN_DIR = path.join(REPO_ROOT, 'QA/assistant-qa-screenshots-qwen3-8b')
-export const RESULTS_PATH = path.join(REPO_ROOT, 'QA/scratchpad-qwen3-8b-results.json')
+// Label the run's own screenshot dir / results file via QA_RUN_LABEL (e.g. "gemma3-4b",
+// "claude-sonnet-4-5") so this same harness can be reused unmodified across a multi-run cycle's own
+// separate configurations, instead of hand-copying the file per run just to change these two
+// constants — falls back to "qwen3-8b" (this file's own long-standing default) when unset, so every
+// pre-existing script that imports this file without setting the env var keeps working unchanged.
+const RUN_LABEL = process.env.QA_RUN_LABEL ?? 'qwen3-8b'
+export const SCREEN_DIR = path.join(REPO_ROOT, `QA/assistant-qa-screenshots-${RUN_LABEL}`)
+export const RESULTS_PATH = path.join(REPO_ROOT, `QA/scratchpad-${RUN_LABEL}-results.json`)
 
 export type ScenarioStatus = 'PASS' | 'PARTIAL' | 'FAIL' | 'N/A' | 'ERROR' | 'CAPTURED'
 
@@ -156,7 +162,18 @@ export async function newChat(page: Page) {
 
 export async function closeModelMenu(page: Page) {
   const backBtn = page.locator('.assistant-panel__log-back')
-  if (await backBtn.count()) await backBtn.click().catch(() => {})
+  if (await backBtn.count()) {
+    await backBtn.click().catch(() => {})
+    // AssistantPanel.tsx's model-menu/transcript views are mutually exclusive under
+    // `AnimatePresence mode="wait"` — clicking "back" starts a 250ms exit animation before the
+    // transcript view remounts. Returning immediately (as this used to) let `newChat()`'s own
+    // `openAssistant()` open-check run mid-transition, read the transcript as absent, and click the
+    // sparkle toggle to "reopen" an already-open panel — which actually closes it. Confirmed live:
+    // this raced on every other scenario, alternating real send-button timeouts with successful runs
+    // once the wrongly-closed panel got correctly reopened the next time around. Waiting here for the
+    // transcript to actually reappear closes that race at its source.
+    await page.locator('.assistant-panel__transcript').waitFor({ timeout: 5000 }).catch(() => {})
+  }
 }
 
 export async function openModelMenu(page: Page) {
@@ -164,11 +181,16 @@ export async function openModelMenu(page: Page) {
   await page.locator('#assistant-provider-select').waitFor({ timeout: 10000 })
 }
 
-export async function configureAssistantModel(page: Page, opts: { provider?: 'standard' | 'claude' | 'local'; thinkingModel?: string; visionModel?: string; posture?: 'auto' | 'safe' | 'full' }) {
+export async function configureAssistantModel(page: Page, opts: { provider?: 'standard' | 'claude' | 'local'; thinkingModel?: string; visionModel?: string; claudeModel?: string; posture?: 'auto' | 'safe' | 'full' }) {
   await openAssistant(page)
   await openModelMenu(page)
   if (opts.provider) {
     await page.locator('#assistant-provider-select').selectOption(opts.provider)
+  }
+  if (opts.provider === 'claude' && opts.claudeModel) {
+    const sel = page.locator('#assistant-claude-model-select')
+    await sel.waitFor({ timeout: 10000 })
+    await sel.selectOption(opts.claudeModel)
   }
   if (opts.provider === 'local' && opts.thinkingModel) {
     const sel = page.locator('#assistant-local-thinking-model-select')

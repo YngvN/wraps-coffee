@@ -1,0 +1,14 @@
+@use '../../styles/variables' as *;
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  max-width: 320px;
+
+  &__error {
+    color: $color-error;
+    font-size: 0.875rem;
+    margin: 0;
+  }
+}

@@ -1,0 +1,14 @@
+<!-- Moved here from QA/templates/qa-test-plan-template.md's old "Section H" (v7, added when the settings entity shipped) on 2026-08-04, as part of splitting per-entity QA scenario banks out of the monolithic plan template — see QA/templates/project/qa-test-plan-project.md's own header and "Per-entity scenario files" table. IDs kept as originally assigned (H.1-H.4) for traceability with any prior report that already cites them. -->
+
+# QA scenarios: `settings` entity
+
+Pulled into a cycle's own classification table (see `QA/templates/project/qa-test-plan-project.md`) whenever `server/assistant/entities/settings.ts` or its client-side wiring (`useAssistantFlow.ts`/`AssistantPanel.tsx`'s `SettingsMiniForm`) has changed since the last cycle that covered it. H.2 specifically guards against a real, found-and-fixed confabulation bug (see `qa-test-plan-project.md`'s "Known app-level findings" — the standing confabulation rule) — treat any regression there as high-severity, not a routine model-quality miss, since it silently broke the entire admin sidebar in real testing.
+
+**As of 2026-08-04, this file has never been exercised in an actual QA cycle** — the entity shipped the same day this file was written.
+
+| ID | Scenario | Example messages | Regression flag | Session |
+| --- | --- | --- | --- | --- |
+| H.1 | Change one settings field via chat, confirm the review card shows only that field changing (not every field the model could theoretically touch), and confirm it persists to the real Settings page after confirming. | "Bytt til 12-timers klokke i innstillingene." (switch to 12-hour clock) | | Fresh |
+| H.2 | **Confabulation regression check.** Send a settings message that names one field only, then inspect the raw `fill_fields_settings` trace output directly (not just the rendered review) to confirm `hiddenSidebarItems` is either `null` or absent entirely — never a fabricated full list — on the local provider. | "Bytt datoformat til måned/dag/år." (switch date format to month/day/year) | **High-severity if this regresses** — silently hid the entire sidebar in the run that first found it. | Fresh |
+| H.3 | Hide one specific sidebar item via chat on **Claude** (the local provider can't touch `hiddenSidebarItems` at all post-fix — it's stripped from that provider's schema). Confirm the resulting list contains exactly the previously-hidden items plus the new one, not every possible item. | "Skjul Bestillinger-fanen fra sidemenyen." (hide the Orders tab from the sidebar) | | Fresh |
+| H.4 | Manual UI check (not chat): change the kiosk pane default language via Settings directly, confirm it syncs live to a second open browser tab (proving the real synced-key path, not a stale per-tab value) — this is what confirms `clockFormat`/`dateFormat`/`paneLanguage`/`sidebarSettings` are genuinely `SYNCED_KEYS` and not device-local. | N/A — manual UI interaction across two tabs, not a chat message | | N/A |

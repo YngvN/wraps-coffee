@@ -179,6 +179,7 @@ function buildConversationClipboardText(transcript: TranscriptLine[], modelLabel
             `     Input: ${entry.input}`,
             `     Output: ${entry.output}`,
             entry.resolvedFields ? `     Resolved fields: ${JSON.stringify(entry.resolvedFields)}` : null,
+            entry.checks && entry.checks.length > 0 ? `     Checks: ${JSON.stringify(entry.checks)}` : null,
           ]
             .filter((part): part is string => part !== null)
             .join('\n')

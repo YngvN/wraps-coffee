@@ -1,0 +1,964 @@
+{
+  "results": [
+    {
+      "id": "A.1",
+      "title": "Product count (deterministic lookup)",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Vi har 109 produkter.\". trace uses lookup_query=true, uses answer_lookup=false (expect false for deterministic count path). Verify against current admin-UI product count, not a hardcoded number.",
+      "evidence": {
+        "reply": "Vi har 109 produkter.",
+        "usesAnswerLookup": false,
+        "usesLookupQuery": true
+      },
+      "trace": [
+        "Thought for 9s (2374 in / 19 out):\n  1. classify_message [classify_message, qwen3:4b, 6s] — 1046 in / 8 out\n     Input: {\"userText\":\"Hvor mange produkter har vi?\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 3s] — 1328 in / 11 out\n     Input: {\"userText\":\"Hvor mange produkter har vi?\"}\n     Output: {\"filters\":[],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "001-A-1.png"
+    },
+    {
+      "id": "A.2",
+      "title": "Discounted product count",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Vi har 3 produkter.\" — verify against current active-discount count via admin UI.",
+      "evidence": {
+        "reply": "Vi har 3 produkter."
+      },
+      "trace": [
+        "Thought for 4s (2380 in / 38 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1048 in / 8 out\n     Input: {\"userText\":\"Hvor mange produkter er på tilbud?\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 3s] — 1332 in / 30 out\n     Input: {\"userText\":\"Hvor mange produkter er på tilbud?\"}\n     Output: {\"filters\":[{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "002-A-2.png"
+    },
+    {
+      "id": "A.3",
+      "title": "Which product is on sale",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Her er 3 produkter på tilbud:\nKylling Fajitas (Wraps)\nMichelin Vinterdekk 205/55R16 (?)\nMichelin Vinterdekk 205/55R16 (Dekk)\" (expect mentions Michelin Vinterdekk).",
+      "evidence": {
+        "reply": "Her er 3 produkter på tilbud:\nKylling Fajitas (Wraps)\nMichelin Vinterdekk 205/55R16 (?)\nMichelin Vinterdekk 205/55R16 (Dekk)"
+      },
+      "trace": [
+        "Thought for 4s (2380 in / 38 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1048 in / 8 out\n     Input: {\"userText\":\"Hvilke produkter er på tilbud?\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 3s] — 1332 in / 30 out\n     Input: {\"userText\":\"Hvilke produkter er på tilbud?\"}\n     Output: {\"filters\":[{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "003-A-3.png"
+    },
+    {
+      "id": "A.4",
+      "title": "List all products (bullet attachment)",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Her er 109 produkter:\nKylling (Wraps)\nTunfisk (Wraps)\nVegetar (Wraps)\nKylling Fajitas (Wraps)\nKylling Feta (Wraps)\nKylling Tzatziki (Wraps)\nKylling Tandoori (Wraps)\nKylling Curry (Wraps)\nKylling Aioli (Wraps)\nPulled Pork (Wraps)\nChipotle Biff (Wraps)\nMexicansk Taco (Wraps)\nOst & Skinke (Wraps)\nReker...\". DOM <li> count near transcript: 109 (expect a real list, not one run-on sentence or an empty/hallucinated answer).",
+      "evidence": {
+        "reply": "Her er 109 produkter:\nKylling (Wraps)\nTunfisk (Wraps)\nVegetar (Wraps)\nKylling Fajitas (Wraps)\nKylling Feta (Wraps)\nKylling Tzatziki (Wraps)\nKylling Tandoori (Wraps)\nKylling Curry (Wraps)\nKylling Aioli (Wraps)\nPulled Pork (Wraps)\nChipotle Biff (Wraps)\nMexicansk Taco (Wraps)\nOst & Skinke (Wraps)\nReker (Baguetter)\nTunfisk (Baguetter)\nSkinke (Baguetter)\nTandoori Kylling (Baguetter)\nFeta (Baguetter)\nKylling (Baguetter)\nChimichurri (Baguetter)\nEgg & Tomat (Baguetter)\nMozzarella (Baguetter)\nMargherita (Pizza)\nKylling (Pizza)\nParma (Pizza)\nEspresso (Kaffe & Drikke)\nLong Black (Kaffe & Drikke)\nRed Eye (Kaffe & Drikke)\nAmericano (Kaffe & Drikke)\nMacchiato (Kaffe & Drikke)\nCortado (Kaffe & Drikke)\nCappuccino (Kaffe & Drikke)\nCaffè Latte (Kaffe & Drikke)\nChai Latte (Kaffe & Drikke)\nMocha (Kaffe & Drikke)\nIskaffe (Kaffe & Drikke)\nFlat White (Kaffe & Drikke)\nTe (Kaffe & Drikke)\nAppelsin, Jordbær & Banan (Smoothies)\nAppelsin, Blåbær & Bringebær (Smoothies)\nAppelsin, Tzatziki & Pesto (Smoothies)\nRekesalat (Salater)\nTunfisksalat (Salater)\nCaesarsalat (Salater)\nFetasalat (Salater)\nKylling Fajitas (Nachos)\nKylling (Nachos)\nKylling Tandoori (Nachos)\nKylling Tzatziki (Nachos)\nKylling Curry (Nachos)\nKylling Aioli (Nachos)\nKylling Feta (Nachos)\nVegetar (Nachos)\nMexicansk (Nachos)\nMichelin Vinterdekk 205/55R16 (?)\nDekk Del 1 (Dekk)\nDekk Del 2 (Dekk)\nDekk Del 3 (Dekk)\nDekk Del 4 (Dekk)\nDekk Del 5 (Dekk)\nDekk Del 6 (Dekk)\nDekk Del 7 (Dekk)\nDekk Del 8 (Dekk)\nMichelin Vinterdekk 205/55R16 (Dekk)\nBremser Del 1 (Bremser)\nBremser Del 2 (Bremser)\nBremser Del 3 (Bremser)\nBremser Del 4 (Bremser)\nMotorolje Del 1 (Motorolje)\nMotorolje Del 2 (Motorolje)\nMotorolje Del 3 (Motorolje)\nMotorolje Del 4 (Motorolje)\nMotorolje Del 5 (Motorolje)\nMotorolje Del 6 (Motorolje)\nMotorolje Del 7 (Motorolje)\nMotorolje Del 8 (Motorolje)\nMotorolje Del 9 (Motorolje)\nMotorolje Del 10 (Motorolje)\nMotorolje Del 11 (Motorolje)\nMotorolje Del 12 (Motorolje)\nMotorolje Del 13 (Motorolje)\nInteriør Del 1 (Interiør)\nInteriør Del 2 (Interiør)\nInteriør Del 3 (Interiør)\nInteriør Del 4 (Interiør)\nInteriør Del 5 (Interiør)\nInteriør Del 6 (Interiør)\nInteriør Del 7 (Interiør)\nInteriør Del 8 (Interiør)\nInteriør Del 9 (Interiør)\nInteriør Del 10 (Interiør)\nFrontlys (Interiør)\nLED Headlight Bulb H7 (Interiør)\nLED Interior Strip (Interiør)\nTilbehør Del 1 (Tilbehør)\nFrontlys (Tilbehør)\nLED Fog Light (Tilbehør)\nBatterier Del 1 (Batterier)\nBatterier Del 2 (Batterier)\nBatterier Del 3 (Batterier)\nBatterier Del 4 (Batterier)\nBatterier Del 5 (Batterier)\nBatterier Del 6 (Batterier)\nBatterier Del 7 (Batterier)\nBatterier Del 8 (Batterier)\nBatterier Del 9 (Batterier)\nLydanlegg Del 1 (Lydanlegg)\nLydanlegg Del 2 (Lydanlegg)\nLydanlegg Del 3 (Lydanlegg)",
+        "listItemCount": 109
+      },
+      "trace": [
+        "Thought for 3s (1329 in / 11 out):\n  1. lookup_query [lookup_query, qwen3:4b, 3s] — 1329 in / 11 out\n     Input: {\"userText\":\"Gi meg en liste over alle produkter\"}\n     Output: {\"filters\":[],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "004-A-4.png"
+    },
+    {
+      "id": "A.5",
+      "title": "Compound imperative+interrogative",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Her er 109 produkter:\nHer er 3 produkter på tilbud:\nKylling (Wraps)\nTunfisk (Wraps)\nVegetar (Wraps)\nKylling Fajitas (Wraps)\nKylling Feta (Wraps)\nKylling Tzatziki (Wraps)\nKylling Tandoori (Wraps)\nKylling Curry (Wraps)\nKylling Aioli (Wraps)\nPulled Pork (Wraps)\nChipotle Biff (Wraps)\nMexicansk Taco (Wraps)\nOst & Skinke (Wraps)\nReker (Baguetter)\nTunfisk (Baguetter)\nSkinke (Baguetter)\nTandoori Kylling (...\"",
+      "evidence": {
+        "reply": "Her er 109 produkter:\nHer er 3 produkter på tilbud:\nKylling (Wraps)\nTunfisk (Wraps)\nVegetar (Wraps)\nKylling Fajitas (Wraps)\nKylling Feta (Wraps)\nKylling Tzatziki (Wraps)\nKylling Tandoori (Wraps)\nKylling Curry (Wraps)\nKylling Aioli (Wraps)\nPulled Pork (Wraps)\nChipotle Biff (Wraps)\nMexicansk Taco (Wraps)\nOst & Skinke (Wraps)\nReker (Baguetter)\nTunfisk (Baguetter)\nSkinke (Baguetter)\nTandoori Kylling (Baguetter)\nFeta (Baguetter)\nKylling (Baguetter)\nChimichurri (Baguetter)\nEgg & Tomat (Baguetter)\nMozzarella (Baguetter)\nMargherita (Pizza)\nKylling (Pizza)\nParma (Pizza)\nEspresso (Kaffe & Drikke)\nLong Black (Kaffe & Drikke)\nRed Eye (Kaffe & Drikke)\nAmericano (Kaffe & Drikke)\nMacchiato (Kaffe & Drikke)\nCortado (Kaffe & Drikke)\nCappuccino (Kaffe & Drikke)\nCaffè Latte (Kaffe & Drikke)\nChai Latte (Kaffe & Drikke)\nMocha (Kaffe & Drikke)\nIskaffe (Kaffe & Drikke)\nFlat White (Kaffe & Drikke)\nTe (Kaffe & Drikke)\nAppelsin, Jordbær & Banan (Smoothies)\nAppelsin, Blåbær & Bringebær (Smoothies)\nAppelsin, Tzatziki & Pesto (Smoothies)\nRekesalat (Salater)\nTunfisksalat (Salater)\nCaesarsalat (Salater)\nFetasalat (Salater)\nKylling Fajitas (Nachos)\nKylling (Nachos)\nKylling Tandoori (Nachos)\nKylling Tzatziki (Nachos)\nKylling Curry (Nachos)\nKylling Aioli (Nachos)\nKylling Feta (Nachos)\nVegetar (Nachos)\nMexicansk (Nachos)\nMichelin Vinterdekk 205/55R16 (?)\nDekk Del 1 (Dekk)\nDekk Del 2 (Dekk)\nDekk Del 3 (Dekk)\nDekk Del 4 (Dekk)\nDekk Del 5 (Dekk)\nDekk Del 6 (Dekk)\nDekk Del 7 (Dekk)\nDekk Del 8 (Dekk)\nMichelin Vinterdekk 205/55R16 (Dekk)\nBremser Del 1 (Bremser)\nBremser Del 2 (Bremser)\nBremser Del 3 (Bremser)\nBremser Del 4 (Bremser)\nMotorolje Del 1 (Motorolje)\nMotorolje Del 2 (Motorolje)\nMotorolje Del 3 (Motorolje)\nMotorolje Del 4 (Motorolje)\nMotorolje Del 5 (Motorolje)\nMotorolje Del 6 (Motorolje)\nMotorolje Del 7 (Motorolje)\nMotorolje Del 8 (Motorolje)\nMotorolje Del 9 (Motorolje)\nMotorolje Del 10 (Motorolje)\nMotorolje Del 11 (Motorolje)\nMotorolje Del 12 (Motorolje)\nMotorolje Del 13 (Motorolje)\nInteriør Del 1 (Interiør)\nInteriør Del 2 (Interiør)\nInteriør Del 3 (Interiør)\nInteriør Del 4 (Interiør)\nInteriør Del 5 (Interiør)\nInteriør Del 6 (Interiør)\nInteriør Del 7 (Interiør)\nInteriør Del 8 (Interiør)\nInteriør Del 9 (Interiør)\nInteriør Del 10 (Interiør)\nFrontlys (Interiør)\nLED Headlight Bulb H7 (Interiør)\nLED Interior Strip (Interiør)\nTilbehør Del 1 (Tilbehør)\nFrontlys (Tilbehør)\nLED Fog Light (Tilbehør)\nBatterier Del 1 (Batterier)\nBatterier Del 2 (Batterier)\nBatterier Del 3 (Batterier)\nBatterier Del 4 (Batterier)\nBatterier Del 5 (Batterier)\nBatterier Del 6 (Batterier)\nBatterier Del 7 (Batterier)\nBatterier Del 8 (Batterier)\nBatterier Del 9 (Batterier)\nLydanlegg Del 1 (Lydanlegg)\nLydanlegg Del 2 (Lydanlegg)\nLydanlegg Del 3 (Lydanlegg)\nKylling Fajitas (Wraps)\nMichelin Vinterdekk 205/55R16 (?)\nMichelin Vinterdekk 205/55R16 (Dekk)"
+      },
+      "trace": [
+        "Thought for 9s (2660 in / 41 out):\n  1. lookup_query [lookup_query, qwen3:4b, 6s] — 1331 in / 30 out\n     Input: {\"userText\":\"vis meg hvem som er på tilbud\"}\n     Output: {\"filters\":[{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]\n  2. lookup_query [lookup_query, qwen3:4b, 9s] — 1329 in / 11 out\n     Input: {\"userText\":\"Gi meg en liste over alle produkter\"}\n     Output: {\"filters\":[],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "005-A-5.png"
+    },
+    {
+      "id": "A.6",
+      "title": "Compound two-interrogative",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Vi har 109 produkter.\nHer er 109 produkter:\nKylling (Wraps)\nTunfisk (Wraps)\nVegetar (Wraps)\nKylling Fajitas (Wraps)\nKylling Feta (Wraps)\nKylling Tzatziki (Wraps)\nKylling Tandoori (Wraps)\nKylling Curry (Wraps)\nKylling Aioli (Wraps)\nPulled Pork (Wraps)\nChipotle Biff (Wraps)\nMexicansk Taco (Wraps)\nOst & Skinke (Wraps)\nReker (Baguetter)\nTunfisk (Baguetter)\nSkinke (Baguetter)\nTandoori Kylling (Baguetter)\nFeta (Baguetter)\nKylling (Baguetter)\nChimichurri (Baguetter)\nEgg & Tomat (Baguetter)\nMozzarella (Baguetter)\nMargherita (Pizza)\nKylling (Pizza)\nParma (Pizza)\nEspresso (Kaffe & Drikke)\nLong Black (Kaffe & Drikke)\nRed Eye (Kaffe & Drikke)\nAmericano (Kaffe & Drikke)\nMacchiato (Kaffe & Drikke)\nCortado (Kaffe & Drikke)\nCappuccino (Kaffe & Drikke)\nCaffè Latte (Kaffe & Drikke)\nChai Latte (Kaffe & Drikke)\nMocha (Kaffe & Drikke)\nIskaffe (Kaffe & Drikke)\nFlat White (Kaffe & Drikke)\nTe (Kaffe & Drikke)\nAppelsin, Jordbær & Banan (Smoothies)\nAppelsin, Blåbær & Bringebær (Smoothies)\nAppelsin, Tzatziki & Pesto (Smoothies)\nRekesalat (Salater)\nTunfisksalat (Salater)\nCaesarsalat (Salater)\nFetasalat (Salater)\nKylling Fajitas (Nachos)\nKylling (Nachos)\nKylling Tandoori (Nachos)\nKylling Tzatziki (Nachos)\nKylling Curry (Nachos)\nKylling Aioli (Nachos)\nKylling Feta (Nachos)\nVegetar (Nachos)\nMexicansk (Nachos)\nMichelin Vinterdekk 205/55R16 (?)\nDekk Del 1 (Dekk)\nDekk Del 2 (Dekk)\nDekk Del 3 (Dekk)\nDekk Del 4 (Dekk)\nDekk Del 5 (Dekk)\nDekk Del 6 (Dekk)\nDekk Del 7 (Dekk)\nDekk Del 8 (Dekk)\nMichelin Vinterdekk 205/55R16 (Dekk)\nBremser Del 1 (Bremser)\nBremser Del 2 (Bremser)\nBremser Del 3 (Bremser)\nBremser Del 4 (Bremser)\nMotorolje Del 1 (Motorolje)\nMotorolje Del 2 (Motorolje)\nMotorolje Del 3 (Motorolje)\nMotorolje Del 4 (Motorolje)\nMotorolje Del 5 (Motorolje)\nMotorolje Del 6 (Motorolje)\nMotorolje Del 7 (Motorolje)\nMotorolje Del 8 (Motorolje)\nMotorolje Del 9 (Motorolje)\nMotorolje Del 10 (Motorolje)\nMotorolje Del 11 (Motorolje)\nMotorolje Del 12 (Motorolje)\nMotorolje Del 13 (Motorolje)\nInteriør Del 1 (Interiør)\nInteriør Del 2 (Interiør)\nInteriør Del 3 (Interiør)\nInteriør Del 4 (Interiør)\nInteriør Del 5 (Interiør)\nInteriør Del 6 (Interiør)\nInteriør Del 7 (Interiør)\nInteriør Del 8 (Interiør)\nInteriør Del 9 (Interiør)\nInteriør Del 10 (Interiør)\nFrontlys (Interiør)\nLED Headlight Bulb H7 (Interiør)\nLED Interior Strip (Interiør)\nTilbehør Del 1 (Tilbehør)\nFrontlys (Tilbehør)\nLED Fog Light (Tilbehør)\nBatterier Del 1 (Batterier)\nBatterier Del 2 (Batterier)\nBatterier Del 3 (Batterier)\nBatterier Del 4 (Batterier)\nBatterier Del 5 (Batterier)\nBatterier Del 6 (Batterier)\nBatterier Del 7 (Batterier)\nBatterier Del 8 (Batterier)\nBatterier Del 9 (Batterier)\nLydanlegg Del 1 (Lydanlegg)\nLydanlegg Del 2 (Lydanlegg)\nLydanlegg Del 3 (Lydanlegg)\" — check whether both halves answered or one silently dropped.",
+      "evidence": {
+        "reply": "Vi har 109 produkter.\nHer er 109 produkter:\nKylling (Wraps)\nTunfisk (Wraps)\nVegetar (Wraps)\nKylling Fajitas (Wraps)\nKylling Feta (Wraps)\nKylling Tzatziki (Wraps)\nKylling Tandoori (Wraps)\nKylling Curry (Wraps)\nKylling Aioli (Wraps)\nPulled Pork (Wraps)\nChipotle Biff (Wraps)\nMexicansk Taco (Wraps)\nOst & Skinke (Wraps)\nReker (Baguetter)\nTunfisk (Baguetter)\nSkinke (Baguetter)\nTandoori Kylling (Baguetter)\nFeta (Baguetter)\nKylling (Baguetter)\nChimichurri (Baguetter)\nEgg & Tomat (Baguetter)\nMozzarella (Baguetter)\nMargherita (Pizza)\nKylling (Pizza)\nParma (Pizza)\nEspresso (Kaffe & Drikke)\nLong Black (Kaffe & Drikke)\nRed Eye (Kaffe & Drikke)\nAmericano (Kaffe & Drikke)\nMacchiato (Kaffe & Drikke)\nCortado (Kaffe & Drikke)\nCappuccino (Kaffe & Drikke)\nCaffè Latte (Kaffe & Drikke)\nChai Latte (Kaffe & Drikke)\nMocha (Kaffe & Drikke)\nIskaffe (Kaffe & Drikke)\nFlat White (Kaffe & Drikke)\nTe (Kaffe & Drikke)\nAppelsin, Jordbær & Banan (Smoothies)\nAppelsin, Blåbær & Bringebær (Smoothies)\nAppelsin, Tzatziki & Pesto (Smoothies)\nRekesalat (Salater)\nTunfisksalat (Salater)\nCaesarsalat (Salater)\nFetasalat (Salater)\nKylling Fajitas (Nachos)\nKylling (Nachos)\nKylling Tandoori (Nachos)\nKylling Tzatziki (Nachos)\nKylling Curry (Nachos)\nKylling Aioli (Nachos)\nKylling Feta (Nachos)\nVegetar (Nachos)\nMexicansk (Nachos)\nMichelin Vinterdekk 205/55R16 (?)\nDekk Del 1 (Dekk)\nDekk Del 2 (Dekk)\nDekk Del 3 (Dekk)\nDekk Del 4 (Dekk)\nDekk Del 5 (Dekk)\nDekk Del 6 (Dekk)\nDekk Del 7 (Dekk)\nDekk Del 8 (Dekk)\nMichelin Vinterdekk 205/55R16 (Dekk)\nBremser Del 1 (Bremser)\nBremser Del 2 (Bremser)\nBremser Del 3 (Bremser)\nBremser Del 4 (Bremser)\nMotorolje Del 1 (Motorolje)\nMotorolje Del 2 (Motorolje)\nMotorolje Del 3 (Motorolje)\nMotorolje Del 4 (Motorolje)\nMotorolje Del 5 (Motorolje)\nMotorolje Del 6 (Motorolje)\nMotorolje Del 7 (Motorolje)\nMotorolje Del 8 (Motorolje)\nMotorolje Del 9 (Motorolje)\nMotorolje Del 10 (Motorolje)\nMotorolje Del 11 (Motorolje)\nMotorolje Del 12 (Motorolje)\nMotorolje Del 13 (Motorolje)\nInteriør Del 1 (Interiør)\nInteriør Del 2 (Interiør)\nInteriør Del 3 (Interiør)\nInteriør Del 4 (Interiør)\nInteriør Del 5 (Interiør)\nInteriør Del 6 (Interiør)\nInteriør Del 7 (Interiør)\nInteriør Del 8 (Interiør)\nInteriør Del 9 (Interiør)\nInteriør Del 10 (Interiør)\nFrontlys (Interiør)\nLED Headlight Bulb H7 (Interiør)\nLED Interior Strip (Interiør)\nTilbehør Del 1 (Tilbehør)\nFrontlys (Tilbehør)\nLED Fog Light (Tilbehør)\nBatterier Del 1 (Batterier)\nBatterier Del 2 (Batterier)\nBatterier Del 3 (Batterier)\nBatterier Del 4 (Batterier)\nBatterier Del 5 (Batterier)\nBatterier Del 6 (Batterier)\nBatterier Del 7 (Batterier)\nBatterier Del 8 (Batterier)\nBatterier Del 9 (Batterier)\nLydanlegg Del 1 (Lydanlegg)\nLydanlegg Del 2 (Lydanlegg)\nLydanlegg Del 3 (Lydanlegg)"
+      },
+      "trace": [
+        "Thought for 9s (3706 in / 30 out):\n  1. classify_message [classify_message, qwen3:4b, 4s] — 1053 in / 8 out\n     Input: {\"userText\":\"Hvor mange produkter har vi og hvem er på tilbud?\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 3s] — 1327 in / 11 out\n     Input: {\"userText\":\"Hvor mange produkter har vi\"}\n     Output: {\"filters\":[],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]\n  3. lookup_query [lookup_query, qwen3:4b, 5s] — 1326 in / 11 out\n     Input: {\"userText\":\"hvem er på tilbud?\"}\n     Output: {\"filters\":[],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "006-A-6.png"
+    },
+    {
+      "id": "A.7",
+      "title": "Non-question phrase must not trigger create",
+      "phase": "A",
+      "status": "FAIL",
+      "notes": "Reply: \"\". gate=true batch=false singleReview=false (all must be false).",
+      "evidence": {
+        "reply": "",
+        "gate": true,
+        "batch": false,
+        "review": false
+      },
+      "trace": [
+        "Thought for 11s (3579 in / 128 out):\n  1. classify_message [classify_message, qwen3:4b, 4s] — 1046 in / 8 out\n     Input: {\"userText\":\"et stort og et lite frontlys\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1248 in / 27 out\n     Input: {\"userText\":\"et stort og et lite frontlys\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"et stort og et lite frontlys\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 5s] — 1285 in / 93 out\n     Input: {\"userText\":\"et stort og et lite frontlys\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785854872080\",\"name\":\"et stort og et lite frontlys\",\"description\":\"\",\"priceMode\":\"inherit\",\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":null}]}"
+      ],
+      "screenshot": "007-A-7.png"
+    },
+    {
+      "id": "A.8/A.11",
+      "title": "Ambiguous \"Frontlys\" must clarify",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". clarifying=true options=[\"Frontlys - Interiør\",\"Frontlys - Tilbehør\"] (must list both Frontlys candidates, never silently guess).",
+      "evidence": {
+        "reply": "",
+        "clarifying": true,
+        "options": [
+          "Frontlys - Interiør",
+          "Frontlys - Tilbehør"
+        ]
+      },
+      "trace": [
+        "Thought for 4s (2252 in / 24 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1047 in / 8 out\n     Input: {\"userText\":\"Hvor mye koster Frontlys?\"}\n     Output: {\"messageType\":\"question\"}\n  2. select_lookup_target [select_lookup_target, qwen3:4b, 3s] — 1205 in / 16 out\n     Input: {\"userText\":\"Hvor mye koster Frontlys?\"}\n     Output: {\"lookupEntities\":[\"product\"],\"searchText\":\"Frontlys\"}"
+      ],
+      "screenshot": "008-A-8-A-11.png"
+    },
+    {
+      "id": "A.9a",
+      "title": "Bilingual filter — LED products (Norsk UI)",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Her er 4 produkter:\nPulled Pork (Wraps)\nLED Headlight Bulb H7 (Interiør)\nLED Interior Strip (Interiør)\nLED Fog Light (Tilbehør)\". Found 3/3 LED product names ([\"LED Headlight Bulb H7\",\"LED Interior Strip\",\"LED Fog Light\"]) — regression check for null-Norwegian-variant bilingual filter. Run before A.9b per the run-order note.",
+      "evidence": {
+        "reply": "Her er 4 produkter:\nPulled Pork (Wraps)\nLED Headlight Bulb H7 (Interiør)\nLED Interior Strip (Interiør)\nLED Fog Light (Tilbehør)",
+        "found": [
+          "LED Headlight Bulb H7",
+          "LED Interior Strip",
+          "LED Fog Light"
+        ]
+      },
+      "trace": [
+        "Thought for 4s (1327 in / 29 out):\n  1. lookup_query [lookup_query, qwen3:4b, 4s] — 1327 in / 29 out\n     Input: {\"userText\":\"Vis meg alle LED-produkter\"}\n     Output: {\"filters\":[{\"field\":\"name\",\"op\":\"contains\",\"value\":\"LED\"}],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "009-A-9a.png"
+    },
+    {
+      "id": "A.9b",
+      "title": "Bilingual filter — LED products (English UI)",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "English UI Q1: \"Here are 4 products:\nPulled Pork (Wraps)\nLED Headlight Bulb H7 (Interiør)\nLED Interior Strip (Interiør)\nLED Fog Light (Tilbehør)\". Found 3/3 ([\"LED Headlight Bulb H7\",\"LED Interior Strip\",\"LED Fog Light\"]) — read alongside A.9a's own result per the run-order note (if A.9a itself failed, this isn't an independent English-only regression).",
+      "evidence": {
+        "reply": "Here are 4 products:\nPulled Pork (Wraps)\nLED Headlight Bulb H7 (Interiør)\nLED Interior Strip (Interiør)\nLED Fog Light (Tilbehør)",
+        "found": [
+          "LED Headlight Bulb H7",
+          "LED Interior Strip",
+          "LED Fog Light"
+        ]
+      },
+      "trace": [],
+      "screenshot": "010-A-9b.png"
+    },
+    {
+      "id": "A.10",
+      "title": "Pronoun follow-up (own 2-turn continuity, diagnostic)",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Q1 reply: \"Her er 4 produkter:\nBremser Del 1 (Bremser)\nBremser Del 2 (Bremser)\nBremser Del 3 (Bremser)\nBremser Del 4 (Bremser)\". Q2 (\"den første\") reply: \"Bremser Del 1 koster 209 kr.\nBremser Del 1 (Bremser)\nBremser Del 2 (Bremser)\nBremser Del 3 (Bremser)\nBremser Del 4 (Bremser)\". Diagnostic only. Report primary pronoun-resolution grade separately from any secondary category-scoping issue visible in Q1's own reply.",
+      "evidence": {
+        "firstReply": "Her er 4 produkter:\nBremser Del 1 (Bremser)\nBremser Del 2 (Bremser)\nBremser Del 3 (Bremser)\nBremser Del 4 (Bremser)",
+        "secondReply": "Bremser Del 1 koster 209 kr.\nBremser Del 1 (Bremser)\nBremser Del 2 (Bremser)\nBremser Del 3 (Bremser)\nBremser Del 4 (Bremser)"
+      },
+      "trace": [
+        "Thought for 5s (3737 in / 72 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1053 in / 8 out\n     Input: {\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 3s] — 1342 in / 32 out\n     Input: {\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n     Output: {\"filters\":[{\"field\":\"locationLabel\",\"op\":\"equals\",\"value\":\"Bremser\"}],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":false,\"reason\":\"The question's own phrasing implies a keyword/substring match, but filter on \\\"locationLabel\\\" used an exact-match op (\\\"equals\\\") — expected \\\"contains\\\".\",\"action\":\"reject-retry\",\"attempt\":1}]\n  3. lookup_query [lookup_query, qwen3:4b, 1s] — 1342 in / 32 out\n     Input: {\"userText\":\"Hvilke produkter har vi i Bremser-kategorien?\"}\n     Output: {\"filters\":[{\"field\":\"locationLabel\",\"op\":\"equals\",\"value\":\"Bremser\"}],\"reportField\":null}\n     Checks: [{\"name\":\"filter-op-shape-mismatch\",\"ok\":false,\"reason\":\"The question's own phrasing implies a keyword/substring match, but filter on \\\"locationLabel\\\" used an exact-match op (\\\"equals\\\") — expected \\\"contains\\\".\",\"action\":\"reject-retry\",\"attempt\":2}]",
+        "Thought for 6s (3378 in / 58 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1079 in / 8 out\n     Input: {\"userText\":\"Hvor mye koster den første?\"}\n     Output: {\"messageType\":\"question\"}\n  2. select_lookup_target [select_lookup_target, qwen3:4b, 3s] — 1343 in / 28 out\n     Input: {\"userText\":\"Hvor mye koster den første?\"}\n     Output: {\"lookupEntities\":[\"product\"],\"searchText\":\"Bremser Del 1\"}\n  3. answer_lookup_item [answer_lookup_item, qwen3:4b, 2s] — 956 in / 22 out\n     Input: {\"userText\":\"Hvor mye koster den første?\"}\n     Output: {\"reply\":\"Bremser Del 1 koster 209 kr.\"}"
+      ],
+      "screenshot": "011-A-10.png"
+    },
+    {
+      "id": "A.12a",
+      "title": "Event bilingual display (Norsk UI)",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Q1: \"Vi har 1 arrangement.\". Q2: \"Det er bare Bilutstilling på tunet (2026-09-02).\" — expect \"Bilutstilling på tunet\" title shown.",
+      "evidence": {
+        "q1": "Vi har 1 arrangement.",
+        "q2": "Det er bare Bilutstilling på tunet (2026-09-02)."
+      },
+      "trace": [
+        "Thought for 4s (2189 in / 19 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1046 in / 8 out\n     Input: {\"userText\":\"Hvor mange arrangementer har vi?\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 3s] — 1143 in / 11 out\n     Input: {\"userText\":\"Hvor mange arrangementer har vi?\"}\n     Output: {\"filters\":[],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]",
+        "Thought for 3s (2220 in / 19 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1077 in / 8 out\n     Input: {\"userText\":\"Hvilke arrangementer har vi?\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 2s] — 1143 in / 11 out\n     Input: {\"userText\":\"Hvilke arrangementer har vi?\"}\n     Output: {\"filters\":[],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "012-A-12a.png"
+    },
+    {
+      "id": "A.12b",
+      "title": "Event bilingual display (English UI, no English title)",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "English UI Q1: \"We have 1 event.\". Q2: \"There's only Bilutstilling på tunet (2026-09-02).\". Events list view text: \"Events\nAdd event\n\nCreate and manage store events, including recurring, postponed and cancelled occurrences.\n\nBilutstilling på tunet\n02.09.2026 · 12:00\nScheduled\nEdit\nDelete\" — title must fall back to Norwegian variant, not render blank.",
+      "evidence": {
+        "q1": "We have 1 event.",
+        "q2": "There's only Bilutstilling på tunet (2026-09-02).",
+        "eventsViewText": "Events\nAdd event\n\nCreate and manage store events, including recurring, postponed and cancelled occurrences.\n\nBilutstilling på tunet\n02.09.2026 · 12:00\nScheduled\nEdit\nDelete"
+      },
+      "trace": [],
+      "screenshot": "013-A-12b-events-view.png"
+    },
+    {
+      "id": "A.extra",
+      "title": "Catalogue count and category count",
+      "phase": "A",
+      "status": "CAPTURED",
+      "notes": "Catalogues Q: \"Vi har 2 kataloger.\" — verify against current catalogue count. Categories Q: \"Vi har 14 kategorier.\" — verify against current category count (incl. any \"Ikke kategorisert\"/blank buckets).",
+      "evidence": {
+        "q1": "Vi har 2 kataloger.",
+        "q2": "Vi har 14 kategorier."
+      },
+      "trace": [
+        "Thought for 4s (1797 in / 19 out):\n  1. classify_message [classify_message, qwen3:4b, 2s] — 1047 in / 8 out\n     Input: {\"userText\":\"Hvor mange kataloger har vi?\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 2s] — 750 in / 11 out\n     Input: {\"userText\":\"Hvor mange kataloger har vi?\"}\n     Output: {\"filters\":[],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]",
+        "Thought for 3s (1841 in / 24 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1080 in / 13 out\n     Input: {\"userText\":\"Hvor mange kategorier har vi?\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 2s] — 761 in / 11 out\n     Input: {\"userText\":\"Hvor mange kategorier har vi?\"}\n     Output: {\"filters\":[],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "014-A-extra.png"
+    },
+    {
+      "id": "B.1",
+      "title": "Confidence markers / posture stripping (create tire)",
+      "phase": "B",
+      "status": "CAPTURED",
+      "notes": "Attempt 1 reply: \"\" reachedState=true. gate=true. review has Allergener=false Diettmerker/Kosthold-tagger=false (both must be absent). confirmed=true.",
+      "evidence": {
+        "attempt1": "",
+        "gate": true,
+        "hasAllergens": false,
+        "hasDietary": false
+      },
+      "trace": [
+        "Thought for 7s (3621 in / 139 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1060 in / 8 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Continental Sommerdekk, ca 1200 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1262 in / 29 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Continental Sommerdekk, ca 1200 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Continental Sommerdekk\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 3s] — 1299 in / 102 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Continental Sommerdekk, ca 1200 kr\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785741586954\",\"name\":\"Continental Sommerdekk\",\"description\":\"ca 1200 kr\",\"priceMode\":\"flat\",\"flatPrice\":1200,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}]}"
+      ],
+      "screenshot": "015-B-1.png"
+    },
+    {
+      "id": "B.2/B.3a",
+      "title": "Clarification loop fix — tap to pick catalogue",
+      "phase": "B",
+      "status": "FAIL",
+      "notes": "Attempt 1 reachedState=false. Attempt 2 reachedState=false. clarifying=false options=[] resolved(tap)=false.",
+      "evidence": {
+        "clarifying": false,
+        "options": [],
+        "resolved": false
+      },
+      "trace": [
+        "Thought for 6s (2957 in / 122 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1051 in / 8 out\n     Input: {\"userText\":\"Legg til en ny kategori som heter Dekkhotell\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1253 in / 29 out\n     Input: {\"userText\":\"Legg til en ny kategori som heter Dekkhotell\"}\n     Output: {\"entity\":\"category\",\"action\":\"create\",\"searchText\":\"Dekkhotell\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_category [fill_fields_batch_category, qwen3:4b, 2s] — 653 in / 85 out\n     Input: {\"userText\":\"Legg til en ny kategori som heter Dekkhotell\"}\n     Output: {\"records\":[{\"catalogueId\":\"catalogue-1785741584197\",\"name\":\"Dekkhotell\",\"description\":null,\"priceMode\":null,\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null}]}"
+      ],
+      "screenshot": "016-B-2-B-3a.png"
+    },
+    {
+      "id": "B.2/B.3b",
+      "title": "Clarification loop fix — typed chat answer",
+      "phase": "B",
+      "status": "FAIL",
+      "notes": "Attempt 1 reachedState=false. Attempt 2 reachedState=false. clarifying=false options=[]. Typed answer reply: \"\". resolved=false.",
+      "evidence": {
+        "clarifying": false,
+        "options": [],
+        "typedReply": "",
+        "resolved": false
+      },
+      "trace": [
+        "Thought for 5s (2957 in / 108 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1051 in / 8 out\n     Input: {\"userText\":\"Legg til en ny kategori som heter Sesonglager\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1253 in / 29 out\n     Input: {\"userText\":\"Legg til en ny kategori som heter Sesonglager\"}\n     Output: {\"entity\":\"category\",\"action\":\"create\",\"searchText\":\"Sesonglager\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_category [fill_fields_batch_category, qwen3:4b, 2s] — 653 in / 71 out\n     Input: {\"userText\":\"Legg til en ny kategori som heter Sesonglager\"}\n     Output: {\"records\":[{\"catalogueId\":\"food-menu\",\"name\":\"Sesonglager\",\"description\":null,\"priceMode\":null,\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null}]}"
+      ],
+      "screenshot": "017-B-2-B-3b.png"
+    },
+    {
+      "id": "B.4",
+      "title": "Unclear chat answer to clarification",
+      "phase": "B",
+      "status": "N/A",
+      "notes": "Attempt 1 reachedState=false. Attempt 2 reachedState=false. clarifying=false. Unclear answer reply: \"\". stillClarifying=false falselyResolved=false (must not falsely resolve).",
+      "evidence": {
+        "clarifying": false,
+        "unclearReply": "",
+        "stillClarifying": false,
+        "falselyResolved": false
+      },
+      "trace": [
+        "Thought for 5s (2957 in / 106 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1051 in / 8 out\n     Input: {\"userText\":\"Legg til en ny kategori som heter Vinterlager\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1253 in / 28 out\n     Input: {\"userText\":\"Legg til en ny kategori som heter Vinterlager\"}\n     Output: {\"entity\":\"category\",\"action\":\"create\",\"searchText\":\"Vinterlager\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_category [fill_fields_batch_category, qwen3:4b, 2s] — 653 in / 70 out\n     Input: {\"userText\":\"Legg til en ny kategori som heter Vinterlager\"}\n     Output: {\"records\":[{\"catalogueId\":\"food-menu\",\"name\":\"Vinterlager\",\"description\":null,\"priceMode\":null,\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null}]}"
+      ],
+      "screenshot": "018-B-4.png"
+    },
+    {
+      "id": "B.5a",
+      "title": "Draft-quality gate — Se detaljer",
+      "phase": "B",
+      "status": "CAPTURED",
+      "notes": "Attempt 1 reachedState=true. gate=true. After \"Se detaljer\", normal review form shown=true.",
+      "evidence": {
+        "gate": true,
+        "reviewShown": true
+      },
+      "trace": [
+        "Thought for 6s (3621 in / 137 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1060 in / 8 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk A, ca 500 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1262 in / 29 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk A, ca 500 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Gate Test Dekk A\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 3s] — 1299 in / 100 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk A, ca 500 kr\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785741586954\",\"name\":\"Gate Test Dekk A\",\"description\":\"ca 500 kr\",\"priceMode\":\"flat\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}]}"
+      ],
+      "screenshot": "019-B-5a.png"
+    },
+    {
+      "id": "B.5b",
+      "title": "Draft-quality gate — Prøv igjen (composer restore)",
+      "phase": "B",
+      "status": "PASS",
+      "notes": "Attempt 1 reachedState=true. gate=true. After \"Prøv igjen\": composer=\"Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr\" (expect exact match to \"Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr\"), focused=true, gate dismissed=true.",
+      "evidence": {
+        "gate": true,
+        "restoredText": "Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr",
+        "expectedText": "Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr",
+        "focused": true,
+        "gateGone": true
+      },
+      "trace": [
+        "Thought for 6s (3621 in / 137 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1060 in / 8 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1262 in / 29 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Gate Test Dekk B\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 3s] — 1299 in / 100 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk B, ca 500 kr\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785741586954\",\"name\":\"Gate Test Dekk B\",\"description\":\"ca 500 kr\",\"priceMode\":\"flat\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}]}"
+      ],
+      "screenshot": "020-B-5b.png"
+    },
+    {
+      "id": "B.5c",
+      "title": "Draft-quality gate — Avbryt (discard)",
+      "phase": "B",
+      "status": "PASS",
+      "notes": "Attempt 1 reachedState=true. gate=true. After \"Avbryt\": composer=\"\" (expect empty), gate dismissed=true.",
+      "evidence": {
+        "gate": true,
+        "composerAfter": "",
+        "gateGone": true
+      },
+      "trace": [
+        "Thought for 6s (3621 in / 137 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1060 in / 8 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk C, ca 500 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1262 in / 29 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk C, ca 500 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Gate Test Dekk C\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 3s] — 1299 in / 100 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Gate Test Dekk C, ca 500 kr\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785741586954\",\"name\":\"Gate Test Dekk C\",\"description\":\"ca 500 kr\",\"priceMode\":\"flat\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}]}"
+      ],
+      "screenshot": "021-B-5c.png"
+    },
+    {
+      "id": "B.6 (Confirm path)",
+      "title": "Confirm a staged draft through the gate",
+      "phase": "B",
+      "status": "PASS",
+      "notes": "Attempt 1 reachedState=true. confirmOk=true.",
+      "evidence": {
+        "confirmOk": true
+      },
+      "trace": [
+        "Thought for 6s (3618 in / 135 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1059 in / 8 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Gate Confirm Dekk, ca 500 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1261 in / 28 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Gate Confirm Dekk, ca 500 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Gate Confirm Dekk\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 3s] — 1298 in / 99 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Gate Confirm Dekk, ca 500 kr\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785741586954\",\"name\":\"Gate Confirm Dekk\",\"description\":\"ca 500 kr\",\"priceMode\":\"flat\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}]}"
+      ],
+      "screenshot": "022-B-6-confirm.png"
+    },
+    {
+      "id": "B.6 (Edit path)",
+      "title": "Edit a staged draft through the gate",
+      "phase": "B",
+      "status": "PASS",
+      "notes": "Attempt 1 reachedState=true. editFormOpened=true.",
+      "evidence": {
+        "editFormOpened": true
+      },
+      "trace": [
+        "Thought for 6s (3618 in / 135 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1059 in / 8 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Gate Edit Dekk, ca 500 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1261 in / 28 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Gate Edit Dekk, ca 500 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Gate Edit Dekk\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 3s] — 1298 in / 99 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Gate Edit Dekk, ca 500 kr\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785741586954\",\"name\":\"Gate Edit Dekk\",\"description\":\"ca 500 kr\",\"priceMode\":\"flat\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}]}"
+      ],
+      "screenshot": "023-B-6-edit.png"
+    },
+    {
+      "id": "B.7",
+      "title": "Price/discount display fix (invalid discount stripped)",
+      "phase": "B",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". Review text discount line: \"(not found)\" — must show unset (\"Fill this in\"), never a fabricated percentage. confirmed=true.",
+      "evidence": {
+        "reply": "",
+        "reviewText": "Navn\nBrembo Sportbrems\nBeskrivelse\nFyll inn\nKategori\nBremser\nPris\n2400 kr\nTilgjengelig på menyen\nJa\nUtsolgt\nNei\nFølg lagerbeholdning\nNei\nAvbryt\nRediger\nBekreft"
+      },
+      "trace": [
+        "Thought for 6s (3645 in / 133 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1068 in / 8 out\n     Input: {\"userText\":\"Legg til et bremsesett som heter Brembo Sportbrems for 2400 kr med 20% rabatt\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1270 in / 30 out\n     Input: {\"userText\":\"Legg til et bremsesett som heter Brembo Sportbrems for 2400 kr med 20% rabatt\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Brembo Sportbrems\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 3s] — 1307 in / 95 out\n     Input: {\"userText\":\"Legg til et bremsesett som heter Brembo Sportbrems for 2400 kr med 20% rabatt\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785741602245\",\"name\":\"Brembo Sportbrems\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":2400,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}]}"
+      ],
+      "screenshot": "024-B-7.png"
+    },
+    {
+      "id": "B.8",
+      "title": "Category custom-field fabrication check",
+      "phase": "B",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". Review text: \"Kategorinavn\nVerktøy\nKategoribeskrivelse\nFyll inn\nAvbryt\nRediger\nBekreft\" — must show no unrequested custom fields. confirmed=true.",
+      "evidence": {
+        "reply": "",
+        "reviewText": "Kategorinavn\nVerktøy\nKategoribeskrivelse\nFyll inn\nAvbryt\nRediger\nBekreft"
+      },
+      "trace": [
+        "Thought for 6s (2954 in / 118 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1050 in / 8 out\n     Input: {\"userText\":\"Legg til en ny kategori som heter Verktøy\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1252 in / 27 out\n     Input: {\"userText\":\"Legg til en ny kategori som heter Verktøy\"}\n     Output: {\"entity\":\"category\",\"action\":\"create\",\"searchText\":\"Verktøy\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_category [fill_fields_batch_category, qwen3:4b, 3s] — 652 in / 83 out\n     Input: {\"userText\":\"Legg til en ny kategori som heter Verktøy\"}\n     Output: {\"records\":[{\"catalogueId\":\"catalogue-1785741584197\",\"name\":\"Verktøy\",\"description\":null,\"priceMode\":null,\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null}]}"
+      ],
+      "screenshot": "025-B-8.png"
+    },
+    {
+      "id": "B.9",
+      "title": "Update product price via chat",
+      "phase": "B",
+      "status": "ERROR",
+      "notes": "Harness exception: ReferenceError: productExistsInCategory is not defined\n    at <anonymous> (/Users/yngve/Desktop/GitHub/wraps-coffee/QA/scratchpad/qa/run-multi-model.mts:684:23)\n    at async run (/Users/yngve/Desktop/GitHub/wraps-coffee/QA/scratchpad/qa/run-multi-model.mts:72:15)\n    at async main (/Users/yngve/Desktop/GitHub/wraps-coffee/QA/scratchpad/qa/run-multi-model.mts:678:5)"
+    },
+    {
+      "id": "B.10",
+      "title": "Delete product via chat",
+      "phase": "B",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". Required confirm phrase read from UI: \"Continental Sommerdekk - Dekk\". deleted=true.",
+      "evidence": {
+        "reply": "",
+        "phrase": "Continental Sommerdekk - Dekk",
+        "deleted": true
+      },
+      "trace": [
+        "Thought for 3s (2296 in / 32 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1047 in / 8 out\n     Input: {\"userText\":\"Slett dekket Continental Sommerdekk\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1249 in / 24 out\n     Input: {\"userText\":\"Slett dekket Continental Sommerdekk\"}\n     Output: {\"entity\":\"product\",\"action\":\"delete\",\"searchText\":\"Continental Sommerdekk\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]",
+        "Thought for 7s (1568 in / 133 out):\n  1. Fyller ut detaljer for produkt [fill_fields_product, qwen3:4b, 7s] — 1568 in / 133 out\n     Input: {\"userText\":\"Slett dekket Continental Sommerdekk\"}\n     Output: {\"location\":\"category:category-1785741586954\",\"name\":\"Continental Sommerdekk\",\"description\":\"ca 1200 kr\",\"priceMode\":\"inherit\",\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":null,\"customFieldValues\":{\"0250cec4-e924-4702-a083-41315b2b8543\":null}}\n     Checks: [{\"name\":\"no-hallucinated-values-in-safe-mode\",\"ok\":true,\"attempt\":1},{\"name\":\"input-mentioned-values-only\",\"ok\":true,\"attempt\":1},{\"name\":\"dual-price-both-fields\",\"ok\":true,\"attempt\":1},{\"name\":\"catalogueId-context-consistency\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "026-B-10-after.png"
+    },
+    {
+      "id": "B.11a",
+      "title": "Kebab override — posture Av (full), verify + two trace steps",
+      "phase": "B",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". gate=false (expect false under full posture). Allergener present=true Diettmerker/Kosthold-tagger present=true (expect true). trace shows (draft)=true and (verify)=true steps.",
+      "evidence": {
+        "reply": "",
+        "gate": false,
+        "hasAllergens": true,
+        "hasDietary": true,
+        "draftTagged": true,
+        "verifyTagged": true
+      },
+      "trace": [
+        "Thought for 16s (5692 in / 357 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1060 in / 8 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Full Posture Dekk, ca 500 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1262 in / 29 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Full Posture Dekk, ca 500 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Full Posture Dekk\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product (draft) [fill_fields_batch_product, qwen3:4b, 7s] — 1597 in / 160 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Full Posture Dekk, ca 500 kr\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785741586954\",\"name\":\"Full Posture Dekk\",\"description\":\"ca 500 kr\",\"priceMode\":\"flat\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null,\"discountMode\":\"none\",\"discountPercentage\":null,\"discountAmount\":null,\"allergens\":null,\"dietaryTags\":null,\"available\":true,\"trackStock\":null,\"stockQuantity\":null,\"outOfStock\":null}]}\n  4. Fyller ut detaljer for admin.assistant.entities.batch_product (verify) [fill_fields_batch_product, qwen3:4b, 5s] — 1773 in / 160 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Full Posture Dekk, ca 500 kr\\nHere is what you proposed on the first pass: {\\\"records\\\":[{\\\"location\\\":\\\"category:category-1785741586954\\\",\\\"name\\\":\\\"Full Posture Dekk\\\",\\\"description\\\":\\\"ca 500 kr\\\",\\\"priceMode\\\":\\\"flat\\\",\\\"flatPrice\\\":500,\\\"takeawayPrice\\\":null,\\\"eatInPrice\\\":null,\\\"discountMode\\\":\\\"none\\\",\\\"discountPercentage\\\":null,\\\"discountAmount\\\":null,\\\"allergens\\\":null,\\\"dietaryTags\\\":null,\\\"available\\\":true,\\\"trackStock\\\":null,\\\"stockQuantit\n     Output: {\"records\":[{\"location\":\"category:category-1785741586954\",\"name\":\"Full Posture Dekk\",\"description\":\"ca 500 kr\",\"priceMode\":\"flat\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null,\"discountMode\":\"none\",\"discountPercentage\":null,\"discountAmount\":null,\"allergens\":null,\"dietaryTags\":null,\"available\":true,\"trackStock\":null,\"stockQuantity\":null,\"outOfStock\":null}]}"
+      ],
+      "screenshot": "027-B-11a.png"
+    },
+    {
+      "id": "B.11b",
+      "title": "Kebab override — posture back to Automatisk, single untagged step",
+      "phase": "B",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". gate=true (expect true under safe/auto posture, confirming the toggle really reverted). trace (draft) tag=false (verify) tag=false.",
+      "evidence": {
+        "reply": "",
+        "gate": true,
+        "draftTagged": false,
+        "verifyTagged": false
+      },
+      "trace": [
+        "Thought for 6s (3709 in / 137 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1060 in / 8 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Auto Posture Dekk, ca 500 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1262 in / 29 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Auto Posture Dekk, ca 500 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Auto Posture Dekk\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 3s] — 1387 in / 100 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Auto Posture Dekk, ca 500 kr\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785741586954\",\"name\":\"Auto Posture Dekk\",\"description\":\"ca 500 kr\",\"priceMode\":\"flat\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}]}"
+      ],
+      "screenshot": "028-B-11b.png"
+    },
+    {
+      "id": "B.12",
+      "title": "Manual product creation unaffected (no AI chrome)",
+      "phase": "B",
+      "status": "PASS",
+      "notes": "Manually created \"Manuell Test Dekk\" via ordinary \"+ Legg til produkt\" form. AI-related chrome detected=false (expect false).",
+      "evidence": {
+        "hasAiChrome": false
+      },
+      "screenshot": "029-B-12.png"
+    },
+    {
+      "id": "C.1a",
+      "title": "Batch phrasing gap — natural non-imperative phrasing",
+      "phase": "C",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Selected \"category-1785741586954-1785741599154\" from 12 candidates, but none of their labels appear anywhere in the message — no real textual grounding for this pick.\". batchShown=false — known gap: likely misclassified as lookup, not itself a Phase 1-3 regression.",
+      "evidence": {
+        "reply": "Selected \"category-1785741586954-1785741599154\" from 12 candidates, but none of their labels appear anywhere in the message — no real textual grounding for this pick.",
+        "batch": false
+      },
+      "trace": [
+        "Thought for 7s (2316 in / 35 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1057 in / 8 out\n     Input: {\"userText\":\"Dekk til 1200 kr med sommer, vinter og pigg\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1259 in / 27 out\n     Input: {\"userText\":\"Dekk til 1200 kr med sommer, vinter og pigg\"}\n     Output: {\"entity\":\"product\",\"action\":\"update\",\"searchText\":\"Dekk\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "030-C-1a.png"
+    },
+    {
+      "id": "C.1b",
+      "title": "Batch create — explicit imperative, dual pricing, no fabricated fields",
+      "phase": "C",
+      "status": "CAPTURED",
+      "notes": "Attempt 1 reachedState=true. batch=true cardCount=3 (expect 3). Summaries: [\"Navn\\nsommerdekk\\nBeskrivelse\\ndekk for sommer\\nKategori\\nDekk\\nPris\\n1200 kr\\nTilgjengelig på menyen\\nJa\\nUtsolgt\\nNei\\nFølg lagerbeholdning\\nNei\\nFjern\\nRediger\\nBekreft\",\"Navn\\nvinterdekk\\nBeskrivelse\\ndekk for vinter\\nKategori\\nDekk\\nPris\\n1300 kr\\nTilgjengelig på menyen\\nJa\\nUtsolgt\\nNei\\nFølg lagerbeholdning\\nNei\\nFjern\\nRediger\\nBekreft\",\"Navn\\npiggdekk\\nBeskrivelse\\ndekk for pigg\\nKategori\\nDekk\\nPris\\n1200 kr\\nTilgjengelig på menyen\\nJa\\nUtsolgt\\nNei\\nFølg lagerbeholdning\\nNei\\nFjern\\nRediger\\nBekreft\"]. confirmedNames=[\"Navn\",\"Navn\",\"Navn\"].",
+      "evidence": {
+        "batch": true,
+        "count": 3,
+        "summaries": [
+          "Navn\nsommerdekk\nBeskrivelse\ndekk for sommer\nKategori\nDekk\nPris\n1200 kr\nTilgjengelig på menyen\nJa\nUtsolgt\nNei\nFølg lagerbeholdning\nNei\nFjern\nRediger\nBekreft",
+          "Navn\nvinterdekk\nBeskrivelse\ndekk for vinter\nKategori\nDekk\nPris\n1300 kr\nTilgjengelig på menyen\nJa\nUtsolgt\nNei\nFølg lagerbeholdning\nNei\nFjern\nRediger\nBekreft",
+          "Navn\npiggdekk\nBeskrivelse\ndekk for pigg\nKategori\nDekk\nPris\n1200 kr\nTilgjengelig på menyen\nJa\nUtsolgt\nNei\nFølg lagerbeholdning\nNei\nFjern\nRediger\nBekreft"
+        ]
+      },
+      "trace": [
+        "Thought for 12s (3745 in / 312 out):\n  1. classify_message [classify_message, qwen3:4b, 2s] — 1072 in / 8 out\n     Input: {\"userText\":\"Legg til tre nye dekk til 1200/1300 kr: sommerdekk, vinterdekk og piggdekk\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1274 in / 27 out\n     Input: {\"userText\":\"Legg til tre nye dekk til 1200/1300 kr: sommerdekk, vinterdekk og piggdekk\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"dekk\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 8s] — 1399 in / 277 out\n     Input: {\"userText\":\"Legg til tre nye dekk til 1200/1300 kr: sommerdekk, vinterdekk og piggdekk\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785741586954\",\"name\":\"sommerdekk\",\"description\":\"dekk for sommer\",\"priceMode\":\"flat\",\"flatPrice\":1200,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true},{\"location\":\"category:category-1785741586954\",\"name\":\"vinterdekk\",\"description\":\"dekk for vinter\",\"priceMode\":\"flat\",\"flatPrice\":1300,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true},{\"location\":\"category:category-1785741586954\",\"name\":\"piggdekk\",\"description\":\"dekk for pigg\",\"priceMode\":"
+      ],
+      "screenshot": "031-C-1b.png"
+    },
+    {
+      "id": "C.2",
+      "title": "Shared clarification across batch cards (fillFieldsBatch)",
+      "phase": "C",
+      "status": "PARTIAL",
+      "notes": "Attempt 1 reachedState=false. Attempt 2 reachedState=false. clarifying=false options=[] resolved=false confirmedNames=[] — note whether options offered are catalogues (expected) or a store-wide category list.",
+      "evidence": {
+        "clarifying": false,
+        "options": [],
+        "resolved": false
+      },
+      "trace": [
+        "Thought for 7s (2972 in / 194 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1056 in / 8 out\n     Input: {\"userText\":\"Legg til to nye kategorier: Skinnhotell og Feltlager\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1258 in / 28 out\n     Input: {\"userText\":\"Legg til to nye kategorier: Skinnhotell og Feltlager\"}\n     Output: {\"entity\":\"category\",\"action\":\"create\",\"searchText\":\"Skinnhotell\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_category [fill_fields_batch_category, qwen3:4b, 4s] — 658 in / 158 out\n     Input: {\"userText\":\"Legg til to nye kategorier: Skinnhotell og Feltlager\"}\n     Output: {\"records\":[{\"catalogueId\":\"catalogue-1785741584197\",\"name\":\"Skinnhotell\",\"description\":null,\"priceMode\":null,\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null},{\"catalogueId\":\"catalogue-1785741584197\",\"name\":\"Feltlager\",\"description\":null,\"priceMode\":null,\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null}]}"
+      ],
+      "screenshot": "032-C-2.png"
+    },
+    {
+      "id": "C.3",
+      "title": "Per-card actions (confirm/edit/remove independence)",
+      "phase": "C",
+      "status": "PASS",
+      "notes": "Attempt 1 reachedState=true. batch=true count=3. confirmOk=true editOk=true removeOk=true.",
+      "evidence": {
+        "batch": true,
+        "count": 3,
+        "confirmOk": true,
+        "editOk": true,
+        "removeOk": true
+      },
+      "trace": [
+        "Thought for 11s (3754 in / 288 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1075 in / 8 out\n     Input: {\"userText\":\"Legg til tre nye batterier: Card Test A for 500 kr, Card Test B for 600 kr, Card Test C for 700 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1277 in / 27 out\n     Input: {\"userText\":\"Legg til tre nye batterier: Card Test A for 500 kr, Card Test B for 600 kr, Card Test C for 700 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Card Test A\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 7s] — 1402 in / 253 out\n     Input: {\"userText\":\"Legg til tre nye batterier: Card Test A for 500 kr, Card Test B for 600 kr, Card Test C for 700 kr\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785854868871\",\"name\":\"Card Test A\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":500,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true},{\"location\":\"category:category-1785854868871\",\"name\":\"Card Test B\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":600,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true},{\"location\":\"category:category-1785854868871\",\"name\":\"Card Test C\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":700,\"takeawayPrice\":n"
+      ],
+      "screenshot": "033-C-3.png"
+    },
+    {
+      "id": "C.4",
+      "title": "Invalid discount blocks Confirm all only",
+      "phase": "C",
+      "status": "FAIL",
+      "notes": "Attempt 1 reachedState=false. Attempt 2 reachedState=false. batch=false. Confirm all disabled=false hint=\"null\". Bosch card shows fabricated discount=false (must be false). Summaries: [].",
+      "evidence": {
+        "batch": false,
+        "disabled": false,
+        "hint": null,
+        "boschHasDiscount": false,
+        "summaries": []
+      },
+      "trace": [
+        "Thought for 9s (2362 in / 39 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1080 in / 8 out\n     Input: {\"userText\":\"Legg til to nye batterier: Bosch 60Ah for 900 kr, og Varta 70Ah for 1100 kr med 150% rabatt\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1282 in / 31 out\n     Input: {\"userText\":\"Legg til to nye batterier: Bosch 60Ah for 900 kr, og Varta 70Ah for 1100 kr med 150% rabatt\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Bosch 60Ah\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "034-C-4.png"
+    },
+    {
+      "id": "C.5",
+      "title": "Confirm all on a clean batch",
+      "phase": "C",
+      "status": "CAPTURED",
+      "notes": "Attempt 1 reachedState=true. batch=true summaries=[\"Navn\\nPioneer Høyttaler\\nBeskrivelse\\nFyll inn\\nKategori\\nLydanlegg\\nPris\\n800 kr\\nTilgjengelig på menyen\\nJa\\nUtsolgt\\nNei\\nFølg lagerbeholdning\\nNei\\nFjern\\nRediger\\nBekreft\",\"Navn\\nSony Forsterker\\nBeskrivelse\\nFyll inn\\nKategori\\nLydanlegg\\nPris\\n950 kr\\nTilgjengelig på menyen\\nJa\\nUtsolgt\\nNei\\nFølg lagerbeholdning\\nNei\\nFjern\\nRediger\\nBekreft\"] confirmed=true.",
+      "evidence": {
+        "batch": true,
+        "summaries": [
+          "Navn\nPioneer Høyttaler\nBeskrivelse\nFyll inn\nKategori\nLydanlegg\nPris\n800 kr\nTilgjengelig på menyen\nJa\nUtsolgt\nNei\nFølg lagerbeholdning\nNei\nFjern\nRediger\nBekreft",
+          "Navn\nSony Forsterker\nBeskrivelse\nFyll inn\nKategori\nLydanlegg\nPris\n950 kr\nTilgjengelig på menyen\nJa\nUtsolgt\nNei\nFølg lagerbeholdning\nNei\nFjern\nRediger\nBekreft"
+        ]
+      },
+      "trace": [
+        "Thought for 9s (3736 in / 214 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1069 in / 8 out\n     Input: {\"userText\":\"Legg til to nye lydanlegg: Pioneer Høyttaler for 800 kr og Sony Forsterker for 950 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1271 in / 30 out\n     Input: {\"userText\":\"Legg til to nye lydanlegg: Pioneer Høyttaler for 800 kr og Sony Forsterker for 950 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Pioneer Høyttaler\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 5s] — 1396 in / 176 out\n     Input: {\"userText\":\"Legg til to nye lydanlegg: Pioneer Høyttaler for 800 kr og Sony Forsterker for 950 kr\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785854872080\",\"name\":\"Pioneer Høyttaler\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":800,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true},{\"location\":\"category:category-1785854872080\",\"name\":\"Sony Forsterker\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":950,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}]}"
+      ],
+      "screenshot": "035-C-5.png"
+    },
+    {
+      "id": "C.6",
+      "title": "Cancel all — nothing created",
+      "phase": "C",
+      "status": "PASS",
+      "notes": "Attempt 1 reachedState=true. batch=true cancelledSuccessfully=true. No products should exist either way.",
+      "evidence": {
+        "batch": true,
+        "cancelled": true
+      },
+      "trace": [
+        "Thought for 11s (3763 in / 288 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1078 in / 8 out\n     Input: {\"userText\":\"Legg til tre nye interiørprodukter: Cancel Test A for 100 kr, Cancel Test B for 120 kr, Cancel Test C for 140 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1280 in / 27 out\n     Input: {\"userText\":\"Legg til tre nye interiørprodukter: Cancel Test A for 100 kr, Cancel Test B for 120 kr, Cancel Test C for 140 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Cancel Test A\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 7s] — 1405 in / 253 out\n     Input: {\"userText\":\"Legg til tre nye interiørprodukter: Cancel Test A for 100 kr, Cancel Test B for 120 kr, Cancel Test C for 140 kr\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785741653766\",\"name\":\"Cancel Test A\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":100,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true},{\"location\":\"category:category-1785741653766\",\"name\":\"Cancel Test B\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":120,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true},{\"location\":\"category:category-1785741653766\",\"name\":\"Cancel Test C\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":140,\"takeawayPr"
+      ],
+      "screenshot": "036-C-6.png"
+    },
+    {
+      "id": "C.7",
+      "title": "Cross-record contamination check (events batch)",
+      "phase": "C",
+      "status": "CAPTURED",
+      "notes": "Attempt 1 reachedState=true. batch=true summaries=[\"Tittel\\nSommertreff\\nBeskrivelse\\nFyll inn\\nDato\\n2026-06-10\\nStarttid\\n12:00\\nSluttid\\n16:00\\nStedsadresse\\nTorget 1\\nKapasitet\\nFyll inn\\nPris\\nFyll inn\\nGjentas ukentlig\\nFyll inn\\nStatus\\nFyll inn\\nFjern\\nRediger\\nBekreft\",\"Tittel\\nVintertreff\\nBeskrivelse\\nFyll inn\\nDato\\n2026-12-15\\nStarttid\\n12:00\\nSluttid\\n16:00\\nStedsadresse\\nTorget 2\\nKapasitet\\nFyll inn\\nPris\\nFyll inn\\nGjentas ukentlig\\nFyll inn\\nStatus\\nFyll inn\\nFjern\\nRediger\\nBekreft\"] — check each card's own date/address/category stayed isolated (no bleed) via screenshot. confirmed=true.",
+      "evidence": {
+        "batch": true,
+        "summaries": [
+          "Tittel\nSommertreff\nBeskrivelse\nFyll inn\nDato\n2026-06-10\nStarttid\n12:00\nSluttid\n16:00\nStedsadresse\nTorget 1\nKapasitet\nFyll inn\nPris\nFyll inn\nGjentas ukentlig\nFyll inn\nStatus\nFyll inn\nFjern\nRediger\nBekreft",
+          "Tittel\nVintertreff\nBeskrivelse\nFyll inn\nDato\n2026-12-15\nStarttid\n12:00\nSluttid\n16:00\nStedsadresse\nTorget 2\nKapasitet\nFyll inn\nPris\nFyll inn\nGjentas ukentlig\nFyll inn\nStatus\nFyll inn\nFjern\nRediger\nBekreft"
+        ]
+      },
+      "trace": [
+        "Thought for 12s (3235 in / 310 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1102 in / 8 out\n     Input: {\"userText\":\"Legg til to nye arrangementer: Sommertreff 10.06.2026 kl 12-16 adresse Torget 1, og Vintertreff 15.12.2026 kl 12-16 adresse Torget 2\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1304 in / 28 out\n     Input: {\"userText\":\"Legg til to nye arrangementer: Sommertreff 10.06.2026 kl 12-16 adresse Torget 1, og Vintertreff 15.12.2026 kl 12-16 adresse Torget 2\"}\n     Output: {\"entity\":\"event\",\"action\":\"create\",\"searchText\":\"Sommertreff\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_event [fill_fields_batch_event, qwen3:4b, 8s] — 829 in / 274 out\n     Input: {\"userText\":\"Legg til to nye arrangementer: Sommertreff 10.06.2026 kl 12-16 adresse Torget 1, og Vintertreff 15.12.2026 kl 12-16 adresse Torget 2\"}\n     Output: {\"records\":[{\"title\":\"Sommertreff\",\"description\":null,\"date\":\"2026-06-10\",\"time\":\"12:00\",\"endTime\":\"16:00\",\"locationAddress\":\"Torget 1\",\"capacity\":null,\"price\":null,\"repeatsWeekly\":null,\"dayOfWeek\":null,\"status\":null,\"postponedNewDate\":null,\"postponedNewTime\":null,\"postponedNewEndTime\":null},{\"title\":\"Vintertreff\",\"description\":null,\"date\":\"2026-12-15\",\"time\":\"12:00\",\"endTime\":\"16:00\",\"locationAddress\":\"Torget 2\",\"capacity\":null,\"price\":null,\"repeatsWeekly\":null,\"dayOfWeek\":null,\"status\":null,\"p"
+      ],
+      "screenshot": "037-C-7.png"
+    },
+    {
+      "id": "C.8",
+      "title": "No false batch UI for single-record message",
+      "phase": "C",
+      "status": "PASS",
+      "notes": "Reply: \"\". batchShown=false (must be false). gate=true.",
+      "evidence": {
+        "reply": "",
+        "batch": false,
+        "gate": true
+      },
+      "trace": [
+        "Thought for 6s (3703 in / 128 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1058 in / 8 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Test Solo Dekk for 999 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1260 in / 28 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Test Solo Dekk for 999 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Test Solo Dekk\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 3s] — 1385 in / 92 out\n     Input: {\"userText\":\"Legg til et nytt dekk som heter Test Solo Dekk for 999 kr\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785741586954\",\"name\":\"Test Solo Dekk\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":999,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}]}"
+      ],
+      "screenshot": "038-C-8.png"
+    },
+    {
+      "id": "C.9a",
+      "title": "Draft-quality gate, batch (3 records)",
+      "phase": "C",
+      "status": "CAPTURED",
+      "notes": "Attempt 1 reachedState=true. gate=true. Gate text: \"Gate Batch A · Motorolje · 150 kr\nGate Batch B · Motorolje · 150 kr\nGate Batch C · Motorolje · 150 kr\n\n12 felt trenger gjennomgang\n\nSe detaljer\nPrøv igjen\nAvbryt\" — expect 3 per-record summary lines.",
+      "evidence": {
+        "gate": true,
+        "gateText": "Gate Batch A · Motorolje · 150 kr\nGate Batch B · Motorolje · 150 kr\nGate Batch C · Motorolje · 150 kr\n\n12 felt trenger gjennomgang\n\nSe detaljer\nPrøv igjen\nAvbryt"
+      },
+      "trace": [
+        "Thought for 10s (3727 in / 288 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1066 in / 8 out\n     Input: {\"userText\":\"Legg til tre nye motoroljer: Gate Batch A, Gate Batch B og Gate Batch C, alle for 150 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1268 in / 27 out\n     Input: {\"userText\":\"Legg til tre nye motoroljer: Gate Batch A, Gate Batch B og Gate Batch C, alle for 150 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Gate Batch A\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 7s] — 1393 in / 253 out\n     Input: {\"userText\":\"Legg til tre nye motoroljer: Gate Batch A, Gate Batch B og Gate Batch C, alle for 150 kr\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785741609965\",\"name\":\"Gate Batch A\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":150,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true},{\"location\":\"category:category-1785741609965\",\"name\":\"Gate Batch B\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":150,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true},{\"location\":\"category:category-1785741609965\",\"name\":\"Gate Batch C\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":150,\"takeawayPrice"
+      ],
+      "screenshot": "039-C-9a.png"
+    },
+    {
+      "id": "C.9b",
+      "title": "Draft-quality gate, batch overflow (6+ records)",
+      "phase": "C",
+      "status": "PASS",
+      "notes": "Attempt 1 reachedState=true. gate=true. Gate text: \"Dekk Seks A · Dekk · 100 kr\nDekk Seks B · Dekk · 110 kr\nDekk Seks C · Dekk · 120 kr\nDekk Seks D · Dekk · 130 kr\nDekk Seks E · Dekk · 140 kr\n…og 1 til\n\n24 felt trenger gjennomgang\n\nSe detaljer\nPrøv igjen\nAvbryt\". Overflow line found: \"…og 1 til\" (expect up to 5 lines + \"…og N til\"). No C.8 leftover-draft contamination expected — fresh session.",
+      "evidence": {
+        "gate": true,
+        "gateText": "Dekk Seks A · Dekk · 100 kr\nDekk Seks B · Dekk · 110 kr\nDekk Seks C · Dekk · 120 kr\nDekk Seks D · Dekk · 130 kr\nDekk Seks E · Dekk · 140 kr\n…og 1 til\n\n24 felt trenger gjennomgang\n\nSe detaljer\nPrøv igjen\nAvbryt",
+        "overflowLine": "…og 1 til"
+      },
+      "trace": [
+        "Thought for 18s (3862 in / 544 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1111 in / 8 out\n     Input: {\"userText\":\"Legg til seks nye dekk: Dekk Seks A for 100 kr, Dekk Seks B for 110 kr, Dekk Seks C for 120 kr, Dekk Seks D for 130 kr, Dekk Seks E for 140 kr, Dekk Seks F for 150 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1313 in / 28 out\n     Input: {\"userText\":\"Legg til seks nye dekk: Dekk Seks A for 100 kr, Dekk Seks B for 110 kr, Dekk Seks C for 120 kr, Dekk Seks D for 130 kr, Dekk Seks E for 140 kr, Dekk Seks F for 150 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Dekk Seks\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 14s] — 1438 in / 508 out\n     Input: {\"userText\":\"Legg til seks nye dekk: Dekk Seks A for 100 kr, Dekk Seks B for 110 kr, Dekk Seks C for 120 kr, Dekk Seks D for 130 kr, Dekk Seks E for 140 kr, Dekk Seks F for 150 kr\"}\n     Output: {\"records\":[{\"location\":\"category:category-1785741586954\",\"name\":\"Dekk Seks A\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":100,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true},{\"location\":\"category:category-1785741586954\",\"name\":\"Dekk Seks B\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":110,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true},{\"location\":\"category:category-1785741586954\",\"name\":\"Dekk Seks C\",\"description\":\"\",\"priceMode\":\"flat\",\"flatPrice\":120,\"takeawayPrice\":n"
+      ],
+      "screenshot": "040-C-9b.png"
+    },
+    {
+      "id": "K.1",
+      "title": "filter-field-exists adversarial trigger",
+      "phase": "K",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Her er 3 produkter på tilbud:\nKylling Fajitas (Wraps)\nMichelin Vinterdekk 205/55R16 (?)\nMichelin Vinterdekk 205/55R16 (Dekk)\". retried=false. filter-field-exists verdicts: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1}] (expect reject-retry firing if a fabricated field name like \"discounted\" was proposed instead of the real hasDiscount; ok:true/absent means the model never proposed a bad field name this attempt).",
+      "evidence": {
+        "reply": "Her er 3 produkter på tilbud:\nKylling Fajitas (Wraps)\nMichelin Vinterdekk 205/55R16 (?)\nMichelin Vinterdekk 205/55R16 (Dekk)",
+        "verdicts": [
+          {
+            "name": "filter-field-exists",
+            "ok": true,
+            "attempt": 1
+          }
+        ],
+        "retried": false
+      },
+      "trace": [
+        "Thought for 4s (2374 in / 38 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1046 in / 8 out\n     Input: {\"userText\":\"Hvilke produkter er discounted?\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 3s] — 1328 in / 30 out\n     Input: {\"userText\":\"Hvilke produkter er discounted?\"}\n     Output: {\"filters\":[{\"field\":\"hasDiscount\",\"op\":\"is\",\"value\":\"true\"}],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "041-K-1.png"
+    },
+    {
+      "id": "K.2",
+      "title": "filter-not-brand-name adversarial trigger",
+      "phase": "K",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Selected \"category-1785698944060-1785698945682\" from 2 candidates, but none of their labels appear anywhere in the message — no real textual grounding for this pick.\". retried=true. filter-not-brand-name verdicts: [].",
+      "evidence": {
+        "reply": "Selected \"category-1785698944060-1785698945682\" from 2 candidates, but none of their labels appear anywhere in the message — no real textual grounding for this pick.",
+        "verdicts": [],
+        "retried": true
+      },
+      "trace": [
+        "Thought for 5s (2256 in / 27 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1049 in / 8 out\n     Input: {\"userText\":\"Har Wraps & Coffee dekk på lager?\"}\n     Output: {\"messageType\":\"question\"}\n  2. select_lookup_target [select_lookup_target, qwen3:4b, 2s] — 1207 in / 19 out\n     Input: {\"userText\":\"Har Wraps & Coffee dekk på lager?\"}\n     Output: {\"lookupEntities\":[\"product\"],\"searchText\":\"Har Wraps & Coffee\"}",
+        "Thought for 3s (2256 in / 27 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1049 in / 8 out\n     Input: {\"userText\":\"Har Wraps & Coffee dekk på lager?\"}\n     Output: {\"messageType\":\"question\"}\n  2. select_lookup_target [select_lookup_target, qwen3:4b, 1s] — 1207 in / 19 out\n     Input: {\"userText\":\"Har Wraps & Coffee dekk på lager?\"}\n     Output: {\"lookupEntities\":[\"product\"],\"searchText\":\"Har Wraps & Coffee\"}"
+      ],
+      "screenshot": "042-K-2.png"
+    },
+    {
+      "id": "K.3",
+      "title": "filter-op-shape-mismatch adversarial trigger",
+      "phase": "K",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Det er bare Brembo Sportbrems (Bremser).\". retried=false. filter-op-shape-mismatch verdicts: [{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}] (A.9a/A.9b's own passing traces are the \"doesn't false-positive\" half of this check's coverage).",
+      "evidence": {
+        "reply": "Det er bare Brembo Sportbrems (Bremser).",
+        "verdicts": [
+          {
+            "name": "filter-op-shape-mismatch",
+            "ok": true,
+            "attempt": 1
+          }
+        ],
+        "retried": false
+      },
+      "trace": [
+        "Thought for 4s (2389 in / 37 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1051 in / 8 out\n     Input: {\"userText\":\"Hvilke produkter har 'sport' i navnet?\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 3s] — 1338 in / 29 out\n     Input: {\"userText\":\"Hvilke produkter har 'sport' i navnet?\"}\n     Output: {\"filters\":[{\"field\":\"name\",\"op\":\"contains\",\"value\":\"sport\"}],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "043-K-3.png"
+    },
+    {
+      "id": "K.4",
+      "title": "no-fabricated-selection adversarial trigger",
+      "phase": "K",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". retried=true. no-fabricated-selection verdicts: []. This check's own doc comment expects a near-zero fire rate (the schema enum already blocks it structurally) — absent/ok:true is the realistic, expected outcome, not proof the row failed to probe anything. No real write attempted — nothing to clean up regardless of outcome.",
+      "evidence": {
+        "reply": "",
+        "verdicts": [],
+        "retried": true
+      },
+      "trace": [
+        "Thought for 3s (2312 in / 37 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1055 in / 8 out\n     Input: {\"userText\":\"Oppdater prisen på Michelin Vinterdek til 1300 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1257 in / 29 out\n     Input: {\"userText\":\"Oppdater prisen på Michelin Vinterdek til 1300 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"update\",\"searchText\":\"Michelin Vinterdek\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]",
+        "Thought for 3s (2312 in / 37 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1055 in / 8 out\n     Input: {\"userText\":\"Oppdater prisen på Michelin Vinterdek til 1300 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1257 in / 29 out\n     Input: {\"userText\":\"Oppdater prisen på Michelin Vinterdek til 1300 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"update\",\"searchText\":\"Michelin Vinterdek\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "044-K-4.png"
+    },
+    {
+      "id": "K.5",
+      "title": "real-ambiguity-forces-clarify adversarial trigger",
+      "phase": "K",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Selected \"category-1785854868871-1785854875391\" from 9 candidates, but none of their labels appear anywhere in the message — no real textual grounding for this pick.\". retried=true. real-ambiguity-forces-clarify verdicts: [] (expect reject-clarify naming real Batterier candidates, since the message names no specific product). No real write attempted.",
+      "evidence": {
+        "reply": "Selected \"category-1785854868871-1785854875391\" from 9 candidates, but none of their labels appear anywhere in the message — no real textual grounding for this pick.",
+        "verdicts": [],
+        "retried": true
+      },
+      "trace": [
+        "Thought for 6s (2310 in / 35 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1054 in / 8 out\n     Input: {\"userText\":\"Oppdater prisen på et Batterier-produkt til 500 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1256 in / 27 out\n     Input: {\"userText\":\"Oppdater prisen på et Batterier-produkt til 500 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"update\",\"searchText\":\"Batterier\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]",
+        "Thought for 4s (2310 in / 35 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1054 in / 8 out\n     Input: {\"userText\":\"Oppdater prisen på et Batterier-produkt til 500 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1256 in / 27 out\n     Input: {\"userText\":\"Oppdater prisen på et Batterier-produkt til 500 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"update\",\"searchText\":\"Batterier\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "045-K-5.png"
+    },
+    {
+      "id": "K.6",
+      "title": "entity-action-consistency adversarial trigger",
+      "phase": "K",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Her er 120 produkter:\nKylling (Wraps)\nTunfisk (Wraps)\nVegetar (Wraps)\nKylling Fajitas (Wraps)\nKylling Feta (Wraps)\nKylling Tzatziki (Wraps)\nKylling Tandoori (Wraps)\nKylling Curry (Wraps)\nKylling Aioli (Wraps)\nPulled Pork (Wraps)\nChipotle Biff (Wraps)\nMexicansk Taco (Wraps)\nOst & Skinke (Wraps)\nReker (Baguetter)\nTunfisk (Baguetter)\nSkinke (Baguetter)\nTandoori Kylling (Baguetter)\nFeta (Baguetter)\nKylling (Baguetter)\nChimichurri (Baguetter)\nEgg & Tomat (Baguetter)\nMozzarella (Baguetter)\nMargherita (Pizza)\nKylling (Pizza)\nParma (Pizza)\nEspresso (Kaffe & Drikke)\nLong Black (Kaffe & Drikke)\nRed Eye (Kaffe & Drikke)\nAmericano (Kaffe & Drikke)\nMacchiato (Kaffe & Drikke)\nCortado (Kaffe & Drikke)\nCappuccino (Kaffe & Drikke)\nCaffè Latte (Kaffe & Drikke)\nChai Latte (Kaffe & Drikke)\nMocha (Kaffe & Drikke)\nIskaffe (Kaffe & Drikke)\nFlat White (Kaffe & Drikke)\nTe (Kaffe & Drikke)\nAppelsin, Jordbær & Banan (Smoothies)\nAppelsin, Blåbær & Bringebær (Smoothies)\nAppelsin, Tzatziki & Pesto (Smoothies)\nRekesalat (Salater)\nTunfisksalat (Salater)\nCaesarsalat (Salater)\nFetasalat (Salater)\nKylling Fajitas (Nachos)\nKylling (Nachos)\nKylling Tandoori (Nachos)\nKylling Tzatziki (Nachos)\nKylling Curry (Nachos)\nKylling Aioli (Nachos)\nKylling Feta (Nachos)\nVegetar (Nachos)\nMexicansk (Nachos)\nMichelin Vinterdekk 205/55R16 (?)\nDekk Del 1 (Dekk)\nDekk Del 2 (Dekk)\nDekk Del 3 (Dekk)\nDekk Del 4 (Dekk)\nDekk Del 5 (Dekk)\nDekk Del 6 (Dekk)\nDekk Del 7 (Dekk)\nDekk Del 8 (Dekk)\nMichelin Vinterdekk 205/55R16 (Dekk)\nBremser Del 1 (Bremser)\nBremser Del 2 (Bremser)\nBremser Del 3 (Bremser)\nBremser Del 4 (Bremser)\nMotorolje Del 1 (Motorolje)\nMotorolje Del 2 (Motorolje)\nMotorolje Del 3 (Motorolje)\nMotorolje Del 4 (Motorolje)\nMotorolje Del 5 (Motorolje)\nMotorolje Del 6 (Motorolje)\nMotorolje Del 7 (Motorolje)\nMotorolje Del 8 (Motorolje)\nMotorolje Del 9 (Motorolje)\nMotorolje Del 10 (Motorolje)\nMotorolje Del 11 (Motorolje)\nMotorolje Del 12 (Motorolje)\nMotorolje Del 13 (Motorolje)\nInteriør Del 1 (Interiør)\nInteriør Del 2 (Interiør)\nInteriør Del 3 (Interiør)\nInteriør Del 4 (Interiør)\nInteriør Del 5 (Interiør)\nInteriør Del 6 (Interiør)\nInteriør Del 7 (Interiør)\nInteriør Del 8 (Interiør)\nInteriør Del 9 (Interiør)\nInteriør Del 10 (Interiør)\nFrontlys (Interiør)\nLED Headlight Bulb H7 (Interiør)\nLED Interior Strip (Interiør)\nTilbehør Del 1 (Tilbehør)\nFrontlys (Tilbehør)\nLED Fog Light (Tilbehør)\nBatterier Del 1 (Batterier)\nBatterier Del 2 (Batterier)\nBatterier Del 3 (Batterier)\nBatterier Del 4 (Batterier)\nBatterier Del 5 (Batterier)\nBatterier Del 6 (Batterier)\nBatterier Del 7 (Batterier)\nBatterier Del 8 (Batterier)\nBatterier Del 9 (Batterier)\nLydanlegg Del 1 (Lydanlegg)\nLydanlegg Del 2 (Lydanlegg)\nLydanlegg Del 3 (Lydanlegg)\nGate Confirm Dekk (Dekk)\nGate Edit Dekk (Dekk)\nBrembo Sportbrems (Bremser)\nManuell Test Dekk (Dekk)\nsommerdekk (Dekk)\nvinterdekk (Dekk)\npiggdekk (Dekk)\nCard Test A (Batterier)\nCard Test B (Batterier)\nPioneer Høyttaler (Lydanlegg)\nSony Forsterker (Lydanlegg)\". retried=true. entity-action-consistency verdicts: [] (expect reject-retry if the first attempt classified this \"hvilke\"-phrased lookup question as a create command). Any staged draft/gate was cancelled, not confirmed — no real write.",
+      "evidence": {
+        "reply": "Her er 120 produkter:\nKylling (Wraps)\nTunfisk (Wraps)\nVegetar (Wraps)\nKylling Fajitas (Wraps)\nKylling Feta (Wraps)\nKylling Tzatziki (Wraps)\nKylling Tandoori (Wraps)\nKylling Curry (Wraps)\nKylling Aioli (Wraps)\nPulled Pork (Wraps)\nChipotle Biff (Wraps)\nMexicansk Taco (Wraps)\nOst & Skinke (Wraps)\nReker (Baguetter)\nTunfisk (Baguetter)\nSkinke (Baguetter)\nTandoori Kylling (Baguetter)\nFeta (Baguetter)\nKylling (Baguetter)\nChimichurri (Baguetter)\nEgg & Tomat (Baguetter)\nMozzarella (Baguetter)\nMargherita (Pizza)\nKylling (Pizza)\nParma (Pizza)\nEspresso (Kaffe & Drikke)\nLong Black (Kaffe & Drikke)\nRed Eye (Kaffe & Drikke)\nAmericano (Kaffe & Drikke)\nMacchiato (Kaffe & Drikke)\nCortado (Kaffe & Drikke)\nCappuccino (Kaffe & Drikke)\nCaffè Latte (Kaffe & Drikke)\nChai Latte (Kaffe & Drikke)\nMocha (Kaffe & Drikke)\nIskaffe (Kaffe & Drikke)\nFlat White (Kaffe & Drikke)\nTe (Kaffe & Drikke)\nAppelsin, Jordbær & Banan (Smoothies)\nAppelsin, Blåbær & Bringebær (Smoothies)\nAppelsin, Tzatziki & Pesto (Smoothies)\nRekesalat (Salater)\nTunfisksalat (Salater)\nCaesarsalat (Salater)\nFetasalat (Salater)\nKylling Fajitas (Nachos)\nKylling (Nachos)\nKylling Tandoori (Nachos)\nKylling Tzatziki (Nachos)\nKylling Curry (Nachos)\nKylling Aioli (Nachos)\nKylling Feta (Nachos)\nVegetar (Nachos)\nMexicansk (Nachos)\nMichelin Vinterdekk 205/55R16 (?)\nDekk Del 1 (Dekk)\nDekk Del 2 (Dekk)\nDekk Del 3 (Dekk)\nDekk Del 4 (Dekk)\nDekk Del 5 (Dekk)\nDekk Del 6 (Dekk)\nDekk Del 7 (Dekk)\nDekk Del 8 (Dekk)\nMichelin Vinterdekk 205/55R16 (Dekk)\nBremser Del 1 (Bremser)\nBremser Del 2 (Bremser)\nBremser Del 3 (Bremser)\nBremser Del 4 (Bremser)\nMotorolje Del 1 (Motorolje)\nMotorolje Del 2 (Motorolje)\nMotorolje Del 3 (Motorolje)\nMotorolje Del 4 (Motorolje)\nMotorolje Del 5 (Motorolje)\nMotorolje Del 6 (Motorolje)\nMotorolje Del 7 (Motorolje)\nMotorolje Del 8 (Motorolje)\nMotorolje Del 9 (Motorolje)\nMotorolje Del 10 (Motorolje)\nMotorolje Del 11 (Motorolje)\nMotorolje Del 12 (Motorolje)\nMotorolje Del 13 (Motorolje)\nInteriør Del 1 (Interiør)\nInteriør Del 2 (Interiør)\nInteriør Del 3 (Interiør)\nInteriør Del 4 (Interiør)\nInteriør Del 5 (Interiør)\nInteriør Del 6 (Interiør)\nInteriør Del 7 (Interiør)\nInteriør Del 8 (Interiør)\nInteriør Del 9 (Interiør)\nInteriør Del 10 (Interiør)\nFrontlys (Interiør)\nLED Headlight Bulb H7 (Interiør)\nLED Interior Strip (Interiør)\nTilbehør Del 1 (Tilbehør)\nFrontlys (Tilbehør)\nLED Fog Light (Tilbehør)\nBatterier Del 1 (Batterier)\nBatterier Del 2 (Batterier)\nBatterier Del 3 (Batterier)\nBatterier Del 4 (Batterier)\nBatterier Del 5 (Batterier)\nBatterier Del 6 (Batterier)\nBatterier Del 7 (Batterier)\nBatterier Del 8 (Batterier)\nBatterier Del 9 (Batterier)\nLydanlegg Del 1 (Lydanlegg)\nLydanlegg Del 2 (Lydanlegg)\nLydanlegg Del 3 (Lydanlegg)\nGate Confirm Dekk (Dekk)\nGate Edit Dekk (Dekk)\nBrembo Sportbrems (Bremser)\nManuell Test Dekk (Dekk)\nsommerdekk (Dekk)\nvinterdekk (Dekk)\npiggdekk (Dekk)\nCard Test A (Batterier)\nCard Test B (Batterier)\nPioneer Høyttaler (Lydanlegg)\nSony Forsterker (Lydanlegg)",
+        "verdicts": [],
+        "retried": true
+      },
+      "trace": [
+        "Thought for 5s (3610 in / 33 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1054 in / 8 out\n     Input: {\"userText\":\"Hvilke nye dekk kan vi legge til i sortimentet?\"}\n     Output: {\"messageType\":\"question\"}\n  2. select_lookup_target [select_lookup_target, qwen3:4b, 1s] — 1212 in / 14 out\n     Input: {\"userText\":\"Hvilke nye dekk kan vi legge til i sortimentet?\"}\n     Output: {\"lookupEntities\":[\"product\"],\"searchText\":null}\n  3. lookup_query [lookup_query, qwen3:4b, 3s] — 1344 in / 11 out\n     Input: {\"userText\":\"Hvilke nye dekk kan vi legge til i sortimentet?\"}\n     Output: {\"filters\":[],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]",
+        "Thought for 5s (3610 in / 33 out):\n  1. classify_message [classify_message, qwen3:4b, 4s] — 1054 in / 8 out\n     Input: {\"userText\":\"Hvilke nye dekk kan vi legge til i sortimentet?\"}\n     Output: {\"messageType\":\"question\"}\n  2. select_lookup_target [select_lookup_target, qwen3:4b, 1s] — 1212 in / 14 out\n     Input: {\"userText\":\"Hvilke nye dekk kan vi legge til i sortimentet?\"}\n     Output: {\"lookupEntities\":[\"product\"],\"searchText\":null}\n  3. lookup_query [lookup_query, qwen3:4b, 1s] — 1344 in / 11 out\n     Input: {\"userText\":\"Hvilke nye dekk kan vi legge til i sortimentet?\"}\n     Output: {\"filters\":[],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "046-K-6.png"
+    },
+    {
+      "id": "K.7",
+      "title": "entity-searchtext-consistency adversarial trigger",
+      "phase": "K",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Fant ingen — her er 120 produkter i stedet:\nKylling (Wraps)\nTunfisk (Wraps)\nVegetar (Wraps)\nKylling Fajitas (Wraps)\nKylling Feta (Wraps)\nKylling Tzatziki (Wraps)\nKylling Tandoori (Wraps)\nKylling Curry (Wraps)\nKylling Aioli (Wraps)\nPulled Pork (Wraps)\nChipotle Biff (Wraps)\nMexicansk Taco (Wraps)\nOst & Skinke (Wraps)\nReker (Baguetter)\nTunfisk (Baguetter)\nSkinke (Baguetter)\nTandoori Kylling (Baguetter)\nFeta (Baguetter)\nKylling (Baguetter)\nChimichurri (Baguetter)\nEgg & Tomat (Baguetter)\nMozzarella (Baguetter)\nMargherita (Pizza)\nKylling (Pizza)\nParma (Pizza)\nEspresso (Kaffe & Drikke)\nLong Black (Kaffe & Drikke)\nRed Eye (Kaffe & Drikke)\nAmericano (Kaffe & Drikke)\nMacchiato (Kaffe & Drikke)\nCortado (Kaffe & Drikke)\nCappuccino (Kaffe & Drikke)\nCaffè Latte (Kaffe & Drikke)\nChai Latte (Kaffe & Drikke)\nMocha (Kaffe & Drikke)\nIskaffe (Kaffe & Drikke)\nFlat White (Kaffe & Drikke)\nTe (Kaffe & Drikke)\nAppelsin, Jordbær & Banan (Smoothies)\nAppelsin, Blåbær & Bringebær (Smoothies)\nAppelsin, Tzatziki & Pesto (Smoothies)\nRekesalat (Salater)\nTunfisksalat (Salater)\nCaesarsalat (Salater)\nFetasalat (Salater)\nKylling Fajitas (Nachos)\nKylling (Nachos)\nKylling Tandoori (Nachos)\nKylling Tzatziki (Nachos)\nKylling Curry (Nachos)\nKylling Aioli (Nachos)\nKylling Feta (Nachos)\nVegetar (Nachos)\nMexicansk (Nachos)\nMichelin Vinterdekk 205/55R16 (?)\nDekk Del 1 (Dekk)\nDekk Del 2 (Dekk)\nDekk Del 3 (Dekk)\nDekk Del 4 (Dekk)\nDekk Del 5 (Dekk)\nDekk Del 6 (Dekk)\nDekk Del 7 (Dekk)\nDekk Del 8 (Dekk)\nMichelin Vinterdekk 205/55R16 (Dekk)\nBremser Del 1 (Bremser)\nBremser Del 2 (Bremser)\nBremser Del 3 (Bremser)\nBremser Del 4 (Bremser)\nMotorolje Del 1 (Motorolje)\nMotorolje Del 2 (Motorolje)\nMotorolje Del 3 (Motorolje)\nMotorolje Del 4 (Motorolje)\nMotorolje Del 5 (Motorolje)\nMotorolje Del 6 (Motorolje)\nMotorolje Del 7 (Motorolje)\nMotorolje Del 8 (Motorolje)\nMotorolje Del 9 (Motorolje)\nMotorolje Del 10 (Motorolje)\nMotorolje Del 11 (Motorolje)\nMotorolje Del 12 (Motorolje)\nMotorolje Del 13 (Motorolje)\nInteriør Del 1 (Interiør)\nInteriør Del 2 (Interiør)\nInteriør Del 3 (Interiør)\nInteriør Del 4 (Interiør)\nInteriør Del 5 (Interiør)\nInteriør Del 6 (Interiør)\nInteriør Del 7 (Interiør)\nInteriør Del 8 (Interiør)\nInteriør Del 9 (Interiør)\nInteriør Del 10 (Interiør)\nFrontlys (Interiør)\nLED Headlight Bulb H7 (Interiør)\nLED Interior Strip (Interiør)\nTilbehør Del 1 (Tilbehør)\nFrontlys (Tilbehør)\nLED Fog Light (Tilbehør)\nBatterier Del 1 (Batterier)\nBatterier Del 2 (Batterier)\nBatterier Del 3 (Batterier)\nBatterier Del 4 (Batterier)\nBatterier Del 5 (Batterier)\nBatterier Del 6 (Batterier)\nBatterier Del 7 (Batterier)\nBatterier Del 8 (Batterier)\nBatterier Del 9 (Batterier)\nLydanlegg Del 1 (Lydanlegg)\nLydanlegg Del 2 (Lydanlegg)\nLydanlegg Del 3 (Lydanlegg)\nGate Confirm Dekk (Dekk)\nGate Edit Dekk (Dekk)\nBrembo Sportbrems (Bremser)\nManuell Test Dekk (Dekk)\nsommerdekk (Dekk)\nvinterdekk (Dekk)\npiggdekk (Dekk)\nCard Test A (Batterier)\nCard Test B (Batterier)\nPioneer Høyttaler (Lydanlegg)\nSony Forsterker (Lydanlegg)\". retried=true. entity-searchtext-consistency verdicts: [] (this depends on the local cascade's own probabilistic failure mode — on Claude this check may legitimately never fire at all, since selectIntentSinglePass doesn't share the local cascade's own searchText/lookupEntities-desync bug; note that explicitly rather than treating absence as a failure on the Claude run).",
+      "evidence": {
+        "reply": "Fant ingen — her er 120 produkter i stedet:\nKylling (Wraps)\nTunfisk (Wraps)\nVegetar (Wraps)\nKylling Fajitas (Wraps)\nKylling Feta (Wraps)\nKylling Tzatziki (Wraps)\nKylling Tandoori (Wraps)\nKylling Curry (Wraps)\nKylling Aioli (Wraps)\nPulled Pork (Wraps)\nChipotle Biff (Wraps)\nMexicansk Taco (Wraps)\nOst & Skinke (Wraps)\nReker (Baguetter)\nTunfisk (Baguetter)\nSkinke (Baguetter)\nTandoori Kylling (Baguetter)\nFeta (Baguetter)\nKylling (Baguetter)\nChimichurri (Baguetter)\nEgg & Tomat (Baguetter)\nMozzarella (Baguetter)\nMargherita (Pizza)\nKylling (Pizza)\nParma (Pizza)\nEspresso (Kaffe & Drikke)\nLong Black (Kaffe & Drikke)\nRed Eye (Kaffe & Drikke)\nAmericano (Kaffe & Drikke)\nMacchiato (Kaffe & Drikke)\nCortado (Kaffe & Drikke)\nCappuccino (Kaffe & Drikke)\nCaffè Latte (Kaffe & Drikke)\nChai Latte (Kaffe & Drikke)\nMocha (Kaffe & Drikke)\nIskaffe (Kaffe & Drikke)\nFlat White (Kaffe & Drikke)\nTe (Kaffe & Drikke)\nAppelsin, Jordbær & Banan (Smoothies)\nAppelsin, Blåbær & Bringebær (Smoothies)\nAppelsin, Tzatziki & Pesto (Smoothies)\nRekesalat (Salater)\nTunfisksalat (Salater)\nCaesarsalat (Salater)\nFetasalat (Salater)\nKylling Fajitas (Nachos)\nKylling (Nachos)\nKylling Tandoori (Nachos)\nKylling Tzatziki (Nachos)\nKylling Curry (Nachos)\nKylling Aioli (Nachos)\nKylling Feta (Nachos)\nVegetar (Nachos)\nMexicansk (Nachos)\nMichelin Vinterdekk 205/55R16 (?)\nDekk Del 1 (Dekk)\nDekk Del 2 (Dekk)\nDekk Del 3 (Dekk)\nDekk Del 4 (Dekk)\nDekk Del 5 (Dekk)\nDekk Del 6 (Dekk)\nDekk Del 7 (Dekk)\nDekk Del 8 (Dekk)\nMichelin Vinterdekk 205/55R16 (Dekk)\nBremser Del 1 (Bremser)\nBremser Del 2 (Bremser)\nBremser Del 3 (Bremser)\nBremser Del 4 (Bremser)\nMotorolje Del 1 (Motorolje)\nMotorolje Del 2 (Motorolje)\nMotorolje Del 3 (Motorolje)\nMotorolje Del 4 (Motorolje)\nMotorolje Del 5 (Motorolje)\nMotorolje Del 6 (Motorolje)\nMotorolje Del 7 (Motorolje)\nMotorolje Del 8 (Motorolje)\nMotorolje Del 9 (Motorolje)\nMotorolje Del 10 (Motorolje)\nMotorolje Del 11 (Motorolje)\nMotorolje Del 12 (Motorolje)\nMotorolje Del 13 (Motorolje)\nInteriør Del 1 (Interiør)\nInteriør Del 2 (Interiør)\nInteriør Del 3 (Interiør)\nInteriør Del 4 (Interiør)\nInteriør Del 5 (Interiør)\nInteriør Del 6 (Interiør)\nInteriør Del 7 (Interiør)\nInteriør Del 8 (Interiør)\nInteriør Del 9 (Interiør)\nInteriør Del 10 (Interiør)\nFrontlys (Interiør)\nLED Headlight Bulb H7 (Interiør)\nLED Interior Strip (Interiør)\nTilbehør Del 1 (Tilbehør)\nFrontlys (Tilbehør)\nLED Fog Light (Tilbehør)\nBatterier Del 1 (Batterier)\nBatterier Del 2 (Batterier)\nBatterier Del 3 (Batterier)\nBatterier Del 4 (Batterier)\nBatterier Del 5 (Batterier)\nBatterier Del 6 (Batterier)\nBatterier Del 7 (Batterier)\nBatterier Del 8 (Batterier)\nBatterier Del 9 (Batterier)\nLydanlegg Del 1 (Lydanlegg)\nLydanlegg Del 2 (Lydanlegg)\nLydanlegg Del 3 (Lydanlegg)\nGate Confirm Dekk (Dekk)\nGate Edit Dekk (Dekk)\nBrembo Sportbrems (Bremser)\nManuell Test Dekk (Dekk)\nsommerdekk (Dekk)\nvinterdekk (Dekk)\npiggdekk (Dekk)\nCard Test A (Batterier)\nCard Test B (Batterier)\nPioneer Høyttaler (Lydanlegg)\nSony Forsterker (Lydanlegg)",
+        "verdicts": [],
+        "retried": true
+      },
+      "trace": [
+        "Thought for 4s (2381 in / 41 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1048 in / 8 out\n     Input: {\"userText\":\"Fortell meg om produktet Continental Sommerdekk\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 3s] — 1333 in / 33 out\n     Input: {\"userText\":\"Fortell meg om produktet Continental Sommerdekk\"}\n     Output: {\"filters\":[{\"field\":\"name\",\"op\":\"contains\",\"value\":\"Continental Sommerdekk\"}],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]",
+        "Thought for 5s (2381 in / 41 out):\n  1. classify_message [classify_message, qwen3:4b, 4s] — 1048 in / 8 out\n     Input: {\"userText\":\"Fortell meg om produktet Continental Sommerdekk\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 1s] — 1333 in / 33 out\n     Input: {\"userText\":\"Fortell meg om produktet Continental Sommerdekk\"}\n     Output: {\"filters\":[{\"field\":\"name\",\"op\":\"contains\",\"value\":\"Continental Sommerdekk\"}],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]"
+      ],
+      "screenshot": "047-K-7.png"
+    },
+    {
+      "id": "K.8",
+      "title": "pronoun-not-searchtext adversarial trigger (shared 2-turn session)",
+      "phase": "K",
+      "status": "CAPTURED",
+      "notes": "Q1 reply: \"Vi har 5 produkter.\". Q2 (\"den billigste\") reply: \"Selected \"category-1785698944060-1785698945682\" from 2 candidates, but none of their labels appear anywhere in the message — no real textual grounding for this pick.\". pronoun-not-searchtext verdicts: [] — Q2's own final reply must name a real Lydanlegg product, not a hallucinated one, regardless of whether the check itself had to intervene.",
+      "evidence": {
+        "q1": "Vi har 5 produkter.",
+        "q2": "Selected \"category-1785698944060-1785698945682\" from 2 candidates, but none of their labels appear anywhere in the message — no real textual grounding for this pick.",
+        "verdicts": []
+      },
+      "trace": [
+        "Thought for 4s (2395 in / 40 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1053 in / 8 out\n     Input: {\"userText\":\"Hvor mange produkter har vi i Lydanlegg-kategorien?\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 3s] — 1342 in / 32 out\n     Input: {\"userText\":\"Hvor mange produkter har vi i Lydanlegg-kategorien?\"}\n     Output: {\"filters\":[{\"field\":\"locationLabel\",\"op\":\"equals\",\"value\":\"Lydanlegg\"}],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]",
+        "Thought for 5s (2372 in / 25 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1078 in / 8 out\n     Input: {\"userText\":\"Hva koster den billigste?\"}\n     Output: {\"messageType\":\"question\"}\n  2. select_lookup_target [select_lookup_target, qwen3:4b, 2s] — 1294 in / 17 out\n     Input: {\"userText\":\"Hva koster den billigste?\"}\n     Output: {\"lookupEntities\":[\"product\"],\"searchText\":\"den billigste\"}"
+      ],
+      "screenshot": "048-K-8.png"
+    },
+    {
+      "id": "K.9",
+      "title": "no-hallucinated-values-in-safe-mode — code review only, not chat-triggerable",
+      "phase": "K",
+      "status": "N/A",
+      "notes": "Not adversarially triggerable via a live chat message under current code — under 'safe' posture, any AssistantEntity.confabulationRiskFields value is stripped from the schema before the model is ever called, so no message can make it reappear. This row is a code-review checkpoint, not a live scenario: confirm no entity's own mergeDraft reintroduces a confabulationRiskFields value post-fill. If this check is ever observed firing live in another scenario's own trace during this run, flag that as a high-severity finding here."
+    },
+    {
+      "id": "K.10",
+      "title": "input-mentioned-values-only adversarial trigger",
+      "phase": "K",
+      "status": "CAPTURED",
+      "notes": "Reply: \"\". retried=true. input-mentioned-values-only verdicts: [] (expect auto-fix if dietaryTags came back with anything beyond \"vegan\" — e.g. the model also adding \"vegetarian\" unprompted). Review text dietary line: \"(not found)\". confirmed=true.",
+      "evidence": {
+        "reply": "",
+        "verdicts": [],
+        "retried": true,
+        "reviewText": "Navn\nVegetar-bowl\nBeskrivelse\nvegansk, 129 kr\nKategori\nSalater\nPris\n129 kr\nTilgjengelig på menyen\nJa\nUtsolgt\nNei\nFølg lagerbeholdning\nNei\nAvbryt\nRediger\nBekreft"
+      },
+      "trace": [
+        "Thought for 6s (3709 in / 127 out):\n  1. classify_message [classify_message, qwen3:4b, 2s] — 1060 in / 8 out\n     Input: {\"userText\":\"Legg til en ny salat som heter Vegetar-bowl, vegansk, 129 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1262 in / 29 out\n     Input: {\"userText\":\"Legg til en ny salat som heter Vegetar-bowl, vegansk, 129 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Vegetar-bowl\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 3s] — 1387 in / 90 out\n     Input: {\"userText\":\"Legg til en ny salat som heter Vegetar-bowl, vegansk, 129 kr\"}\n     Output: {\"records\":[{\"location\":\"category:salads\",\"name\":\"Vegetar-bowl\",\"description\":\"vegansk, 129 kr\",\"priceMode\":\"flat\",\"flatPrice\":129,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}]}",
+        "Thought for 6s (3709 in / 127 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1060 in / 8 out\n     Input: {\"userText\":\"Legg til en ny salat som heter Vegetar-bowl, vegansk, 129 kr\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1262 in / 29 out\n     Input: {\"userText\":\"Legg til en ny salat som heter Vegetar-bowl, vegansk, 129 kr\"}\n     Output: {\"entity\":\"product\",\"action\":\"create\",\"searchText\":\"Vegetar-bowl\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_product [fill_fields_batch_product, qwen3:4b, 3s] — 1387 in / 90 out\n     Input: {\"userText\":\"Legg til en ny salat som heter Vegetar-bowl, vegansk, 129 kr\"}\n     Output: {\"records\":[{\"location\":\"category:salads\",\"name\":\"Vegetar-bowl\",\"description\":\"vegansk, 129 kr\",\"priceMode\":\"flat\",\"flatPrice\":129,\"takeawayPrice\":null,\"eatInPrice\":null,\"available\":true}]}"
+      ],
+      "screenshot": "049-K-10.png"
+    },
+    {
+      "id": "K.11",
+      "title": "dual-price-both-fields adversarial trigger",
+      "phase": "K",
+      "status": "CAPTURED",
+      "notes": "Reply: \"Iskaffe koster 45 kr, men er dyrere om du sitter og drikker den her\". retried=true. dual-price-both-fields verdicts: [] (expect reject-retry if priceMode was \"dual\" with only one of takeawayPrice/eatInPrice filled on the first attempt). Review price rows: \"(not found)\". Draft cancelled either way — no real write attempted.",
+      "evidence": {
+        "reply": "Iskaffe koster 45 kr, men er dyrere om du sitter og drikker den her",
+        "verdicts": [],
+        "retried": true,
+        "reviewText": "",
+        "confirmed": false
+      },
+      "trace": [
+        "Thought for 5s (3108 in / 67 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1063 in / 8 out\n     Input: {\"userText\":\"Iskaffe koster 45 kr, men er dyrere om du sitter og drikker den her\"}\n     Output: {\"messageType\":\"question\"}\n  2. select_lookup_target [select_lookup_target, qwen3:4b, 2s] — 1221 in / 25 out\n     Input: {\"userText\":\"Iskaffe koster 45 kr, men er dyrere om du sitter og drikker den her\"}\n     Output: {\"lookupEntities\":[\"product\"],\"searchText\":\"Iskaffe\"}\n  3. answer_lookup_item [answer_lookup_item, qwen3:4b, 2s] — 824 in / 34 out\n     Input: {\"userText\":\"Iskaffe koster 45 kr, men er dyrere om du sitter og drikker den her\"}\n     Output: {\"reply\":\"Iskaffe koster 45 kr, men er dyrere om du sitter og drikker den her\"}",
+        "Thought for 2s (3108 in / 67 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1063 in / 8 out\n     Input: {\"userText\":\"Iskaffe koster 45 kr, men er dyrere om du sitter og drikker den her\"}\n     Output: {\"messageType\":\"question\"}\n  2. select_lookup_target [select_lookup_target, qwen3:4b, 1s] — 1221 in / 25 out\n     Input: {\"userText\":\"Iskaffe koster 45 kr, men er dyrere om du sitter og drikker den her\"}\n     Output: {\"lookupEntities\":[\"product\"],\"searchText\":\"Iskaffe\"}\n  3. answer_lookup_item [answer_lookup_item, qwen3:4b, 1s] — 824 in / 34 out\n     Input: {\"userText\":\"Iskaffe koster 45 kr, men er dyrere om du sitter og drikker den her\"}\n     Output: {\"reply\":\"Iskaffe koster 45 kr, men er dyrere om du sitter og drikker den her\"}"
+      ],
+      "screenshot": "050-K-11.png"
+    },
+    {
+      "id": "K.12a",
+      "title": "catalogueId-context-consistency — true-positive case (shared 2-turn session)",
+      "phase": "K",
+      "status": "CAPTURED",
+      "notes": "Q1 (sets AutoDeler dialog focus) reply: \"Vi har 121 produkter.\". Q2 (no catalogue named) reply: \"\". catalogueId-context-consistency verdicts: []. clarifying=false. Expect either: (a) catalogueId correctly resolved to AutoDeler via focus context (ok:true, a real improvement over the pre-nullable-fix bias), or (b) a mismatched guess correctly forced into reject-clarify. Draft/clarification not confirmed — no real \"Sommerdekklager\" category created.",
+      "evidence": {
+        "q1": "Vi har 121 produkter.",
+        "q2": "",
+        "verdicts": [],
+        "clarifying": false
+      },
+      "trace": [
+        "Thought for 4s (2386 in / 19 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1050 in / 8 out\n     Input: {\"userText\":\"Hvor mange produkter har vi i AutoDeler?\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 3s] — 1336 in / 11 out\n     Input: {\"userText\":\"Hvor mange produkter har vi i AutoDeler?\"}\n     Output: {\"filters\":[],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]",
+        "Thought for 7s (3080 in / 125 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1085 in / 13 out\n     Input: {\"userText\":\"Legg til en ny kategori som heter Sommerdekklager\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1253 in / 27 out\n     Input: {\"userText\":\"Legg til en ny kategori som heter Sommerdekklager\"}\n     Output: {\"entity\":\"category\",\"action\":\"create\",\"searchText\":\"Summer blankets\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_category [fill_fields_batch_category, qwen3:4b, 3s] — 742 in / 85 out\n     Input: {\"userText\":\"Legg til en ny kategori som heter Sommerdekklager\"}\n     Output: {\"records\":[{\"catalogueId\":\"catalogue-1785741584197\",\"name\":\"Sommerdekklager\",\"description\":null,\"priceMode\":null,\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null}]}"
+      ],
+      "screenshot": "051-K-12a.png"
+    },
+    {
+      "id": "K.12b",
+      "title": "catalogueId-context-consistency — false-positive guard (shared 2-turn session)",
+      "phase": "K",
+      "status": "CAPTURED",
+      "notes": "Q1 (sets AutoDeler dialog focus) reply: \"Vi har 121 produkter.\". Q2 (explicitly names Matmeny instead) reply: \"\". catalogueId-context-consistency verdicts: []. clarifying=false. Expect ok:true / no reject-clarify — Matmeny is the explicit, correct instruction here even though it disagrees with Q1's own AutoDeler focus; a reject-clarify would be a real false-positive finding, graded FAIL. Draft/clarification not confirmed — no real category created.",
+      "evidence": {
+        "q1": "Vi har 121 produkter.",
+        "q2": "",
+        "verdicts": [],
+        "clarifying": false
+      },
+      "trace": [
+        "Thought for 2s (2386 in / 19 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1050 in / 8 out\n     Input: {\"userText\":\"Hvor mange produkter har vi i AutoDeler?\"}\n     Output: {\"messageType\":\"question\"}\n  2. lookup_query [lookup_query, qwen3:4b, 1s] — 1336 in / 11 out\n     Input: {\"userText\":\"Hvor mange produkter har vi i AutoDeler?\"}\n     Output: {\"filters\":[],\"reportField\":null}\n     Checks: [{\"name\":\"filter-field-exists\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-not-brand-name\",\"ok\":true,\"attempt\":1},{\"name\":\"filter-op-shape-mismatch\",\"ok\":true,\"attempt\":1}]",
+        "Thought for 6s (3095 in / 112 out):\n  1. classify_message [classify_message, qwen3:4b, 1s] — 1090 in / 12 out\n     Input: {\"userText\":\"Legg til en ny kategori i Matmeny som heter Vinterdekklager\"}\n     Output: {\"messageType\":\"command\"}\n  2. select_command [select_command, qwen3:4b, 2s] — 1258 in / 29 out\n     Input: {\"userText\":\"Legg til en ny kategori i Matmeny som heter Vinterdekklager\"}\n     Output: {\"entity\":\"category\",\"action\":\"create\",\"searchText\":\"Vinterdekklager\"}\n     Checks: [{\"name\":\"entity-action-consistency\",\"ok\":true,\"attempt\":1}]\n  3. Fyller ut detaljer for admin.assistant.entities.batch_category [fill_fields_batch_category, qwen3:4b, 2s] — 747 in / 71 out\n     Input: {\"userText\":\"Legg til en ny kategori i Matmeny som heter Vinterdekklager\"}\n     Output: {\"records\":[{\"catalogueId\":\"food-menu\",\"name\":\"Vinterdekklager\",\"description\":null,\"priceMode\":null,\"flatPrice\":null,\"takeawayPrice\":null,\"eatInPrice\":null}]}"
+      ],
+      "screenshot": "052-K-12b.png"
+    }
+  ],
+  "created": [
+    {
+      "type": "product",
+      "name": "Continental Sommerdekk",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Gate Confirm Dekk",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Gate Edit Dekk",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Brembo Sportbrems",
+      "note": "Bremser"
+    },
+    {
+      "type": "category",
+      "name": "Verktøy",
+      "note": "AutoDeler"
+    },
+    {
+      "type": "product",
+      "name": "Manuell Test Dekk",
+      "note": "Dekk"
+    },
+    {
+      "type": "product",
+      "name": "Navn",
+      "note": "Dekk (batch C.1b)"
+    },
+    {
+      "type": "product",
+      "name": "Navn",
+      "note": "Dekk (batch C.1b)"
+    },
+    {
+      "type": "product",
+      "name": "Navn",
+      "note": "Dekk (batch C.1b)"
+    },
+    {
+      "type": "product",
+      "name": "Card Test A",
+      "note": "Batterier (batch C.3)"
+    },
+    {
+      "type": "product",
+      "name": "Card Test B",
+      "note": "Batterier (batch C.3)"
+    },
+    {
+      "type": "product",
+      "name": "Navn",
+      "note": "Lydanlegg (batch C.5)"
+    },
+    {
+      "type": "product",
+      "name": "Navn",
+      "note": "Lydanlegg (batch C.5)"
+    },
+    {
+      "type": "event",
+      "name": "Sommertreff",
+      "note": "batch C.7"
+    },
+    {
+      "type": "event",
+      "name": "Vintertreff",
+      "note": "batch C.7"
+    },
+    {
+      "type": "product",
+      "name": "Vegetar-bowl",
+      "note": "K.10 — catalogue/category placement uncertain, check both AutoDeler and Matmeny at cleanup"
+    }
+  ],
+  "updatedAt": "2026-08-04T15:34:01.170Z"
+}

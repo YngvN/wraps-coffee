@@ -47,6 +47,12 @@ import type { AssistantEntity, AssistantSession } from './types'
  * 6. `src/i18n/languages.json` — an `admin.assistant.entities.<key>` label,
  *    both languages, plus any new field labels the entity's own MiniForm
  *    needs.
+ * 7. `server/assistant/entities/<key>.qa-scenarios.md` — this entity's own QA
+ *    scenario bank (see `QA/templates/project/qa-test-plan-project.md`'s
+ *    "Per-entity scenario files" table, which needs a matching new row too).
+ *    Keeping this alongside the entity's own code, not buried in a shared
+ *    template, is what let five other entities' scenario banks survive that
+ *    template being split apart without any of them getting lost.
  *
  * Beyond the CRUD contract (`fillFieldsSchema`/`mergeDraft`/`validate`/etc.),
  * an entity can also opt into `listAll` — its full current live data, used

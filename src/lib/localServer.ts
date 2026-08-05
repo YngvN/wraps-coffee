@@ -435,6 +435,8 @@ export interface AssistantTraceEntry {
   resolvedFields?: Record<string, string>
   /** The client-assigned `turnVersion` (see `useAssistantFlow.ts`'s own `turnVersionRef`) of the request that produced this entry, stamped on by the route handler in `server/index.ts` — purely for trace-panel debugging of stale/discarded turns, never read by any functional code path. */
   turnVersion?: number
+  /** Verdicts from `server/assistant/postChecks/`'s deterministic checks against this call's own output, stamped on by `runStepWithChecks`/`applyChecksNoRetry` — see `server/assistant/client.ts`'s own `AssistantTraceEntry` doc comment. Never read by any functional code path; surfaced in the trace panel and the clipboard export purely for QA/debugging visibility into check verdicts. */
+  checks?: { name: string; ok: boolean; reason?: string; action?: 'auto-fix' | 'reject-retry' | 'reject-clarify'; attempt: 1 | 2 }[]
 }
 
 /** One row of a structured list reply attachment — client-side mirror of `server/assistant/types.ts`'s own `AssistantListItem`. */
