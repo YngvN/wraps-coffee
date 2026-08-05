@@ -8,7 +8,7 @@
 #
 # Without --purge, this only undoes the *system-level* changes install.sh
 # made (systemd service, firewall rules) and leaves the checkout itself
-# alone — unlike the Windows installer's C:\WrapsCoffee, a Linux install
+# alone — unlike the Windows installer's C:\ADHDisplay, a Linux install
 # lives directly in the user's own git checkout, so deleting node_modules/
 # dist/data/uploads is a separate, more destructive step gated behind an
 # explicit flag rather than being unconditional.
@@ -28,7 +28,7 @@ for arg in "$@"; do
   esac
 done
 
-echo "== Wraps & Coffee uninstaller (Linux) =="
+echo "== ADHDisplay uninstaller (Linux) =="
 echo "Target: $REPO_DIR"
 echo ""
 
@@ -36,14 +36,14 @@ echo ""
 # systemctl stop sends SIGTERM, which server/index.ts now handles as a clean
 # shutdown (closes the HTTP/WebSocket server, stops the pollers and the mDNS
 # advertisement) rather than a hard kill.
-if command -v systemctl >/dev/null 2>&1 && [ -f /etc/systemd/system/wraps-coffee.service ]; then
-  echo "Stopping and disabling the wraps-coffee service..."
-  sudo systemctl stop wraps-coffee.service 2>/dev/null || true
-  sudo systemctl disable wraps-coffee.service 2>/dev/null || true
-  sudo rm -f /etc/systemd/system/wraps-coffee.service
+if command -v systemctl >/dev/null 2>&1 && [ -f /etc/systemd/system/adhdisplay.service ]; then
+  echo "Stopping and disabling the adhdisplay service..."
+  sudo systemctl stop adhdisplay.service 2>/dev/null || true
+  sudo systemctl disable adhdisplay.service 2>/dev/null || true
+  sudo rm -f /etc/systemd/system/adhdisplay.service
   sudo systemctl daemon-reload
 else
-  echo "No wraps-coffee systemd service found — skipping."
+  echo "No adhdisplay systemd service found — skipping."
 fi
 
 # 2. Fallback: kill anything left running manually (outside the service) -----

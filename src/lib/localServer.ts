@@ -36,7 +36,7 @@ export async function getLanIp(): Promise<string | null> {
   return lanIp
 }
 
-/** The running app's own version (from `package.json`, mirrored in `installer/wraps-coffee.iss`'s `AppVersion`) — public, no auth needed. Used by the Settings → About card. */
+/** The running app's own version (from `package.json`, mirrored in `installer/adhdisplay.iss`'s `AppVersion`) — public, no auth needed. Used by the Settings → About card. */
 export async function getAppVersion(): Promise<string> {
   const response = await fetch(`${serverBaseUrl()}/server-info`)
   if (!response.ok) throw new Error('Could not fetch server info')

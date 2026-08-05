@@ -32,7 +32,7 @@ import * as woltPoller from './woltPoller'
 
 const PORT = Number(process.env.WS_PORT ?? 4000)
 
-/** The app's own version, read once at startup from the repo root `package.json` — the single source of truth also mirrored in `installer/wraps-coffee.iss`'s `AppVersion`. Surfaced via `GET /server-info` for the Settings → About card. */
+/** The app's own version, read once at startup from the repo root `package.json` — the single source of truth also mirrored in `installer/adhdisplay.iss`'s `AppVersion`. Surfaced via `GET /server-info` for the Settings → About card. */
 const APP_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version
 
 /** Maps each synced key to the dashboard section that edits it, for the `limited`-role write check below. Keys with no admin-editable section (kiosk-only config) aren't section-gated at all — any authenticated write is enough. */
@@ -1886,7 +1886,7 @@ process.on('unhandledRejection', (error) => {
 })
 
 // A clean stop for `systemctl stop` (sends SIGTERM) and the installer/uninstaller
-// scripts (see installer/wraps-coffee.iss, installer/linux/uninstall.sh) to ask
+// scripts (see installer/adhdisplay.iss, installer/linux/uninstall.sh) to ask
 // for instead of a hard `taskkill`/`pkill -9` — tears down every background
 // subsystem started below before actually exiting.
 let shuttingDown = false

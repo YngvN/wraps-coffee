@@ -25,13 +25,13 @@ echo ""
 
 # 0. Update/repair detection --------------------------------------------------
 # Re-running this script used to always silently overwrite in place with no
-# warning, and — unlike the Windows Update/Repair prompt in wraps-coffee.iss —
+# warning, and — unlike the Windows Update/Repair prompt in adhdisplay.iss —
 # never stopped the running service first, risking locked-file failures
 # during npm install/build. Mirrors that same Update/Repair/Cancel choice.
 NEW_VERSION="$(node -p "require('$REPO_DIR/package.json').version" 2>/dev/null || echo "unknown")"
-if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files wraps-coffee.service >/dev/null 2>&1; then
+if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files adhdisplay.service >/dev/null 2>&1; then
   RUNNING_VERSION="$(curl -fsS http://localhost:4000/server-info 2>/dev/null | node -e "process.stdin.on('data', d => { try { console.log(JSON.parse(d).version ?? 'unknown') } catch { console.log('unknown') } })" 2>/dev/null || echo "unknown")"
-  echo "Wraps & Coffee is already installed (currently running: $RUNNING_VERSION). This checkout is version $NEW_VERSION."
+  echo "ADHDisplay is already installed (currently running: $RUNNING_VERSION). This checkout is version $NEW_VERSION."
   echo ""
   echo "  [U]pdate — stop the running app, keep server/data and server/uploads, then reinstall/rebuild (recommended)"
   echo "  [R]epair — same as Update, but also deletes node_modules and dist first for a clean reinstall"
@@ -46,7 +46,7 @@ if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files wraps-coffe
     [Rr]*)
       echo ""
       echo "Stopping the running service before a clean reinstall..."
-      sudo systemctl stop wraps-coffee.service 2>/dev/null || true
+      sudo systemctl stop adhdisplay.service 2>/dev/null || true
       pkill -f "tsx server/index.ts" 2>/dev/null || true
       pkill -f "vite preview" 2>/dev/null || true
       echo "Removing node_modules and dist..."
@@ -55,7 +55,7 @@ if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files wraps-coffe
     *)
       echo ""
       echo "Stopping the running service before updating..."
-      sudo systemctl stop wraps-coffee.service 2>/dev/null || true
+      sudo systemctl stop adhdisplay.service 2>/dev/null || true
       pkill -f "tsx server/index.ts" 2>/dev/null || true
       pkill -f "vite preview" 2>/dev/null || true
       ;;
