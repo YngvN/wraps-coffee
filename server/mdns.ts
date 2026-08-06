@@ -10,15 +10,16 @@ const VITE_PORT = 5173
  * here" advertisement (see `advertiseServerPresence` below) — deliberately
  * separate from the opt-in `'http'`-typed hostname advertisement `apply`
  * manages, which is off by default and unrelated to "a server exists" (it's
- * a cosmetic `.local` name for screen links). Not currently browsed for by
- * anything in this repo — the Electron installer's own first-run wizard
- * used to browse for it to pre-select a remote "Display only" role; that
- * role (and the browse call) was removed, but this advertisement itself was
- * kept as standing LAN-discoverability infrastructure for any future
- * consumer (e.g. a from-scratch server-discovery feature) rather than torn
- * out along with it.
+ * a cosmetic `.local` name for screen links). Kept to 10 characters,
+ * comfortably under RFC 6763 §7's 15-character DNS-SD service-name cap —
+ * Android's `NsdManager` (what browses for this on the companion app's
+ * side) has historically been the strict end of the mDNS ecosystem about
+ * out-of-spec labels. Browsed for by `adhdisplay-companion`'s
+ * `browseForServerViaMdns` (`src/lib/serverConnection.ts` in that app) as
+ * the fast counterpart to its own LAN subnet sweep — this value must match
+ * that file's own `MDNS_SERVICE_TYPE` constant exactly.
  */
-const SERVER_PRESENCE_SERVICE_TYPE = 'adhdisplay-server'
+const SERVER_PRESENCE_SERVICE_TYPE = 'adhdisplay'
 
 let bonjour: InstanceType<typeof Bonjour> | null = null
 let presenceBonjour: InstanceType<typeof Bonjour> | null = null

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Network from 'expo-network'
+import Zeroconf, { type Service } from 'react-native-zeroconf'
 
 const STORAGE_KEY = 'adhdisplay-companion/serverConnection'
 
@@ -72,15 +73,18 @@ async function probeHost(host: string): Promise<ServerConnection | null> {
 }
 
 /**
- * Sweeps this device's own /24 for a real ADHDisplay server — the actual
- * primary discovery path on `ServerSetupScreen`, ahead of QR/manual entry
- * (see that screen's own doc comment for why: typing a LAN IP on a bare
- * Android TV stick's D-pad/on-screen keyboard is the worst minute in the
- * whole setup flow, and it's the *first* minute). A handful of seconds,
- * batched + parallel with a short per-host timeout — a real mDNS/Bonjour
- * client stays out of scope, disproportionate effort for what it'd buy
- * here. Returns the first match, or `null` if nothing answered (a blocked/
- * client-isolated Wi-Fi network, or genuinely no server on this LAN).
+ * Sweeps this device's own /24 for a real ADHDisplay server — a fallback
+ * discovery path on `ServerSetupScreen`, run alongside the faster
+ * `browseForServerViaMdns` below (ahead of QR/manual entry regardless — see
+ * that screen's own doc comment for why: typing a LAN IP on a bare Android
+ * TV stick's D-pad/on-screen keyboard is the worst minute in the whole
+ * setup flow, and it's the *first* minute). Stays valuable specifically
+ * because mDNS depends on multicast, which some networks block while still
+ * allowing plain unicast HTTP between hosts on the same subnet — exactly
+ * the case this sweep still covers. A handful of seconds, batched + parallel
+ * with a short per-host timeout. Returns the first match, or `null` if
+ * nothing answered (a blocked/client-isolated Wi-Fi network, or genuinely no
+ * server on this LAN).
  */
 export async function sweepLanForServer(): Promise<ServerConnection | null> {
   const ip = await Network.getIpAddressAsync()
@@ -95,4 +99,100 @@ export async function sweepLanForServer(): Promise<ServerConnection | null> {
     if (found) return found
   }
   return null
+}
+
+const MDNS_SERVICE_TYPE = 'adhdisplay' // must match SERVER_PRESENCE_SERVICE_TYPE in server/mdns.ts — kept under DNS-SD's 15-char service-name cap (RFC 6763 §7)
+const MDNS_PROTOCOL = 'tcp'
+
+// Lazily constructed, cached module-level singleton — not `new Zeroconf()`
+// per browse() call (the JS class wraps a shared native NsdManager +
+// NativeEventEmitter, not an independent browser per instance, so reusing
+// one keeps scan()/stop() calls strictly ordered against the same native
+// browser), and specifically NOT constructed at module load time either.
+// This module is imported by `ServerSetupScreen.tsx`, so a throw here at
+// import time (missing native module, a React Native New Architecture
+// interop failure) would take down the whole setup screen the sweep itself
+// lives on, not just disable mDNS. Constructing lazily on first actual use,
+// inside a try/catch, means a broken native module degrades to "mDNS never
+// finds anything, sweep still works" instead.
+let zeroconfInstance: Zeroconf | null | undefined
+
+function getZeroconf(): Zeroconf | null {
+  if (zeroconfInstance !== undefined) return zeroconfInstance
+  try {
+    zeroconfInstance = new Zeroconf()
+  } catch (err) {
+    console.warn('react-native-zeroconf unavailable — mDNS discovery disabled, sweep-only', err)
+    zeroconfInstance = null
+  }
+  return zeroconfInstance
+}
+
+export interface MdnsBrowseHandle {
+  stop: () => void
+}
+
+/** First address that looks like an IPv4 literal, else whatever's first. `service.addresses` can contain both A and AAAA results in no guaranteed order, and an unbracketed IPv6 literal breaks a plain `http://${host}:${port}` URL downstream (in `syncOrigin`/`contentOrigin`) in a way that won't obviously trace back to this being the cause. */
+function pickIPv4(addresses: string[] | undefined): string | undefined {
+  return addresses?.find((addr) => /^\d{1,3}(\.\d{1,3}){3}$/.test(addr)) ?? addresses?.[0]
+}
+
+/**
+ * Browses for the always-on "ADHDisplay server" DNS-SD advertisement
+ * `server/mdns.ts`'s `advertiseServerPresence` publishes at server startup
+ * (see that file's own doc comment) — the fast counterpart to
+ * `sweepLanForServer` above: a passive listener rather than an active
+ * subnet probe, typically resolving in well under a second once a server is
+ * actually advertising, and cheap to leave running continuously rather than
+ * repeating in batches. Calls `onFound` at most once per resolved service
+ * per browse session; call the returned handle's `stop()` on cleanup to stop
+ * listening. Returns a no-op handle (never calls `onFound`) if the native
+ * module couldn't be constructed at all — see `getZeroconf` above.
+ */
+export function browseForServerViaMdns(onFound: (connection: ServerConnection) => void): MdnsBrowseHandle {
+  const zeroconf = getZeroconf()
+  if (!zeroconf) return { stop: () => {} }
+
+  const handleResolved = (service: Service) => {
+    const host = pickIPv4(service.addresses)
+    const contentPort = Number(service.txt?.contentPort)
+    const txtWsPort = Number(service.txt?.wsPort)
+    // TXT record support on Android's NsdManager has historically been
+    // uneven across OS/library versions — values can arrive as byte arrays,
+    // base64, or be missing entirely even when the service itself resolves
+    // fine. `advertiseServerPresence` (server/mdns.ts) also publishes wsPort
+    // as the service's own SRV port, so fall back to `service.port` rather
+    // than failing outright when just the TXT value didn't parse; there's no
+    // equivalent fallback for contentPort, so that one still requires TXT.
+    const wsPort = Number.isFinite(txtWsPort) ? txtWsPort : service.port
+    if (!host || !Number.isFinite(wsPort) || !Number.isFinite(contentPort)) {
+      // Logged for the same reason sweepLanForServer's rejection is: without
+      // this, a broken TXT parse looks identical to "multicast blocked,"
+      // which looks identical to "no server present" — none of which are
+      // distinguishable to the user on-screen, and only one of which is
+      // actually the sweep's job to cover.
+      console.warn('browseForServerViaMdns: resolved service missing required fields', { host, port: service.port, txt: service.txt })
+      return
+    }
+    onFound({ host, wsPort, contentPort })
+  }
+  const handleError = (err: unknown) => {
+    // Expected on networks that block/disable multicast — sweepLanForServer
+    // is the real fallback there, nothing to recover here. Logged anyway so
+    // a real-device test can tell "multicast blocked" apart from "TXT
+    // parsing broke" apart from "no server present."
+    console.warn('browseForServerViaMdns: zeroconf error', err)
+  }
+
+  zeroconf.on('resolved', handleResolved)
+  zeroconf.on('error', handleError)
+  zeroconf.scan(MDNS_SERVICE_TYPE, MDNS_PROTOCOL, 'local.')
+
+  return {
+    stop: () => {
+      zeroconf.removeListener('resolved', handleResolved)
+      zeroconf.removeListener('error', handleError)
+      zeroconf.stop()
+    },
+  }
 }

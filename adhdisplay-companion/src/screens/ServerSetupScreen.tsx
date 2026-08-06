@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
-import { sweepLanForServer, type ServerConnection } from '../lib/serverConnection'
+import { browseForServerViaMdns, sweepLanForServer, type ServerConnection } from '../lib/serverConnection'
 
 interface ServerSetupScreenProps {
   onConnected: (connection: ServerConnection) => void
@@ -13,20 +13,22 @@ const SWEEP_RETRY_INTERVAL_MS = 15_000
 
 /**
  * "No server known" — the very first screen a fresh install/reset lands on.
- * The primary path is an automatic, self-retrying LAN sweep (see
- * `sweepLanForServer`), since typing a LAN IP on a bare Android TV stick's
+ * Discovery runs two sources side by side while this screen is showing:
+ * a passive mDNS/DNS-SD browse (`browseForServerViaMdns`) that stays
+ * subscribed for as long as the screen keeps searching, typically resolving
+ * in well under a second, plus an active LAN subnet sweep
+ * (`sweepLanForServer`) that retries on its own every `SWEEP_RETRY_INTERVAL_MS`
+ * as a fallback for networks where mDNS's multicast dependency doesn't work
+ * (e.g. client-isolated Wi-Fi). Typing a LAN IP on a bare Android TV stick's
  * D-pad/on-screen keyboard is the worst minute in the whole setup flow, and
- * it's the *first* minute. The sweep keeps retrying on its own every
- * `SWEEP_RETRY_INTERVAL_MS` while this screen is showing, and a "Look for
- * server" button lets the user force an immediate retry instead of waiting.
- * Manual host:port entry stays reachable as a persistent fallback link (not
- * the automatic destination after one failed pass) for networks where the
- * sweep genuinely can't work (e.g. client-isolated Wi-Fi). There is
- * deliberately no camera/QR-scanning path here — most TV boxes/sticks don't
- * have a camera, and the ones that do make a poor substitute for aiming a
- * phone at a screen. Pairing itself (once a server connection is known)
- * instead has the TV *display* a QR code for the admin's phone to scan —
- * see `PairingScreen.tsx`.
+ * it's the *first* minute, so a "Look for server" button lets the user force
+ * an immediate sweep retry instead of waiting, and manual host:port entry
+ * stays reachable as a persistent fallback link rather than the automatic
+ * destination after one failed pass. There is deliberately no camera/
+ * QR-scanning path here — most TV boxes/sticks don't have a camera, and the
+ * ones that do make a poor substitute for aiming a phone at a screen.
+ * Pairing itself (once a server connection is known) instead has the TV
+ * *display* a QR code for the admin's phone to scan — see `PairingScreen.tsx`.
  */
 export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
   const [mode, setMode] = useState<Mode>('searching')
@@ -42,6 +44,34 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
   const [manualHost, setManualHost] = useState('')
   const [manualWsPort, setManualWsPort] = useState('4000')
   const [manualContentPort, setManualContentPort] = useState('4173')
+  // Shared between the mDNS and sweep effects below: whichever discovery
+  // source finds a server first sets this, so a result that arrives from
+  // the other source afterward gets ignored instead of firing a second
+  // setMode('found'). A plain ref, not state — flipping it never needs to
+  // trigger a re-render on its own.
+  const settledRef = useRef(false)
+
+  // Passive mDNS browse, kept alive for as long as the screen keeps
+  // searching. Deliberately its own effect, keyed only on `[mode]` — a
+  // `retryTrigger` bump (the "Look for server" button, see the sweep effect
+  // below) only needs to restart the *sweep*; a passive listener that's
+  // already subscribed doesn't need restarting to "retry." An earlier
+  // version of this combined both sources under one effect, which meant
+  // every retryTrigger bump also tore down and reconstructed the mDNS
+  // browse — a real stop()-then-scan() ordering race against the native
+  // bridge for no benefit. Splitting them removes that race entirely
+  // instead of working around it.
+  useEffect(() => {
+    if (mode !== 'searching') return
+    settledRef.current = false // fresh discovery attempt: first mount, or a manual -> searching round trip
+    const handle = browseForServerViaMdns((result) => {
+      if (settledRef.current) return
+      settledRef.current = true
+      setFoundConnection(result)
+      setMode('found') // leaving 'searching' triggers this effect's own cleanup below -> stops listening
+    })
+    return () => handle.stop()
+  }, [mode])
 
   useEffect(() => {
     if (mode !== 'searching') return
@@ -68,12 +98,13 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
           if (cancelled) return
           setIsSweepRunning(false)
           setHasSweptOnce(true)
-          if (result) {
+          if (result && !settledRef.current) {
+            settledRef.current = true
             setFoundConnection(result)
             setMode('found') // leaving 'searching' triggers this effect's own cleanup -> retries pause
             return
           }
-          retryTimer = setTimeout(runSweep, SWEEP_RETRY_INTERVAL_MS)
+          if (!result) retryTimer = setTimeout(runSweep, SWEEP_RETRY_INTERVAL_MS)
         })
     }
 
