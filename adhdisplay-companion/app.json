@@ -32,7 +32,12 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#111111"
       },
-      "versionCode": 208
+      "versionCode": 209,
+      "permissions": [
+        "ACCESS_NETWORK_STATE",
+        "ACCESS_WIFI_STATE",
+        "CHANGE_WIFI_MULTICAST_STATE"
+      ]
     },
     "plugins": [
       "./plugins/withBootLaunch.js",
