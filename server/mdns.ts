@@ -10,9 +10,13 @@ const VITE_PORT = 5173
  * here" advertisement (see `advertiseServerPresence` below) — deliberately
  * separate from the opt-in `'http'`-typed hostname advertisement `apply`
  * manages, which is off by default and unrelated to "a server exists" (it's
- * a cosmetic `.local` name for screen links). `electron/roleSetup.cjs`
- * browses for this exact type to decide whether a fresh install defaults to
- * "Server + Display" or "Display only."
+ * a cosmetic `.local` name for screen links). Not currently browsed for by
+ * anything in this repo — the Electron installer's own first-run wizard
+ * used to browse for it to pre-select a remote "Display only" role; that
+ * role (and the browse call) was removed, but this advertisement itself was
+ * kept as standing LAN-discoverability infrastructure for any future
+ * consumer (e.g. a from-scratch server-discovery feature) rather than torn
+ * out along with it.
  */
 const SERVER_PRESENCE_SERVICE_TYPE = 'adhdisplay-server'
 
@@ -53,12 +57,12 @@ export function apply(settings: ScreenAddressSettings, storeName: string) {
 /**
  * Advertises "an ADHDisplay server is running on this machine," always,
  * regardless of the opt-in hostname mode `apply` manages above — call once
- * at server startup. `wsPort`/`contentPort` are carried as TXT records so a
- * "Display only" machine's first-run wizard (`electron/roleSetup.cjs`,
- * browsing for `SERVER_PRESENCE_SERVICE_TYPE` directly via its own
- * `bonjour-service` import — it can't share this module, a compiled-once
- * Node/TS file, from a separate Electron/CJS process) knows which ports to
- * actually use on whichever host address the browse resolves.
+ * at server startup. `wsPort`/`contentPort` are carried as TXT records so
+ * any future LAN-discovery consumer (browsing for
+ * `SERVER_PRESENCE_SERVICE_TYPE` via its own `bonjour-service` import, since
+ * a non-Node/TS process can't share this module directly) knows which ports
+ * to actually use on whichever host address the browse resolves — see this
+ * constant's own comment for why nothing currently browses for it.
  */
 export function advertiseServerPresence(wsPort: number, contentPort: number) {
   presenceBonjour = new Bonjour()

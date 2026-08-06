@@ -1,8 +1,9 @@
+import { randomInt } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { WebSocketServer, type WebSocket } from 'ws'
-import type { DisplayMachine, DisplayMonitor } from '../src/types/displayMachine'
+import type { DisplayMachine, DisplayMonitor, DisplayPairingRequest } from '../src/types/displayMachine'
 import type { OrderRecord, OrderStatus } from '../src/types/order'
 import type { Product } from '../src/types/product'
 import type { ScreenAddressSettings } from '../src/types/screenAddress'
@@ -31,6 +32,8 @@ import * as woltAdapter from './woltAdapter'
 import * as woltPoller from './woltPoller'
 
 const PORT = Number(process.env.WS_PORT ?? 4000)
+/** vite preview's own default port (see `installer/start-adhdisplay.bat` and `package.json`'s `"preview"` script) — the one screen/content links actually point at. */
+const CONTENT_PORT = 4173
 
 /** The app's own version, read once at startup from the repo root `package.json` — the single source of truth also mirrored in `installer/adhdisplay.iss`'s `AppVersion`. Surfaced via `GET /server-info` for the Settings → About card. */
 const APP_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version
@@ -49,6 +52,7 @@ const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
   'admin.screensaverSchedule': 'screens',
   'admin.displayMachines': 'displaymanager',
   'admin.displayMachineCloseRequests': 'displaymanager',
+  'admin.displayPairingRequests': 'displaymanager',
   'admin.integrations': 'integrations',
   'admin.orders': 'orders',
   'admin.messageBoards': 'messageboard',
@@ -114,6 +118,51 @@ function mergeDisplayMachineHeartbeat(
   return existing ? current.map((machine) => (machine.machineID === heartbeat.machineID ? updated : machine)) : [...current, updated]
 }
 
+// --- Display pairing (ADHDisplay Companion) ---
+
+const PAIRING_PIN_LENGTH = 6
+/** A pending request that hasn't heartbeated (see `POST /display-machines/pairing-heartbeat`) in this long is treated as expired — pruned lazily on the next write that touches `admin.displayPairingRequests`, not on a timer. */
+const PAIRING_PIN_TTL_MS = 10 * 60 * 1000
+/** A café never legitimately has more devices pairing at once — caps the pool a PIN gets cross-matched against below, which is what keeps that cross-match safe against a flood of attacker-held pending requests (see the approve route's own comment). */
+const MAX_PENDING_PAIRING_REQUESTS = 10
+const PAIRING_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000
+const PAIRING_RATE_LIMIT_MAX_NEW_PER_IP = 5
+const MAX_PIN_APPROVE_ATTEMPTS = 5
+
+/** In-memory (not persisted, unlike everything else here) per-`machineID` count of *true* PIN misses (a guess that matched no pending request at all — see the approve route) against `POST /display-machines/:machineID/approve`. Reset on any successful approval; the request itself is dropped once this hits `MAX_PIN_APPROVE_ATTEMPTS`. */
+const pinAttemptsByMachineId = new Map<string, number>()
+/** In-memory (not persisted) per-source-IP timestamps of *new* (never-seen-`machineID`) pairing requests, for `POST /display-machines/pairing-heartbeat`'s own rate limit — refreshing an existing pending request never touches this. */
+const newPairingRequestTimestampsByIp = new Map<string, number[]>()
+
+/** Drops any pending request that hasn't heartbeated within `PAIRING_PIN_TTL_MS` — called on every write to `admin.displayPairingRequests` so staleness never needs its own sweep/timer. */
+function prunePairingRequests(requests: DisplayPairingRequest[]): DisplayPairingRequest[] {
+  const cutoff = Date.now() - PAIRING_PIN_TTL_MS
+  return requests.filter((request) => new Date(request.lastSeenAt).getTime() >= cutoff)
+}
+
+/** A fresh, zero-padded `PAIRING_PIN_LENGTH`-digit PIN that doesn't collide with any of `existing`'s own pins — pending PINs must be unique among each other at any given moment, since the approve route's cross-match behavior depends on that. */
+function generatePairingPin(existing: DisplayPairingRequest[]): string {
+  const usedPins = new Set(existing.map((request) => request.pin))
+  let pin: string
+  do {
+    pin = String(randomInt(0, 10 ** PAIRING_PIN_LENGTH)).padStart(PAIRING_PIN_LENGTH, '0')
+  } while (usedPins.has(pin))
+  return pin
+}
+
+function isRateLimitedForNewPairing(ip: string): boolean {
+  const now = Date.now()
+  const recent = (newPairingRequestTimestampsByIp.get(ip) ?? []).filter((timestamp) => now - timestamp < PAIRING_RATE_LIMIT_WINDOW_MS)
+  newPairingRequestTimestampsByIp.set(ip, recent)
+  return recent.length >= PAIRING_RATE_LIMIT_MAX_NEW_PER_IP
+}
+
+function recordNewPairingRequest(ip: string) {
+  const recent = newPairingRequestTimestampsByIp.get(ip) ?? []
+  recent.push(Date.now())
+  newPairingRequestTimestampsByIp.set(ip, recent)
+}
+
 const httpServer = createServer((req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, CORS_HEADERS)
@@ -142,9 +191,13 @@ const httpServer = createServer((req, res) => {
   // Public, no auth — this machine's own network address, needed to build a
   // LAN-reachable URL (e.g. a screen's link) from a page that may itself have
   // been opened via `localhost`, plus the running app's own version (see
-  // Settings → About).
+  // Settings → About). `app: 'adhdisplay'` lets a LAN sweep (e.g. ADHDisplay
+  // Companion's own server-discovery scan) tell a real ADHDisplay server
+  // apart from some unrelated service answering on the same path/port.
+  // `wsPort`/`contentPort` let a client build both this server's sync-socket
+  // URL and its content/screen URL without hardcoding either.
   if (req.method === 'GET' && url.pathname === '/server-info') {
-    sendJson(res, 200, { lanIp: getLanIp(), version: APP_VERSION })
+    sendJson(res, 200, { app: 'adhdisplay', lanIp: getLanIp(), version: APP_VERSION, wsPort: PORT, contentPort: CONTENT_PORT })
     return
   }
 
@@ -153,7 +206,13 @@ const httpServer = createServer((req, res) => {
   // /server-info and GET /screen-address above. Actually *assigning* a Screen
   // to a monitor is a deliberate admin edit and goes through the normal
   // authenticated synced-key write path instead (see admin.displayMachines
-  // in SECTION_BY_KEY) — never through this route.
+  // in SECTION_BY_KEY) — never through this route. `electron`/`url` still
+  // join with zero gate, unchanged; a `mobile` (ADHDisplay Companion)
+  // `machineID` must already be an approved entry in `admin.displayMachines`
+  // (see `POST /display-machines/:machineID/approve`) — an unrecognized one
+  // gets `needsPairing` instead of silently joining, which is what makes
+  // Display Manager's "Remove" a real revocation for a mobile device (unlike
+  // `electron`/`url`, which can always just re-join).
   if (req.method === 'POST' && url.pathname === '/display-machines/heartbeat') {
     readJsonBody(req)
       .then((body) => {
@@ -163,16 +222,167 @@ const httpServer = createServer((req, res) => {
           connectionType?: string
           monitors?: { id?: string; label?: string }[]
         }
-        if (!machineID || !label || (connectionType !== 'electron' && connectionType !== 'url') || !Array.isArray(monitors)) {
+        if (!machineID || !label || (connectionType !== 'electron' && connectionType !== 'url' && connectionType !== 'mobile') || !Array.isArray(monitors)) {
           sendJson(res, 400, { error: 'Malformed heartbeat body' })
+          return
+        }
+        const current = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
+        if (connectionType === 'mobile' && !current.some((machine) => machine.machineID === machineID)) {
+          sendJson(res, 409, { error: 'not paired', needsPairing: true })
           return
         }
         const cleanMonitors = monitors
           .filter((monitor): monitor is { id: string; label: string } => typeof monitor.id === 'string' && typeof monitor.label === 'string')
-        const current = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
         const merged = mergeDisplayMachineHeartbeat(current, { machineID, label, connectionType, monitors: cleanMonitors })
         applyUpdate('admin.displayMachines', merged)
-        sendJson(res, 200, { ok: true })
+        const mine = merged.find((machine) => machine.machineID === machineID)
+        sendJson(res, 200, { ok: true, monitors: mine?.monitors ?? [] })
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // Public, no auth — same LAN-trust posture as the heartbeat route above. A
+  // `mobile` (ADHDisplay Companion) device that isn't approved yet calls
+  // this (instead of the real heartbeat route, which it can't join) to learn
+  // — and, once pending, keep refreshing — its own server-issued PIN. No
+  // `pin` field is ever accepted from the device itself: it only ever
+  // displays whatever PIN it's currently handed, so generation has to be
+  // server-side (authoritative uniqueness/rotation) rather than trust-the-client.
+  if (req.method === 'POST' && url.pathname === '/display-machines/pairing-heartbeat') {
+    readJsonBody(req)
+      .then((body) => {
+        const { machineID, label } = body as { machineID?: string; label?: string }
+        if (!machineID || !label) {
+          sendJson(res, 400, { error: 'Malformed pairing-heartbeat body' })
+          return
+        }
+
+        const machines = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
+        if (machines.some((machine) => machine.machineID === machineID)) {
+          sendJson(res, 200, { status: 'approved' })
+          return
+        }
+
+        const now = new Date().toISOString()
+        const pending = prunePairingRequests((store.get('admin.displayPairingRequests')?.value as DisplayPairingRequest[] | undefined) ?? [])
+        const existingRequest = pending.find((request) => request.machineID === machineID)
+
+        // Refreshing an existing pending request never counts against the
+        // caps below, and always keeps its own already-issued PIN stable —
+        // only a pruned-then-re-heartbeated machineID (a genuinely new
+        // request below) gets a freshly rolled one.
+        if (existingRequest) {
+          const refreshed = pending.map((request) => (request.machineID === machineID ? { ...request, label, lastSeenAt: now } : request))
+          applyUpdate('admin.displayPairingRequests', refreshed)
+          sendJson(res, 200, { status: 'pending', pin: existingRequest.pin })
+          return
+        }
+
+        if (pending.length >= MAX_PENDING_PAIRING_REQUESTS) {
+          applyUpdate('admin.displayPairingRequests', pending)
+          sendJson(res, 503, { error: 'too many pending pairings, try again shortly' })
+          return
+        }
+
+        const ip = req.socket.remoteAddress ?? 'unknown'
+        if (isRateLimitedForNewPairing(ip)) {
+          applyUpdate('admin.displayPairingRequests', pending)
+          sendJson(res, 429, { error: 'too many new pairing attempts from this network, try again shortly' })
+          return
+        }
+        recordNewPairingRequest(ip)
+
+        const created: DisplayPairingRequest = { machineID, label, pin: generatePairingPin(pending), createdAt: now, lastSeenAt: now }
+        applyUpdate('admin.displayPairingRequests', [...pending, created])
+        sendJson(res, 200, { status: 'pending', pin: created.pin })
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // Authenticated, `displaymanager`-section-gated like the generic `write`
+  // handler — this has to be its own route rather than the generic
+  // synced-key `write` protocol, because the whole point of the PIN is a
+  // server-enforced check, and `write` has no field-level validation hook to
+  // hang that check on.
+  const pairingApproveMatch = req.method === 'POST' ? url.pathname.match(/^\/display-machines\/([^/]+)\/approve$/) : null
+  if (pairingApproveMatch) {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      const section = SECTION_BY_KEY['admin.displayPairingRequests']
+      if (section && !session.allowedSections?.includes(section)) {
+        sendJson(res, 403, { error: 'Only accounts with the Display Manager section can approve a pairing request' })
+        return
+      }
+    }
+
+    const targetMachineId = decodeURIComponent(pairingApproveMatch[1])
+    readJsonBody(req)
+      .then((body) => {
+        const { pin } = body as { pin?: string }
+        if (!pin) {
+          sendJson(res, 400, { error: 'Missing pin' })
+          return
+        }
+
+        const rawPending = (store.get('admin.displayPairingRequests')?.value as DisplayPairingRequest[] | undefined) ?? []
+        const targetRequest = rawPending.find((request) => request.machineID === targetMachineId)
+        if (!targetRequest) {
+          sendJson(res, 404, { error: 'No pending pairing request for that machine' })
+          return
+        }
+
+        const pending = prunePairingRequests(rawPending)
+        if (!pending.some((request) => request.machineID === targetMachineId)) {
+          // Expired specifically (present in rawPending, dropped by pruning)
+          // rather than never having existed at all (the 404 case above) —
+          // persist the prune and say so distinctly.
+          applyUpdate('admin.displayPairingRequests', pending)
+          sendJson(res, 410, { error: 'This pairing request has expired — the device will get a fresh PIN on its next heartbeat' })
+          return
+        }
+
+        // Approve whichever pending request the PIN actually matches, not
+        // necessarily the one the admin clicked — the realistic slip when
+        // several near-identical devices (e.g. three TV sticks all labeled
+        // "Fire TV Stick") are pairing at once and the PIN is the only thing
+        // that actually disambiguates them. Only safe because
+        // MAX_PENDING_PAIRING_REQUESTS caps how many requests a guess can
+        // ever be checked against — without that cap, a flood of
+        // attacker-held pending requests would each get a shot at matching
+        // whatever PIN the admin types.
+        const matched = pending.find((request) => request.pin === pin)
+        if (!matched) {
+          const attempts = (pinAttemptsByMachineId.get(targetMachineId) ?? 0) + 1
+          if (attempts >= MAX_PIN_APPROVE_ATTEMPTS) {
+            pinAttemptsByMachineId.delete(targetMachineId)
+            applyUpdate('admin.displayPairingRequests', pending.filter((request) => request.machineID !== targetMachineId))
+            sendJson(res, 410, { error: 'Too many incorrect PIN attempts — this device must rotate to a new PIN' })
+            return
+          }
+          pinAttemptsByMachineId.set(targetMachineId, attempts)
+          sendJson(res, 400, { error: 'Incorrect PIN' })
+          return
+        }
+
+        pinAttemptsByMachineId.delete(targetMachineId)
+        const machines = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
+        const approvedMachine: DisplayMachine = {
+          machineID: matched.machineID,
+          label: matched.label,
+          customLabel: null,
+          connectionType: 'mobile',
+          monitors: [{ id: 'device', label: matched.label, assignedScreenID: null }],
+          lastSeenAt: new Date().toISOString(),
+        }
+        applyUpdate('admin.displayMachines', [...machines, approvedMachine])
+        applyUpdate('admin.displayPairingRequests', pending.filter((request) => request.machineID !== matched.machineID))
+        sendJson(res, 200, { ok: true, approvedMachineID: matched.machineID, approvedLabel: matched.label })
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
     return
@@ -1917,9 +2127,8 @@ startAbandonedVideoUploadSweep()
 mdns.apply(store.getScreenAddressSettings(), currentStoreName())
 // Always on, regardless of the opt-in hostname mode above — see
 // advertiseServerPresence's own doc comment for why this needs to be a
-// separate advertisement. 4173 matches vite preview's own default port
-// (see installer/start-adhdisplay.bat and package.json's "preview" script).
-mdns.advertiseServerPresence(PORT, 4173)
+// separate advertisement.
+mdns.advertiseServerPresence(PORT, CONTENT_PORT)
 httpServer.listen(PORT, () => {
   console.log(`[server] listening on http://0.0.0.0:${PORT}`)
 })

@@ -41,6 +41,99 @@
   }
 }
 
+.display-manager-view__pairing-section {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  margin-bottom: $spacing-unit * 1.5;
+}
+
+.display-manager-view__pairing-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.display-manager-view__pairing-requests {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+}
+
+.display-manager-view__pairing-card {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+}
+
+.display-manager-view__pairing-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: $spacing-unit;
+}
+
+.display-manager-view__pairing-label {
+  font-weight: 600;
+}
+
+.display-manager-view__pairing-requested-at {
+  font-size: 0.8125rem;
+  color: $color-text-muted;
+  white-space: nowrap;
+}
+
+.display-manager-view__pairing-pin-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+}
+
+.display-manager-view__pairing-pin {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+}
+
+.display-manager-view__pairing-pin-refreshed {
+  font-size: 0.75rem;
+  color: $color-accent;
+}
+
+.display-manager-view__pairing-approve-row {
+  display: flex;
+  align-items: flex-end;
+  gap: $spacing-unit;
+
+  .input-field {
+    flex: 1;
+  }
+}
+
+.display-manager-view__pair-modal-description {
+  color: $color-text-muted;
+  font-size: 0.875rem;
+}
+
+.display-manager-view__pair-qr {
+  display: flex;
+  justify-content: center;
+  padding: $spacing-unit;
+
+  svg {
+    width: 100%;
+    max-width: 220px;
+    height: auto;
+  }
+}
+
+.display-manager-view__pair-manual {
+  text-align: center;
+  font-size: 0.875rem;
+  color: $color-text-muted;
+  word-break: break-word;
+}
+
 .display-manager-view__machines {
   display: flex;
   flex-direction: column;
@@ -74,6 +167,11 @@
   &--electron {
     background: $color-border;
     color: $color-text;
+  }
+
+  &--mobile {
+    background: $color-success;
+    color: $color-accent-contrast;
   }
 }
 

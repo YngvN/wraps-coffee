@@ -44,6 +44,17 @@ function findMonitor(machineID: string, monitorId: string): DisplayManagerDraft 
  * triggered "forget" could disconnect a live display. Left out for this
  * pass; a candidate for a future `trigger` action once there's a stronger
  * confirmation path designed for it.
+ *
+ * Also deliberately excludes approving a `mobile` (ADHDisplay Companion)
+ * pairing request (`admin.displayPairingRequests`, `POST
+ * /display-machines/:machineID/approve`) — same reasoning as "forget a
+ * machine" above, just in the other direction: it's at least as
+ * security-sensitive, since it's what lets a new physical device start
+ * rendering real content, and a chat-triggered mis-approval (e.g. the
+ * cross-match behavior in that route approving a different pending device
+ * than the one actually meant) is exactly the kind of action that wants a
+ * human looking at the PIN, not an assistant guessing at one. No adapter for
+ * it here; stays a manual-only Display Manager UI action.
  */
 export const displayManagerEntity: AssistantEntity<DisplayManagerDraft> = {
   key: 'displayManager',

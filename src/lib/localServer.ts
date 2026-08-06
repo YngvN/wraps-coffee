@@ -44,6 +44,13 @@ export async function getAppVersion(): Promise<string> {
   return version
 }
 
+/** The full `/server-info` response — `lanIp`/`wsPort`/`contentPort` together are what Display Manager's own "Pair a mobile display" QR code is built from (a device scanning it needs the raw host:port pair, not this page's own possibly-mDNS/custom-hostname origin — see `useLanOrigin`, which is for a different purpose). */
+export async function getServerInfo(): Promise<{ app: string; lanIp: string | null; version: string; wsPort: number; contentPort: number }> {
+  const response = await fetch(`${serverBaseUrl()}/server-info`)
+  if (!response.ok) throw new Error('Could not fetch server info')
+  return response.json() as Promise<{ app: string; lanIp: string | null; version: string; wsPort: number; contentPort: number }>
+}
+
 // --- Display Manager (Settings-adjacent, but a public/no-auth machine self-report — see server/index.ts's own comment on this route) ---
 
 /** Self-reports this machine/tab's presence and current monitor list — best-effort, same posture as `logout`: a failure (server unreachable) just means this display doesn't show up in the Display Manager yet, not something worth surfacing to whoever's looking at an otherwise-working kiosk screen. */
@@ -62,6 +69,22 @@ export async function registerDisplayHeartbeat(input: {
   } catch {
     // Ignore — see above.
   }
+}
+
+/** Approves a pending `mobile` (ADHDisplay Companion) pairing request by typing its PIN into Display Manager — turns it into a real `DisplayMachine`. `approvedMachineID`/`approvedLabel` identify which pending request actually got approved, which can differ from `machineID` if the PIN typed in belongs to a *different* still-pending request (see `POST /display-machines/:machineID/approve`'s own comment in `server/index.ts` for why that cross-match exists) — always show the returned label, not an assumption that this card's own request was the one approved. */
+export async function approveDisplayPairing(token: string, machineID: string, pin: string): Promise<{ approvedMachineID: string; approvedLabel: string }> {
+  const response = await fetch(`${serverBaseUrl()}/display-machines/${encodeURIComponent(machineID)}/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ pin }),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not approve this pairing request')
+  }
+  const { approvedMachineID, approvedLabel } = (await response.json()) as { approvedMachineID: string; approvedLabel: string }
+  return { approvedMachineID, approvedLabel }
 }
 
 /** Thrown when the local server rejects a login attempt or isn't reachable at all. */

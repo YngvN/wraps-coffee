@@ -51,18 +51,6 @@ function waitForServer(url, timeoutMs) {
   })
 }
 
-/** Like `waitForServer`, but never gives up — each attempt still times out after `POLL_TIMEOUT_MS`, but a failure just retries instead of rejecting. Used by the `display` role, which should sit showing "Waiting for connection" indefinitely (the main server might not be up yet, or a network blip) rather than quit. */
-async function waitForServerForever(url) {
-  for (;;) {
-    try {
-      await waitForServer(url, POLL_TIMEOUT_MS)
-      return
-    } catch (error) {
-      console.error(error)
-    }
-  }
-}
-
 function splashWindow(message) {
   const window = new BrowserWindow({ width: 480, height: 200, frame: false, resizable: false, center: true })
   window.loadURL(
@@ -96,7 +84,7 @@ function createTray() {
       { label: 'Show ADHDisplay', click: showWindow },
       { type: 'separator' },
       {
-        label: 'Reconfigure role...',
+        label: 'Rename this machine...',
         click: async () => {
           currentRole = await roleSetup.reconfigureRole()
           app.relaunch()
@@ -218,7 +206,7 @@ function attachDisplayWindowPreload(window) {
   })
 }
 
-/** Starts the heartbeat loop + live sync subscription that keeps this machine's own managed monitors (every monitor except `excludeDisplayId`, if given) in line with admin-made Screen assignments — shared by both roles below. */
+/** Starts the heartbeat loop + live sync subscription that keeps this machine's own managed monitors (every monitor except `excludeDisplayId`, if given) in line with admin-made Screen assignments. */
 function startDisplayManagement(baseUrl, wsUrl, role, excludeDisplayId) {
   const heartbeat = () => sendHeartbeat(baseUrl, role.machineID, role.label, displayManager.detectMonitors(excludeDisplayId))
   heartbeat()
@@ -237,7 +225,7 @@ function startDisplayManagement(baseUrl, wsUrl, role, excludeDisplayId) {
   return () => clearInterval(heartbeatInterval)
 }
 
-/** `role: 'server'` — this machine runs the local server (started by `start-adhdisplay.bat` before Electron launches). The primary window stays the admin dashboard, exactly as before this feature existed; any *additional* monitors get managed signage windows, and are the only ones ever reportable/assignable (the primary is deliberately excluded — see `displayManager.cjs`'s own note on why, closing the "admin could hijack their own login screen" hole). */
+/** Every install runs this: the local server (started by `start-adhdisplay.bat` before Electron launches). The primary window stays the admin dashboard; any *additional* monitors on this same machine get managed signage windows, and are the only ones ever reportable/assignable (the primary is deliberately excluded — see `displayManager.cjs`'s own note on why, closing the "admin could hijack their own login screen" hole). */
 async function startServerRole(role) {
   const baseUrl = 'http://localhost:4173'
   const wsUrl = 'ws://localhost:4000'
@@ -271,18 +259,6 @@ async function startServerRole(role) {
   startDisplayManagement(baseUrl, wsUrl, role, primaryDisplayId)
 }
 
-/** `role: 'display'` — no local server, no admin-login window at all; every detected monitor (there is no "primary admin display" to exclude) gets a managed signage window, pointed at the discovered/configured `serverHost` instead of localhost. */
-async function startDisplayRole(role) {
-  const baseUrl = `http://${role.serverHost}:4173`
-  const wsUrl = `ws://${role.serverHost}:4000`
-
-  const loadingWindow = splashWindow('Waiting for connection…')
-  await waitForServerForever(`${baseUrl}/admin/login`)
-  loadingWindow.close()
-
-  startDisplayManagement(baseUrl, wsUrl, role, null)
-}
-
 async function main() {
   // Removes the native File/Edit/View/Window/Help menu bar app-wide -
   // without this, only the windows this file explicitly sets
@@ -300,8 +276,7 @@ async function main() {
   registerWindowControlHandlers()
   createTray()
   currentRole = await roleSetup.getOrCreateRole()
-  if (currentRole.role === 'display') await startDisplayRole(currentRole)
-  else await startServerRole(currentRole)
+  await startServerRole(currentRole)
 }
 
 app.whenReady().then(main)

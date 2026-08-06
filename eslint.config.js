@@ -6,7 +6,10 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // adhdisplay-companion is a fully independent Expo/React Native package
+  // (its own React/RN versions, its own eventual lint setup) — not meant to
+  // be swept by this root config's own browser/Vite-React-oriented rules.
+  globalIgnores(['dist', 'adhdisplay-companion']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

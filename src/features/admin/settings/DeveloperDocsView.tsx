@@ -29,6 +29,7 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.screens', descKey: 'admin.settings.developerDocs.keyScreens' },
   { key: 'admin.displayMachines', descKey: 'admin.settings.developerDocs.keyDisplayMachines' },
   { key: 'admin.displayMachineCloseRequests', descKey: 'admin.settings.developerDocs.keyDisplayMachineCloseRequests' },
+  { key: 'admin.displayPairingRequests', descKey: 'admin.settings.developerDocs.keyDisplayPairingRequests' },
   { key: 'admin.integrations', descKey: 'admin.settings.developerDocs.keyIntegrations' },
   { key: 'admin.sidebarSettings', descKey: 'admin.settings.developerDocs.keySidebarSettings' },
   { key: 'admin.orders', descKey: 'admin.settings.developerDocs.keyOrders' },
@@ -141,7 +142,7 @@ export function DeveloperDocsView() {
         <p>{t('admin.settings.developerDocs.serverInfoText')}</p>
         <pre>
           <code>{`GET /server-info                  (public — no token needed)
-→ 200 { "lanIp": "192.168.1.23" | null, "version": "0.1.0" }`}</code>
+→ 200 { "app": "adhdisplay", "lanIp": "192.168.1.23" | null, "version": "0.1.0", "wsPort": 4000, "contentPort": 4173 }`}</code>
         </pre>
 
         <p>{t('admin.settings.developerDocs.screenAddressText')}</p>
@@ -268,9 +269,10 @@ DELETE /uploads/<filename>        (Authorization: Bearer <token>)
         <p>{t('admin.settings.developerDocs.displayManagerIntro')}</p>
         <pre>
           <code>{`POST /display-machines/heartbeat  (public — no token needed, same LAN-trust posture as /server-info)
-{ "machineID": "...", "label": "...", "connectionType": "electron" | "url", "monitors": [{ "id": "...", "label": "..." }] }
-→ 200 { "ok": true }
+{ "machineID": "...", "label": "...", "connectionType": "electron" | "url" | "mobile", "monitors": [{ "id": "...", "label": "..." }] }
+→ 200 { "ok": true, "monitors": [{ "id", "label", "assignedScreenID" }] }
 → 400 { "error": "..." }   (malformed body)
+→ 409 { "error": "not paired", "needsPairing": true }   ("mobile" only, machineID isn't an approved admin.displayMachines entry yet)
 
 Upserts by machineID into admin.displayMachines (a regular synced key, see Live data above) —
 preserves each existing monitor's own assignedScreenID (matched by monitor id) and the machine's
@@ -278,14 +280,49 @@ own customLabel (an admin's rename, set via Display Manager) rather than overwri
 heartbeat's own "label" is that machine's self-reported name (e.g. "Display 3"), always
 overwritten as-is, so an admin-typed rename has to live in this separate field to actually stick.
 Actually assigning a Screen or renaming a machine is a normal authenticated write to that same key
-from the Display Manager page, not this route.
+from the Display Manager page, not this route. "electron"/"url" join with zero gate, same as
+always; a "mobile" connectionType (ADHDisplay Companion) is the one exception — its machineID must
+already exist in admin.displayMachines (put there by the approve route below), or this route
+rejects it with 409/needsPairing instead of silently joining. That's what makes Display Manager's
+"Remove" a real revocation for a mobile device.
 
 Remote-close: Display Manager's own "X" button appends a machineID to
 admin.displayMachineCloseRequests (also a regular synced key) instead of calling any route of its
 own. Every live /display-connect or Display window watches that list for its own machineID; on a
 match it stops its own heartbeat, removes its own admin.displayMachines entry, prunes its own id
 back out of the close-request list, then calls window.close() (only effective on a script-opened
-window, e.g. a Display window — a no-op on a plain browser tab a user navigated to directly).`}</code>
+window, e.g. a Display window — a no-op on a plain browser tab a user navigated to directly). A
+"mobile" device instead just stops re-heartbeating once removed — see the 409 above.`}</code>
+        </pre>
+
+        <p>{t('admin.settings.developerDocs.displayPairingText')}</p>
+        <pre>
+          <code>{`POST /display-machines/pairing-heartbeat  (public — no token needed, same LAN-trust posture as above)
+{ "machineID": "...", "label": "..." }   (no "pin" field — always server-generated, never device-submitted)
+→ 200 { "status": "approved" }                  (machineID is already an approved admin.displayMachines entry)
+→ 200 { "status": "pending", "pin": "123456" }   (new or still-pending request; a still-pending one keeps its existing PIN)
+→ 400 { "error": "..." }   (malformed body)
+→ 429 { "error": "..." }   (too many new machineIDs from this source IP recently)
+→ 503 { "error": "..." }   (10 pending requests already in flight — MAX_PENDING_PAIRING_REQUESTS)
+
+Call this every ~5s while unpaired. A pending request lazily expires (and, on its next heartbeat,
+re-rolls a fresh PIN) after 10 minutes with no heartbeat — see admin.displayPairingRequests above.
+
+POST /display-machines/<machineID>/approve  (Authorization: Bearer <token>, "displaymanager" section)
+{ "pin": "123456" }
+→ 200 { "ok": true, "approvedMachineID": "...", "approvedLabel": "..." }
+→ 400 { "error": "Incorrect PIN" }
+→ 401 { "error": "..." }   /  403 { "error": "..." }   (a "limited" token without the Display Manager section)
+→ 404 { "error": "..." }   (no pending request for that machineID at all)
+→ 410 { "error": "..." }   (that request expired, or hit 5 wrong-PIN guesses and was dropped — either way, rotate)
+
+Moves the matched pending request into a real admin.displayMachines entry (connectionType: "mobile",
+one synthetic monitor, id "device") and removes it from admin.displayPairingRequests. If the typed
+PIN doesn't match <machineID>'s own request but does match a *different* still-pending one, that
+other request is approved instead (and reported back via approvedMachineID/approvedLabel) rather
+than counting as a wrong guess — the realistic slip when several near-identical devices are pairing
+at once and the PIN is the only thing telling them apart. Only a PIN matching no pending request at
+all counts toward that machineID's own 5-attempt limit.`}</code>
         </pre>
       </Card>
 

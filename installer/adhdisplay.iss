@@ -21,7 +21,10 @@
 ; (no escaping needed there) in InitializeSetup below.
 AppId={{E4B0C442-1B1D-4B7A-9C2E-2D6D6E9E5A11}
 AppName={#AppName}
-AppVersion=1.0
+; Must stay in sync with the root package.json's own "version" field (see
+; CLAUDE.md's Versioning rule) - bumped together, in the same change, on
+; every completed change.
+AppVersion=0.20
 AppPublisher=ADHDisplay
 DefaultDirName=C:\ADHDisplay
 DisableDirPage=no
