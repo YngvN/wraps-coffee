@@ -2,8 +2,11 @@
 
 A standalone Expo app that turns any Android tablet/TV box/stick, iOS/iPadOS
 device, or a Windows/Linux PC into an ADHDisplay kiosk display — no local
-server, no Electron, just this app pointed at an existing ADHDisplay server
-already running on the LAN.
+ADHDisplay server of its own, just this app pointed at an existing ADHDisplay
+server already running on the LAN. On Windows specifically, "this app" ships
+as its own separate installer wrapping a minimal Electron kiosk shell (see
+"Windows & Linux" below) — a small, dedicated Electron install of its own,
+distinct from the main ADHDisplay app's own `electron/`.
 
 It boots into a standby screen showing a PIN, gets approved once by an admin
 typing that PIN into the main app's own Display Manager, and from then on
@@ -15,7 +18,9 @@ This is a fully independent package. It does **not** share TypeScript source,
 runs React 19; Expo pins its own compatible React/React Native versions) —
 reuse between the two happens at the protocol level (matching JSON shapes
 against `server/index.ts`'s own routes) and via this app's own `DisplayScreen`
-loading the real, unmodified `/screens/:id` page in a WebView, not shared code.
+loading the real, unmodified `/screens/:id` page in a WebView (a plain
+`<iframe>` on the web/Electron build — see `DisplayScreen.web.tsx` — since
+`react-native-webview` has no web implementation), not shared code.
 
 ## Status
 
@@ -102,6 +107,14 @@ re-proposed and re-discovered later.
   identically on a no-name Android TV box. Budget for testing across the
   actual hardware variety this is meant to run on, not a single-device smoke
   test.
+- **Building an APK**: `npx expo prebuild -p android && cd android &&
+  ./gradlew assembleDebug` produces a debug-signed
+  `android/app/build/outputs/apk/debug/app-debug.apk`, sideloadable directly
+  onto a stick/TV box via `adb install`. This is also how
+  `.github/workflows/build-installer.yml`'s `build-android-apk` job builds it
+  in CI, bundled alongside the two Windows installers into one
+  `ADHDisplayInstallers.zip`. Debug-signed only — no release/Play-Store
+  signing is set up, since there's no store distribution planned.
 
 ### iOS / iPadOS
 
@@ -124,19 +137,28 @@ v1 ships as a web build (React Native Web, the same codebase — no
 per-platform fork of the app logic) packaged into a lightweight
 installer/shell for each platform:
 
-- **Windows**: `ADHDisplayCompanion-Setup.exe` wrapping the web build in a
-  minimal kiosk-mode shell, rather than adding React Native Windows' own
-  separate native toolchain. Auto-launch-on-boot reuses the main ADHDisplay
-  app's own installer pattern (`installer/adhdisplay.iss` already registers a
-  "run at logon" scheduled task, `ADHDisplayLauncher`) under its own,
-  distinctly-named task — e.g. `ADHDisplayCompanionLauncher` — since it's a
-  separate installed app from the main one.
-- **Linux**: the same web build wrapped in a kiosk-mode browser shell
-  launched by a systemd unit, the same shape `installer/linux/install.sh`
-  already uses for the main app's own Raspberry-Pi/Linux kiosk deployment.
-  Its own systemd unit is named `adhdisplay-companion.service` — deliberately
-  not `adhdisplay.service`, which is already the main app's own unit name and
-  would collide with it.
+- **Windows** (implemented — `installer/adhdisplay-companion.iss`,
+  `electron/main.cjs`): `ADHDisplayCompanionSetup.exe` wrapping the web
+  build (`npx expo export -p web`) in a minimal Electron kiosk shell, rather
+  than adding React Native Windows' own separate native toolchain. The web
+  export is served from disk via a custom `app://` protocol handler
+  registered in `electron/main.cjs` — no local HTTP server, no port, no
+  firewall rule — deliberately registered *without* `secure: true`, since
+  `DisplayScreen.web.tsx`'s `<iframe>` points at the LAN server's own plain
+  `http://` address and a "secure" shell origin would block that as mixed
+  content. Auto-launch-on-boot reuses the main ADHDisplay app's own installer
+  pattern (`installer/adhdisplay.iss` already registers a "run at logon"
+  scheduled task, `ADHDisplayLauncher`) under its own, distinctly-named task,
+  `ADHDisplayCompanionLauncher`, since it's a separate installed app from the
+  main one — see `.github/workflows/build-installer.yml`, which compiles
+  both installers and zips them together with the Android APK (see
+  "Building an APK" above) into one `ADHDisplayInstallers.zip`.
+- **Linux** (not implemented yet): the same web build wrapped in a
+  kiosk-mode browser shell launched by a systemd unit, the same shape
+  `installer/linux/install.sh` already uses for the main app's own
+  Raspberry-Pi/Linux kiosk deployment. Its own systemd unit would be named
+  `adhdisplay-companion.service` — deliberately not `adhdisplay.service`,
+  which is already the main app's own unit name and would collide with it.
 
 Both are single-monitor, one synthetic `device` monitor, identical to
 Android/iOS. Multi-monitor support on either (several signage screens off one
@@ -149,9 +171,9 @@ multi-monitor support is actually built, it belongs in a native shell
 (Electron, reusing `electron/displayManager.cjs`'s already-proven per-monitor
 `BrowserWindow` placement), not page-JS.
 
-Neither Windows nor Linux packaging is implemented in this repo yet — this
-section documents the intended build targets and their auto-launch story,
-not a shipped installer.
+Windows packaging is implemented (see above); Linux packaging is not yet —
+this subsection still just documents the intended build target and its
+auto-launch story, not a shipped installer.
 
 ## Verification checklist
 

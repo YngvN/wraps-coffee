@@ -24,7 +24,7 @@ AppName={#AppName}
 ; Must stay in sync with the root package.json's own "version" field (see
 ; CLAUDE.md's Versioning rule) - bumped together, in the same change, on
 ; every completed change.
-AppVersion=0.20
+AppVersion=0.2.5
 AppPublisher=ADHDisplay
 DefaultDirName=C:\ADHDisplay
 DisableDirPage=no
@@ -75,6 +75,13 @@ end;
 // run) and only falls back to -Force if something's still listening a moment
 // later. Also used by [UninstallRun] below (as plain commands there, since
 // that section can't call into this script's own Pascal procedures).
+//
+// The Electron window is killed separately, scoped to *this app's own*
+// electron.exe by full path rather than a blanket "taskkill /IM electron.exe"
+// (which this used to be) - the ADHDisplay Companion app (see
+// adhdisplay-companion.iss) uses the exact same unbranded Electron binary
+// name, so an unscoped kill here would also take down a running Companion
+// window if both apps are ever installed on the same machine.
 procedure StopRunningProcesses();
 var
   ResultCode: Integer;
@@ -87,7 +94,12 @@ begin
     '$ids = Get-NetTCPConnection -LocalPort 4000,4173 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; ' +
     'foreach ($procId in $ids) { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue }"',
     '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Exec('taskkill.exe', '/F /IM electron.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('powershell.exe',
+    '-NoProfile -Command "' +
+    '$path = ' + #39 + ExpandConstant('{app}') + '\node_modules\electron\dist\electron.exe' + #39 + '; ' +
+    '$ids = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq ' + #39 + 'electron.exe' + #39 + ' -and $_.ExecutablePath -eq $path } | Select-Object -ExpandProperty ProcessId; ' +
+    'foreach ($procId in $ids) { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue }"',
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 end;
 
 // Runs before the wizard even shows its first page. Without this, running the

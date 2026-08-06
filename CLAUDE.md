@@ -84,8 +84,8 @@
 - Unlike the README, this should be kept up to date automatically without asking the user first.
 
 ## Versioning
-- On completing any requested change (a fix, a feature, etc.), bump the version by +0.05: `package.json`'s `version` field and `installer/adhdisplay.iss`'s `AppVersion` must both be updated together, in the same change — they're required to stay in sync (see the comment above `AppVersion` in the `.iss` file).
-- The +0.05 step applies to the two-decimal part, e.g. `0.15.0` → `0.20.0` (and `AppVersion` `0.15` → `0.20`), not standard semver incrementing.
+- Version format is `0.x.n` (e.g. `0.2.5`). On completing any requested change (a fix, a feature, etc.), bump `n` (the rightmost number) by 1 — not standard semver incrementing. `x` (the middle number) is bumped manually/deliberately when asked, never automatically as part of this rule.
+- `package.json`'s `version` field, `installer/adhdisplay.iss`'s `AppVersion`, `adhdisplay-companion/package.json`'s `version`, `adhdisplay-companion/app.json`'s `expo.version`, and `installer/adhdisplay-companion.iss`'s `AppVersion` must all show the exact same version string, updated together in the same change — they're required to stay in sync (see the comment above each `AppVersion` in the two `.iss` files).
 - Unlike the README, this should be kept up to date automatically without asking the user first.
 
 ## README

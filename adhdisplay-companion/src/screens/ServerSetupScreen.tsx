@@ -1,6 +1,6 @@
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { parsePairingQrValue } from '../lib/qr'
 import { sweepLanForServer, type ServerConnection } from '../lib/serverConnection'
 
@@ -18,7 +18,12 @@ type Mode = 'sweeping' | 'found' | 'scanning' | 'manual'
  * it's the *first* minute. QR scan and manual host:port entry both stay
  * reachable regardless of how the sweep goes — QR for a second server on
  * the same LAN, or if the sweep is blocked by client-isolated Wi-Fi; manual
- * entry as the last-resort fallback for camera-less TV sticks.
+ * entry as the last-resort fallback for camera-less TV sticks. On web
+ * (Electron/Windows), the QR entry points are hidden entirely — `getUserMedia`
+ * needs a secure context this shell won't have, and a kiosk PC has no useful
+ * camera anyway — so manual entry is the only fallback there, and the LAN
+ * sweep itself also silently degrades to it (`expo-network` can't read a
+ * real LAN IP from a web page), same outcome either way.
  */
 export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
   const [mode, setMode] = useState<Mode>('sweeping')
@@ -81,9 +86,11 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
         <Pressable style={styles.button} onPress={() => onConnected(foundConnection)}>
           <Text style={styles.buttonText}>Connect</Text>
         </Pressable>
-        <Pressable style={styles.linkButton} onPress={() => setMode('scanning')}>
-          <Text style={styles.linkText}>Scan a QR code instead</Text>
-        </Pressable>
+        {Platform.OS !== 'web' && (
+          <Pressable style={styles.linkButton} onPress={() => setMode('scanning')}>
+            <Text style={styles.linkText}>Scan a QR code instead</Text>
+          </Pressable>
+        )}
         <Pressable style={styles.linkButton} onPress={() => setMode('manual')}>
           <Text style={styles.linkText}>Enter a server manually</Text>
         </Pressable>
@@ -159,9 +166,11 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
       <Pressable style={styles.button} onPress={handleManualSubmit}>
         <Text style={styles.buttonText}>Connect</Text>
       </Pressable>
-      <Pressable style={styles.linkButton} onPress={() => setMode('scanning')}>
-        <Text style={styles.linkText}>Scan a QR code instead</Text>
-      </Pressable>
+      {Platform.OS !== 'web' && (
+        <Pressable style={styles.linkButton} onPress={() => setMode('scanning')}>
+          <Text style={styles.linkText}>Scan a QR code instead</Text>
+        </Pressable>
+      )}
     </View>
   )
 }
