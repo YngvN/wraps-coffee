@@ -1,19 +1,17 @@
-name: Build ADHDisplay installers
+name: Build ADHDisplay installer
 
-# Manually triggered (Actions tab -> Build ADHDisplay installers -> Run
-# workflow) rather than on every push, since compiling the installers isn't
+# Manually triggered (Actions tab -> Build ADHDisplay installer -> Run
+# workflow) rather than on every push, since compiling the installer isn't
 # needed for most commits and this keeps Actions usage to only when you
-# actually want a new release zip to hand to the client. Produces one
-# ADHDisplayInstallers.zip containing the main app's Windows installer, the
-# Companion app's Windows installer, and the Companion app's Android APK -
-# split across three jobs so the Windows-only tooling (Inno Setup) and the
-# Android-only tooling (JDK/Android SDK) each run on the runner best suited
-# for them, then get zipped together in a final job.
+# actually want a new ADHDisplaySetup.exe to hand to the client. The
+# Companion app's own Windows installer + Android APK are built by the
+# separate build-companion-installers.yml workflow instead - a fully
+# independent package with its own release cadence, not bundled with this one.
 on:
   workflow_dispatch: {}
 
 jobs:
-  build-windows-installers:
+  build-installer:
     runs-on: windows-latest
     steps:
       - name: Check out repository
@@ -31,88 +29,12 @@ jobs:
           Write-Host "Downloading Node.js $($lts.version) ($($lts.lts)) from $url"
           Invoke-WebRequest -Uri $url -OutFile 'installer/node-lts-x64.msi'
 
-      - name: Compile main installer
+      - name: Compile installer
         shell: cmd
         run: '"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\adhdisplay.iss'
 
-      - name: Compile Companion installer
-        shell: cmd
-        run: '"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\adhdisplay-companion.iss'
-
-      - name: Upload Windows installers
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-installers
-          path: |
-            installer/Output/ADHDisplaySetup.exe
-            installer/Output/ADHDisplayCompanionSetup.exe
-
-  build-android-apk:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Companion dependencies
-        working-directory: adhdisplay-companion
-        run: |
-          npm install
-          npx expo install --fix
-
-      - name: Prebuild native Android project
-        working-directory: adhdisplay-companion
-        run: npx expo prebuild -p android
-
-      - name: Build debug APK
-        working-directory: adhdisplay-companion/android
-        run: ./gradlew assembleDebug
-
-      - name: Upload Android APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-apk
-          path: adhdisplay-companion/android/app/build/outputs/apk/debug/app-debug.apk
-
-  package:
-    needs: [build-windows-installers, build-android-apk]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Windows installers
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-installers
-          path: installers
-
-      - name: Download Android APK
-        uses: actions/download-artifact@v4
-        with:
-          name: android-apk
-          path: installers
-
-      - name: Rename APK for clarity alongside the two .exe installers
-        run: mv installers/app-debug.apk installers/ADHDisplayCompanionSetup.apk
-
-      - name: Zip installers together
-        run: |
-          cd installers
-          zip ADHDisplayInstallers.zip ADHDisplaySetup.exe ADHDisplayCompanionSetup.exe ADHDisplayCompanionSetup.apk
-
-      - name: Upload installers artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ADHDisplayInstallers
-          path: installers/ADHDisplayInstallers.zip
+          name: ADHDisplaySetup
+          path: installer/Output/ADHDisplaySetup.exe

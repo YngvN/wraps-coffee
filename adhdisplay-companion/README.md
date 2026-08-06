@@ -111,10 +111,10 @@ re-proposed and re-discovered later.
   ./gradlew assembleDebug` produces a debug-signed
   `android/app/build/outputs/apk/debug/app-debug.apk`, sideloadable directly
   onto a stick/TV box via `adb install`. This is also how
-  `.github/workflows/build-installer.yml`'s `build-android-apk` job builds it
-  in CI, bundled alongside the two Windows installers into one
-  `ADHDisplayInstallers.zip`. Debug-signed only — no release/Play-Store
-  signing is set up, since there's no store distribution planned.
+  `.github/workflows/build-companion-installers.yml`'s `build-android-apk`
+  job builds it in CI, bundled alongside the Windows installer into one
+  `ADHDisplayCompanionInstallers.zip`. Debug-signed only — no release/
+  Play-Store signing is set up, since there's no store distribution planned.
 
 ### iOS / iPadOS
 
