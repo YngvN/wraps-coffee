@@ -2,7 +2,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
 import * as NavigationBar from 'expo-navigation-bar'
 import { StatusBar } from 'expo-status-bar'
 import { useCallback, useEffect, useState } from 'react'
-import { Platform } from 'react-native'
+import { Platform, StyleSheet, View } from 'react-native'
 import { getOrCreateMachineId, sendHeartbeat, DEVICE_MONITOR_ID } from './src/lib/pairing'
 import { loadServerConnection, saveServerConnection, type ServerConnection } from './src/lib/serverConnection'
 import { DisplayScreen } from './src/screens/DisplayScreen'
@@ -119,7 +119,7 @@ export default function App() {
   }, [state, machineID, deviceLabel, handleNeedsPairing])
 
   return (
-    <>
+    <View style={styles.root}>
       <StatusBar hidden />
       {state.stage === 'loading' && null}
       {state.stage === 'server-setup' && <ServerSetupScreen onConnected={handleConnected} />}
@@ -133,6 +133,13 @@ export default function App() {
       )}
       {state.stage === 'waiting' && <WaitingForAssignmentScreen />}
       {state.stage === 'displaying' && <DisplayScreen connection={state.connection} screenId={state.screenId} />}
-    </>
+    </View>
   )
 }
+
+const styles = StyleSheet.create({
+  // Painted behind every stage, including 'loading' (which renders nothing
+  // of its own) — without this, the 'loading' stage on cold start falls
+  // through to the native window background instead of staying dark.
+  root: { flex: 1, backgroundColor: '#111' },
+})

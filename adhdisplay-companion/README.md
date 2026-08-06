@@ -107,14 +107,28 @@ re-proposed and re-discovered later.
   identically on a no-name Android TV box. Budget for testing across the
   actual hardware variety this is meant to run on, not a single-device smoke
   test.
-- **Building an APK**: `npx expo prebuild -p android && cd android &&
+- **Building a debug APK**: `npx expo prebuild -p android && cd android &&
   ./gradlew assembleDebug` produces a debug-signed
-  `android/app/build/outputs/apk/debug/app-debug.apk`, sideloadable directly
-  onto a stick/TV box via `adb install`. This is also how
+  `android/app/build/outputs/apk/debug/app-debug.apk`, installable via
+  `adb install` for local development — it depends on a Metro dev server and
+  is not meant for unattended kiosk deployment. This is also how
   `.github/workflows/build-companion-installers.yml`'s `build-android-apk`
   job builds it in CI, bundled alongside the Windows installer into one
-  `ADHDisplayCompanionInstallers.zip`. Debug-signed only — no release/
-  Play-Store signing is set up, since there's no store distribution planned.
+  `ADHDisplayCompanionInstallers.zip`.
+- **Building a release APK for Android TV**: `npm run build:tv` produces a
+  signed, self-contained, universal release APK (JS bundle embedded, no
+  Metro/network dependency) at
+  `dist/adhdisplay-companion-<version>-<versionCode>.apk`, ready to sideload
+  via USB stick and a TV file manager — see `../docs/INSTALL-TV.md` for the
+  full deployment walkthrough. It's signed with `keystore/release.keystore`
+  (see `keystore/KEYSTORE.md` — **that file must never be lost**, or every
+  future TV update breaks with a signature mismatch), and shows up on the
+  Android TV home screen via the leanback launcher support added by
+  `plugins/withLeanbackManifest.js` and `plugins/withReleaseSigning.js`.
+  Requires a full Android SDK (not just platform-tools) with `ANDROID_HOME`
+  set, since it runs a real Gradle build — `aapt2`/`apksigner` from
+  `build-tools` are also needed to verify the output per that doc. Not built
+  in CI; local/manual only.
 
 ### iOS / iPadOS
 

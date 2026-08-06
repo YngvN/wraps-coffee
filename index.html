@@ -15,12 +15,21 @@
   />
   <script>
     // Set the theme on <html> before first paint to avoid a flash of the
-    // wrong theme. Prefers a saved choice, then falls back to the OS
-    // light/dark setting.
+    // wrong theme. The Android TV companion app's WebView always loads
+    // straight into a fresh, empty profile (no stored preference, no
+    // reliable OS dark-mode signal), so a plain localStorage/OS-preference
+    // fallback would default to light and flash before the screen's own
+    // configured color takes over. That WebView appends "ADHDisplayKiosk"
+    // to its user agent (see adhdisplay-companion's DisplayScreen.tsx) —
+    // detected here and forced dark, ahead of the normal fallback chain.
+    // Route-independent by design, and can't be triggered from a normal
+    // browser.
     ; (function () {
+      var isKiosk = /ADHDisplayKiosk/.test(navigator.userAgent)
       var stored = localStorage.getItem('theme')
-      var theme =
-        stored === 'light' || stored === 'dark'
+      var theme = isKiosk
+        ? 'dark'
+        : stored === 'light' || stored === 'dark'
           ? stored
           : window.matchMedia('(prefers-color-scheme: dark)').matches
             ? 'dark'

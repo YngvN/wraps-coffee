@@ -1,4 +1,3 @@
-import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useState } from 'react'
 import { Alert, BackButton, Button, Card, CloseIcon, Input, Modal, PlusIcon, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
@@ -8,8 +7,9 @@ import { useDisplayPairingRequests } from '../../../hooks/useDisplayPairingReque
 import { useScreens } from '../../../hooks/useScreens'
 import { useLanguage } from '../../../i18n'
 import { goBack } from '../../../lib/backStack'
-import { approveDisplayPairing, getServerInfo } from '../../../lib/localServer'
+import { approveDisplayPairing } from '../../../lib/localServer'
 import type { DisplayConnectionType, DisplayMachine } from '../../../types/displayMachine'
+import { QrPairingScanner } from './QrPairingScanner'
 import './DisplayManagerView.scss'
 
 /** i18n key for a machine's own connection-type badge — extends the same convention `admin.displayManager.electronBadge`/`viaUrlBadge` already had to a third `mobile` (ADHDisplay Companion) case. */
@@ -28,14 +28,19 @@ function connectionBadgeId(connectionType: DisplayConnectionType): string {
  * shows the bouncing-company-name standby screensaver instead (see
  * `DisplayStandby`) until one is picked here. Its own "+ Add Display" row
  * opens a new `DisplayWindow.tsx` window, which registers itself here the
- * same way any other display does; "Pair a mobile display" instead shows a
- * QR code for the ADHDisplay Companion app to scan. A mobile device that's
- * heartbeated in but not yet approved shows up in its own "Pairing
- * requests" section above the machines grid instead of in the grid itself
- * (see `useDisplayPairingRequests`) — approving one there (typing its PIN)
- * is what turns it into a real entry below. Rendered from `ScreensView` as a
- * submenu, not a route of its own — its own Back level (returning to the
- * Screens list) is registered by `ScreensView` itself, not here.
+ * same way any other display does; "Look for displays" instead opens a
+ * modal for approving a pending ADHDisplay Companion app pairing request —
+ * either by typing the PIN it shows, or by scanning the QR code it shows
+ * alongside that PIN (see `QrPairingScanner.tsx`; the QR is just a faster
+ * encoding of the same `{machineID, pin}` pair, not a separate approval
+ * mechanism — deliberately not the other way around, since most TV
+ * boxes/sticks running the companion app have no camera). A mobile device
+ * that's heartbeated in but not yet approved lives in `pairingRequests`
+ * (see `useDisplayPairingRequests`) until one of those two paths approves
+ * it, at which point it becomes a real entry in the machines grid below.
+ * Rendered from `ScreensView` as a submenu, not a route of its own — its
+ * own Back level (returning to the Screens list) is registered by
+ * `ScreensView` itself, not here.
  */
 export function DisplayManagerView() {
   const { t } = useLanguage()
@@ -79,26 +84,15 @@ export function DisplayManagerView() {
     if (Object.keys(changed).length > 0) setRefreshedPinIds((current) => ({ ...current, ...changed }))
   }
 
-  const [showPairModal, setShowPairModal] = useState(false)
-  const [pairServerInfo, setPairServerInfo] = useState<{ lanIp: string | null; wsPort: number; contentPort: number } | null>(null)
-  const [pairServerInfoFailed, setPairServerInfoFailed] = useState(false)
+  const [showLookForDisplaysModal, setShowLookForDisplaysModal] = useState(false)
+  const [pairMethod, setPairMethod] = useState<'choose' | 'pin' | 'scan'>('choose')
 
-  useEffect(() => {
-    if (!showPairModal) return
-    let cancelled = false
-    getServerInfo()
-      .then((info) => {
-        if (cancelled) return
-        setPairServerInfo(info)
-        setPairServerInfoFailed(false)
-      })
-      .catch(() => {
-        if (!cancelled) setPairServerInfoFailed(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [showPairModal])
+  const openLookForDisplaysModal = () => {
+    setPairMethod('choose')
+    setApproveError(null)
+    setApproveNotice(null)
+    setShowLookForDisplaysModal(true)
+  }
 
   // Ticks every 30s purely to re-render the pairing cards' own "requested
   // Xm ago" text — Date.now() can't be called directly during render (an
@@ -175,10 +169,22 @@ export function DisplayManagerView() {
     }
   }
 
-  const pairPayload =
-    pairServerInfo?.lanIp != null
-      ? `adhdisplay-companion-pair://v1?host=${encodeURIComponent(pairServerInfo.lanIp)}&wsPort=${pairServerInfo.wsPort}&contentPort=${pairServerInfo.contentPort}`
-      : null
+  /** Same approval call `handleApprove` makes, just fed `{machineID, pin}` straight from a decoded QR instead of typed form state — see `QrPairingScanner.tsx`. */
+  const handleScannedApproval = async ({ machineID, pin }: { machineID: string; pin: string }) => {
+    if (!session) return
+    setApprovingMachineId(machineID)
+    setApproveError(null)
+    setApproveNotice(null)
+    try {
+      const { approvedLabel } = await approveDisplayPairing(session.token, machineID, pin)
+      setApproveNotice(t('admin.displayManager.pairingApproved', { label: approvedLabel }))
+      setPairMethod('choose')
+    } catch (err) {
+      setApproveError(err instanceof Error ? err.message : t('admin.displayManager.pairingApproveError'))
+    } finally {
+      setApprovingMachineId(null)
+    }
+  }
 
   return (
     <div className="display-manager-view">
@@ -192,58 +198,10 @@ export function DisplayManagerView() {
         <PlusIcon />
         {t('admin.displayManager.addDisplayButton')}
       </button>
-      <button type="button" className="display-manager-view__add-row" onClick={() => setShowPairModal(true)}>
+      <button type="button" className="display-manager-view__add-row" onClick={openLookForDisplaysModal}>
         <PlusIcon />
-        {t('admin.displayManager.pairMobileButton')}
+        {t('admin.displayManager.lookForDisplaysButton')}
       </button>
-
-      {(pairingRequests.length > 0 || approveNotice || approveError) && (
-        <div className="display-manager-view__pairing-section">
-          {pairingRequests.length > 0 && <h2 className="display-manager-view__pairing-title">{t('admin.displayManager.pairingSectionTitle')}</h2>}
-          {/* Rendered outside the `pairingRequests.length > 0` gate above (unlike the title/list) so approving
-              the *only* pending request doesn't make this message vanish the instant the list empties out —
-              this is exactly what's supposed to make a cross-match approval (a different device than the one
-              clicked) visible, so it can't be allowed to disappear before an admin has a chance to read it. */}
-          {approveNotice && <Alert variant="success">{approveNotice}</Alert>}
-          {approveError && <Alert variant="error">{approveError}</Alert>}
-          {pairingRequests.length > 0 && (
-            <div className="display-manager-view__pairing-requests">
-              {pairingRequests.map((request) => (
-                <Card key={request.machineID} className="display-manager-view__pairing-card">
-                  <div className="display-manager-view__pairing-card-header">
-                    <span className="display-manager-view__pairing-label">{request.label}</span>
-                    <span className="display-manager-view__pairing-requested-at">
-                      {t('admin.displayManager.pairingRequestedAgo', { minutes: Math.max(0, Math.round((now - new Date(request.createdAt).getTime()) / 60000)) })}
-                    </span>
-                  </div>
-                  <div className="display-manager-view__pairing-pin-row">
-                    <span className="display-manager-view__pairing-pin">{request.pin}</span>
-                    {refreshedPinIds[request.machineID] && (
-                      <span className="display-manager-view__pairing-pin-refreshed">{t('admin.displayManager.pinRefreshed')}</span>
-                    )}
-                  </div>
-                  <div className="display-manager-view__pairing-approve-row">
-                    <Input
-                      id={`pairing-pin-${request.machineID}`}
-                      label={t('admin.displayManager.pinInputLabel')}
-                      value={pinDrafts[request.machineID] ?? ''}
-                      onChange={(event) => setPinDrafts((current) => ({ ...current, [request.machineID]: event.target.value }))}
-                      inputMode="numeric"
-                    />
-                    <Button
-                      type="button"
-                      onClick={() => void handleApprove(request.machineID)}
-                      disabled={approvingMachineId === request.machineID || !(pinDrafts[request.machineID] ?? '').trim()}
-                    >
-                      {t('admin.displayManager.approveButton')}
-                    </Button>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {machines.length === 0 ? (
         <p className="display-manager-view__empty">{t('admin.displayManager.empty')}</p>
@@ -296,17 +254,75 @@ export function DisplayManagerView() {
         </div>
       )}
 
-      <Modal open={showPairModal} onClose={() => setShowPairModal(false)} title={t('admin.displayManager.pairModalTitle')} transparentOnSliderDrag={false}>
-        <p className="display-manager-view__pair-modal-description">{t('admin.displayManager.pairModalDescription')}</p>
-        {pairServerInfoFailed && <Alert variant="error">{t('admin.displayManager.pairModalError')}</Alert>}
-        {pairPayload && (
+      <Modal
+        open={showLookForDisplaysModal}
+        onClose={() => setShowLookForDisplaysModal(false)}
+        title={t('admin.displayManager.lookForDisplaysModalTitle')}
+        route={pairMethod !== 'choose' ? t(pairMethod === 'pin' ? 'admin.displayManager.connectWithPinButton' : 'admin.displayManager.scanQrButton') : undefined}
+        transparentOnSliderDrag={false}
+      >
+        {approveNotice && <Alert variant="success">{approveNotice}</Alert>}
+        {approveError && <Alert variant="error">{approveError}</Alert>}
+
+        {pairMethod === 'choose' && (
+          <div className="display-manager-view__pair-method-choice">
+            <Button type="button" onClick={() => setPairMethod('pin')}>
+              {t('admin.displayManager.connectWithPinButton')}
+            </Button>
+            <Button type="button" onClick={() => setPairMethod('scan')}>
+              {t('admin.displayManager.scanQrButton')}
+            </Button>
+          </div>
+        )}
+
+        {pairMethod === 'pin' && (
           <>
-            <div className="display-manager-view__pair-qr">
-              <QRCodeSVG value={pairPayload} bgColor="transparent" fgColor="currentColor" />
-            </div>
-            <p className="display-manager-view__pair-manual">
-              {t('admin.displayManager.pairManualEntry', { host: pairServerInfo?.lanIp ?? '', wsPort: String(pairServerInfo?.wsPort ?? ''), contentPort: String(pairServerInfo?.contentPort ?? '') })}
-            </p>
+            <BackButton onClick={() => setPairMethod('choose')}>{t('admin.common.back')}</BackButton>
+            {pairingRequests.length === 0 ? (
+              <p className="display-manager-view__pairing-waiting">{t('admin.displayManager.pairingWaiting')}</p>
+            ) : (
+              <div className="display-manager-view__pairing-requests">
+                {pairingRequests.map((request) => (
+                  <Card key={request.machineID} className="display-manager-view__pairing-card">
+                    <div className="display-manager-view__pairing-card-header">
+                      <span className="display-manager-view__pairing-label">{request.label}</span>
+                      <span className="display-manager-view__pairing-requested-at">
+                        {t('admin.displayManager.pairingRequestedAgo', { minutes: Math.max(0, Math.round((now - new Date(request.createdAt).getTime()) / 60000)) })}
+                      </span>
+                    </div>
+                    <div className="display-manager-view__pairing-pin-row">
+                      <span className="display-manager-view__pairing-pin">{request.pin}</span>
+                      {refreshedPinIds[request.machineID] && (
+                        <span className="display-manager-view__pairing-pin-refreshed">{t('admin.displayManager.pinRefreshed')}</span>
+                      )}
+                    </div>
+                    <div className="display-manager-view__pairing-approve-row">
+                      <Input
+                        id={`pairing-pin-${request.machineID}`}
+                        label={t('admin.displayManager.pinInputLabel')}
+                        value={pinDrafts[request.machineID] ?? ''}
+                        onChange={(event) => setPinDrafts((current) => ({ ...current, [request.machineID]: event.target.value }))}
+                        inputMode="numeric"
+                      />
+                      <Button
+                        type="button"
+                        onClick={() => void handleApprove(request.machineID)}
+                        disabled={approvingMachineId === request.machineID || !(pinDrafts[request.machineID] ?? '').trim()}
+                      >
+                        {t('admin.displayManager.approveButton')}
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {pairMethod === 'scan' && (
+          <>
+            <BackButton onClick={() => setPairMethod('choose')}>{t('admin.common.back')}</BackButton>
+            <QrPairingScanner onScanned={(result) => void handleScannedApproval(result)} />
           </>
         )}
       </Modal>

@@ -19,6 +19,15 @@ interface DisplayScreenProps {
  * true fullscreen (hidden nav/status bar) is handled natively instead (see
  * `App.tsx`'s own `expo-navigation-bar` setup), not via the in-page
  * Fullscreen API, which has no equivalent to trigger unattended anyway.
+ *
+ * `applicationNameForUserAgent` appends a marker to the WebView's user
+ * agent (rather than replacing it) — the loaded page's own bootstrap
+ * script (index.html, main wraps-coffee app) checks for it to default
+ * straight to dark instead of its usual localStorage/OS-preference lookup,
+ * since a fresh WebView profile has neither and would otherwise briefly
+ * flash a light background before the screen's own configured color loads.
+ * `injectedJavaScriptBeforeContentLoaded` is a belt-and-braces second path
+ * to the same result, running before the page's own scripts.
  */
 export function DisplayScreen({ connection, screenId }: DisplayScreenProps) {
   const url = `${contentOrigin(connection)}/screens/${screenId}?unattended=1`
@@ -32,10 +41,12 @@ export function DisplayScreen({ connection, screenId }: DisplayScreenProps) {
       mediaPlaybackRequiresUserAction={false}
       allowsInlineMediaPlayback
       originWhitelist={['*']}
+      applicationNameForUserAgent="ADHDisplayKiosk"
+      injectedJavaScriptBeforeContentLoaded="window.localStorage.setItem('theme', 'dark'); true;"
     />
   )
 }
 
 const styles = StyleSheet.create({
-  webview: { flex: 1, backgroundColor: '#000' },
+  webview: { flex: 1, backgroundColor: '#111' },
 })

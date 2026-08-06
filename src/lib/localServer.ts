@@ -44,13 +44,6 @@ export async function getAppVersion(): Promise<string> {
   return version
 }
 
-/** The full `/server-info` response — `lanIp`/`wsPort`/`contentPort` together are what Display Manager's own "Pair a mobile display" QR code is built from (a device scanning it needs the raw host:port pair, not this page's own possibly-mDNS/custom-hostname origin — see `useLanOrigin`, which is for a different purpose). */
-export async function getServerInfo(): Promise<{ app: string; lanIp: string | null; version: string; wsPort: number; contentPort: number }> {
-  const response = await fetch(`${serverBaseUrl()}/server-info`)
-  if (!response.ok) throw new Error('Could not fetch server info')
-  return response.json() as Promise<{ app: string; lanIp: string | null; version: string; wsPort: number; contentPort: number }>
-}
-
 // --- Display Manager (Settings-adjacent, but a public/no-auth machine self-report — see server/index.ts's own comment on this route) ---
 
 /** Self-reports this machine/tab's presence and current monitor list — best-effort, same posture as `logout`: a failure (server unreachable) just means this display doesn't show up in the Display Manager yet, not something worth surfacing to whoever's looking at an otherwise-working kiosk screen. */

@@ -1,0 +1,7 @@
+# Generated fresh by `expo prebuild` on every build — never committed (see
+# README.md's "Building an APK" section and scripts/build-tv-apk.js).
+android/
+ios/
+
+# Build output of `npm run build:tv` — versioned APKs, not source.
+dist/

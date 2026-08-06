@@ -1,39 +1,32 @@
-import { CameraView, useCameraPermissions } from 'expo-camera'
-import { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
-import { parsePairingQrValue } from '../lib/qr'
+import { useEffect, useState } from 'react'
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { sweepLanForServer, type ServerConnection } from '../lib/serverConnection'
 
 interface ServerSetupScreenProps {
   onConnected: (connection: ServerConnection) => void
 }
 
-type Mode = 'sweeping' | 'found' | 'scanning' | 'manual'
+type Mode = 'sweeping' | 'found' | 'manual'
 
 /**
  * "No server known" — the very first screen a fresh install/reset lands on.
- * The actual primary path is an automatic LAN sweep (see
- * `sweepLanForServer`), since typing a LAN IP on a bare Android TV stick's
- * D-pad/on-screen keyboard is the worst minute in the whole setup flow, and
- * it's the *first* minute. QR scan and manual host:port entry both stay
- * reachable regardless of how the sweep goes — QR for a second server on
- * the same LAN, or if the sweep is blocked by client-isolated Wi-Fi; manual
- * entry as the last-resort fallback for camera-less TV sticks. On web
- * (Electron/Windows), the QR entry points are hidden entirely — `getUserMedia`
- * needs a secure context this shell won't have, and a kiosk PC has no useful
- * camera anyway — so manual entry is the only fallback there, and the LAN
- * sweep itself also silently degrades to it (`expo-network` can't read a
- * real LAN IP from a web page), same outcome either way.
+ * The primary path is an automatic LAN sweep (see `sweepLanForServer`),
+ * since typing a LAN IP on a bare Android TV stick's D-pad/on-screen
+ * keyboard is the worst minute in the whole setup flow, and it's the
+ * *first* minute. Manual host:port entry stays reachable as the fallback if
+ * the sweep is blocked (e.g. client-isolated Wi-Fi) or finds nothing.
+ * There is deliberately no camera/QR-scanning path here — most TV
+ * boxes/sticks don't have a camera, and the ones that do make a poor
+ * substitute for aiming a phone at a screen. Pairing itself (once a server
+ * connection is known) instead has the TV *display* a QR code for the
+ * admin's phone to scan — see `PairingScreen.tsx`.
  */
 export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
   const [mode, setMode] = useState<Mode>('sweeping')
   const [foundConnection, setFoundConnection] = useState<ServerConnection | null>(null)
-  const [permission, requestPermission] = useCameraPermissions()
   const [manualHost, setManualHost] = useState('')
   const [manualWsPort, setManualWsPort] = useState('4000')
   const [manualContentPort, setManualContentPort] = useState('4173')
-  const [scanError, setScanError] = useState<string | null>(null)
-  const hasScannedRef = useRef(false)
 
   useEffect(() => {
     if (mode !== 'sweeping') return
@@ -51,17 +44,6 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
       cancelled = true
     }
   }, [mode])
-
-  const handleScan = (value: string) => {
-    if (hasScannedRef.current) return
-    const parsed = parsePairingQrValue(value)
-    if (!parsed) {
-      setScanError('Not an ADHDisplay pairing code — try again, or enter the server manually below.')
-      return
-    }
-    hasScannedRef.current = true
-    onConnected(parsed)
-  }
 
   const handleManualSubmit = () => {
     const wsPort = Number(manualWsPort)
@@ -86,47 +68,8 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
         <Pressable style={styles.button} onPress={() => onConnected(foundConnection)}>
           <Text style={styles.buttonText}>Connect</Text>
         </Pressable>
-        {Platform.OS !== 'web' && (
-          <Pressable style={styles.linkButton} onPress={() => setMode('scanning')}>
-            <Text style={styles.linkText}>Scan a QR code instead</Text>
-          </Pressable>
-        )}
         <Pressable style={styles.linkButton} onPress={() => setMode('manual')}>
           <Text style={styles.linkText}>Enter a server manually</Text>
-        </Pressable>
-      </View>
-    )
-  }
-
-  if (mode === 'scanning') {
-    if (!permission) return <View style={styles.container} />
-    if (!permission.granted) {
-      return (
-        <View style={styles.container}>
-          <Text style={styles.text}>Camera access is needed to scan the pairing QR code shown in Display Manager.</Text>
-          <Pressable style={styles.button} onPress={() => void requestPermission()}>
-            <Text style={styles.buttonText}>Grant camera access</Text>
-          </Pressable>
-          <Pressable style={styles.linkButton} onPress={() => setMode('manual')}>
-            <Text style={styles.linkText}>Enter a server manually instead</Text>
-          </Pressable>
-        </View>
-      )
-    }
-    return (
-      <View style={styles.container}>
-        <CameraView
-          style={StyleSheet.absoluteFill}
-          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-          onBarcodeScanned={(result) => handleScan(result.data)}
-        />
-        {scanError && (
-          <View style={styles.scanErrorBanner}>
-            <Text style={styles.text}>{scanError}</Text>
-          </View>
-        )}
-        <Pressable style={[styles.linkButton, styles.overlayLink]} onPress={() => setMode('manual')}>
-          <Text style={styles.linkText}>Enter a server manually instead</Text>
         </Pressable>
       </View>
     )
@@ -166,11 +109,6 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
       <Pressable style={styles.button} onPress={handleManualSubmit}>
         <Text style={styles.buttonText}>Connect</Text>
       </Pressable>
-      {Platform.OS !== 'web' && (
-        <Pressable style={styles.linkButton} onPress={() => setMode('scanning')}>
-          <Text style={styles.linkText}>Scan a QR code instead</Text>
-        </Pressable>
-      )}
     </View>
   )
 }
@@ -183,6 +121,4 @@ const styles = StyleSheet.create({
   linkButton: { paddingVertical: 8 },
   linkText: { color: '#8ab4f8', fontSize: 14 },
   input: { width: '100%', maxWidth: 320, backgroundColor: '#222', color: '#eee', borderWidth: 1, borderColor: '#444', borderRadius: 6, padding: 10, fontSize: 16 },
-  scanErrorBanner: { position: 'absolute', bottom: 96, left: 24, right: 24, backgroundColor: 'rgba(0,0,0,0.8)', padding: 12, borderRadius: 8 },
-  overlayLink: { position: 'absolute', bottom: 40 },
 })

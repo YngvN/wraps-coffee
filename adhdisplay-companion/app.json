@@ -2,7 +2,7 @@
   "expo": {
     "name": "ADHDisplay Companion",
     "slug": "adhdisplay-companion",
-    "version": "0.2.5",
+    "version": "0.2.8",
     "orientation": "landscape",
     "userInterfaceStyle": "dark",
     "icon": "./assets/icon.png",
@@ -20,7 +20,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "no.adhdisplay.companion",
       "infoPlist": {
-        "NSCameraUsageDescription": "Used to scan the pairing QR code shown in ADHDisplay's own Display Manager.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
@@ -28,21 +27,26 @@
     },
     "android": {
       "package": "no.adhdisplay.companion",
-      "usesCleartextTraffic": true,
+      "backgroundColor": "#111111",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#111111"
-      }
+      },
+      "versionCode": 208
     },
     "plugins": [
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Used to scan the pairing QR code shown in ADHDisplay's own Display Manager."
-        }
-      ],
       "./plugins/withBootLaunch.js",
-      "expo-asset"
+      "./plugins/withLeanbackManifest.js",
+      "./plugins/withReleaseSigning.js",
+      "expo-asset",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
     ]
   }
 }

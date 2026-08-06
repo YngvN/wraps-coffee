@@ -41,16 +41,19 @@
   }
 }
 
-.display-manager-view__pairing-section {
+// Shown as the "Look for displays" modal's own default/top-level view — two
+// sibling entry points into the two approval methods below, rather than
+// defaulting straight into either one.
+.display-manager-view__pair-method-choice {
   display: flex;
   flex-direction: column;
   gap: $spacing-unit;
-  margin-bottom: $spacing-unit * 1.5;
 }
 
-.display-manager-view__pairing-title {
-  margin: 0;
-  font-size: 1rem;
+.display-manager-view__pairing-waiting {
+  color: $color-text-muted;
+  font-size: 0.875rem;
+  text-align: center;
 }
 
 .display-manager-view__pairing-requests {
@@ -108,30 +111,6 @@
   .input-field {
     flex: 1;
   }
-}
-
-.display-manager-view__pair-modal-description {
-  color: $color-text-muted;
-  font-size: 0.875rem;
-}
-
-.display-manager-view__pair-qr {
-  display: flex;
-  justify-content: center;
-  padding: $spacing-unit;
-
-  svg {
-    width: 100%;
-    max-width: 220px;
-    height: auto;
-  }
-}
-
-.display-manager-view__pair-manual {
-  text-align: center;
-  font-size: 0.875rem;
-  color: $color-text-muted;
-  word-break: break-word;
 }
 
 .display-manager-view__machines {

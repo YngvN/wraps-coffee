@@ -1,6 +1,6 @@
 {
   "name": "adhdisplay-companion",
-  "version": "0.2.5",
+  "version": "0.2.8",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
@@ -11,6 +11,7 @@
     "prebuild": "expo prebuild",
     "typecheck": "tsc --noEmit",
     "build:web": "expo export -p web",
+    "build:tv": "node scripts/build-tv-apk.js",
     "start:electron": "electron electron/main.cjs"
   },
   "dependencies": {
@@ -18,7 +19,7 @@
     "@react-native-async-storage/async-storage": "1.23.1",
     "expo": "~52.0.0",
     "expo-asset": "~11.0.5",
-    "expo-camera": "~16.0.0",
+    "expo-build-properties": "~0.13.3",
     "expo-crypto": "~14.0.0",
     "expo-keep-awake": "~14.0.0",
     "expo-navigation-bar": "~4.0.0",
@@ -27,6 +28,8 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-native": "0.76.5",
+    "react-native-qrcode-svg": "^6.3.21",
+    "react-native-svg": "15.8.0",
     "react-native-web": "~0.19.13",
     "react-native-webview": "13.12.5"
   },

@@ -1,0 +1,23 @@
+@use '../../../styles/variables' as *;
+
+.qr-pairing-scanner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $spacing-unit;
+}
+
+.qr-pairing-scanner__video {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  object-fit: cover;
+  background: $color-shadow;
+}
+
+.qr-pairing-scanner__instructions {
+  text-align: center;
+  font-size: 0.875rem;
+  color: $color-text-muted;
+}
