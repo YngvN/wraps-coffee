@@ -44,7 +44,7 @@ AppName={#AppName}
 ; "version", and adhdisplay-companion/app.json's "expo.version" - see
 ; CLAUDE.md's Versioning rule. All five are bumped together, in the same
 ; change, on every completed change.
-AppVersion=0.2.9
+AppVersion=0.2.10
 AppPublisher=ADHDisplay
 DefaultDirName=C:\ADHDisplayCompanion
 DisableDirPage=no

@@ -1,4 +1,3 @@
-import { randomInt } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { networkInterfaces } from 'node:os'
@@ -120,34 +119,20 @@ function mergeDisplayMachineHeartbeat(
 
 // --- Display pairing (ADHDisplay Companion) ---
 
-const PAIRING_PIN_LENGTH = 6
 /** A pending request that hasn't heartbeated (see `POST /display-machines/pairing-heartbeat`) in this long is treated as expired — pruned lazily on the next write that touches `admin.displayPairingRequests`, not on a timer. */
-const PAIRING_PIN_TTL_MS = 10 * 60 * 1000
-/** A café never legitimately has more devices pairing at once — caps the pool a PIN gets cross-matched against below, which is what keeps that cross-match safe against a flood of attacker-held pending requests (see the approve route's own comment). */
+const PAIRING_REQUEST_TTL_MS = 10 * 60 * 1000
+/** A café never legitimately has more devices pairing at once — caps how many pending requests can pile up. */
 const MAX_PENDING_PAIRING_REQUESTS = 10
 const PAIRING_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000
 const PAIRING_RATE_LIMIT_MAX_NEW_PER_IP = 5
-const MAX_PIN_APPROVE_ATTEMPTS = 5
 
-/** In-memory (not persisted, unlike everything else here) per-`machineID` count of *true* PIN misses (a guess that matched no pending request at all — see the approve route) against `POST /display-machines/:machineID/approve`. Reset on any successful approval; the request itself is dropped once this hits `MAX_PIN_APPROVE_ATTEMPTS`. */
-const pinAttemptsByMachineId = new Map<string, number>()
 /** In-memory (not persisted) per-source-IP timestamps of *new* (never-seen-`machineID`) pairing requests, for `POST /display-machines/pairing-heartbeat`'s own rate limit — refreshing an existing pending request never touches this. */
 const newPairingRequestTimestampsByIp = new Map<string, number[]>()
 
-/** Drops any pending request that hasn't heartbeated within `PAIRING_PIN_TTL_MS` — called on every write to `admin.displayPairingRequests` so staleness never needs its own sweep/timer. */
+/** Drops any pending request that hasn't heartbeated within `PAIRING_REQUEST_TTL_MS` — called on every write to `admin.displayPairingRequests` so staleness never needs its own sweep/timer. */
 function prunePairingRequests(requests: DisplayPairingRequest[]): DisplayPairingRequest[] {
-  const cutoff = Date.now() - PAIRING_PIN_TTL_MS
+  const cutoff = Date.now() - PAIRING_REQUEST_TTL_MS
   return requests.filter((request) => new Date(request.lastSeenAt).getTime() >= cutoff)
-}
-
-/** A fresh, zero-padded `PAIRING_PIN_LENGTH`-digit PIN that doesn't collide with any of `existing`'s own pins — pending PINs must be unique among each other at any given moment, since the approve route's cross-match behavior depends on that. */
-function generatePairingPin(existing: DisplayPairingRequest[]): string {
-  const usedPins = new Set(existing.map((request) => request.pin))
-  let pin: string
-  do {
-    pin = String(randomInt(0, 10 ** PAIRING_PIN_LENGTH)).padStart(PAIRING_PIN_LENGTH, '0')
-  } while (usedPins.has(pin))
-  return pin
 }
 
 function isRateLimitedForNewPairing(ip: string): boolean {
@@ -244,11 +229,9 @@ const httpServer = createServer((req, res) => {
 
   // Public, no auth — same LAN-trust posture as the heartbeat route above. A
   // `mobile` (ADHDisplay Companion) device that isn't approved yet calls
-  // this (instead of the real heartbeat route, which it can't join) to learn
-  // — and, once pending, keep refreshing — its own server-issued PIN. No
-  // `pin` field is ever accepted from the device itself: it only ever
-  // displays whatever PIN it's currently handed, so generation has to be
-  // server-side (authoritative uniqueness/rotation) rather than trust-the-client.
+  // this (instead of the real heartbeat route, which it can't join) so it
+  // shows up passively in Display Manager's pending section for an admin to
+  // approve with one click — no secret typed or scanned in either direction.
   if (req.method === 'POST' && url.pathname === '/display-machines/pairing-heartbeat') {
     readJsonBody(req)
       .then((body) => {
@@ -269,13 +252,12 @@ const httpServer = createServer((req, res) => {
         const existingRequest = pending.find((request) => request.machineID === machineID)
 
         // Refreshing an existing pending request never counts against the
-        // caps below, and always keeps its own already-issued PIN stable —
-        // only a pruned-then-re-heartbeated machineID (a genuinely new
-        // request below) gets a freshly rolled one.
+        // caps below — only a pruned-then-re-heartbeated machineID (a
+        // genuinely new request below) counts as new.
         if (existingRequest) {
           const refreshed = pending.map((request) => (request.machineID === machineID ? { ...request, label, lastSeenAt: now } : request))
           applyUpdate('admin.displayPairingRequests', refreshed)
-          sendJson(res, 200, { status: 'pending', pin: existingRequest.pin })
+          sendJson(res, 200, { status: 'pending' })
           return
         }
 
@@ -293,9 +275,9 @@ const httpServer = createServer((req, res) => {
         }
         recordNewPairingRequest(ip)
 
-        const created: DisplayPairingRequest = { machineID, label, pin: generatePairingPin(pending), createdAt: now, lastSeenAt: now }
+        const created: DisplayPairingRequest = { machineID, label, createdAt: now, lastSeenAt: now }
         applyUpdate('admin.displayPairingRequests', [...pending, created])
-        sendJson(res, 200, { status: 'pending', pin: created.pin })
+        sendJson(res, 200, { status: 'pending' })
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
     return
@@ -303,9 +285,9 @@ const httpServer = createServer((req, res) => {
 
   // Authenticated, `displaymanager`-section-gated like the generic `write`
   // handler — this has to be its own route rather than the generic
-  // synced-key `write` protocol, because the whole point of the PIN is a
-  // server-enforced check, and `write` has no field-level validation hook to
-  // hang that check on.
+  // synced-key `write` protocol so it can atomically move an entry from
+  // `admin.displayPairingRequests` into `admin.displayMachines` (a `write`
+  // can only ever touch one synced key at a time).
   const pairingApproveMatch = req.method === 'POST' ? url.pathname.match(/^\/display-machines\/([^/]+)\/approve$/) : null
   if (pairingApproveMatch) {
     const session = store.getSession(bearerToken(req) ?? '')
@@ -322,69 +304,36 @@ const httpServer = createServer((req, res) => {
     }
 
     const targetMachineId = decodeURIComponent(pairingApproveMatch[1])
-    readJsonBody(req)
-      .then((body) => {
-        const { pin } = body as { pin?: string }
-        if (!pin) {
-          sendJson(res, 400, { error: 'Missing pin' })
-          return
-        }
+    const rawPending = (store.get('admin.displayPairingRequests')?.value as DisplayPairingRequest[] | undefined) ?? []
+    const targetRequest = rawPending.find((request) => request.machineID === targetMachineId)
+    if (!targetRequest) {
+      sendJson(res, 404, { error: 'No pending pairing request for that machine' })
+      return
+    }
 
-        const rawPending = (store.get('admin.displayPairingRequests')?.value as DisplayPairingRequest[] | undefined) ?? []
-        const targetRequest = rawPending.find((request) => request.machineID === targetMachineId)
-        if (!targetRequest) {
-          sendJson(res, 404, { error: 'No pending pairing request for that machine' })
-          return
-        }
+    const pending = prunePairingRequests(rawPending)
+    const matched = pending.find((request) => request.machineID === targetMachineId)
+    if (!matched) {
+      // Expired specifically (present in rawPending, dropped by pruning)
+      // rather than never having existed at all (the 404 case above) —
+      // persist the prune and say so distinctly.
+      applyUpdate('admin.displayPairingRequests', pending)
+      sendJson(res, 410, { error: 'This pairing request has expired — the device will show up again on its next heartbeat' })
+      return
+    }
 
-        const pending = prunePairingRequests(rawPending)
-        if (!pending.some((request) => request.machineID === targetMachineId)) {
-          // Expired specifically (present in rawPending, dropped by pruning)
-          // rather than never having existed at all (the 404 case above) —
-          // persist the prune and say so distinctly.
-          applyUpdate('admin.displayPairingRequests', pending)
-          sendJson(res, 410, { error: 'This pairing request has expired — the device will get a fresh PIN on its next heartbeat' })
-          return
-        }
-
-        // Approve whichever pending request the PIN actually matches, not
-        // necessarily the one the admin clicked — the realistic slip when
-        // several near-identical devices (e.g. three TV sticks all labeled
-        // "Fire TV Stick") are pairing at once and the PIN is the only thing
-        // that actually disambiguates them. Only safe because
-        // MAX_PENDING_PAIRING_REQUESTS caps how many requests a guess can
-        // ever be checked against — without that cap, a flood of
-        // attacker-held pending requests would each get a shot at matching
-        // whatever PIN the admin types.
-        const matched = pending.find((request) => request.pin === pin)
-        if (!matched) {
-          const attempts = (pinAttemptsByMachineId.get(targetMachineId) ?? 0) + 1
-          if (attempts >= MAX_PIN_APPROVE_ATTEMPTS) {
-            pinAttemptsByMachineId.delete(targetMachineId)
-            applyUpdate('admin.displayPairingRequests', pending.filter((request) => request.machineID !== targetMachineId))
-            sendJson(res, 410, { error: 'Too many incorrect PIN attempts — this device must rotate to a new PIN' })
-            return
-          }
-          pinAttemptsByMachineId.set(targetMachineId, attempts)
-          sendJson(res, 400, { error: 'Incorrect PIN' })
-          return
-        }
-
-        pinAttemptsByMachineId.delete(targetMachineId)
-        const machines = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
-        const approvedMachine: DisplayMachine = {
-          machineID: matched.machineID,
-          label: matched.label,
-          customLabel: null,
-          connectionType: 'mobile',
-          monitors: [{ id: 'device', label: matched.label, assignedScreenID: null }],
-          lastSeenAt: new Date().toISOString(),
-        }
-        applyUpdate('admin.displayMachines', [...machines, approvedMachine])
-        applyUpdate('admin.displayPairingRequests', pending.filter((request) => request.machineID !== matched.machineID))
-        sendJson(res, 200, { ok: true, approvedMachineID: matched.machineID, approvedLabel: matched.label })
-      })
-      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    const machines = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
+    const approvedMachine: DisplayMachine = {
+      machineID: matched.machineID,
+      label: matched.label,
+      customLabel: null,
+      connectionType: 'mobile',
+      monitors: [{ id: 'device', label: matched.label, assignedScreenID: null }],
+      lastSeenAt: new Date().toISOString(),
+    }
+    applyUpdate('admin.displayMachines', [...machines, approvedMachine])
+    applyUpdate('admin.displayPairingRequests', pending.filter((request) => request.machineID !== matched.machineID))
+    sendJson(res, 200, { ok: true, approvedMachineID: matched.machineID, approvedLabel: matched.label })
     return
   }
 

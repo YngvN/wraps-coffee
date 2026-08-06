@@ -27,8 +27,9 @@ const SWEEP_RETRY_INTERVAL_MS = 15_000
  * destination after one failed pass. There is deliberately no camera/
  * QR-scanning path here — most TV boxes/sticks don't have a camera, and the
  * ones that do make a poor substitute for aiming a phone at a screen.
- * Pairing itself (once a server connection is known) instead has the TV
- * *display* a QR code for the admin's phone to scan — see `PairingScreen.tsx`.
+ * Pairing itself (once a server connection is known) needs no camera/PIN on
+ * either side — the device just shows up passively in Display Manager for
+ * an admin to approve with one click, see `PairingScreen.tsx`.
  */
 export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
   const [mode, setMode] = useState<Mode>('searching')

@@ -4,7 +4,7 @@ import { syncOrigin, type ServerConnection } from './serverConnection'
 
 const MACHINE_ID_STORAGE_KEY = 'adhdisplay-companion/machineId'
 
-/** This device's own `machineID` — generated once via `crypto.randomUUID()` (matching the pattern `electron/roleSetup.cjs` already uses for the same purpose on the Electron side) and persisted from then on, so the same physical device keeps being recognized across restarts. PIN generation is entirely server-side (see `sendPairingHeartbeat`) — this is the *only* identity this app ever generates itself. */
+/** This device's own `machineID` — generated once via `crypto.randomUUID()` (matching the pattern `electron/roleSetup.cjs` already uses for the same purpose on the Electron side) and persisted from then on, so the same physical device keeps being recognized across restarts, including across a disconnect (see `clearServerConnection` in `serverConnection.ts`, which deliberately leaves this alone). This is the *only* identity this app ever generates itself — its last 4 characters double as the disambiguation suffix shown on both this app's own `PairingScreen` and Display Manager's pending card, see `PairingScreen.tsx`'s own doc comment. */
 export async function getOrCreateMachineId(): Promise<string> {
   const existing = await AsyncStorage.getItem(MACHINE_ID_STORAGE_KEY)
   if (existing) return existing
@@ -15,14 +15,13 @@ export async function getOrCreateMachineId(): Promise<string> {
 
 export interface PairingHeartbeatResult {
   status: 'approved' | 'pending'
-  pin?: string
 }
 
 /**
  * `POST /display-machines/pairing-heartbeat` — called every ~5s while
- * unpaired (see `PairingScreen`). No `pin` field is ever sent: the server
- * generates and owns it, this call only ever learns the current one back
- * (see `server/index.ts`'s own comment on that route for why).
+ * unpaired (see `PairingScreen`). No secret is exchanged in either
+ * direction: this device just shows up in Display Manager's own "Pending
+ * approval" section for an admin to approve with one click.
  */
 export async function sendPairingHeartbeat(connection: ServerConnection, machineID: string, label: string): Promise<PairingHeartbeatResult> {
   const response = await fetch(`${syncOrigin(connection)}/display-machines/pairing-heartbeat`, {

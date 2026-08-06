@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
-import QRCode from 'react-native-qrcode-svg'
 import { sendPairingHeartbeat } from '../lib/pairing'
 import type { ServerConnection } from '../lib/serverConnection'
 
@@ -13,29 +12,20 @@ interface PairingScreenProps {
   onApproved: () => void
 }
 
-/** Must match `parsePairingApprovalQrValue` in the main app's `src/lib/pairingQr.ts`. */
-function buildApprovalQrValue(machineID: string, pin: string): string {
-  return `adhdisplay-companion-approve://v1?machineID=${encodeURIComponent(machineID)}&pin=${encodeURIComponent(pin)}`
-}
-
 /**
- * "Server known, not approved" — shows whatever PIN `pairing-heartbeat`
- * currently hands back, full-screen, polling every ~5s until the server
- * reports `status: 'approved'` (an admin either types this PIN into Display
- * Manager, or scans the QR code shown alongside it — see
- * `DisplayManagerView.tsx`'s "Look for displays" flow for the admin side of
- * both paths). The PIN itself is never generated here — this screen just
- * displays whatever the server's response says, including across a
- * rotation once `PIN_TTL_MS` lapses server-side (see DisplayManagerView.tsx's
- * own "PIN refreshed" indicator on the admin side for the other half of
- * this — an admin who reads a PIN, walks away, and comes back later needs
- * to know it's since changed, not think it's simply wrong). The QR is just
- * an alternate encoding of the same `{machineID, pin}` pair the PIN text
- * already conveys — scanning it is a shortcut for typing, not a separate
- * approval mechanism.
+ * "Server known, not approved" — polls `pairing-heartbeat` every ~5s until
+ * the server reports `status: 'approved'`. No PIN/QR to show or scan: this
+ * device just shows up passively in Display Manager's own "Pending
+ * approval" section for an admin to approve with one click (see
+ * `DisplayManagerView.tsx`). The `#{machineID.slice(-4)}` suffix shown here
+ * is the disambiguation fallback that replaces the old PIN's binding role —
+ * an admin reads it off this physical screen and matches it against the
+ * dashboard's own pending card before clicking Approve, so a mis-click
+ * among several near-identical devices pairing at once is still caught.
+ * `machineID` is passed in synchronously from `App.tsx`, so the suffix
+ * renders immediately, no loading/empty-string window to handle.
  */
 export function PairingScreen({ connection, machineID, deviceLabel, onApproved }: PairingScreenProps) {
-  const [pin, setPin] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -47,9 +37,7 @@ export function PairingScreen({ connection, machineID, deviceLabel, onApproved }
         setError(null)
         if (result.status === 'approved') {
           onApproved()
-          return
         }
-        setPin(result.pin ?? null)
       } catch {
         if (!cancelled) setError('Could not reach the server — retrying…')
       }
@@ -62,20 +50,16 @@ export function PairingScreen({ connection, machineID, deviceLabel, onApproved }
     }
   }, [connection, machineID, deviceLabel, onApproved])
 
+  const idSuffix = `#${machineID.slice(-4)}`
+
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{deviceLabel}</Text>
-      <Text style={styles.instructions}>Scan this code or enter the PIN in Display Manager to approve this display</Text>
-      {pin ? (
-        <>
-          <View style={styles.qrCard}>
-            <QRCode value={buildApprovalQrValue(machineID, pin)} size={180} />
-          </View>
-          <Text style={styles.pin}>{pin}</Text>
-        </>
-      ) : (
-        <ActivityIndicator size="large" color="#dfa93e" />
-      )}
+      <Text style={styles.idSuffix}>{idSuffix}</Text>
+      <ActivityIndicator size="large" color="#dfa93e" />
+      <Text style={styles.instructions}>
+        Open Display Manager on the ADHDisplay dashboard and approve &quot;{deviceLabel}&quot; ({idSuffix}) to continue.
+      </Text>
       {error && <Text style={styles.error}>{error}</Text>}
     </View>
   )
@@ -84,10 +68,7 @@ export function PairingScreen({ connection, machineID, deviceLabel, onApproved }
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
   label: { color: '#eee', fontSize: 18, fontWeight: '600' },
+  idSuffix: { color: '#dfa93e', fontSize: 32, fontWeight: '700', letterSpacing: 4 },
   instructions: { color: '#ccc', fontSize: 14, textAlign: 'center' },
-  // A white card behind the QR regardless of the app's dark theme — scan
-  // reliability needs real contrast, this isn't a theming inconsistency.
-  qrCard: { backgroundColor: '#fff', padding: 16, borderRadius: 12 },
-  pin: { color: '#dfa93e', fontSize: 56, fontWeight: '700', letterSpacing: 8 },
   error: { color: '#e06a5f', fontSize: 13 },
 })

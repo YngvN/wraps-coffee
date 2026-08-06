@@ -64,12 +64,11 @@ export async function registerDisplayHeartbeat(input: {
   }
 }
 
-/** Approves a pending `mobile` (ADHDisplay Companion) pairing request by typing its PIN into Display Manager — turns it into a real `DisplayMachine`. `approvedMachineID`/`approvedLabel` identify which pending request actually got approved, which can differ from `machineID` if the PIN typed in belongs to a *different* still-pending request (see `POST /display-machines/:machineID/approve`'s own comment in `server/index.ts` for why that cross-match exists) — always show the returned label, not an assumption that this card's own request was the one approved. */
-export async function approveDisplayPairing(token: string, machineID: string, pin: string): Promise<{ approvedMachineID: string; approvedLabel: string }> {
+/** Approves a pending `mobile` (ADHDisplay Companion) pairing request by `machineID` — one click, no secret typed or scanned — turning it into a real `DisplayMachine`. */
+export async function approveDisplayPairing(token: string, machineID: string): Promise<{ approvedMachineID: string; approvedLabel: string }> {
   const response = await fetch(`${serverBaseUrl()}/display-machines/${encodeURIComponent(machineID)}/approve`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ pin }),
+    headers: { Authorization: `Bearer ${token}` },
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (!response.ok) {

@@ -50,11 +50,14 @@ function findMonitor(machineID: string, monitorId: string): DisplayManagerDraft 
  * /display-machines/:machineID/approve`) — same reasoning as "forget a
  * machine" above, just in the other direction: it's at least as
  * security-sensitive, since it's what lets a new physical device start
- * rendering real content, and a chat-triggered mis-approval (e.g. the
- * cross-match behavior in that route approving a different pending device
- * than the one actually meant) is exactly the kind of action that wants a
- * human looking at the PIN, not an assistant guessing at one. No adapter for
- * it here; stays a manual-only Display Manager UI action.
+ * rendering real content. Approval is now a one-click, no-secret action —
+ * the only real check left is a human actually looking at the pending
+ * device's label/last-seen (and its on-screen `machineID` suffix) and
+ * matching it against the physical box in front of them. A chat-triggered
+ * approval has no way to do that visual confirmation among several pending
+ * devices, so it's exactly the kind of action that stays a deliberate human
+ * click, not an assistant guessing at one. No adapter for it here; stays a
+ * manual-only Display Manager UI action.
  */
 export const displayManagerEntity: AssistantEntity<DisplayManagerDraft> = {
   key: 'displayManager',

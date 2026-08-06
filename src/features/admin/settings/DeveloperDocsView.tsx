@@ -298,31 +298,30 @@ window, e.g. a Display window — a no-op on a plain browser tab a user navigate
         <p>{t('admin.settings.developerDocs.displayPairingText')}</p>
         <pre>
           <code>{`POST /display-machines/pairing-heartbeat  (public — no token needed, same LAN-trust posture as above)
-{ "machineID": "...", "label": "..." }   (no "pin" field — always server-generated, never device-submitted)
-→ 200 { "status": "approved" }                  (machineID is already an approved admin.displayMachines entry)
-→ 200 { "status": "pending", "pin": "123456" }   (new or still-pending request; a still-pending one keeps its existing PIN)
+{ "machineID": "...", "label": "..." }
+→ 200 { "status": "approved" }   (machineID is already an approved admin.displayMachines entry)
+→ 200 { "status": "pending" }    (new or still-pending request — shows up in Display Manager for one-click approval)
 → 400 { "error": "..." }   (malformed body)
 → 429 { "error": "..." }   (too many new machineIDs from this source IP recently)
 → 503 { "error": "..." }   (10 pending requests already in flight — MAX_PENDING_PAIRING_REQUESTS)
 
-Call this every ~5s while unpaired. A pending request lazily expires (and, on its next heartbeat,
-re-rolls a fresh PIN) after 10 minutes with no heartbeat — see admin.displayPairingRequests above.
+Call this every ~5s while unpaired. A pending request lazily expires after 10 minutes with no
+heartbeat — see admin.displayPairingRequests above. No secret is ever typed or scanned: the device
+just shows up in Display Manager's own "Pending approval" section (label + last-seen + a short
+#suffix taken from its own machineID, also shown on the device's own PairingScreen so an admin can
+cross-check the card against the physical device) for an admin to approve with one click.
 
 POST /display-machines/<machineID>/approve  (Authorization: Bearer <token>, "displaymanager" section)
-{ "pin": "123456" }
+(empty body)
 → 200 { "ok": true, "approvedMachineID": "...", "approvedLabel": "..." }
-→ 400 { "error": "Incorrect PIN" }
 → 401 { "error": "..." }   /  403 { "error": "..." }   (a "limited" token without the Display Manager section)
 → 404 { "error": "..." }   (no pending request for that machineID at all)
-→ 410 { "error": "..." }   (that request expired, or hit 5 wrong-PIN guesses and was dropped — either way, rotate)
+→ 410 { "error": "..." }   (that request expired — the device will show up again on its next heartbeat)
 
-Moves the matched pending request into a real admin.displayMachines entry (connectionType: "mobile",
-one synthetic monitor, id "device") and removes it from admin.displayPairingRequests. If the typed
-PIN doesn't match <machineID>'s own request but does match a *different* still-pending one, that
-other request is approved instead (and reported back via approvedMachineID/approvedLabel) rather
-than counting as a wrong guess — the realistic slip when several near-identical devices are pairing
-at once and the PIN is the only thing telling them apart. Only a PIN matching no pending request at
-all counts toward that machineID's own 5-attempt limit.`}</code>
+Looks up the pending request directly by the URL's machineID (no cross-matching — the admin is
+clicking the specific card for the specific device) and moves it into a real admin.displayMachines
+entry (connectionType: "mobile", one synthetic monitor, id "device"), removing it from
+admin.displayPairingRequests.`}</code>
         </pre>
       </Card>
 

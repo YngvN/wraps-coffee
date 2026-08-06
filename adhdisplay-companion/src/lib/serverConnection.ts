@@ -26,7 +26,26 @@ export async function saveServerConnection(connection: ServerConnection): Promis
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(connection))
 }
 
-/** Forgets the persisted server connection — not currently reachable from any screen in this app, but kept available for a future "forget this server" affordance / manual troubleshooting via Metro's dev menu. */
+/**
+ * Forgets this device's persisted server connection and nothing else —
+ * `machineId` (see `pairing.ts`'s `getOrCreateMachineId`) is deliberately
+ * left alone, so re-pairing after this reuses the same identity. Local to
+ * this device only: it never calls the server, never touches
+ * `admin.displayMachines`, and is not a revoke — a disconnected device's
+ * entry stays visible (with a frozen `lastSeenAt`) in Display Manager's
+ * approved grid until an admin clicks Remove there, and if this same device
+ * re-points itself at the *same* server, it sails straight past
+ * `PairingScreen` again with zero re-approval (the heartbeat gate only
+ * checks whether its `machineID` is still in `admin.displayMachines`, which
+ * it still is). This is exactly right for "the server got reinstalled or
+ * moved to a new host" — the TV just needs to re-discover and re-point
+ * itself — but it's not a way to un-pair a device from a server it's still
+ * registered on; only Display Manager's own Remove button does that.
+ *
+ * Two real call sites: `WaitingForAssignmentScreen`'s own Disconnect
+ * button, and the triple-Back-press gesture reachable from the live
+ * `DisplayScreen` (see `App.tsx`'s `handleDisconnect`).
+ */
 export async function clearServerConnection(): Promise<void> {
   await AsyncStorage.removeItem(STORAGE_KEY)
 }

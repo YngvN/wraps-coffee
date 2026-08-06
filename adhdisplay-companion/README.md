@@ -8,10 +8,15 @@ as its own separate installer wrapping a minimal Electron kiosk shell (see
 "Windows & Linux" below) — a small, dedicated Electron install of its own,
 distinct from the main ADHDisplay app's own `electron/`.
 
-It boots into a standby screen showing a PIN, gets approved once by an admin
-typing that PIN into the main app's own Display Manager, and from then on
-renders whatever Screen gets assigned — exactly like the main app's own
-`/display-connect` browser-tab flow already does for a plain browser tab.
+It boots into a standby screen showing its own short `#suffix` (the last 4
+characters of its `machineID`), shows up passively in the main app's own
+Display Manager for an admin to approve with one click — no PIN typed or QR
+scanned on either side — and from then on renders whatever Screen gets
+assigned, exactly like the main app's own `/display-connect` browser-tab
+flow already does for a plain browser tab. It can also disconnect itself
+locally (forgetting its own server connection, not a server-side revoke) via
+a plain button while unassigned, or a triple-Back-press gesture on the
+remote once a Screen is live — see "Disconnect" under Architecture below.
 
 This is a fully independent package. It does **not** share TypeScript source,
 `node_modules`, or React/React Native versions with the root web app (which
@@ -25,8 +30,9 @@ loading the real, unmodified `/screens/:id` page in a WebView (a plain
 ## Status
 
 Physical HDMI/external-display enumeration is explicitly out of scope for
-v1 — this app only covers standby + PIN pairing + rendering one assigned
-screen (one synthetic `device` monitor per install, on every platform).
+v1 — this app only covers standby + one-click pairing + rendering one
+assigned screen (one synthetic `device` monitor per install, on every
+platform).
 Multi-monitor support (several signage screens off one Windows/Linux PC)
 is a possible future native-shell feature, not something this Expo/web-view
 app is meant to grow into — see "Windows & Linux" below.
@@ -39,10 +45,11 @@ npx expo start
 ```
 
 Point it at a dev build of the local server (`npm run dev` or
-`npm run preview:kiosk` in the repo root) running on the same LAN. Scan the
-QR/manual-entry screen against that server, watch a "Pairing requests" card
-show up in the main app's own Display Manager, approve it with the PIN shown
-on-device, assign a Screen, and confirm it renders.
+`npm run preview:kiosk` in the repo root) running on the same LAN — via
+auto-discovery or the manual-entry screen. Watch a "Pending approval" card
+show up in the main app's own Display Manager, confirm its `#suffix` matches
+the one on this app's own `PairingScreen`, approve it with one click, assign
+a Screen, and confirm it renders.
 
 `npx expo install` (or `npx expo install --fix`) should be run once after
 cloning to pin the exact dependency versions compatible with whatever Expo
@@ -53,10 +60,9 @@ recent baseline, not hand-verified against the registry.
 
 - `src/lib/serverConnection.ts` — persisted `{host, wsPort, contentPort}`,
   plus the LAN-sweep and mDNS server-discovery logic.
-- `src/lib/pairing.ts` — this device's own persisted `machineID`, and the
+- `src/lib/pairing.ts` — this device's own persisted `machineID` (also the
+  source of the `#suffix` shown on `PairingScreen`), and the
   `pairing-heartbeat`/`heartbeat` calls against `server/index.ts`.
-- `src/lib/qr.ts` — parses the `adhdisplay-companion-pair://v1?...` payload
-  Display Manager's own QR code encodes.
 - `src/screens/` — the four states of the app's own top-level state machine
   (see `App.tsx`'s own doc comment): `ServerSetupScreen`, `PairingScreen`,
   `WaitingForAssignmentScreen`, `DisplayScreen`.
@@ -87,12 +93,25 @@ live WebSocket sync — inside a genuine browser engine, so this native layer
 never needs its own live-push updates; it only needs the coarse "pending vs.
 assigned to X" signal the heartbeat response already carries.
 
-**Rejected**: a QR-based approval flow the other way around (this app shows
-a QR encoding its own `machineID`+PIN, an admin scans it with a phone already
-logged into the dashboard) was considered and dropped — `getUserMedia`
-(camera access, needed to scan) requires a secure context, and the admin
-dashboard is plain `http://` on the LAN. Noted here so it isn't independently
-re-proposed and re-discovered later.
+**Disconnect**: `clearServerConnection()` (`src/lib/serverConnection.ts`)
+forgets this device's own persisted server connection — local to the device
+only, no server call, not a revoke; `machineId` is deliberately left alone,
+so re-pairing with the *same* server afterward skips `PairingScreen`
+entirely (the heartbeat gate only checks whether that `machineID` is still
+in `admin.displayMachines`). Reachable from `WaitingForAssignmentScreen`'s
+own plain button, and from a triple-Back-press-within-2s gesture (RN's
+`BackHandler`, mounted once in `App.tsx` as a single global listener) that
+also works from the full-bleed `DisplayScreen`, which has no button chrome
+of its own. Deliberately not a way to un-pair a device from a server it's
+still registered on — only Display Manager's own Remove button does that.
+
+**Rejected**: an admin-scans-a-QR approval flow (this app shows a QR
+encoding its own `machineID`+PIN, an admin scans it with a phone already
+logged into the dashboard) was considered and dropped even before the PIN
+itself was later removed entirely in favor of one-click approval —
+`getUserMedia` (camera access, needed to scan) requires a secure context,
+and the admin dashboard is plain `http://` on the LAN. Noted here so it
+isn't independently re-proposed and re-discovered later.
 
 ## Platform notes
 
@@ -198,13 +217,23 @@ auto-launch story, not a shipped installer.
 
 ## Verification checklist
 
-- QR scan **and** manual entry both reach `PairingScreen` with a real PIN.
-- Approving in Display Manager moves this device into the machines grid
-  (`connectionType: mobile` badge) and assigns a Screen renders it in
-  `DisplayScreen`.
+- Auto-discovery **and** manual entry both reach `PairingScreen`, showing
+  this device's own `#suffix` — confirm it matches the `#suffix` on the
+  matching "Pending approval" card in Display Manager.
+- Approving with one click in Display Manager moves this device into the
+  machines grid (`connectionType: mobile` badge) and assigns a Screen
+  renders it in `DisplayScreen`.
 - Removing the device in Display Manager, then heartbeating again, drops
-  back to `PairingScreen` with a fresh PIN (confirms the `needsPairing` gate
-  is a real revocation, unlike `electron`/`url`).
+  back to `PairingScreen` (confirms the `needsPairing` gate is a real
+  revocation, unlike `electron`/`url`).
+- Disconnect (`WaitingForAssignmentScreen`'s button, or triple-Back-press
+  from `DisplayScreen`) returns this app to `ServerSetupScreen`; confirm the
+  device's own entry stays in Display Manager's approved grid (frozen
+  `lastSeenAt`, not removed), and that re-pointing this same device back at
+  the same server skips `PairingScreen` entirely rather than requiring
+  re-approval.
+- A single stray Back press on `DisplayScreen` does not exit/background the
+  app — only three presses within 2 seconds trigger Disconnect.
 - iOS: confirm the very first pairing-heartbeat/heartbeat fetch actually
   succeeds and the WebView loads content on a real device — without the
   `NSAllowsArbitraryLoads` exception this fails at the first request, so

@@ -2,9 +2,9 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
 import * as NavigationBar from 'expo-navigation-bar'
 import { StatusBar } from 'expo-status-bar'
 import { useCallback, useEffect, useState } from 'react'
-import { Platform, StyleSheet, View } from 'react-native'
+import { BackHandler, Platform, StyleSheet, View } from 'react-native'
 import { getOrCreateMachineId, sendHeartbeat, DEVICE_MONITOR_ID } from './src/lib/pairing'
-import { loadServerConnection, saveServerConnection, type ServerConnection } from './src/lib/serverConnection'
+import { clearServerConnection, loadServerConnection, saveServerConnection, type ServerConnection } from './src/lib/serverConnection'
 import { DisplayScreen } from './src/screens/DisplayScreen'
 import { PairingScreen } from './src/screens/PairingScreen'
 import { ServerSetupScreen } from './src/screens/ServerSetupScreen'
@@ -12,6 +12,9 @@ import { WaitingForAssignmentScreen } from './src/screens/WaitingForAssignmentSc
 
 /** Matches `HEARTBEAT_INTERVAL_MS` elsewhere in this codebase (see `electron/main.cjs`). */
 const HEARTBEAT_INTERVAL_MS = 20_000
+/** The triple-Back-press disconnect gesture's own window — all 3 presses must land within this long of each other (see the `hardwareBackPress` listener below). */
+const DISCONNECT_GESTURE_WINDOW_MS = 2_000
+const DISCONNECT_GESTURE_PRESS_COUNT = 3
 
 type AppState =
   | { stage: 'loading' }
@@ -23,13 +26,22 @@ type AppState =
 /**
  * Top-level state machine: **no server known** → `ServerSetupScreen` →
  * **server known, not approved** → `PairingScreen` (persists this device's
- * own `machineID` once; the PIN itself is issued — and later rotated —
- * entirely by the server's own `pairing-heartbeat` response) → **approved**
- * → polls `POST /display-machines/heartbeat` every `HEARTBEAT_INTERVAL_MS`,
- * showing `WaitingForAssignmentScreen` until a Screen is assigned, then
+ * own `machineID` once, shows up passively in Display Manager for a
+ * one-click Approve — no PIN/QR exchanged) → **approved** → polls
+ * `POST /display-machines/heartbeat` every `HEARTBEAT_INTERVAL_MS`, showing
+ * `WaitingForAssignmentScreen` until a Screen is assigned, then
  * `DisplayScreen`. A `409 { needsPairing: true }` at any point (this device
- * was removed in Display Manager) drops back to the pairing state, which
- * gets a fresh PIN on its own next pairing-heartbeat.
+ * was removed in Display Manager) drops back to the pairing state.
+ *
+ * `handleDisconnect` (see `clearServerConnection`'s own doc comment for its
+ * exact scope) is reachable two ways: `WaitingForAssignmentScreen`'s own
+ * plain button, and a triple-Back-press-within-2s gesture via `BackHandler`,
+ * mounted once here as a single global listener so it works from any screen
+ * — including the full-bleed `DisplayScreen`, which has no chrome of its
+ * own to put a button on. Every `hardwareBackPress` is deliberately
+ * consumed (the listener always returns `true`), which also suppresses RN's
+ * default single-back-press exit/background behavior app-wide — a
+ * deliberate byproduct for this unattended kiosk app, not an oversight.
  *
  * Recovery after a power loss/reboot on the device itself is handled for
  * Windows, Android, and Linux via auto-launch-on-boot (see this app's own
@@ -83,6 +95,30 @@ export default function App() {
     setState({ stage: 'pairing', connection })
   }, [])
 
+  const handleDisconnect = useCallback(() => {
+    void clearServerConnection()
+    setState({ stage: 'server-setup' })
+  }, [])
+
+  // Global triple-Back-press-within-2s disconnect gesture — see this
+  // component's own doc comment for why it's one listener mounted here
+  // rather than per-screen. `pressTimestamps` lives inside the closure, not
+  // state — it never needs to trigger its own re-render, only to be read
+  // back by the next press.
+  useEffect(() => {
+    let pressTimestamps: number[] = []
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      const now = Date.now()
+      pressTimestamps = [...pressTimestamps, now].filter((t) => now - t < DISCONNECT_GESTURE_WINDOW_MS)
+      if (pressTimestamps.length >= DISCONNECT_GESTURE_PRESS_COUNT) {
+        pressTimestamps = []
+        handleDisconnect()
+      }
+      return true // always consumed — a stray single/double back-press should not exit/background this kiosk app
+    })
+    return () => sub.remove()
+  }, [handleDisconnect])
+
   // Heartbeat loop, active once approved (waiting or displaying) — every
   // HEARTBEAT_INTERVAL_MS, learning this device's own assignedScreenID from
   // the heartbeat response itself, no separate endpoint needed. Offline/
@@ -131,7 +167,7 @@ export default function App() {
           onApproved={() => handleApproved(state.connection)}
         />
       )}
-      {state.stage === 'waiting' && <WaitingForAssignmentScreen />}
+      {state.stage === 'waiting' && <WaitingForAssignmentScreen onDisconnect={handleDisconnect} />}
       {state.stage === 'displaying' && <DisplayScreen connection={state.connection} screenId={state.screenId} />}
     </View>
   )
