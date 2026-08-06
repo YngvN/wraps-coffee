@@ -52,7 +52,7 @@ recent baseline, not hand-verified against the registry.
 ## Architecture
 
 - `src/lib/serverConnection.ts` — persisted `{host, wsPort, contentPort}`,
-  plus the LAN-sweep server-discovery logic.
+  plus the LAN-sweep and mDNS server-discovery logic.
 - `src/lib/pairing.ts` — this device's own persisted `machineID`, and the
   `pairing-heartbeat`/`heartbeat` calls against `server/index.ts`.
 - `src/lib/qr.ts` — parses the `adhdisplay-companion-pair://v1?...` payload
@@ -65,13 +65,20 @@ recent baseline, not hand-verified against the registry.
 
 **Server discovery**: typing a LAN IP on a bare Android TV stick's D-pad/
 on-screen keyboard is the worst minute in the whole setup flow, and it's the
-*first* minute — `ServerSetupScreen`'s actual primary path is an automatic
-LAN sweep of this device's own `/24` (`expo-network` + short-timeout batched
-`GET /server-info` calls), validated by the `app: 'adhdisplay'` field on that
-response so it can't false-positive on an unrelated service. QR scan and
-manual entry both stay reachable regardless of how the sweep goes. A real
-mDNS/Bonjour client was deliberately left out of scope — disproportionate
-effort for what it would buy here.
+*first* minute — `ServerSetupScreen` runs two discovery sources side by side
+rather than making the user type anything. A passive mDNS/DNS-SD browse
+(`browseForServerViaMdns` in `src/lib/serverConnection.ts`, via
+`react-native-zeroconf`) listens for the always-on advertisement
+`server/mdns.ts`'s `advertiseServerPresence` publishes at server startup,
+typically resolving in well under a second. Alongside it, an active LAN
+sweep of this device's own `/24` (`expo-network` + short-timeout batched
+`GET /server-info` calls, validated by the `app: 'adhdisplay'` field on that
+response so it can't false-positive on an unrelated service) retries
+automatically every ~15s as a fallback for networks where mDNS's multicast
+dependency doesn't work (e.g. client-isolated Wi-Fi) — a "Look for server"
+button also lets the user force an immediate sweep retry. Manual host:port
+entry stays reachable as a persistent fallback link, not the automatic
+destination after one failed pass.
 
 **Live updates**: simple heartbeat polling (every 20s once approved), not a
 ported `syncClient.ts`. Once a Screen is assigned, `DisplayScreen`'s own
