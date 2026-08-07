@@ -4,11 +4,12 @@ import Zeroconf, { type Service } from 'react-native-zeroconf'
 
 const STORAGE_KEY = 'adhdisplay-companion/serverConnection'
 
-/** The three numbers this app needs to talk to an ADHDisplay server: its LAN host, its sync-socket/HTTP port (`wsPort`, matches the main app's own `WS_PORT`, default 4000), and its content port (`contentPort`, the `vite preview` port serving `/screens/:id`, default 4173). */
+/** The three numbers this app needs to talk to an ADHDisplay server: its LAN host, its sync-socket/HTTP port (`wsPort`, matches the main app's own `WS_PORT`, default 4000), and its content port (`contentPort`, the `vite preview` port serving `/screens/:id`, default 4173). `storeName`, when present, is that server's own configured store name (see `StoreSettings.name`) — optional and possibly stale (only fresh as of whenever this connection was resolved), so it's a label for the setup screen, not something to treat as authoritative afterward. */
 export interface ServerConnection {
   host: string
   wsPort: number
   contentPort: number
+  storeName?: string
 }
 
 /** This app's own persisted server connection (AsyncStorage, not tied to any particular pairing state) — `null` before `ServerSetupScreen` has ever been completed. */
@@ -69,6 +70,7 @@ interface ServerInfoResponse {
   app?: string
   wsPort?: number
   contentPort?: number
+  storeName?: string
 }
 
 async function probeHost(host: string): Promise<ServerConnection | null> {
@@ -83,7 +85,8 @@ async function probeHost(host: string): Promise<ServerConnection | null> {
     // some unrelated service answering that same path/port on another
     // device on the LAN.
     if (info.app !== 'adhdisplay' || typeof info.wsPort !== 'number' || typeof info.contentPort !== 'number') return null
-    return { host, wsPort: info.wsPort, contentPort: info.contentPort }
+    const storeName = typeof info.storeName === 'string' && info.storeName.trim() ? info.storeName : undefined
+    return { host, wsPort: info.wsPort, contentPort: info.contentPort, storeName }
   } catch {
     return null
   } finally {
@@ -193,7 +196,12 @@ export function browseForServerViaMdns(onFound: (connection: ServerConnection) =
       console.warn('browseForServerViaMdns: resolved service missing required fields', { host, port: service.port, txt: service.txt })
       return
     }
-    onFound({ host, wsPort, contentPort })
+    // Unlike host/wsPort/contentPort above, a missing or unparseable storeName must not block resolving the
+    // connection — it's an optional label, not required to connect. The Android TXT-decode path is confirmed to
+    // hand back a real JS string, but iOS/desktop aren't verified the same way, hence the typeof guard.
+    const rawStoreName = service.txt?.storeName
+    const storeName = typeof rawStoreName === 'string' && rawStoreName.trim() ? rawStoreName : undefined
+    onFound({ host, wsPort, contentPort, storeName })
   }
   const handleError = (err: unknown) => {
     // Expected on networks that block/disable multicast — sweepLanForServer

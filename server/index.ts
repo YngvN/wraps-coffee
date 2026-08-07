@@ -10,6 +10,7 @@ import type { WindowLaunchSettings } from '../src/types/windowLaunch'
 import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
 import { logProductNameFoldedCollisions, withRecomputedNameFolded } from '../src/lib/productNameFold'
+import { sanitizeDisplayName } from '../src/utils/sanitizeDisplayName'
 import * as assistantSteps from './assistant/steps'
 import type { LookupQueryFilterInput } from './assistant/lookupQuery'
 import { deleteOllamaModel, ensureOllamaRunning, listOllamaModels, pullOllamaModel, testOllamaConnection } from './assistant/ollamaClient'
@@ -77,9 +78,20 @@ function getLanIp(): string | null {
   return null
 }
 
-/** The store's own configured name (see `admin.storeSettings`, a regular synced key), or `""` if it hasn't been set yet — used to derive the mDNS name a screen's link advertises (see `mdns.apply`). */
+/** The store's own configured name (see `admin.storeSettings`, a regular synced key), or `""` if it hasn't been set yet — used to derive the mDNS name a screen's link advertises (see `mdns.apply`), and (sanitized, see `sanitizeDisplayName`) advertised in the always-on presence TXT record (see `mdns.advertiseServerPresence`) and returned from `GET /server-info`. */
 function currentStoreName(): string {
   return (store.get('admin.storeSettings')?.value as StoreSettings | undefined)?.name ?? ''
+}
+
+/** Tracks the last **normalised** (post-`sanitizeDisplayName`) store name that was actually advertised via `mdns.advertiseServerPresence`, so a Store Settings save that doesn't change the normalised name (an edit past the cap, a trailing-space-only change) doesn't flap the live mDNS advertisement for no real change. */
+let lastAdvertisedStoreName: string | null = null
+
+/** Re-advertises the server's presence with the current store name, but only if the **normalised** name actually changed since the last call — see `lastAdvertisedStoreName`. Called once at startup and again on every `admin.storeSettings` write. */
+function reAdvertiseServerPresenceIfStoreNameChanged() {
+  const normalised = sanitizeDisplayName(currentStoreName(), 63)
+  if (normalised === lastAdvertisedStoreName) return
+  lastAdvertisedStoreName = normalised
+  mdns.advertiseServerPresence(PORT, CONTENT_PORT, currentStoreName())
 }
 
 /**
@@ -182,7 +194,20 @@ const httpServer = createServer((req, res) => {
   // `wsPort`/`contentPort` let a client build both this server's sync-socket
   // URL and its content/screen URL without hardcoding either.
   if (req.method === 'GET' && url.pathname === '/server-info') {
-    sendJson(res, 200, { app: 'adhdisplay', lanIp: getLanIp(), version: APP_VERSION, wsPort: PORT, contentPort: CONTENT_PORT })
+    // storeName is deliberately NOT capped/sanitized the way the mDNS TXT record's copy is (see
+    // `mdns.advertiseServerPresence`) — this is a plain JSON response with no DNS packet-size constraint, so
+    // capping it too would just be an arbitrary inconsistency. A client can therefore see two differently
+    // truncated versions of the same store name depending on which discovery path it used; that's an accepted,
+    // deliberate asymmetry, not a bug — display-side truncation already handles whichever version it gets.
+    const storeName = currentStoreName()
+    sendJson(res, 200, {
+      app: 'adhdisplay',
+      lanIp: getLanIp(),
+      version: APP_VERSION,
+      wsPort: PORT,
+      contentPort: CONTENT_PORT,
+      ...(storeName.trim() ? { storeName } : {}),
+    })
     return
   }
 
@@ -221,7 +246,14 @@ const httpServer = createServer((req, res) => {
         const merged = mergeDisplayMachineHeartbeat(current, { machineID, label, connectionType, monitors: cleanMonitors })
         applyUpdate('admin.displayMachines', merged)
         const mine = merged.find((machine) => machine.machineID === machineID)
-        sendJson(res, 200, { ok: true, monitors: mine?.monitors ?? [] })
+        // customLabel is sanitized here (not just wherever it was originally typed in Display Manager) since this
+        // is the point it leaves this server and crosses to a different physical device — see
+        // sanitizeDisplayName's own doc comment. null (not '') when unset, so the device can tell "no rename
+        // configured" apart from a would-be blank override; an admin clearing customLabel back to empty also
+        // yields null here rather than pushing a blank name down (see this route's own callers for why that
+        // matters — a device should never have its stored name silently blanked by this route).
+        const customLabel = mine?.customLabel ? sanitizeDisplayName(mine.customLabel, 60) || null : null
+        sendJson(res, 200, { ok: true, monitors: mine?.monitors ?? [], customLabel })
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
     return
@@ -1996,6 +2028,9 @@ wss.on('connection', (socket) => {
       if (key === 'admin.storeSettings') {
         const screenAddressSettings = store.getScreenAddressSettings()
         if (screenAddressSettings.mode === 'mdns') mdns.apply(screenAddressSettings, (value as StoreSettings).name)
+        // Always-on, unlike the opt-in hostname advertisement above — see reAdvertiseServerPresenceIfStoreNameChanged's
+        // own doc comment for why this is gated on the *normalised* name actually changing, not every save.
+        reAdvertiseServerPresenceIfStoreNameChanged()
       }
       // Flipping the Wolt/Foodora card's own ActivationToggle should try a
       // sync immediately, rather than waiting up to `POLL_INTERVAL_MS` for
@@ -2077,7 +2112,7 @@ mdns.apply(store.getScreenAddressSettings(), currentStoreName())
 // Always on, regardless of the opt-in hostname mode above — see
 // advertiseServerPresence's own doc comment for why this needs to be a
 // separate advertisement.
-mdns.advertiseServerPresence(PORT, CONTENT_PORT)
+reAdvertiseServerPresenceIfStoreNameChanged()
 httpServer.listen(PORT, () => {
   console.log(`[server] listening on http://0.0.0.0:${PORT}`)
 })

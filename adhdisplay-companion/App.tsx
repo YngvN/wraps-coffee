@@ -3,7 +3,7 @@ import * as NavigationBar from 'expo-navigation-bar'
 import { StatusBar } from 'expo-status-bar'
 import { useCallback, useEffect, useState } from 'react'
 import { BackHandler, Platform, StyleSheet, View } from 'react-native'
-import { getOrCreateMachineId, sendHeartbeat, DEVICE_MONITOR_ID } from './src/lib/pairing'
+import { getOrCreateMachineId, getStoredDeviceLabel, sendHeartbeat, setStoredDeviceLabel, DEVICE_MONITOR_ID } from './src/lib/pairing'
 import { clearServerConnection, loadServerConnection, saveServerConnection, type ServerConnection } from './src/lib/serverConnection'
 import { DisplayScreen } from './src/screens/DisplayScreen'
 import { PairingScreen } from './src/screens/PairingScreen'
@@ -52,7 +52,13 @@ type AppState =
 export default function App() {
   const [state, setState] = useState<AppState>({ stage: 'loading' })
   const [machineID, setMachineID] = useState<string | null>(null)
-  const [deviceLabel] = useState(() => `ADHDisplay Companion (${Platform.OS})`)
+  // Starts as the generic fallback, then overridden below (in the same
+  // effect that loads `machineID`) if a dashboard rename was ever pushed
+  // down and persisted locally on a previous run — see `getStoredDeviceLabel`'s
+  // own doc comment. Also updated live by the heartbeat loop's own `beat()`
+  // whenever a *new* rename arrives, so it's state (not another one-shot
+  // lazy initializer) despite starting from one.
+  const [deviceLabel, setDeviceLabel] = useState(() => `ADHDisplay Companion (${Platform.OS})`)
 
   // An always-on kiosk display that sleeps defeats the whole feature — active
   // from launch, for the app's entire lifetime, not just while DisplayScreen
@@ -73,8 +79,10 @@ export default function App() {
     void (async () => {
       const id = await getOrCreateMachineId()
       const connection = await loadServerConnection()
+      const storedLabel = await getStoredDeviceLabel()
       if (cancelled) return
       setMachineID(id)
+      if (storedLabel) setDeviceLabel(storedLabel)
       setState(connection ? { stage: 'pairing', connection } : { stage: 'server-setup' })
     })()
     return () => {
@@ -139,6 +147,14 @@ export default function App() {
           handleNeedsPairing(connection)
           return
         }
+        // A dashboard rename (Display Manager's own customLabel field), pushed down in this same response —
+        // persist it locally and start reporting it as this device's own label from the next heartbeat/
+        // pairing-heartbeat call onward, to this server or any future one (see getStoredDeviceLabel's own doc
+        // comment for why this has to live on the device rather than only server-side).
+        if (result.customLabel && result.customLabel !== deviceLabel) {
+          void setStoredDeviceLabel(result.customLabel)
+          setDeviceLabel(result.customLabel)
+        }
         const assignedScreenID = result.monitors.find((monitor) => monitor.id === DEVICE_MONITOR_ID)?.assignedScreenID ?? null
         setState(assignedScreenID ? { stage: 'displaying', connection, screenId: assignedScreenID } : { stage: 'waiting', connection })
       } catch {
@@ -167,7 +183,9 @@ export default function App() {
           onApproved={() => handleApproved(state.connection)}
         />
       )}
-      {state.stage === 'waiting' && <WaitingForAssignmentScreen onDisconnect={handleDisconnect} />}
+      {state.stage === 'waiting' && (
+        <WaitingForAssignmentScreen deviceLabel={deviceLabel} connection={state.connection} onDisconnect={handleDisconnect} />
+      )}
       {state.stage === 'displaying' && <DisplayScreen connection={state.connection} screenId={state.screenId} />}
     </View>
   )

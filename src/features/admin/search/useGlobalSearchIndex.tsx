@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { FetchedLogo, YrLogo } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useCatalogues } from '../../../hooks/useCatalogues'
+import { useDisplayPairingRequests } from '../../../hooks/useDisplayPairingRequests'
 import { useEvents } from '../../../hooks/useEvents'
 import { useMessageBoardPosts } from '../../../hooks/useMessageBoardPosts'
 import { useMessageBoards } from '../../../hooks/useMessageBoards'
@@ -40,6 +41,7 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
   const [screens] = useScreens()
   const [boards] = useMessageBoards()
   const [posts] = useMessageBoardPosts()
+  const [pairingRequests] = useDisplayPairingRequests()
 
   // Users are server-side and session-gated (a `limited` account gets a
   // 403), not one of the synced localStorage hooks above — fetched the
@@ -216,6 +218,15 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
       url: `/admin/dashboard/users?userId=${user.id}`,
     }))
 
+    const pairingRequestEntries: SearchResultEntry[] = pairingRequests.map((request) => ({
+      id: `pairingRequest:${request.machineID}`,
+      type: 'pairingRequest',
+      title: request.label,
+      subtitle: t('admin.displayManager.pendingBadge'),
+      keywords: [],
+      url: `/admin/dashboard/screens?displayManager=1&pendingMachineId=${request.machineID}`,
+    }))
+
     const navSectionEntries: SearchResultEntry[] = NAV_ITEMS.filter((item) => !item.adminOnly || session?.role !== 'limited').map((item) => {
       const NavIcon = ADMIN_NAV_ICONS[item.to]
       return {
@@ -268,8 +279,9 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
       ...messageBoardEntries,
       ...messageBoardPostEntries,
       ...userEntries,
+      ...pairingRequestEntries,
       ...navSectionEntries,
       ...settingsPageEntries,
     ]
-  }, [catalogues, products, events, screens, boards, posts, users, language, t, session])
+  }, [catalogues, products, events, screens, boards, posts, users, pairingRequests, language, t, session])
 }

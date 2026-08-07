@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useCatalogues } from '../../../hooks/useCatalogues'
+import { useDisplayPairingRequests } from '../../../hooks/useDisplayPairingRequests'
 import { useOrders } from '../../../hooks/useOrders'
 import { useProducts } from '../../../hooks/useProducts'
 import { useLanguage } from '../../../i18n'
@@ -17,25 +18,31 @@ interface NotificationsDropdownProps {
 }
 
 /**
- * Top navbar's bell trigger: new orders (`status === 'received'`) and
+ * Top navbar's bell trigger: new orders (`status === 'received'`),
  * out-of-stock tracked products (`trackStock` on, see
- * `isProductOutOfStock`), badge count = the two combined. Its content opens
- * in an `AdminRightPanel` sliding in from the right edge of the screen
- * rather than a small anchored dropdown box. Each row links straight to the
- * relevant record via the same `?orderId=`/`?catalogueId=&categoryId=&productId=`
- * deep-link query params `OrdersView`/`ProductsView` already read on mount
+ * `isProductOutOfStock`), and pending display pairing requests (a new TV
+ * that's heartbeated in but not yet approved, see `useDisplayPairingRequests`)
+ * — badge count = all three combined. Its content opens in an
+ * `AdminRightPanel` sliding in from the right edge of the screen rather than
+ * a small anchored dropdown box. Each row links straight to the relevant
+ * record via the same `?orderId=`/`?catalogueId=&categoryId=&productId=`/
+ * `?displayManager=1&pendingMachineId=` deep-link query params
+ * `OrdersView`/`ProductsView`/`DisplayManagerView` already read on mount
  * (see those views' own `useSearchParams` effects) — clicking one is a
- * real jump-to, not just a generic "go look at Orders/Products" link.
+ * real jump-to, not just a generic "go look at X" link. No new WS plumbing
+ * needed for the pairing-request source — `admin.displayPairingRequests` is
+ * already a regular synced key, pushed live the same way orders/products are.
  */
 export function NotificationsDropdown({ open, onToggle, onClose }: NotificationsDropdownProps) {
   const { t, language } = useLanguage()
   const [orders] = useOrders()
   const [products] = useProducts()
   const [catalogues] = useCatalogues()
+  const [pairingRequests] = useDisplayPairingRequests()
 
   const newOrders = orders.filter((order) => order.status === 'received')
   const outOfStockProducts = products.filter((product) => product.trackStock && isProductOutOfStock(product))
-  const badgeCount = newOrders.length + outOfStockProducts.length
+  const badgeCount = newOrders.length + outOfStockProducts.length + pairingRequests.length
 
   return (
     <div className="notifications-dropdown">
@@ -75,6 +82,13 @@ export function NotificationsDropdown({ open, onToggle, onClose }: Notifications
                 </li>
               )
             })}
+            {pairingRequests.map((request) => (
+              <li key={request.machineID}>
+                <Link to={`/admin/dashboard/screens?displayManager=1&pendingMachineId=${request.machineID}`} onClick={onClose}>
+                  <span className="notifications-dropdown__item-title">{t('admin.notifications.newPairingRequest', { name: request.label })}</span>
+                </Link>
+              </li>
+            ))}
           </ul>
         )}
       </AdminRightPanel>

@@ -12,6 +12,7 @@ export type SearchResultType =
   | 'messageBoard'
   | 'messageBoardPost'
   | 'user'
+  | 'pairingRequest'
   | 'settingsPage'
   | 'navSection'
 

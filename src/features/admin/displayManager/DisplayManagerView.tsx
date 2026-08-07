@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Alert, BackButton, Button, Card, CloseIcon, Input, PlusIcon, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useDisplayMachineCloseRequests } from '../../../hooks/useDisplayMachineCloseRequests'
 import { useDisplayMachines } from '../../../hooks/useDisplayMachines'
 import { useDisplayPairingRequests } from '../../../hooks/useDisplayPairingRequests'
 import { useScreens } from '../../../hooks/useScreens'
+import { useScrollToAndHighlight } from '../../../hooks/useScrollToAndHighlight'
 import { useLanguage } from '../../../i18n'
 import { goBack } from '../../../lib/backStack'
 import { approveDisplayPairing } from '../../../lib/localServer'
@@ -47,10 +49,36 @@ export function DisplayManagerView() {
   const [, setCloseRequests] = useDisplayMachineCloseRequests()
   const [pairingRequests] = useDisplayPairingRequests()
   const [screens] = useScreens()
+  const [searchParams, setSearchParams] = useSearchParams()
+  /** Guards the deep-link effect below so it only ever highlights the target pending card once — `pairingRequests` is synced data that may not have loaded its real snapshot yet on first render, same posture as `UsersView`'s own deep-link effect. */
+  const consumedDeepLinkRef = useRef(false)
+  const { registerRef: registerPendingRef, triggerHighlight: triggerPendingHighlight } = useScrollToAndHighlight()
 
   const [approvingMachineId, setApprovingMachineId] = useState<string | null>(null)
   const [approveError, setApproveError] = useState<string | null>(null)
   const [approveNotice, setApproveNotice] = useState<string | null>(null)
+
+  /**
+   * Deep-link support: `?pendingMachineId=<id>` scrolls to and highlights that pending card — reached via the
+   * notification bell (`NotificationsDropdown`) or global search (`useGlobalSearchIndex`), both of which build a
+   * URL of the form `/admin/dashboard/screens?displayManager=1&pendingMachineId=<id>`. `ScreensView`'s own effect
+   * consumes `displayManager` and opens this view; this effect only ever touches `pendingMachineId`, the same
+   * "each view strips only its own param" convention every other deep-linkable view follows. If the request was
+   * already approved or expired by the time this runs, it's simply never found — same accepted behavior every
+   * other synced-data deep link in this codebase already has for a since-deleted target.
+   */
+  useEffect(() => {
+    if (consumedDeepLinkRef.current) return
+    const pendingMachineId = searchParams.get('pendingMachineId')
+    const request = pendingMachineId ? pairingRequests.find((candidate) => candidate.machineID === pendingMachineId) : undefined
+    if (!request) return
+    consumedDeepLinkRef.current = true
+    triggerPendingHighlight(request.machineID)
+    setSearchParams((current) => {
+      current.delete('pendingMachineId')
+      return current
+    })
+  }, [pairingRequests, searchParams, setSearchParams, triggerPendingHighlight])
 
   const updateMachine = (machineID: string, update: (machine: DisplayMachine) => DisplayMachine) => {
     setMachines((current) => current.map((machine) => (machine.machineID === machineID ? update(machine) : machine)))
@@ -131,7 +159,7 @@ export function DisplayManagerView() {
           {approveError && <Alert variant="error">{approveError}</Alert>}
           <div className="display-manager-view__pending-cards">
             {pairingRequests.map((request) => (
-              <Card key={request.machineID} className="display-manager-view__pending-card">
+              <Card key={request.machineID} ref={registerPendingRef(request.machineID)} className="display-manager-view__pending-card">
                 <div className="display-manager-view__pending-card-header">
                   <span className="display-manager-view__pending-label">{request.label}</span>
                   <span className="display-manager-view__id-suffix">#{request.machineID.slice(-4)}</span>

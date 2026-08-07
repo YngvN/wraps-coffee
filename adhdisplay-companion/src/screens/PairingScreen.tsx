@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
+import { StatusHeader } from '../components/StatusHeader'
 import { sendPairingHeartbeat } from '../lib/pairing'
 import type { ServerConnection } from '../lib/serverConnection'
 
@@ -54,6 +55,7 @@ export function PairingScreen({ connection, machineID, deviceLabel, onApproved }
 
   return (
     <View style={styles.container}>
+      <StatusHeader deviceLabel={deviceLabel} connectedTo={connection.storeName ?? connection.host} />
       <Text style={styles.label}>{deviceLabel}</Text>
       <Text style={styles.idSuffix}>{idSuffix}</Text>
       <ActivityIndicator size="large" color="#dfa93e" />

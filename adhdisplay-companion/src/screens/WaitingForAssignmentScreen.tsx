@@ -1,6 +1,10 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { StatusHeader } from '../components/StatusHeader'
+import type { ServerConnection } from '../lib/serverConnection'
 
 interface WaitingForAssignmentScreenProps {
+  deviceLabel: string
+  connection: ServerConnection
   onDisconnect: () => void
 }
 
@@ -14,9 +18,10 @@ interface WaitingForAssignmentScreenProps {
  * no revoke) — a plain, always-visible button, no confirmation, since this
  * screen already has chrome and nothing to accidentally trigger it.
  */
-export function WaitingForAssignmentScreen({ onDisconnect }: WaitingForAssignmentScreenProps) {
+export function WaitingForAssignmentScreen({ deviceLabel, connection, onDisconnect }: WaitingForAssignmentScreenProps) {
   return (
     <View style={styles.container}>
+      <StatusHeader deviceLabel={deviceLabel} connectedTo={connection.storeName ?? connection.host} />
       <ActivityIndicator size="large" color="#dfa93e" />
       <Text style={styles.text}>Paired. Waiting for a screen to be assigned in Display Manager…</Text>
       <Pressable style={styles.button} onPress={onDisconnect}>

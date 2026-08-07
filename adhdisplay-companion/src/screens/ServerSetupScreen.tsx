@@ -1,15 +1,31 @@
 import { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { browseForServerViaMdns, sweepLanForServer, type ServerConnection } from '../lib/serverConnection'
 
 interface ServerSetupScreenProps {
   onConnected: (connection: ServerConnection) => void
 }
 
-type Mode = 'searching' | 'found' | 'manual'
+type Mode = 'searching' | 'found' | 'list' | 'manual'
 
 /** How often the LAN sweep retries on its own while sitting on the `searching` screen. */
 const SWEEP_RETRY_INTERVAL_MS = 15_000
+
+/**
+ * How long to keep collecting discovery results after the *first* one
+ * resolves before rendering anything selectable — absorbs mDNS-vs-sweep
+ * arrival skew for the same server, plus a second server trailing slightly
+ * behind the first, both sub-second gaps in practice. `mode` deliberately
+ * stays `'searching'` for this entire window (see `isSettling` below) so the
+ * mDNS/sweep effects, both keyed on `[mode]`, aren't torn down and restarted
+ * partway through it.
+ */
+const SETTLE_WINDOW_MS = 1000
+
+/** Dedup key for `registerFoundConnection` — `pickIPv4` (see `serverConnection.ts`) already normalises `host` to an IPv4 literal whenever one's available on both the mDNS and sweep paths, so this is enough to recognise the same physical server found twice without any new host normalisation here. */
+function connectionKey(connection: ServerConnection): string {
+  return `${connection.host}:${connection.wsPort}`
+}
 
 /**
  * "No server known" — the very first screen a fresh install/reset lands on.
@@ -30,10 +46,17 @@ const SWEEP_RETRY_INTERVAL_MS = 15_000
  * Pairing itself (once a server connection is known) needs no camera/PIN on
  * either side — the device just shows up passively in Display Manager for
  * an admin to approve with one click, see `PairingScreen.tsx`.
+ *
+ * More than one server can be found on a LAN with multiple store locations
+ * or a dev + prod box — see `SETTLE_WINDOW_MS`/`registerFoundConnection` for
+ * how results are collected before deciding whether to show a single
+ * confirm screen or a selection list, and `isSettling`/`acceptingResultsRef`
+ * for how that decision, once made, stays frozen for the rest of this
+ * screen visit rather than mutating whichever screen is already showing.
  */
 export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
   const [mode, setMode] = useState<Mode>('searching')
-  const [foundConnection, setFoundConnection] = useState<ServerConnection | null>(null)
+  const [foundConnections, setFoundConnections] = useState<ServerConnection[]>([])
   const [isSweepRunning, setIsSweepRunning] = useState(false)
   // Flips true after the first sweep pass resolves; never reset while `mode`
   // stays 'searching', and deliberately NOT reset on a manual -> searching
@@ -45,33 +68,68 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
   const [manualHost, setManualHost] = useState('')
   const [manualWsPort, setManualWsPort] = useState('4000')
   const [manualContentPort, setManualContentPort] = useState('4173')
-  // Shared between the mDNS and sweep effects below: whichever discovery
-  // source finds a server first sets this, so a result that arrives from
-  // the other source afterward gets ignored instead of firing a second
-  // setMode('found'). A plain ref, not state — flipping it never needs to
-  // trigger a re-render on its own.
-  const settledRef = useRef(false)
+  // Mirrors `foundConnections` for synchronous reads from the settle timer's
+  // callback (a plain closure over state would see a stale, possibly-empty
+  // array from whichever render scheduled the timeout).
+  const foundConnectionsRef = useRef<ServerConnection[]>([])
+  // Guards against starting more than one settle timer per discovery attempt.
+  const settleTimerStartedRef = useRef(false)
+  // Flips false the instant the settle window's decision is made (single
+  // confirm vs. list), *before* `setMode` even runs — closes the narrow race
+  // where a result resolves in the same tick the timer fires but before
+  // React has torn down the mDNS/sweep effects that produced it. A result
+  // arriving after this point is silently dropped, never added to
+  // `foundConnections`, so whichever screen just rendered can't be mutated
+  // out from under a focused item.
+  const acceptingResultsRef = useRef(true)
+
+  const isSettling = mode === 'searching' && foundConnections.length > 0
+
+  const registerFoundConnection = (result: ServerConnection) => {
+    if (!acceptingResultsRef.current) return
+    setFoundConnections((current) => {
+      const index = current.findIndex((c) => connectionKey(c) === connectionKey(result))
+      let next = current
+      if (index === -1) {
+        next = [...current, result]
+      } else if (!current[index].storeName && result.storeName) {
+        next = current.slice()
+        next[index] = { ...next[index], storeName: result.storeName }
+      }
+      foundConnectionsRef.current = next
+      return next
+    })
+    if (!settleTimerStartedRef.current) {
+      settleTimerStartedRef.current = true
+      setTimeout(() => {
+        acceptingResultsRef.current = false
+        setMode(foundConnectionsRef.current.length >= 2 ? 'list' : 'found')
+      }, SETTLE_WINDOW_MS)
+    }
+  }
 
   // Passive mDNS browse, kept alive for as long as the screen keeps
-  // searching. Deliberately its own effect, keyed only on `[mode]` — a
-  // `retryTrigger` bump (the "Look for server" button, see the sweep effect
-  // below) only needs to restart the *sweep*; a passive listener that's
-  // already subscribed doesn't need restarting to "retry." An earlier
-  // version of this combined both sources under one effect, which meant
-  // every retryTrigger bump also tore down and reconstructed the mDNS
-  // browse — a real stop()-then-scan() ordering race against the native
-  // bridge for no benefit. Splitting them removes that race entirely
-  // instead of working around it.
+  // searching (which now spans the settle window too, since `mode` stays
+  // 'searching' throughout it — see `isSettling`). Deliberately its own
+  // effect, keyed only on `[mode]` — a `retryTrigger` bump (the "Look for
+  // server" button, see the sweep effect below) only needs to restart the
+  // *sweep*; a passive listener that's already subscribed doesn't need
+  // restarting to "retry." An earlier version of this combined both sources
+  // under one effect, which meant every retryTrigger bump also tore down
+  // and reconstructed the mDNS browse — a real stop()-then-scan() ordering
+  // race against the native bridge for no benefit. Splitting them removes
+  // that race entirely instead of working around it.
   useEffect(() => {
     if (mode !== 'searching') return
-    settledRef.current = false // fresh discovery attempt: first mount, or a manual -> searching round trip
+    // Fresh discovery attempt: first mount, or a manual -> searching round trip.
+    foundConnectionsRef.current = []
+    settleTimerStartedRef.current = false
+    acceptingResultsRef.current = true
     const handle = browseForServerViaMdns((result) => {
-      if (settledRef.current) return
-      settledRef.current = true
-      setFoundConnection(result)
-      setMode('found') // leaving 'searching' triggers this effect's own cleanup below -> stops listening
+      registerFoundConnection(result)
     })
     return () => handle.stop()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- registerFoundConnection is stable across a given 'searching' run; including it would restart the browse on every render.
   }, [mode])
 
   useEffect(() => {
@@ -99,13 +157,11 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
           if (cancelled) return
           setIsSweepRunning(false)
           setHasSweptOnce(true)
-          if (result && !settledRef.current) {
-            settledRef.current = true
-            setFoundConnection(result)
-            setMode('found') // leaving 'searching' triggers this effect's own cleanup -> retries pause
+          if (result) {
+            registerFoundConnection(result)
             return
           }
-          if (!result) retryTimer = setTimeout(runSweep, SWEEP_RETRY_INTERVAL_MS)
+          retryTimer = setTimeout(runSweep, SWEEP_RETRY_INTERVAL_MS)
         })
     }
 
@@ -116,6 +172,7 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
       setIsSweepRunning(false) // otherwise a cleanup mid-flight (e.g. searching -> manual) leaves this stranded true until the next effect run happens to correct it
       if (retryTimer) clearTimeout(retryTimer)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- registerFoundConnection is stable across a given 'searching' run; including it would restart the sweep on every render.
   }, [mode, retryTrigger])
 
   const handleLookNow = () => {
@@ -128,6 +185,20 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
     const contentPort = Number(manualContentPort)
     if (!manualHost.trim() || !Number.isFinite(wsPort) || !Number.isFinite(contentPort)) return
     onConnected({ host: manualHost.trim(), wsPort, contentPort })
+  }
+
+  const handleSearchAutomatically = () => {
+    setFoundConnections([])
+    setMode('searching')
+  }
+
+  if (mode === 'searching' && isSettling) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#dfa93e" />
+        <Text style={styles.text}>Found a server — checking for others…</Text>
+      </View>
+    )
   }
 
   if (mode === 'searching' && !hasSweptOnce) {
@@ -154,13 +225,48 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
     )
   }
 
-  if (mode === 'found' && foundConnection) {
+  if (mode === 'found' && foundConnections[0]) {
+    const foundConnection = foundConnections[0]
     return (
       <View style={styles.container}>
-        <Text style={styles.text}>Found ADHDisplay at {foundConnection.host} — connect?</Text>
+        <Text style={styles.foundName} numberOfLines={1} ellipsizeMode="tail">
+          {foundConnection.storeName || 'ADHDisplay'}
+        </Text>
+        <Text style={styles.text}>Found at {foundConnection.host} — connect?</Text>
         <Pressable style={styles.button} onPress={() => onConnected(foundConnection)} hasTVPreferredFocus>
           <Text style={styles.buttonText}>Connect</Text>
         </Pressable>
+        <Pressable style={styles.linkButton} onPress={() => setMode('manual')}>
+          <Text style={styles.linkText}>Enter a server manually</Text>
+        </Pressable>
+      </View>
+    )
+  }
+
+  if (mode === 'list') {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.text}>Found {foundConnections.length} ADHDisplay servers — choose one</Text>
+        <ScrollView style={styles.serverList} contentContainerStyle={styles.serverListContent}>
+          {foundConnections.map((connection, index) => (
+            <Pressable
+              key={connectionKey(connection)}
+              style={styles.serverRow}
+              onPress={() => onConnected(connection)}
+              hasTVPreferredFocus={index === 0}
+            >
+              <Text style={styles.serverRowName} numberOfLines={1} ellipsizeMode="tail">
+                {connection.storeName || 'ADHDisplay'}
+              </Text>
+              {/* Host stays visible on every row, unconditionally — it's the only guaranteed way to tell two
+                  same-named or both-unnamed servers apart, and it's also the only thing a person can actually
+                  check when a name *looks* right but shouldn't be (a spoofed/impersonating store name on a shared
+                  LAN). Don't "clean this up" as redundant once names are reliably sanitized — it's doing double
+                  duty on purpose. */}
+              <Text style={styles.serverRowHost}>{connection.host}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
         <Pressable style={styles.linkButton} onPress={() => setMode('manual')}>
           <Text style={styles.linkText}>Enter a server manually</Text>
         </Pressable>
@@ -203,13 +309,7 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
       <Pressable style={styles.button} onPress={handleManualSubmit}>
         <Text style={styles.buttonText}>Connect</Text>
       </Pressable>
-      <Pressable
-        style={styles.linkButton}
-        onPress={() => {
-          setFoundConnection(null)
-          setMode('searching')
-        }}
-      >
+      <Pressable style={styles.linkButton} onPress={handleSearchAutomatically}>
         <Text style={styles.linkText}>Search automatically instead</Text>
       </Pressable>
     </View>
@@ -218,6 +318,7 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
+  foundName: { color: '#fff', fontSize: 22, fontWeight: '700', textAlign: 'center', width: '100%', maxWidth: 320 },
   text: { color: '#ccc', fontSize: 16, textAlign: 'center' },
   subText: { color: '#888', fontSize: 13, textAlign: 'center' },
   button: { backgroundColor: '#dfa93e', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 },
@@ -225,4 +326,9 @@ const styles = StyleSheet.create({
   linkButton: { paddingVertical: 8 },
   linkText: { color: '#8ab4f8', fontSize: 14 },
   input: { width: '100%', maxWidth: 320, backgroundColor: '#222', color: '#eee', borderWidth: 1, borderColor: '#444', borderRadius: 6, padding: 10, fontSize: 16 },
+  serverList: { width: '100%', maxWidth: 360, maxHeight: 320 },
+  serverListContent: { gap: 10 },
+  serverRow: { backgroundColor: '#222', borderWidth: 1, borderColor: '#444', borderRadius: 8, padding: 14 },
+  serverRowName: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  serverRowHost: { color: '#888', fontSize: 13, marginTop: 4 },
 })

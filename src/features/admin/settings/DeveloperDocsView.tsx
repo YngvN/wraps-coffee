@@ -142,7 +142,12 @@ export function DeveloperDocsView() {
         <p>{t('admin.settings.developerDocs.serverInfoText')}</p>
         <pre>
           <code>{`GET /server-info                  (public — no token needed)
-→ 200 { "app": "adhdisplay", "lanIp": "192.168.1.23" | null, "version": "0.1.0", "wsPort": 4000, "contentPort": 4173 }`}</code>
+→ 200 { "app": "adhdisplay", "lanIp": "192.168.1.23" | null, "version": "0.1.0", "wsPort": 4000, "contentPort": 4173, "storeName"?: "..." }
+
+storeName is the store's own configured name (admin.storeSettings), included only when non-empty — unlike the
+mDNS presence advertisement's own copy of this value, this one is not length-capped (no DNS packet-size
+constraint applies to a plain JSON response), so it can differ from the mDNS TXT record's version for a very
+long name.`}</code>
         </pre>
 
         <p>{t('admin.settings.developerDocs.screenAddressText')}</p>
@@ -270,7 +275,7 @@ DELETE /uploads/<filename>        (Authorization: Bearer <token>)
         <pre>
           <code>{`POST /display-machines/heartbeat  (public — no token needed, same LAN-trust posture as /server-info)
 { "machineID": "...", "label": "...", "connectionType": "electron" | "url" | "mobile", "monitors": [{ "id": "...", "label": "..." }] }
-→ 200 { "ok": true, "monitors": [{ "id", "label", "assignedScreenID" }] }
+→ 200 { "ok": true, "monitors": [{ "id", "label", "assignedScreenID" }], "customLabel": "..." | null }
 → 400 { "error": "..." }   (malformed body)
 → 409 { "error": "not paired", "needsPairing": true }   ("mobile" only, machineID isn't an approved admin.displayMachines entry yet)
 
@@ -280,8 +285,12 @@ own customLabel (an admin's rename, set via Display Manager) rather than overwri
 heartbeat's own "label" is that machine's self-reported name (e.g. "Display 3"), always
 overwritten as-is, so an admin-typed rename has to live in this separate field to actually stick.
 Actually assigning a Screen or renaming a machine is a normal authenticated write to that same key
-from the Display Manager page, not this route. "electron"/"url" join with zero gate, same as
-always; a "mobile" connectionType (ADHDisplay Companion) is the one exception — its machineID must
+from the Display Manager page, not this route. The response's own "customLabel" (sanitized, see
+sanitizeDisplayName) is that same field pushed back down to the calling device — ADHDisplay
+Companion persists it locally and starts reporting it as its own "label" from then on, so the
+rename survives even a switch to a different server that's never configured a customLabel for this
+machine. null when nothing is set; never an empty string. "electron"/"url" join with zero gate,
+same as always; a "mobile" connectionType (ADHDisplay Companion) is the one exception — its machineID must
 already exist in admin.displayMachines (put there by the approve route below), or this route
 rejects it with 409/needsPairing instead of silently joining. That's what makes Display Manager's
 "Remove" a real revocation for a mobile device.

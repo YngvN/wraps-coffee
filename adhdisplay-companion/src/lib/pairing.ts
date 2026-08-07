@@ -13,6 +13,24 @@ export async function getOrCreateMachineId(): Promise<string> {
   return created
 }
 
+const DEVICE_LABEL_STORAGE_KEY = 'adhdisplay-companion/deviceLabel'
+
+/**
+ * An admin's dashboard rename (Display Manager's `customLabel` field), pushed down via `sendHeartbeat`'s own
+ * `customLabel` response field and persisted here so it survives across restarts *and* across a switch to a
+ * different server that's never configured a `customLabel` of its own for this device — same durability contract
+ * as `machineID` above, and for the same reason: never cleared by `clearServerConnection`. `null`/absent means
+ * "no rename configured yet," in which case `App.tsx` falls back to the generic `ADHDisplay Companion (${Platform.OS})`
+ * label.
+ */
+export async function getStoredDeviceLabel(): Promise<string | null> {
+  return AsyncStorage.getItem(DEVICE_LABEL_STORAGE_KEY)
+}
+
+export async function setStoredDeviceLabel(label: string): Promise<void> {
+  await AsyncStorage.setItem(DEVICE_LABEL_STORAGE_KEY, label)
+}
+
 export interface PairingHeartbeatResult {
   status: 'approved' | 'pending'
 }
@@ -40,6 +58,8 @@ export interface HeartbeatResult {
   ok: boolean
   monitors: { id: string; label: string; assignedScreenID: string | null }[]
   needsPairing?: boolean
+  /** This machine's own `customLabel` as currently configured on the server that answered this heartbeat (sanitized server-side), or `null` if none is set — see `getStoredDeviceLabel`'s own doc comment for what this app does with it. */
+  customLabel: string | null
 }
 
 /**
@@ -62,7 +82,7 @@ export async function sendHeartbeat(connection: ServerConnection, machineID: str
       monitors: [{ id: DEVICE_MONITOR_ID, label }],
     }),
   })
-  if (response.status === 409) return { ok: false, monitors: [], needsPairing: true }
+  if (response.status === 409) return { ok: false, monitors: [], needsPairing: true, customLabel: null }
   if (!response.ok) throw new Error(`Heartbeat failed (${response.status})`)
   return response.json() as Promise<HeartbeatResult>
 }

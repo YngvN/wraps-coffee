@@ -495,9 +495,10 @@
         },
         "notifications": {
           "title": "Notifications",
-          "empty": "No new orders or stock alerts.",
+          "empty": "No new orders, stock alerts, or pairing requests.",
           "newOrder": "New order from {{name}}",
           "outOfStock": "{{name}} is out of stock",
+          "newPairingRequest": "\"{{name}}\" wants to connect",
           "noNewMessages": "No new messages"
         },
         "assistant": {
@@ -2556,9 +2557,10 @@
         },
         "notifications": {
           "title": "Varsler",
-          "empty": "Ingen nye bestillinger eller lagervarsler.",
+          "empty": "Ingen nye bestillinger, lagervarsler eller tilkoblingsforespørsler.",
           "newOrder": "Ny bestilling fra {{name}}",
           "outOfStock": "{{name}} er utsolgt",
+          "newPairingRequest": "\"{{name}}\" vil koble til",
           "noNewMessages": "Ingen nye meldinger"
         },
         "assistant": {

@@ -1,17 +1,19 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import './Card.scss'
 
 interface CardProps {
   title?: string
   children: ReactNode
   className?: string
+  /** Forwarded to the outer `div` — e.g. for `useScrollToAndHighlight`'s `registerRef`, to scroll to and flash a specific card from a deep link. */
+  ref?: Ref<HTMLDivElement>
 }
 
-export function Card({ title, children, className }: CardProps) {
+export function Card({ title, children, className, ref }: CardProps) {
   const classes = ['card', className].filter(Boolean).join(' ')
 
   return (
-    <div className={classes}>
+    <div ref={ref} className={classes}>
       {title && <h3 className="card__title">{title}</h3>}
       <div className="card__body">{children}</div>
     </div>
