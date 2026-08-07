@@ -101,18 +101,26 @@ $restartItem.add_Click({
 
 $quitItem = $menu.Items.Add('Quit ADHDisplay')
 $quitItem.add_Click({
-        $notifyIcon.Visible = $false
-        # Stops the server, the watchdog (and, with it, the scheduled task
-        # instance - otherwise the watchdog just relaunches everything a few
-        # seconds later), the kiosk window, and this tray helper itself.
-        # Deliberately does not stop Ollama - it commonly runs its own
-        # separate tray app/lifecycle independent of ADHDisplay, so quitting
-        # this app shouldn't reach into that.
-        Invoke-Control -Action 'StopAll'
-        # Mutex release happens once, in the single cleanup path after
-        # Application.Run() returns below - Exit() causes Run() to return
-        # right into that same cleanup, so releasing it here too would throw
-        # (a mutex this thread no longer owns can't be released twice).
+        # Deliberately NOT 'StopAll' - StopAll includes Stop-Tray, which
+        # matches any powershell.exe process whose command line contains
+        # tray-helper.ps1, including *this currently-running instance*. A
+        # forced Stop-Process on itself would bypass this script's own
+        # graceful shutdown (the finally block below) entirely -
+        # NotifyIcon.Dispose() never runs, leaving a ghost icon in the
+        # notification area until the user happens to hover over it. Stopping
+        # the server, watchdog, and kiosk window individually here (skipping
+        # StopTray) leaves this instance alone to shut itself down cleanly via
+        # Application.Exit() below instead. Deliberately does not stop Ollama
+        # either - it commonly runs its own separate tray app/lifecycle
+        # independent of ADHDisplay, so quitting this app shouldn't reach into
+        # that.
+        Invoke-Control -Action 'StopWatchdog'
+        Invoke-Control -Action 'StopServer'
+        Invoke-Control -Action 'StopKioskWindow'
+        # Nothing else here - Application.Exit() isn't guaranteed to block
+        # until Application.Run() has fully unwound, so code after it in this
+        # handler isn't a safe place to assume the message loop has already
+        # stopped. Icon/mutex cleanup lives solely in the finally block below.
         [System.Windows.Forms.Application]::Exit()
     })
 
@@ -136,10 +144,22 @@ $timer.Start()
 # No main form - a NotifyIcon-only app is a standard use of Application.Run()
 # with no argument, keeping the message loop (and therefore menu clicks and
 # the timer) alive until Application.Exit() is called above.
-[System.Windows.Forms.Application]::Run()
-
-$notifyIcon.Visible = $false
-$notifyIcon.Dispose()
-if ($mutex) {
-    $mutex.ReleaseMutex()
+#
+# Cleanup lives in this one finally block - not inside the Quit click handler
+# - for two reasons: (1) a single release path, so the mutex is never released
+# twice regardless of which exit path triggered shutdown; (2) thread affinity
+# - Mutex.ReleaseMutex() must be called from the same thread that acquired it
+# (unlike a Semaphore), and this finally block, wrapped directly around
+# Run() at script scope, is guaranteed to execute on the same thread that
+# called $mutex.WaitOne() at startup - relying on a click handler to also run
+# on that exact thread isn't a guarantee worth depending on.
+try {
+    [System.Windows.Forms.Application]::Run()
+}
+finally {
+    $notifyIcon.Visible = $false
+    $notifyIcon.Dispose()
+    if ($mutex) {
+        $mutex.ReleaseMutex()
+    }
 }

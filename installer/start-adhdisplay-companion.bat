@@ -15,12 +15,22 @@ rem electron/main.cjs's own "app://" scheme (see that file's own comment on
 rem why plain http:// mixed-content rules would otherwise block the LAN
 rem display iframe), so unlike the main app there's no meaningful
 rem alternative launch method to offer.
+rem
+rem Also launches a system tray icon (companion-tray-helper.ps1) offering
+rem Restart/Quit - the only clean way to stop Companion, since closing the
+rem window alone just triggers :launch_loop's own relaunch.
 
 set "APPDIR=%~dp0"
 cd /d "%APPDIR%"
 if not exist logs mkdir logs
 
 echo Starting ADHDisplay Companion...
+
+rem Launched once here, from the top-level script body - not from inside
+rem :launch_loop, which re-runs on every crash/restart and would otherwise
+rem spawn a new tray icon every cycle. companion-tray-helper.ps1 itself takes
+rem a single-instance mutex as a second line of defense.
+wscript.exe //B "%APPDIR%run-hidden.vbs" "%APPDIR%launch-companion-tray.bat"
 
 :launch_loop
 "node_modules\electron\dist\electron.exe" "electron\main.cjs" >> logs\electron.log 2>&1
