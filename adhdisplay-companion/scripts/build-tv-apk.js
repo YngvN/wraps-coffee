@@ -38,6 +38,28 @@ function writeVersionCode(versionCode) {
   fs.writeFileSync(APP_JSON_PATH, `${JSON.stringify(appConfig, null, 2)}\n`)
 }
 
+/**
+ * `dpm set-device-owner` (Update Channel spec §3.1) rejects a test-only
+ * build outright, and Expo debug builds set `android:testOnly="true"` on
+ * the generated `<application>` tag — a build meant for Tier 2 provisioning
+ * must never carry it. Checked here, right after `expo prebuild` writes the
+ * manifest and before Gradle spends several minutes building an APK that
+ * would just be rejected at `dpm set-device-owner` time — failing loudly
+ * now is cheaper than finding out during a USB provisioning session.
+ */
+function assertNotTestOnly() {
+  const manifestPath = path.join(ROOT, 'android', 'app', 'src', 'main', 'AndroidManifest.xml')
+  const manifest = fs.readFileSync(manifestPath, 'utf-8')
+  if (/<application\b[^>]*\bandroid:testOnly\s*=\s*"true"/.test(manifest)) {
+    throw new Error(
+      `build-tv-apk: generated AndroidManifest.xml has android:testOnly="true" — this build would be rejected by ` +
+        `"dpm set-device-owner" during Tier 2 provisioning (see the Update Channel spec §3.1/§3.2). Check what set it — ` +
+        `Expo debug builds set this flag; this script always builds assembleRelease, so seeing it here means something ` +
+        `upstream (an Expo/Gradle config change, a stray debug flag) needs investigating before this APK is usable for provisioning.`,
+    )
+  }
+}
+
 function findOutputApk() {
   const releaseDir = path.join(ROOT, 'android', 'app', 'build', 'outputs', 'apk', 'release')
   const apks = fs.readdirSync(releaseDir).filter((name) => name.endsWith('.apk'))
@@ -56,6 +78,7 @@ function main() {
   writeVersionCode(versionCode)
 
   execFileSync('npx', ['expo', 'prebuild', '-p', 'android', '--clean'], { cwd: ROOT, stdio: 'inherit' })
+  assertNotTestOnly()
   // -Pandroid.kotlinVersion=1.9.24: expo-modules-core's Compose scaffolding
   // expects this to match whichever Kotlin Gradle Plugin version actually
   // resolves — the template's own default (1.9.25) doesn't, which fails

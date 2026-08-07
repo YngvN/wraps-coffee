@@ -44,6 +44,17 @@
 // The "Pending approval" section, shown above the machines grid only while
 // `pairingRequests.length > 0` — a device shows up here passively (no "look
 // for displays" step) as soon as it heartbeats in.
+// Holds the "Update all"/"Stop rollout" button and the rollback CollapsibleSection, shown only
+// once the hub has a real current-APK reference to compare displays against (see `currentApk` in
+// DisplayManagerView.tsx) — nothing to act on before that.
+.display-manager-view__update-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-unit;
+  margin-bottom: $spacing-unit * 1.5;
+}
+
 .display-manager-view__pending {
   display: flex;
   flex-direction: column;
@@ -153,6 +164,26 @@
   color: $color-text-muted;
 }
 
+// Only shown for `connectionType: 'mobile'` (ADHDisplay Companion) machines — the version/update-state
+// fields this reads (see `resolveDisplayUpdateState`) are never populated for `electron`/`url` connections.
+.display-manager-view__version-row {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  margin: 0 0 $spacing-unit;
+  font-size: 0.8125rem;
+}
+
+.display-manager-view__version-text {
+  color: $color-text-muted;
+}
+
+.display-manager-view__update-button {
+  flex-shrink: 0;
+  padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
+  font-size: 0.75rem;
+}
+
 .display-manager-view__monitors {
   display: flex;
   flex-direction: column;
@@ -186,4 +217,33 @@
   background: $color-bg;
   color: $color-text;
   font-size: 0.875rem;
+}
+
+// Only rendered while a machine's own admin.displayScreenOverride entry exists — required by the
+// D1 safety model (Remote Screen Navigation spec), not optional: an override the admin can't see
+// is an assignment change that silently doesn't apply.
+.display-manager-view__override-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc($spacing-unit / 2);
+  margin-top: $spacing-unit;
+  padding-top: $spacing-unit;
+  border-top: 1px solid $color-border;
+}
+
+.display-manager-view__override-summary {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+}
+
+.display-manager-view__override-text {
+  font-size: 0.8125rem;
+}
+
+.display-manager-view__override-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: $color-text-muted;
 }

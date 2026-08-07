@@ -6,6 +6,7 @@ import type { OrderStatus } from '../types/order'
 import type { ScreenAddressSettings } from '../types/screenAddress'
 import type { AdminRole, AdminSession, DashboardSection } from '../types/sync'
 import type { WindowLaunchSettings } from '../types/windowLaunch'
+import type { UpdatesHubStatus } from '../utils/displayUpdateState'
 
 /**
  * Derives the local LAN sync server's HTTP origin from the page's own
@@ -77,6 +78,28 @@ export async function approveDisplayPairing(token: string, machineID: string): P
   }
   const { approvedMachineID, approvedLabel } = (await response.json()) as { approvedMachineID: string; approvedLabel: string }
   return { approvedMachineID, approvedLabel }
+}
+
+/** The hub's own current-APK/current-bundle reference — see `getUpdatesStatus` in `server/updates.ts`. Read by `DisplayManagerView.tsx` and passed into `resolveDisplayUpdateState` (`src/utils/displayUpdateState.ts`) so a display's own reported version can actually be compared against something. */
+export async function getUpdatesStatus(token: string): Promise<UpdatesHubStatus> {
+  const response = await fetch(`${serverBaseUrl()}/updates/status`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) throw new Error('Could not fetch update status')
+  return (await response.json()) as UpdatesHubStatus
+}
+
+/** Flips (or clears) a runtime version's rollback pin — see `setRollbackFlag` in `server/updates.ts`. Also pushes every currently-known display on that runtime version toward whatever the hub now serves for it (spec §2.6), so this one call is the entire "revert to previous update" action. */
+export async function setUpdateRollback(token: string, runtimeVersion: string, rolledBack: boolean): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/updates/rollback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ runtimeVersion, rolledBack }),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not update the rollback flag')
+  }
 }
 
 /** Thrown when the local server rejects a login attempt or isn't reachable at all. */

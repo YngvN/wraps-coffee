@@ -113,6 +113,71 @@ itself was later removed entirely in favor of one-click approval —
 and the admin dashboard is plain `http://` on the LAN. Noted here so it
 isn't independently re-proposed and re-discovered later.
 
+## Update channel
+
+Once paired, this app reports its own `versionCode`/`versionName`/`runtimeVersion`/
+`updateId`/`isEmbeddedLaunch`/`updateTier` on every heartbeat, and opens a native
+WebSocket connection (`src/lib/deviceSocket.ts`, alongside `src/lib/pairing.ts`'s existing
+HTTP calls — modeled on the root app's own `src/lib/syncClient.ts` reconnect/backoff logic)
+so the server can push an update check/install rather than waiting for the next poll.
+Shown and triggered from the main app's own Display Manager (see its README's "Update
+channel" bullet) — this app never initiates an update on its own.
+
+Three tiers, resolved automatically from what the device is capable of
+(`updateTier`, computed from device-owner/install-permission status):
+
+- **Tier 1 — OTA JS bundle** (`src/lib/updates.ts`, self-hosted `expo-updates`): for any
+  change that doesn't touch native code. `app.json`'s `updates` block points at this app's
+  own server (resolved once pairing completes, via
+  `Updates.setUpdateURLAndRequestHeadersOverride()`), and manifests served from
+  `GET /updates/manifest` are code-signed — see `codeSigning/CODE_SIGNING.md` for exactly
+  how, and why. Applying an update reloads the JS bundle in place (`Updates.reloadAsync()`);
+  timing (immediate vs. a configurable overnight quiet window) is decided server-side, not
+  by this app.
+- **Tier 2 — silent APK install**: for a device provisioned as an Android
+  [device owner](https://developer.android.com/work/dpc/build-dpc) (`dpm set-device-owner`,
+  `plugins/withDeviceAdmin.js`'s generated `AdminReceiver`), a new APK is downloaded from
+  the server, its signature checked against this build's own signing certificate, and
+  installed via `PackageInstaller` (`plugins/withPackageInstaller.js`'s native module) with
+  no on-screen prompt. The install is expected to kill this app's own process mid-flight —
+  there's no reliance on an install-result callback; the next heartbeat's `versionCode`
+  reporting the new version is the only success signal.
+- **Tier 3 — prompted APK install**: the same `PackageInstaller` flow, for a device that
+  isn't a device owner — falls back to Android's normal "Install unknown apps"
+  confirmation dialog instead of a silent install.
+
+A device owner also gets **lock task mode** (`plugins/withLockTask.js`,
+`setLockTaskPackages()`/`startLockTask()`) pinning this app on screen, blocking Home/
+Recents — a stronger kiosk guarantee than the WebView user-agent marker alone, which
+remains the fallback signal for non-device-owner units.
+
+## Remote screen navigation
+
+On Android TV, holding the D-pad up or down arms an on-screen browse mode
+(`src/lib/remoteNav.ts`, `src/components/RemoteNavHud.tsx`) for previewing the cafe's other
+Screens directly from the remote, without touching the dashboard — useful for a TV tucked
+somewhere the dashboard isn't handy. A native bridge
+(`plugins/withKeyEventBridge.js`, patching the generated `MainActivity.kt`'s
+`dispatchKeyEvent`) forwards only D-pad up/down/center to JS via `DeviceEventEmitter`;
+`KEYCODE_BACK` always falls through untouched, so the existing triple-Back-press disconnect
+gesture (see "Disconnect" above) keeps working exactly as before.
+
+State machine: idle → (double-press up/down within ~2.5s) → armed → previewing. While
+previewing, up/down moves the on-screen selection through the same Screens the cafe's
+Display Manager would let this device be assigned to (server-decided, never client-
+enumerated — this device can't browse to a draft or another venue's Screen), rendered
+live by swapping the `DisplayScreen` WebView's own URL; OK commits the selection as a
+persistent override (visible in Display Manager as an "Overridden" badge, with a "Return
+to assigned" action there) and exits back to idle. Back, 20 seconds of inactivity, or
+losing the server connection all revert to whatever was actually showing before browsing
+started — which may itself already be an earlier override, not necessarily the assigned
+Screen — with nothing committed. A committed override always wins over Display Manager's
+own assignment until cleared, and reassigning a Screen to this device from Display Manager
+clears it.
+
+Stage-level (left/right) navigation within a single multi-stage Screen is not built yet —
+screen-level (up/down) navigation only, for now.
+
 ## Platform notes
 
 ### Android

@@ -2,9 +2,10 @@ import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { WebSocketServer, type WebSocket } from 'ws'
-import type { DisplayMachine, DisplayMonitor, DisplayPairingRequest } from '../src/types/displayMachine'
+import type { DisplayMachine, DisplayMonitor, DisplayPairingRequest, DisplayScreenOverride, DisplayUpdateProgress } from '../src/types/displayMachine'
 import type { OrderRecord, OrderStatus } from '../src/types/order'
 import type { Product } from '../src/types/product'
+import type { ScreenConfig } from '../src/types/screen'
 import type { ScreenAddressSettings } from '../src/types/screenAddress'
 import type { WindowLaunchSettings } from '../src/types/windowLaunch'
 import type { StoreSettings } from '../src/types/storeSettings'
@@ -24,6 +25,16 @@ import * as mdns from './mdns'
 import * as neonBridge from './neonBridge'
 import * as store from './store'
 import * as storageCleanup from './storageCleanup'
+import {
+  getMachineIDForSocket,
+  pushToAllDevices,
+  pushToDevice,
+  registerDeviceSocket,
+  unregisterDeviceSocket,
+  type DeviceClientMessage,
+  type DeviceServerMessage,
+} from './deviceSocket'
+import * as updates from './updates'
 import { handleDeleteUpload, handleRenameUpload, handleServeUpload, handleStorageUsage, handleUpload, listUploads } from './uploads'
 import { handleVideoRetry, handleVideoUpload, startAbandonedVideoUploadSweep } from './videoUploads'
 import * as foodoraAdapter from './foodoraAdapter'
@@ -53,6 +64,8 @@ const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
   'admin.displayMachines': 'displaymanager',
   'admin.displayMachineCloseRequests': 'displaymanager',
   'admin.displayPairingRequests': 'displaymanager',
+  'admin.displayUpdateState': 'displaymanager',
+  'admin.displayScreenOverride': 'displaymanager',
   'admin.integrations': 'integrations',
   'admin.orders': 'orders',
   'admin.messageBoards': 'messageboard',
@@ -110,7 +123,18 @@ function reAdvertiseServerPresenceIfStoreNameChanged() {
  */
 function mergeDisplayMachineHeartbeat(
   current: DisplayMachine[],
-  heartbeat: { machineID: string; label: string; connectionType: DisplayMachine['connectionType']; monitors: { id: string; label: string }[] },
+  heartbeat: {
+    machineID: string
+    label: string
+    connectionType: DisplayMachine['connectionType']
+    monitors: { id: string; label: string }[]
+    versionCode?: number
+    versionName?: string
+    runtimeVersion?: string
+    updateId?: string | null
+    isEmbeddedLaunch?: boolean
+    updateTier?: DisplayMachine['updateTier']
+  },
 ): DisplayMachine[] {
   const existing = current.find((machine) => machine.machineID === heartbeat.machineID)
   const monitors: DisplayMonitor[] = heartbeat.monitors.map((monitor) => ({
@@ -125,6 +149,16 @@ function mergeDisplayMachineHeartbeat(
     connectionType: heartbeat.connectionType,
     monitors,
     lastSeenAt: new Date().toISOString(),
+    // Same "overwritten every heartbeat, never defaulted" semantics as `label`/`connectionType` above — an
+    // absent field here means this specific heartbeat didn't report it (e.g. a pre-Update-Channel client),
+    // and must stay absent rather than falling back to `existing`'s last-known value, so a client that
+    // stops reporting doesn't silently keep looking current. See `DisplayMachine`'s own doc comment.
+    versionCode: heartbeat.versionCode,
+    versionName: heartbeat.versionName,
+    runtimeVersion: heartbeat.runtimeVersion,
+    updateId: heartbeat.updateId,
+    isEmbeddedLaunch: heartbeat.isEmbeddedLaunch,
+    updateTier: heartbeat.updateTier,
   }
   return existing ? current.map((machine) => (machine.machineID === heartbeat.machineID ? updated : machine)) : [...current, updated]
 }
@@ -226,11 +260,17 @@ const httpServer = createServer((req, res) => {
   if (req.method === 'POST' && url.pathname === '/display-machines/heartbeat') {
     readJsonBody(req)
       .then((body) => {
-        const { machineID, label, connectionType, monitors } = body as {
+        const { machineID, label, connectionType, monitors, versionCode, versionName, runtimeVersion, updateId, isEmbeddedLaunch, updateTier } = body as {
           machineID?: string
           label?: string
           connectionType?: string
           monitors?: { id?: string; label?: string }[]
+          versionCode?: unknown
+          versionName?: unknown
+          runtimeVersion?: unknown
+          updateId?: unknown
+          isEmbeddedLaunch?: unknown
+          updateTier?: unknown
         }
         if (!machineID || !label || (connectionType !== 'electron' && connectionType !== 'url' && connectionType !== 'mobile') || !Array.isArray(monitors)) {
           sendJson(res, 400, { error: 'Malformed heartbeat body' })
@@ -243,8 +283,40 @@ const httpServer = createServer((req, res) => {
         }
         const cleanMonitors = monitors
           .filter((monitor): monitor is { id: string; label: string } => typeof monitor.id === 'string' && typeof monitor.label === 'string')
-        const merged = mergeDisplayMachineHeartbeat(current, { machineID, label, connectionType, monitors: cleanMonitors })
+        const merged = mergeDisplayMachineHeartbeat(current, {
+          machineID,
+          label,
+          connectionType,
+          monitors: cleanMonitors,
+          versionCode: typeof versionCode === 'number' ? versionCode : undefined,
+          versionName: typeof versionName === 'string' ? versionName : undefined,
+          runtimeVersion: typeof runtimeVersion === 'string' ? runtimeVersion : undefined,
+          // Distinguishes "this heartbeat didn't include the field at all" (undefined — a pre-Update-Channel
+          // client) from "this build is still on its embedded bundle" (explicit null, a real Updates.updateId
+          // value) — collapsing both to null would make an old client's absence look like a reporting client
+          // that just hasn't OTA'd yet.
+          updateId: updateId === null ? null : typeof updateId === 'string' ? updateId : undefined,
+          isEmbeddedLaunch: typeof isEmbeddedLaunch === 'boolean' ? isEmbeddedLaunch : undefined,
+          updateTier: updateTier === 1 || updateTier === 2 || updateTier === 3 ? updateTier : undefined,
+        })
         applyUpdate('admin.displayMachines', merged)
+        // A pending update run completes the moment its own device reports back whatever the hub
+        // pushed it toward — the updateId for a Tier 1 (OTA) run, or the versionCode for a Tier
+        // 2/3 (APK) run, exactly one of which is set per entry (see DisplayUpdateProgress's own
+        // doc comment) — clear that machine's admin.displayUpdateState entry entirely rather than
+        // recording a terminal "current" status (same doc comment explains why).
+        const pendingUpdates = (store.get('admin.displayUpdateState')?.value as DisplayUpdateProgress[] | undefined) ?? []
+        const myPendingUpdate = pendingUpdates.find((entry) => entry.machineID === machineID)
+        const pendingUpdateCompleted =
+          myPendingUpdate &&
+          ((myPendingUpdate.targetUpdateId !== undefined && typeof updateId === 'string' && updateId === myPendingUpdate.targetUpdateId) ||
+            (myPendingUpdate.targetVersionCode !== undefined && typeof versionCode === 'number' && versionCode === myPendingUpdate.targetVersionCode))
+        if (pendingUpdateCompleted) {
+          applyUpdate(
+            'admin.displayUpdateState',
+            pendingUpdates.filter((entry) => entry.machineID !== machineID),
+          )
+        }
         const mine = merged.find((machine) => machine.machineID === machineID)
         // customLabel is sanitized here (not just wherever it was originally typed in Display Manager) since this
         // is the point it leaves this server and crosses to a different physical device — see
@@ -458,6 +530,85 @@ const httpServer = createServer((req, res) => {
       sendJson(res, 200, listUploads(host))
       return
     }
+  }
+
+  // Update Channel (ADHDisplay Companion OTA updates, see the Update Channel spec). Public, no
+  // auth — this is the Expo Updates Protocol v1 endpoint `expo-updates` itself polls, same
+  // LAN-trust posture as the heartbeat route; the protocol has no room for a bearer token.
+  if (req.method === 'GET' && url.pathname === '/updates/manifest') {
+    updates.handleUpdatesManifest(req, res, host)
+    return
+  }
+
+  if (req.method === 'GET' && url.pathname.startsWith('/updates/assets/')) {
+    updates.handleUpdatesAsset(res, url.pathname.slice('/updates/assets/'.length), url.searchParams)
+    return
+  }
+
+  if (req.method === 'GET' && url.pathname === '/updates/apk/current') {
+    updates.handleUpdatesApk(res)
+    return
+  }
+
+  // Admin-facing (Display Manager's own state resolution, see src/utils/displayUpdateState.ts) —
+  // any authenticated session, same unrestricted-read posture every synced-key read already has;
+  // this just isn't itself a synced key since it's read from disk on demand rather than cached.
+  if (req.method === 'GET' && url.pathname === '/updates/status') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    sendJson(res, 200, updates.getUpdatesStatus())
+    return
+  }
+
+  // Display Manager's own "revert to previous update" action (spec §2.6) — a plain route, not a
+  // synced-key write, since the rollback flag itself lives in server/data/updates/rollback.json,
+  // not in any admin.* synced key. "displaymanager" section, same posture as approving a pairing.
+  if (req.method === 'POST' && url.pathname === '/updates/rollback') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited' && !session.allowedSections?.includes('displaymanager')) {
+      sendJson(res, 403, { error: 'Only accounts with Display Manager access can roll back an update' })
+      return
+    }
+    readJsonBody(req)
+      .then((body) => {
+        const { runtimeVersion, rolledBack } = body as { runtimeVersion?: unknown; rolledBack?: unknown }
+        if (typeof runtimeVersion !== 'string' || typeof rolledBack !== 'boolean') {
+          sendJson(res, 400, { error: 'Malformed rollback body' })
+          return
+        }
+        updates.setRollbackFlag(runtimeVersion, rolledBack)
+        const status = updates.getUpdatesStatus()
+        const targetUpdateId = status.currentUpdateIdByRuntimeVersion[runtimeVersion]
+        // Push every currently-known machine on this exact runtimeVersion toward whatever this hub
+        // now serves for it — spec §2.6: rollback is "serving the prior manifest and pushing the
+        // reload trigger," not a passive flag an admin has to separately re-trigger per device.
+        if (targetUpdateId) {
+          const machines = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
+          const affected = machines.filter((machine) => machine.runtimeVersion === runtimeVersion && machine.updateId !== targetUpdateId)
+          if (affected.length > 0) {
+            const pending = (store.get('admin.displayUpdateState')?.value as DisplayUpdateProgress[] | undefined) ?? []
+            const startedAt = new Date().toISOString()
+            const withoutAffected = pending.filter((entry) => !affected.some((machine) => machine.machineID === entry.machineID))
+            const newEntries: DisplayUpdateProgress[] = affected.map((machine) => ({
+              machineID: machine.machineID,
+              status: 'awaiting-heartbeat',
+              startedAt,
+              targetUpdateId,
+            }))
+            applyUpdate('admin.displayUpdateState', [...withoutAffected, ...newEntries])
+          }
+        }
+        sendJson(res, 200, { ok: true })
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
   }
 
   // Integrations (Ruter transit + Yr weather proxies). Public, no auth — these
@@ -1962,10 +2113,139 @@ function reconcileStockForOrders(previousOrders: OrderRecord[], incomingOrders: 
   console.log(`[stock] adjusted stock from order changes (${deltas.size} product(s))`)
 }
 
+/**
+ * Diffs the previous `admin.displayUpdateState` against what's about to be
+ * written and pushes the right message to every machine whose own entry is
+ * newly present or newly restarted (a different `targetUpdateId`/
+ * `targetVersionCode`/`startedAt` than before) — this is the one place
+ * Display Manager's "Update to current" button (and the staged bulk-update
+ * queue, both client-side) actually causes anything to happen on a device;
+ * writing the synced key alone only makes the progress badge appear.
+ *
+ * Mechanism selection reads the machine's own `updateTier` fresh from
+ * `admin.displayMachines` here, server-side, rather than trusting whatever
+ * the client wrote the entry with — "hub decides mechanism from resolved
+ * state" (spec §5.4) means this function is the actual decision point, not
+ * a rubber stamp on the caller's own guess. A `targetVersionCode` entry
+ * without tier 2/3 (or vice versa) still gets the message its *current*
+ * tier calls for, not whatever the entry's own shape implies.
+ */
+function pushUpdateTriggersForNewEntries(previous: DisplayUpdateProgress[], incoming: DisplayUpdateProgress[]) {
+  const previousByMachineID = new Map(previous.map((entry) => [entry.machineID, entry]))
+  const machines = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
+  const machinesByID = new Map(machines.map((machine) => [machine.machineID, machine]))
+  for (const entry of incoming) {
+    const before = previousByMachineID.get(entry.machineID)
+    const isNewRun =
+      !before || before.targetUpdateId !== entry.targetUpdateId || before.targetVersionCode !== entry.targetVersionCode || before.startedAt !== entry.startedAt
+    if (!isNewRun) continue
+    const updateTier = machinesByID.get(entry.machineID)?.updateTier
+    const message: DeviceServerMessage = updateTier === 2 || updateTier === 3 ? { type: 'install-update', mechanism: 'apk' } : { type: 'check-update' }
+    pushToDevice(entry.machineID, message)
+  }
+}
+
+/** Default 10 minutes (Update Channel spec §3.4) — a pending update run older than this without its own device reporting the expected `updateId` back gets marked `update-failed`, surfaced in Display Manager. No automatic retry: a device that failed to update and then failed to come back needs a human, not a retry loop running unattended on a wall-mounted screen. */
+const UPDATE_FAILURE_TIMEOUT_MS = 10 * 60 * 1000
+const UPDATE_FAILURE_SWEEP_INTERVAL_MS = 60 * 1000
+
+/** Runs once a minute — marks any `admin.displayUpdateState` entry that's been `downloading`/`installing`/`awaiting-heartbeat` for longer than `UPDATE_FAILURE_TIMEOUT_MS` as `update-failed`, in place (never removed — an admin needs to actually see the red status row, per spec §3.4). Started once at server startup, alongside this file's other sweeps. */
+function startUpdateFailureSweep() {
+  setInterval(() => {
+    const pending = (store.get('admin.displayUpdateState')?.value as DisplayUpdateProgress[] | undefined) ?? []
+    const now = Date.now()
+    let changed = false
+    const updated = pending.map((entry) => {
+      if (entry.status === 'update-failed') return entry
+      if (now - new Date(entry.startedAt).getTime() < UPDATE_FAILURE_TIMEOUT_MS) return entry
+      changed = true
+      return { ...entry, status: 'update-failed' as const }
+    })
+    if (changed) applyUpdate('admin.displayUpdateState', updated)
+  }, UPDATE_FAILURE_SWEEP_INTERVAL_MS)
+}
+
+/**
+ * Every screen a companion device is currently allowed to browse to (Remote
+ * Screen Navigation spec) — every published screen, hub-decided (never
+ * client-enumerated) so a café unit can never browse to another venue's
+ * screen or an unpublished draft. A screen's own top-level `name`/`screenID`
+ * only — never `.draft`, which isn't a separate browsable screen, just a
+ * pending edit to an existing one.
+ */
+function buildNavigableSet(): { screenId: string; name: string }[] {
+  const screens = (store.get('admin.screens')?.value as ScreenConfig[] | undefined) ?? []
+  return screens.map((screen) => ({ screenId: screen.screenID, name: screen.name }))
+}
+
+/**
+ * `effectiveScreen = override ?? assignment`, resolved in exactly one
+ * place, hub-side (Remote Screen Navigation spec §D9) — the display never
+ * decides which of the two it's showing. A companion device always has
+ * exactly one monitor (see `DEVICE_MONITOR_ID` in
+ * `adhdisplay-companion/src/lib/pairing.ts`), so `monitors[0]` is always
+ * the right one, no id-matching needed. `null` if neither an override nor
+ * an assignment exists (shows the standby screensaver).
+ */
+function resolveEffectiveScreen(machineID: string): string | null {
+  const overrides = (store.get('admin.displayScreenOverride')?.value as DisplayScreenOverride[] | undefined) ?? []
+  const override = overrides.find((entry) => entry.machineID === machineID)
+  if (override) return override.screenId
+  const machines = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
+  return machines.find((machine) => machine.machineID === machineID)?.monitors[0]?.assignedScreenID ?? null
+}
+
+/** Pushes one machine's own current effective screen — called on `device-hello` (connect/reconnect) and from `applyUpdate`'s own `admin.displayMachines`/`admin.displayScreenOverride` branches below, whenever something that could actually change it did. */
+function pushEffectiveScreen(machineID: string) {
+  pushToDevice(machineID, { type: 'effective-screen', screenId: resolveEffectiveScreen(machineID) })
+}
+
 /** Persists a synced-key write and broadcasts it to every interested LAN client — the one path both a client's own WS `write` and the Neon bridge's own pulls go through, so neither has to duplicate the other's plumbing. */
 function applyUpdate(key: SyncedKey, value: unknown) {
   if (key === 'admin.orders') {
     reconcileStockForOrders((store.get('admin.orders')?.value as OrderRecord[] | undefined) ?? [], value as OrderRecord[])
+  }
+  if (key === 'admin.displayUpdateState') {
+    pushUpdateTriggersForNewEntries((store.get('admin.displayUpdateState')?.value as DisplayUpdateProgress[] | undefined) ?? [], value as DisplayUpdateProgress[])
+  }
+  if (key === 'admin.screens') {
+    // Every connected device's own browsable set is affected, not just one — see
+    // pushToAllDevices's own doc comment.
+    pushToAllDevices({ type: 'navigable-set', screens: buildNavigableSet() })
+  }
+  if (key === 'admin.displayMachines') {
+    // Only an *admin's own* assignment write ever actually changes monitors[0].assignedScreenID —
+    // mergeDisplayMachineHeartbeat (the heartbeat route's own merge, called far more often)
+    // deliberately preserves it unconditionally, so this diff naturally never fires on a plain
+    // heartbeat write, no need to special-case which caller this is.
+    const previous = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
+    const previousAssignmentByID = new Map(previous.map((machine) => [machine.machineID, machine.monitors[0]?.assignedScreenID ?? null]))
+    for (const machine of value as DisplayMachine[]) {
+      if (machine.connectionType !== 'mobile') continue
+      const assignedScreenID = machine.monitors[0]?.assignedScreenID ?? null
+      if (previousAssignmentByID.get(machine.machineID) === assignedScreenID) continue
+      const overrides = (store.get('admin.displayScreenOverride')?.value as DisplayScreenOverride[] | undefined) ?? []
+      if (overrides.some((entry) => entry.machineID === machine.machineID)) {
+        // Deliberate/explicit (this admin assignment write) beats local/older (a standing
+        // remote-nav override) — spec §D1's writer precedence. The recursive write below hits the
+        // admin.displayScreenOverride branch just below, which pushes effective-screen for this
+        // machine on its own — no separate push needed here too.
+        applyUpdate(
+          'admin.displayScreenOverride',
+          overrides.filter((entry) => entry.machineID !== machine.machineID),
+        )
+      } else {
+        pushEffectiveScreen(machine.machineID)
+      }
+    }
+  }
+  if (key === 'admin.displayScreenOverride') {
+    const previous = (store.get('admin.displayScreenOverride')?.value as DisplayScreenOverride[] | undefined) ?? []
+    const previousByID = new Map(previous.map((entry) => [entry.machineID, entry.screenId]))
+    const incoming = value as DisplayScreenOverride[]
+    const incomingByID = new Map(incoming.map((entry) => [entry.machineID, entry.screenId]))
+    const changedMachineIDs = new Set([...previousByID.keys(), ...incomingByID.keys()].filter((machineID) => previousByID.get(machineID) !== incomingByID.get(machineID)))
+    for (const machineID of changedMachineIDs) pushEffectiveScreen(machineID)
   }
   if (key === 'admin.products') {
     // Kept current on every write (both a real client edit and a Neon-bridge
@@ -1986,11 +2266,34 @@ wss.on('connection', (socket) => {
   console.log(`[ws] client connected (${wss.clients.size} total)`)
 
   socket.on('message', (raw) => {
-    let message: ClientMessage
+    let message: ClientMessage | DeviceClientMessage
     try {
       message = JSON.parse(raw.toString())
     } catch {
       console.warn('[ws] dropped malformed message')
+      return
+    }
+
+    // A companion device's own persistent connection (see server/deviceSocket.ts) — distinct from
+    // every other message type below, which are all the admin-dashboard sync protocol. A socket is
+    // either one or the other, never both, discriminated purely by which message it sends first.
+    if (message.type === 'device-hello') {
+      if (typeof message.machineID !== 'string') return
+      registerDeviceSocket(message.machineID, socket)
+      // Connect/reconnect always gets a fresh copy of both — a reconnect means whatever this
+      // device had in memory (if anything survived) could be stale, and there's no cheaper way to
+      // find out than just sending the current truth again.
+      pushToDevice(message.machineID, { type: 'navigable-set', screens: buildNavigableSet() })
+      pushEffectiveScreen(message.machineID)
+      return
+    }
+
+    if (message.type === 'screen-override') {
+      const machineID = getMachineIDForSocket(socket)
+      if (!machineID || typeof message.screenId !== 'string') return
+      const overrides = (store.get('admin.displayScreenOverride')?.value as DisplayScreenOverride[] | undefined) ?? []
+      const withoutMine = overrides.filter((entry) => entry.machineID !== machineID)
+      applyUpdate('admin.displayScreenOverride', [...withoutMine, { machineID, screenId: message.screenId, setAt: new Date().toISOString() }])
       return
     }
 
@@ -2045,6 +2348,7 @@ wss.on('connection', (socket) => {
   socket.on('close', () => {
     interestSets.delete(socket)
     socketAlive.delete(socket)
+    unregisterDeviceSocket(socket)
     console.log(`[ws] client disconnected (${wss.clients.size} total)`)
   })
 
@@ -2108,6 +2412,8 @@ woltPoller.start(applyUpdate)
 foodoraPoller.start(applyUpdate)
 startNewsImageCacheSweep()
 startAbandonedVideoUploadSweep()
+startUpdateFailureSweep()
+updates.sweepUpdatesDirForBackup()
 mdns.apply(store.getScreenAddressSettings(), currentStoreName())
 // Always on, regardless of the opt-in hostname mode above — see
 // advertiseServerPresence's own doc comment for why this needs to be a

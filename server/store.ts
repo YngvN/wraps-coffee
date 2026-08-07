@@ -59,6 +59,8 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.displayMachines': null,
   'admin.displayMachineCloseRequests': null,
   'admin.displayPairingRequests': null,
+  'admin.displayUpdateState': null,
+  'admin.displayScreenOverride': null,
   'admin.integrations': null,
   'admin.sidebarSettings': null,
   'admin.orders': null,
@@ -77,6 +79,8 @@ const HARDCODED_DEFAULTS: Partial<Record<SyncedKey, unknown>> = {
   'admin.displayMachines': [],
   'admin.displayMachineCloseRequests': [],
   'admin.displayPairingRequests': [],
+  'admin.displayUpdateState': [],
+  'admin.displayScreenOverride': [],
   'admin.clockFormat': '24h',
   'admin.dateFormat': 'dmy',
   // The cafe's own default language for kiosk pane content — set to

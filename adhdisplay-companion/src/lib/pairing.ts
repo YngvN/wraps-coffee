@@ -1,14 +1,41 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as Application from 'expo-application'
 import { randomUUID } from 'expo-crypto'
+import * as Updates from 'expo-updates'
+import { Platform } from 'react-native'
+import { resolveUpdateTier } from './packageInstaller'
 import { syncOrigin, type ServerConnection } from './serverConnection'
 
 const MACHINE_ID_STORAGE_KEY = 'adhdisplay-companion/machineId'
 
-/** This device's own `machineID` — generated once via `crypto.randomUUID()` (matching the pattern `electron/roleSetup.cjs` already uses for the same purpose on the Electron side) and persisted from then on, so the same physical device keeps being recognized across restarts, including across a disconnect (see `clearServerConnection` in `serverConnection.ts`, which deliberately leaves this alone). This is the *only* identity this app ever generates itself — its last 4 characters double as the disambiguation suffix shown on both this app's own `PairingScreen` and Display Manager's pending card, see `PairingScreen.tsx`'s own doc comment. */
+/**
+ * This device's own `machineID`, persisted from first run on so the same
+ * physical device keeps being recognized across restarts, including across
+ * a disconnect (see `clearServerConnection` in `serverConnection.ts`, which
+ * deliberately leaves this alone). This is the *only* identity this app ever
+ * generates itself — its last 4 characters double as the disambiguation
+ * suffix shown on both this app's own `PairingScreen` and Display Manager's
+ * pending card, see `PairingScreen.tsx`'s own doc comment.
+ *
+ * Seeded from `Application.getAndroidId()` (wraps `Settings.Secure.ANDROID_ID`)
+ * on Android, not a fresh `crypto.randomUUID()` — `ANDROID_ID` survives app
+ * reinstall and app-data clear (only regenerating on a factory reset), which
+ * a `randomUUID()` cached solely in `AsyncStorage` does not. This matters
+ * because a display's screen assignment (Update Channel spec §5.5) and
+ * remote-navigation override are both keyed by `machineID` server-side — if
+ * this id isn't durable, any event that clears app data (including, on
+ * non-device-owner units, an app-data clear that happens to accompany a
+ * Tier 3 sideload) silently orphans the display from its own pairing
+ * record. Non-Android platforms (this app also ships to iOS/Windows/Linux)
+ * have no equivalent durable id available to an app, so they keep the
+ * original `randomUUID()` behavior. Existing paired devices are unaffected
+ * either way — a `machineID` already cached in `AsyncStorage` is always
+ * reused as-is, never replaced.
+ */
 export async function getOrCreateMachineId(): Promise<string> {
   const existing = await AsyncStorage.getItem(MACHINE_ID_STORAGE_KEY)
   if (existing) return existing
-  const created = randomUUID()
+  const created = (Platform.OS === 'android' ? Application.getAndroidId() : null) ?? randomUUID()
   await AsyncStorage.setItem(MACHINE_ID_STORAGE_KEY, created)
   return created
 }
@@ -70,8 +97,26 @@ export interface HeartbeatResult {
  * here as `{ ok: false, needsPairing: true }` rather than a thrown error,
  * since the caller needs to branch on it, not just log-and-retry like a
  * plain network failure.
+ *
+ * Also self-reports this build's own version fields (Update Channel spec
+ * §5.2) on every beat, unconditionally — same "overwritten every heartbeat"
+ * semantics as `label` above, deliberately never defaulted or held back if
+ * momentarily unavailable, so the server's own resolved state can tell a
+ * genuinely-unreporting (pre-this-commit) client apart from a reporting one.
+ * `versionCode`/`versionName` come from the native build itself
+ * (`Application.nativeBuildVersion`/`nativeApplicationVersion`, populated
+ * from `app.json`'s `android.versionCode`/`version` at build time — see
+ * `scripts/build-tv-apk.js`), `runtimeVersion`/`updateId`/`isEmbeddedLaunch`
+ * from `expo-updates`, present even before commit 4 wires up an actual
+ * `updates.url` (they describe *this launch*, not a live update check).
+ * `updateTier` comes from `resolveUpdateTier()` (`packageInstaller.ts`),
+ * which asks the native module's own device-owner/install-unknown-apps
+ * checks — resolves to `1` on any platform without that native module
+ * (iOS/web/Electron, or an Android build predating commit 6/7).
  */
 export async function sendHeartbeat(connection: ServerConnection, machineID: string, label: string): Promise<HeartbeatResult> {
+  const versionCode = Platform.OS === 'android' ? Number(Application.nativeBuildVersion) : undefined
+  const updateTier = await resolveUpdateTier()
   const response = await fetch(`${syncOrigin(connection)}/display-machines/heartbeat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -80,6 +125,12 @@ export async function sendHeartbeat(connection: ServerConnection, machineID: str
       label,
       connectionType: 'mobile',
       monitors: [{ id: DEVICE_MONITOR_ID, label }],
+      versionCode: Number.isFinite(versionCode) ? versionCode : undefined,
+      versionName: Application.nativeApplicationVersion ?? undefined,
+      runtimeVersion: Updates.runtimeVersion || undefined,
+      updateId: Updates.updateId,
+      isEmbeddedLaunch: Updates.isEmbeddedLaunch,
+      updateTier,
     }),
   })
   if (response.status === 409) return { ok: false, monitors: [], needsPairing: true, customLabel: null }

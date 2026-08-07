@@ -13,6 +13,7 @@ export type SearchResultType =
   | 'messageBoardPost'
   | 'user'
   | 'pairingRequest'
+  | 'displayMachine'
   | 'settingsPage'
   | 'navSection'
 

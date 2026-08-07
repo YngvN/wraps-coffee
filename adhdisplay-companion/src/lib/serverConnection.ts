@@ -61,6 +61,19 @@ export function syncOrigin(connection: ServerConnection): string {
   return `http://${connection.host}:${connection.wsPort}`
 }
 
+/**
+ * This server's own WebSocket origin — same host/port as `syncOrigin`
+ * (`wsPort` is literally the port `server/index.ts`'s own `WebSocketServer`
+ * listens on, attached to the same HTTP server the heartbeat route lives
+ * on), just the `ws://` scheme. Used by `deviceSocket.ts` for this native
+ * layer's own persistent connection (Update Channel spec's "push
+ * mechanism") — the one genuine exception to `syncOrigin`'s own doc comment
+ * above, which predates that connection existing.
+ */
+export function wsSyncOrigin(connection: ServerConnection): string {
+  return `ws://${connection.host}:${connection.wsPort}`
+}
+
 /** The fixed port `GET /server-info` listens on before this app has learned a server's *real* wsPort from that same response — same default the rest of this codebase assumes (`WS_PORT`, `server/index.ts`). Only used to bootstrap the very first sweep probe; every subsequent call uses whatever `wsPort` the server actually reported. */
 const DEFAULT_PROBE_PORT = 4000
 const SWEEP_TIMEOUT_MS = 800

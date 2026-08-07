@@ -18,6 +18,8 @@ export const SYNCED_KEYS = [
   'admin.displayMachines',
   'admin.displayMachineCloseRequests',
   'admin.displayPairingRequests',
+  'admin.displayUpdateState',
+  'admin.displayScreenOverride',
   'admin.integrations',
   'admin.sidebarSettings',
   'admin.orders',

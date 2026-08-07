@@ -3,8 +3,13 @@ import * as NavigationBar from 'expo-navigation-bar'
 import { StatusBar } from 'expo-status-bar'
 import { useCallback, useEffect, useState } from 'react'
 import { BackHandler, Platform, StyleSheet, View } from 'react-native'
+import { connectDeviceSocket, disconnectDeviceSocket } from './src/lib/deviceSocket'
 import { getOrCreateMachineId, getStoredDeviceLabel, sendHeartbeat, setStoredDeviceLabel, DEVICE_MONITOR_ID } from './src/lib/pairing'
 import { clearServerConnection, loadServerConnection, saveServerConnection, type ServerConnection } from './src/lib/serverConnection'
+import { runPendingMigrations } from './src/lib/migrations'
+import { useRemoteNav } from './src/lib/remoteNav'
+import { setUpdateOrigin, startUpdateListener } from './src/lib/updates'
+import { RemoteNavHud } from './src/components/RemoteNavHud'
 import { DisplayScreen } from './src/screens/DisplayScreen'
 import { PairingScreen } from './src/screens/PairingScreen'
 import { ServerSetupScreen } from './src/screens/ServerSetupScreen'
@@ -42,6 +47,11 @@ type AppState =
  * consumed (the listener always returns `true`), which also suppresses RN's
  * default single-back-press exit/background behavior app-wide — a
  * deliberate byproduct for this unattended kiosk app, not an oversight.
+ * While remote-nav browse mode is active (`remoteNav.isBrowseModeActive()`,
+ * see `src/lib/remoteNav.ts`), this same listener delegates to
+ * `remoteNav.revertAndExit()` instead of counting the press toward
+ * disconnect — without that branch, a user backing out of a screen preview
+ * would walk two-thirds of the way to unpairing this display.
  *
  * Recovery after a power loss/reboot on the device itself is handled for
  * Windows, Android, and Linux via auto-launch-on-boot (see this app's own
@@ -60,6 +70,10 @@ export default function App() {
   // lazy initializer) despite starting from one.
   const [deviceLabel, setDeviceLabel] = useState(() => `ADHDisplay Companion (${Platform.OS})`)
 
+  // Owns its own deviceSocket subscriptions (messages, connection status) — safe to call
+  // unconditionally regardless of pairing stage, see its own doc comment.
+  const remoteNav = useRemoteNav()
+
   // An always-on kiosk display that sleeps defeats the whole feature — active
   // from launch, for the app's entire lifetime, not just while DisplayScreen
   // is mounted (the standby/pairing screens are just as unattended).
@@ -77,6 +91,7 @@ export default function App() {
   useEffect(() => {
     let cancelled = false
     void (async () => {
+      await runPendingMigrations()
       const id = await getOrCreateMachineId()
       const connection = await loadServerConnection()
       const storedLabel = await getStoredDeviceLabel()
@@ -105,6 +120,7 @@ export default function App() {
 
   const handleDisconnect = useCallback(() => {
     void clearServerConnection()
+    disconnectDeviceSocket()
     setState({ stage: 'server-setup' })
   }, [])
 
@@ -112,10 +128,18 @@ export default function App() {
   // component's own doc comment for why it's one listener mounted here
   // rather than per-screen. `pressTimestamps` lives inside the closure, not
   // state — it never needs to trigger its own re-render, only to be read
-  // back by the next press.
+  // back by the next press. Remote-nav browse mode (see this component's
+  // own doc comment) preempts this counting entirely while active — the
+  // disconnect gesture is only reachable from idle.
+  const { isBrowseModeActive, revertAndExit } = remoteNav
   useEffect(() => {
     let pressTimestamps: number[] = []
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (isBrowseModeActive()) {
+        revertAndExit()
+        pressTimestamps = []
+        return true
+      }
       const now = Date.now()
       pressTimestamps = [...pressTimestamps, now].filter((t) => now - t < DISCONNECT_GESTURE_WINDOW_MS)
       if (pressTimestamps.length >= DISCONNECT_GESTURE_PRESS_COUNT) {
@@ -125,7 +149,7 @@ export default function App() {
       return true // always consumed — a stray single/double back-press should not exit/background this kiosk app
     })
     return () => sub.remove()
-  }, [handleDisconnect])
+  }, [handleDisconnect, isBrowseModeActive, revertAndExit])
 
   // Heartbeat loop, active once approved (waiting or displaying) — every
   // HEARTBEAT_INTERVAL_MS, learning this device's own assignedScreenID from
@@ -170,6 +194,21 @@ export default function App() {
     // `state` (not just `state.stage`) is the real dependency here: `state.connection`/`state.screenId` matter too, so re-keying this effect off the whole object on every stage transition is intentional, not an oversight.
   }, [state, machineID, deviceLabel, handleNeedsPairing])
 
+  // Native update-check WS connection + expo-updates wiring (see `deviceSocket.ts`/`updates.ts`),
+  // active under the same "approved" condition as the heartbeat loop above. Keyed on
+  // `pairedConnection` rather than the whole `state` object (unlike the heartbeat effect above) —
+  // `beat()` carries the same `connection` reference through a waiting→displaying transition, so
+  // this stays referentially stable across that flip and doesn't need to tear down and reopen the
+  // socket just because a screen got assigned; `connectDeviceSocket`'s own dedup guard exists for
+  // this exact reason, but keying the effect this way avoids relying on it for the common case.
+  const pairedConnection = state.stage === 'waiting' || state.stage === 'displaying' ? state.connection : null
+  useEffect(() => {
+    if (!pairedConnection || !machineID) return
+    connectDeviceSocket(pairedConnection, machineID)
+    setUpdateOrigin(pairedConnection)
+    return startUpdateListener(pairedConnection)
+  }, [pairedConnection, machineID])
+
   return (
     <View style={styles.root}>
       <StatusBar hidden />
@@ -186,7 +225,12 @@ export default function App() {
       {state.stage === 'waiting' && (
         <WaitingForAssignmentScreen deviceLabel={deviceLabel} connection={state.connection} onDisconnect={handleDisconnect} />
       )}
-      {state.stage === 'displaying' && <DisplayScreen connection={state.connection} screenId={state.screenId} />}
+      {state.stage === 'displaying' && (
+        <>
+          <DisplayScreen connection={state.connection} screenId={remoteNav.renderScreenId ?? state.screenId} />
+          <RemoteNavHud hud={remoteNav.hud} />
+        </>
+      )}
     </View>
   )
 }

@@ -5,3 +5,7 @@ ios/
 
 # Build output of `npm run build:tv` — versioned APKs, not source.
 dist/
+
+# expo-updates code signing — see codeSigning/CODE_SIGNING.md for why only the private key (not
+# the certificate) is gitignored, unlike keystore/release.keystore which is fully committed.
+codeSigning/private-key.pem

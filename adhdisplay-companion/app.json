@@ -2,7 +2,7 @@
   "expo": {
     "name": "ADHDisplay Companion",
     "slug": "adhdisplay-companion",
-    "version": "0.2.12",
+    "version": "0.2.22",
     "orientation": "landscape",
     "userInterfaceStyle": "dark",
     "icon": "./assets/icon.png",
@@ -43,7 +43,12 @@
       "./plugins/withBootLaunch.js",
       "./plugins/withLeanbackManifest.js",
       "./plugins/withReleaseSigning.js",
+      "./plugins/withDeviceAdmin.js",
+      "./plugins/withPackageInstaller.js",
+      "./plugins/withLockTask.js",
+      "./plugins/withKeyEventBridge.js",
       "expo-asset",
+      "expo-updates",
       [
         "expo-build-properties",
         {
@@ -52,6 +57,19 @@
           }
         }
       ]
-    ]
+    ],
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_ERROR_RECOVERY",
+      "url": "http://localhost:4000/updates/manifest",
+      "codeSigningCertificate": "./codeSigning/certificate.pem",
+      "codeSigningMetadata": {
+        "keyid": "main",
+        "alg": "rsa-v1_5-sha256"
+      }
+    }
   }
 }

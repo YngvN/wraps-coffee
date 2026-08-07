@@ -127,12 +127,25 @@ export function flushPendingMirrors() {
   }
 }
 
+/**
+ * Recurses into subdirectories rather than skipping them — `createBackupZip`
+ * (via `addLocalFolder`) and `mirrorFile` (a plain per-path copy, agnostic
+ * to depth) both already handle nested paths under `DATA_DIR`/`UPLOADS_DIR`
+ * correctly, so a non-recursive restore here used to be the one place a
+ * subdirectory (e.g. `server/data/updates/`, see `server/updates.ts`) would
+ * go INTO a backup zip but silently not come back OUT on restore. No
+ * `BACKUP_FORMAT_VERSION` bump needed for this fix specifically — it's
+ * strictly additive (every flat-file backup taken before this change still
+ * restores exactly as it did before), which is exactly the "usually it
+ * wouldn't" case this constant's own comment already describes.
+ */
 function copyDirContents(sourceDir: string, destDir: string) {
   mkdirSync(destDir, { recursive: true })
   for (const name of readdirSync(sourceDir)) {
     const sourcePath = join(sourceDir, name)
-    if (statSync(sourcePath).isDirectory()) continue
-    copyFileSync(sourcePath, join(destDir, name))
+    const destPath = join(destDir, name)
+    if (statSync(sourcePath).isDirectory()) copyDirContents(sourcePath, destPath)
+    else copyFileSync(sourcePath, destPath)
   }
 }
 

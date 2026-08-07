@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { FetchedLogo, YrLogo } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useCatalogues } from '../../../hooks/useCatalogues'
+import { useDisplayMachines } from '../../../hooks/useDisplayMachines'
 import { useDisplayPairingRequests } from '../../../hooks/useDisplayPairingRequests'
+import { connectionBadgeId } from '../displayManager/connectionBadge'
 import { useEvents } from '../../../hooks/useEvents'
 import { useMessageBoardPosts } from '../../../hooks/useMessageBoardPosts'
 import { useMessageBoards } from '../../../hooks/useMessageBoards'
@@ -42,6 +44,7 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
   const [boards] = useMessageBoards()
   const [posts] = useMessageBoardPosts()
   const [pairingRequests] = useDisplayPairingRequests()
+  const [machines] = useDisplayMachines()
 
   // Users are server-side and session-gated (a `limited` account gets a
   // 403), not one of the synced localStorage hooks above — fetched the
@@ -227,6 +230,19 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
       url: `/admin/dashboard/screens?displayManager=1&pendingMachineId=${request.machineID}`,
     }))
 
+    // Findable by name (its own self-reported label, or an admin's rename) and lands on the
+    // machine's own card in the regular grid via `?updateMachineId=` — see `DisplayManagerView.tsx`'s
+    // own deep-link effect for that param. Every machine, not just `mobile` ones, since this is
+    // "find a display by name" generally, not specifically an update-channel search.
+    const displayMachineEntries: SearchResultEntry[] = machines.map((machine) => ({
+      id: `displayMachine:${machine.machineID}`,
+      type: 'displayMachine',
+      title: machine.customLabel ?? machine.label,
+      subtitle: t(connectionBadgeId(machine.connectionType)),
+      keywords: [],
+      url: `/admin/dashboard/screens?displayManager=1&updateMachineId=${machine.machineID}`,
+    }))
+
     const navSectionEntries: SearchResultEntry[] = NAV_ITEMS.filter((item) => !item.adminOnly || session?.role !== 'limited').map((item) => {
       const NavIcon = ADMIN_NAV_ICONS[item.to]
       return {
@@ -280,8 +296,9 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
       ...messageBoardPostEntries,
       ...userEntries,
       ...pairingRequestEntries,
+      ...displayMachineEntries,
       ...navSectionEntries,
       ...settingsPageEntries,
     ]
-  }, [catalogues, products, events, screens, boards, posts, users, pairingRequests, language, t, session])
+  }, [catalogues, products, events, screens, boards, posts, users, pairingRequests, machines, language, t, session])
 }

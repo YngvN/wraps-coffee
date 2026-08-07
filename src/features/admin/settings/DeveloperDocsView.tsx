@@ -30,6 +30,8 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.displayMachines', descKey: 'admin.settings.developerDocs.keyDisplayMachines' },
   { key: 'admin.displayMachineCloseRequests', descKey: 'admin.settings.developerDocs.keyDisplayMachineCloseRequests' },
   { key: 'admin.displayPairingRequests', descKey: 'admin.settings.developerDocs.keyDisplayPairingRequests' },
+  { key: 'admin.displayUpdateState', descKey: 'admin.settings.developerDocs.keyDisplayUpdateState' },
+  { key: 'admin.displayScreenOverride', descKey: 'admin.settings.developerDocs.keyDisplayScreenOverride' },
   { key: 'admin.integrations', descKey: 'admin.settings.developerDocs.keyIntegrations' },
   { key: 'admin.sidebarSettings', descKey: 'admin.settings.developerDocs.keySidebarSettings' },
   { key: 'admin.orders', descKey: 'admin.settings.developerDocs.keyOrders' },
@@ -274,10 +276,18 @@ DELETE /uploads/<filename>        (Authorization: Bearer <token>)
         <p>{t('admin.settings.developerDocs.displayManagerIntro')}</p>
         <pre>
           <code>{`POST /display-machines/heartbeat  (public — no token needed, same LAN-trust posture as /server-info)
-{ "machineID": "...", "label": "...", "connectionType": "electron" | "url" | "mobile", "monitors": [{ "id": "...", "label": "..." }] }
+{ "machineID": "...", "label": "...", "connectionType": "electron" | "url" | "mobile", "monitors": [{ "id": "...", "label": "..." }],
+  "versionCode"?: number, "versionName"?: string, "runtimeVersion"?: string, "updateId"?: string | null,
+  "isEmbeddedLaunch"?: boolean, "updateTier"?: 1 | 2 | 3 }
 → 200 { "ok": true, "monitors": [{ "id", "label", "assignedScreenID" }], "customLabel": "..." | null }
 → 400 { "error": "..." }   (malformed body)
 → 409 { "error": "not paired", "needsPairing": true }   ("mobile" only, machineID isn't an approved admin.displayMachines entry yet)
+
+The versionCode/versionName/runtimeVersion/updateId/isEmbeddedLaunch/updateTier fields are only ever
+sent by "mobile" (ADHDisplay Companion) — see the Update Channel spec's §5.2. Overwritten unconditionally
+on every heartbeat, same as "label"; absent stays absent rather than falling back to a previous value, so
+a display that stops reporting these (or never did) is visibly "unknown" in Display Manager rather than
+looking current — see resolveDisplayUpdateState in src/utils/displayUpdateState.ts.
 
 Upserts by machineID into admin.displayMachines (a regular synced key, see Live data above) —
 preserves each existing monitor's own assignedScreenID (matched by monitor id) and the machine's
@@ -331,6 +341,100 @@ Looks up the pending request directly by the URL's machineID (no cross-matching 
 clicking the specific card for the specific device) and moves it into a real admin.displayMachines
 entry (connectionType: "mobile", one synthetic monitor, id "device"), removing it from
 admin.displayPairingRequests.`}</code>
+        </pre>
+      </Card>
+
+      <Card title={t('admin.settings.developerDocs.updateChannelTitle')}>
+        <p>{t('admin.settings.developerDocs.updateChannelIntro')}</p>
+        <pre>
+          <code>{`GET /updates/manifest             (public — no token needed, the Expo Updates Protocol v1 endpoint
+                                    "expo-updates" itself polls, not a route this app's own code calls)
+Request headers: expo-protocol-version: 1, expo-platform: android, expo-runtime-version: "...",
+                  expo-current-update-id: "..." (optional — the update the client is currently running)
+→ 200, Content-Type: multipart/mixed — either a "manifest" part (a new update to fetch and apply) or a
+  "directive" part { "type": "noUpdateAvailable" } (nothing published for this runtime version yet, or
+  the client is already running what this hub would serve)
+→ 400 { "error": "..." }   (missing/unsupported protocol headers)
+
+GET /updates/assets/<hash>?runtimeVersion=&updateId=&path=   (public, same posture as above)
+→ 200, the asset/bundle's own bytes, Content-Type from its own published metadata, cached immutably
+→ 404 { "error": "..." }   (unknown update, or the hash doesn't match the file on disk)
+
+GET /updates/apk/current           (public, same posture as above)
+→ 200, Content-Type: application/vnd.android.package-archive — whatever current-apk.json points at,
+  cached immutably (a new native release always gets a new versionCode and its own new file)
+→ 404 { "error": "..." }   (no current APK published, or its file isn't on disk)
+Downloaded by a Tier 2/3 (device-owner / install-unknown-apps) companion device's own
+PackageInstallerModule.kt, which verifies the downloaded bytes' own signing certificate against its
+build-time-embedded expectation before installing — this route itself attaches no signature.
+
+POST /updates/rollback             (Authorization: Bearer <token>, "displaymanager" section)
+{ "runtimeVersion": "...", "rolledBack": boolean }
+→ 200 { "ok": true }
+→ 400 { "error": "..." }   (malformed body)
+Flips one runtime version's rollback pin (server/updates.ts's setRollbackFlag) and immediately
+pushes every currently-known display on that exact runtime version toward whatever this hub now
+serves for it — spec §2.6: rollback is "serving the prior manifest and pushing the reload trigger,"
+not a passive flag an admin has to separately re-trigger per device.
+
+GET /updates/status                (Authorization: Bearer <token> — any authenticated session)
+→ 200 { "currentApk": { "versionCode", "versionName", "runtimeVersion" } | null,
+         "currentUpdateIdByRuntimeVersion": { "<runtimeVersion>": "<updateId>", ... },
+         "rolledBackRuntimeVersions": ["<runtimeVersion>", ...] }
+
+Mechanism dispatch: when Display Manager writes a new admin.displayUpdateState entry for a machine
+(the update button or the staged bulk queue), the hub decides check-update (Tier 1, OTA) vs
+install-update (Tier 2/3, APK) purely from that machine's own current updateTier field on
+admin.displayMachines — never from anything the client wrote (see pushUpdateTriggersForNewEntries
+in server/index.ts). A pending run completes the moment a later heartbeat reports the exact
+updateId (OTA) or versionCode (APK) the hub pushed it toward; 10 minutes without that match marks
+it update-failed (no automatic retry).
+
+Publishing is out-of-band — this hub only serves. A build process drops a published update's own
+files under server/data/updates/bundles/<runtimeVersion>/<updateId>/ (a metadata.json plus the actual
+bundle/asset files it describes) and, for a new native release, both writes
+server/data/updates/current-apk.json and drops the APK itself at
+server/data/updates/apk/<versionCode>.apk — none of this is a route on this server, so there's
+deliberately no publish endpoint here. "Current" and "previous" per runtime version
+are just the newest and second-newest published folders by their own createdAt, unless Display
+Manager's own "revert to previous update" action has pinned that runtime version back (see
+server/updates.ts's setRollbackFlag) — retention beyond current+previous is the publish process's own
+job to prune, not enforced by this server.`}</code>
+        </pre>
+
+        <p>{t('admin.settings.developerDocs.updateChannelSocketText')}</p>
+        <pre>
+          <code>{`ws://<this page's hostname>:4000   (same socket the Sync/WS card above uses — a companion device's
+                                     own connection is distinguished purely by sending "device-hello"
+                                     first, never "hello"/"write"; see server/deviceSocket.ts)
+
+Device → hub:
+{ "type": "device-hello", "machineID": "..." }
+  Sent once per connection/reconnect, no token — same LAN-trust posture as the heartbeat route (this
+  machineID must already be an approved admin.displayMachines entry). The hub replies immediately
+  with this device's own current "navigable-set" and "effective-screen" (both below).
+
+{ "type": "screen-override", "screenId": "..." }
+  Sent once, on the remote's own OK press committing a screen selection (Remote Screen Navigation
+  spec §D1) — never per-keypress while browsing. No machineID field: the hub identifies the sender
+  from its own device-hello registration, not a client-supplied id. Writes admin.displayScreenOverride
+  and echoes "effective-screen" back once committed.
+
+Hub → device:
+{ "type": "check-update" }                       (Tier 1 — see the mechanism-dispatch note above)
+{ "type": "install-update", "mechanism": "apk" }  (Tier 2/3 — see the mechanism-dispatch note above)
+{ "type": "navigable-set", "screens": [{ "screenId", "name" }, ...] }
+  Every published screen this device may browse to — hub-decided, never client-enumerated (so a
+  café unit can't browse to another venue's screen or an unpublished draft). Pushed on device-hello
+  and again whenever admin.screens itself changes, to every currently-connected device.
+{ "type": "effective-screen", "screenId": "..." | null }
+  What this device should actually be showing right now — admin.displayScreenOverride's own entry
+  for this machine if one exists, else its normal admin.displayMachines assignment, else null (shows
+  the standby screensaver). See resolveEffectiveScreen in server/index.ts — this is the *only* place
+  that precedence is decided; the device never chooses between the two itself. Pushed on
+  device-hello and again whenever whichever of the two currently applies actually changes — an
+  admin's own assignment write always wins over a standing override (clearing it) if both would
+  otherwise apply, per spec §D1's writer precedence.`}</code>
         </pre>
       </Card>
 
