@@ -7,10 +7,17 @@ name: Build ADHDisplay Companion installers
 # "Windows & Linux" and "Building an APK" sections. Produces one
 # ADHDisplayCompanionInstallers.zip containing the Companion app's Windows
 # installer (an Electron kiosk shell wrapping its Expo web export) and its
-# Android APK (debug-signed, for direct sideloading) - split across two
-# build jobs so the Windows-only tooling (Inno Setup) and the Android-only
-# tooling (JDK/Android SDK) each run on the runner best suited for them, then
-# zipped together in a final job.
+# Android APK (signed release build via `npm run build:tv`, for direct
+# sideloading) - split across two build jobs so the Windows-only tooling
+# (Inno Setup) and the Android-only tooling (JDK/Android SDK) each run on the
+# runner best suited for them, then zipped together in a final job.
+#
+# The Android job must produce a release build, not debug: a debug build has
+# no JS bundled in and expects a Metro dev server reachable at localhost on
+# the device itself, so it just shows a black screen forever on any TV that
+# isn't USB-tethered to a running `expo start` - see `npm run build:tv`
+# (scripts/build-tv-apk.js) for the actual release build/signing steps this
+# job runs.
 on:
   workflow_dispatch: {}
 
@@ -69,19 +76,15 @@ jobs:
           npm install
           npx expo install --fix
 
-      - name: Prebuild native Android project
+      - name: Build release APK
         working-directory: adhdisplay-companion
-        run: npx expo prebuild -p android
-
-      - name: Build debug APK
-        working-directory: adhdisplay-companion/android
-        run: ./gradlew assembleDebug
+        run: npm run build:tv
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: adhdisplay-companion/android/app/build/outputs/apk/debug/app-debug.apk
+          path: adhdisplay-companion/dist/*.apk
 
   package:
     needs: [build-windows-installer, build-android-apk]
@@ -100,7 +103,10 @@ jobs:
           path: installers
 
       - name: Rename APK for clarity alongside the .exe installer
-        run: mv installers/app-debug.apk installers/ADHDisplayCompanionSetup.apk
+        # build:tv names the APK adhdisplay-companion-<version>-<versionCode>.apk
+        # (see scripts/build-tv-apk.js) - matched by glob since the exact
+        # version/versionCode varies per run.
+        run: mv installers/adhdisplay-companion-*.apk installers/ADHDisplayCompanionSetup.apk
 
       # No manual `zip` step here - actions/upload-artifact already zips
       # whatever files it's given for download. Zipping them ourselves first

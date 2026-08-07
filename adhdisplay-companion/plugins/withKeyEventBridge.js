@@ -14,28 +14,32 @@
 // (`withBootLaunch.js`, `withReleaseSigning.js`: patch generated native
 // source rather than pull in a different toolchain).
 //
-// Deliberately narrow: only KEYCODE_DPAD_UP/DOWN/CENTER are intercepted
-// and consumed; every other key — critically, KEYCODE_BACK — always falls
-// through to `super.dispatchKeyEvent(event)` untouched. This is the fix
-// for a real bug an earlier draft of this plan had: `dispatchKeyEvent`
-// sees BACK before it ever reaches `ReactActivity`'s own `onBackPressed()`-
-// driven `BackHandler` flow, so a bridge that swallowed BACK too would
-// silently break `App.tsx`'s existing triple-back disconnect gesture. Back
-// handling during remote-nav browse mode (commit 10b) stays entirely in
-// that JS-level `BackHandler` listener, never here.
+// Deliberately narrow: only KEYCODE_DPAD_UP/DOWN/CENTER are intercepted at
+// all; every other key — critically, KEYCODE_BACK — always falls through
+// to `super.dispatchKeyEvent(event)` untouched. This is the fix for a real
+// bug an earlier draft of this plan had: `dispatchKeyEvent` sees BACK
+// before it ever reaches `ReactActivity`'s own `onBackPressed()`-driven
+// `BackHandler` flow, so a bridge that swallowed BACK too would silently
+// break `App.tsx`'s existing triple-back disconnect gesture. Back handling
+// during remote-nav browse mode (commit 10b) stays entirely in that
+// JS-level `BackHandler` listener, never here.
 //
-// PROVISIONAL — this is the single highest-risk unknown in the whole
-// Update Channel / Remote Screen Navigation plan, for a more fundamental
-// reason than most other provisional items here: it's not just "does this
-// work correctly," it's "does the event-delivery mechanism exist at all."
-// Two things are unverified without the actual Toshiba/Vestel hardware:
-// (1) do D-pad events reach the Activity at all while the WebView holds
-// focus, or does the WebView swallow them first; (2) does KEYCODE_BACK
-// still reach the existing BackHandler after this bridge is installed (the
-// no-consume design above should guarantee this, but "should" isn't
-// "verified on-device"). See this repo's own plan file for the exact adb
-// commands to run once a unit is connected via USB — that verification
-// has NOT been run as part of writing this code.
+// Always forwards to `super.dispatchKeyEvent(event)` (in addition to
+// emitting to JS), rather than consuming DPAD_UP/DOWN/CENTER outright.
+// Confirmed on real Android TV hardware (2026-08-07, Xiaomi Mi TV,
+// `no.adhdisplay.companion`): an earlier version of this method returned
+// `true` unconditionally for these three keycodes, intending only to stop
+// them reaching `DisplayScreen`'s own WebView. But `dispatchKeyEvent` is an
+// Activity-level override — it sees every key press on every screen this
+// Activity ever shows, not just `DisplayScreen`. That version silently
+// broke normal Android focus/click navigation everywhere else in the app
+// (`ServerSetupScreen`, `PairingScreen`, ...), since a `Pressable`'s
+// `onPress` never fires without the native click that `super.dispatchKeyEvent`
+// normally produces — verified via `adb shell input keyevent
+// KEYCODE_DPAD_CENTER` against the "Connect" button doing nothing.
+// Forwarding to super fixes every native-RN screen; `DisplayScreen`'s own
+// WebView not receiving a "consumed" event is harmless in practice since
+// nothing in it listens for D-pad key events.
 //
 // Only affects the Android prebuild; written fresh into android/ on every
 // prebuild, not checked in. Written in plain CommonJS, same reason as
@@ -59,11 +63,14 @@ const DISPATCH_KEY_EVENT_IMPORTS =
 const DISPATCH_KEY_EVENT_METHOD = `  /**
    * Bridges D-pad up/down/select to JS as "onRemoteKeyEvent" (Remote Screen
    * Navigation, commit 10b) — see plugins/withKeyEventBridge.js's own doc
-   * comment for why this exists and why KEYCODE_BACK is deliberately never
-   * touched here. event.repeatCount == 0 drops a held key's own
-   * auto-repeat events rather than spamming JS with them; the OK-commit
-   * gate in the JS state machine is what actually matters for correctness,
-   * this is just about not flooding the bridge.
+   * comment for why this exists, why KEYCODE_BACK is deliberately never
+   * touched here, and why this always falls through to
+   * super.dispatchKeyEvent(event) instead of consuming these keycodes
+   * (consuming them broke normal button navigation on every native-RN
+   * screen). event.repeatCount == 0 drops a held key's own auto-repeat
+   * events rather than spamming JS with them; the OK-commit gate in the JS
+   * state machine is what actually matters for correctness, this is just
+   * about not flooding the bridge.
    */
   override fun dispatchKeyEvent(event: KeyEvent): Boolean {
     val keyName = when (event.keyCode) {
@@ -72,14 +79,11 @@ const DISPATCH_KEY_EVENT_METHOD = `  /**
       KeyEvent.KEYCODE_DPAD_CENTER -> "select"
       else -> null
     }
-    if (keyName != null) {
-      if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-        val reactContext = (application as ReactApplication).reactNativeHost.reactInstanceManager.currentReactContext
-        if (reactContext is ReactContext) {
-          reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java).emit("onRemoteKeyEvent", keyName)
-        }
+    if (keyName != null && event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+      val reactContext = (application as ReactApplication).reactNativeHost.reactInstanceManager.currentReactContext
+      if (reactContext is ReactContext) {
+        reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java).emit("onRemoteKeyEvent", keyName)
       }
-      return true // consume both DOWN and UP for these keycodes so neither reaches the WebView underneath
     }
     return super.dispatchKeyEvent(event)
   }
