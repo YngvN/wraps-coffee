@@ -45,3 +45,12 @@ installer/node-lts-x64.msi
 # Expo CLI's own cache directory (adhdisplay-companion/), created by
 # `expo start`/`expo export`.
 .expo
+
+# Pane-resize-stutter diagnostic tooling's own captured output (traces, parsed JSON, report.md) — see
+# diagnostics/pane-resize-stutter/README.md. The tooling itself is committed; only its results aren't.
+diagnostics/pane-resize-stutter/results/*
+!diagnostics/pane-resize-stutter/results/.gitkeep
+
+# Timestamped backups seedClient.ts makes of server/data/*.json before its first write — throwaway
+# safety copies, not meant to be committed.
+server/data/*.diagbak

@@ -16,11 +16,29 @@ set "APPDIR=%~dp0"
 cd /d "%APPDIR%"
 if not exist logs mkdir logs
 
+rem %~dp0 always has a trailing backslash. That's fine inside "%APPDIR%file"
+rem style paths, but passing it as the very last thing before a closing quote
+rem (e.g. "%APPDIR%" with nothing after it) is a classic Windows argv-parsing
+rem trap: a lone backslash immediately before a closing " is read as an
+rem escaped literal quote, not the end of the argument, which corrupts
+rem everything parsed after it. APPDIR_NOSLASH exists for exactly those
+rem trailing-argument spots (see -AppDir below).
+set "APPDIR_NOSLASH=%APPDIR:~0,-1%"
+
 set "ADHDISPLAY_URL=http://localhost:4173/admin/login"
 
 echo Starting ADHDisplay...
 call :start_ollama
 call :start_server
+
+rem Tray icon is tied to the server's own lifecycle, not to whichever kiosk
+rem window mode gets picked below - it's launched once here, from the
+rem top-level script body, rather than from :start_server (which
+rem :server_watchdog also calls again on every automatic restart - launching
+rem it there would spawn a new tray icon on every single restart). It keeps
+rem running even if the Electron/Edge window is later closed manually while
+rem the server stays up.
+wscript.exe //B "%APPDIR%run-hidden.vbs" "%APPDIR%launch-tray.bat"
 
 echo Waiting for the local server to respond...
 call :wait_until_healthy
@@ -60,24 +78,40 @@ echo.
 echo Watching the server - this window can be closed at any time, the app keeps running.
 :server_watchdog
 timeout /t 10 /nobreak >nul
-call :check_health
-if errorlevel 1 (
-  rem One missed check could just be a slow response, not a crash - confirm
-  rem before restarting anything.
-  timeout /t 5 /nobreak >nul
+
+rem Checked every iteration, in addition to the health-check failures below -
+rem lets the tray helper's "Restart Server" action (see tray-helper.ps1) ask
+rem for an immediate restart without waiting for two full health-check
+rem failures. The tray only writes this sentinel *after* confirming the
+rem server's ports are actually free (via adhdisplay-control.ps1's own bounded
+rem poll), so by the time it's seen here a relaunch is safe - re-checking
+rem health first anyway, rather than relaunching unconditionally, covers the
+rem case where something else already recovered the server in the meantime.
+set "NEEDS_RESTART=0"
+if exist "%APPDIR%logs\.restart-requested" (
+  del /f /q "%APPDIR%logs\.restart-requested" >nul 2>&1
+  call :check_health
+  if errorlevel 1 set "NEEDS_RESTART=1"
+) else (
   call :check_health
   if errorlevel 1 (
-    echo Server isn't responding, restarting it...
-    rem Scoped to whatever's actually bound to this app's own ports
-    rem (4000/4173) rather than every node.exe on the machine - a plain
-    rem "taskkill /IM node.exe" used to also kill unrelated Node processes
-    rem someone else might be running on this PC. Electron shows up as
-    rem electron.exe, not node.exe, so this still can't touch the app window
-    rem either way.
-    powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 4000,4173 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }" >nul 2>&1
-    call :start_server
-    call :wait_until_healthy
+    rem One missed check could just be a slow response, not a crash - confirm
+    rem before restarting anything.
+    timeout /t 5 /nobreak >nul
+    call :check_health
+    if errorlevel 1 set "NEEDS_RESTART=1"
   )
+)
+
+if "%NEEDS_RESTART%"=="1" (
+  echo Server isn't responding, restarting it...
+  rem Delegates to the same shared stop script the installer/uninstaller use
+  rem (adhdisplay-control.ps1), rather than a separate copy of the same
+  rem port-matching logic - scoped to whatever's actually bound to this app's
+  rem own ports (4000/4173) rather than every node.exe on the machine.
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%APPDIR%adhdisplay-control.ps1" -Action StopServer -AppDir "%APPDIR_NOSLASH%" >nul 2>&1
+  call :start_server
+  call :wait_until_healthy
 )
 goto server_watchdog
 
@@ -121,15 +155,20 @@ if not errorlevel 1 goto :eof
 where ollama >nul 2>&1
 if errorlevel 1 goto :eof
 echo Starting Ollama...
-start "ADHDisplayOllama" /min cmd /c "ollama serve >> logs\ollama.log 2>&1"
+rem Launched fully hidden (via run-hidden.vbs, see its own header comment for
+rem why not `powershell -WindowStyle Hidden`) rather than `start ... /min`,
+rem which only minimizes the window - still a visible taskbar entry on what's
+rem meant to be a clean kiosk display.
+wscript.exe //B "%APPDIR%run-hidden.vbs" "%APPDIR%launch-ollama.bat"
 goto :eof
 
 :start_server
 rem preview:kiosk (package.json) is "npm run preview" plus --kill-others, so the
-rem frontend static server and the WS backend live and die together. Calling
-rem the npm script (rather than inlining concurrently's own quoted arguments
-rem here) avoids nested-quote parsing that cmd.exe handles unreliably.
-start "ADHDisplayServer" /min cmd /c "npm run preview:kiosk >> logs\server.log 2>&1"
+rem frontend static server and the WS backend live and die together. The
+rem actual command lives in launch-server.bat (kept as its own file rather
+rem than inlined here so run-hidden.vbs only ever needs to pass through a
+rem plain file path, not a compound command containing redirection).
+wscript.exe //B "%APPDIR%run-hidden.vbs" "%APPDIR%launch-server.bat"
 goto :eof
 
 :wait_until_healthy

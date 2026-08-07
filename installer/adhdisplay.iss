@@ -7,6 +7,10 @@
 ; Before compiling, download the Node.js LTS Windows x64 installer from
 ; https://nodejs.org/en/download and place it next to this file renamed to
 ; node-lts-x64.msi (not committed to the repo — it's a large third-party binary).
+; Ollama's own installer is NOT bundled the same way — it's downloaded to {tmp}
+; at install time instead (see CurStepChanged), since embedding it in [Files]
+; would ship it inside ADHDisplaySetup.exe for every downloader regardless of
+; whether the "Install Ollama" task ends up selected.
 
 #define AppName "ADHDisplay"
 #define AppExeName "start-adhdisplay.bat"
@@ -24,7 +28,7 @@ AppName={#AppName}
 ; Must stay in sync with the root package.json's own "version" field (see
 ; CLAUDE.md's Versioning rule) - bumped together, in the same change, on
 ; every completed change.
-AppVersion=0.2.22
+AppVersion=0.2.23
 AppPublisher=ADHDisplay
 DefaultDirName=C:\ADHDisplay
 DisableDirPage=no
@@ -36,6 +40,12 @@ OutputBaseFilename=ADHDisplaySetup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=adhdisplay.ico
+UninstallDisplayIcon={uninstallexe}
+; ~1.5 GB on top of the source files Inno's own estimate already covers, for
+; node_modules + dist (neither is shipped in [Files] - both are generated on
+; the target machine by npm install / npm run build below).
+ExtraDiskSpaceRequired=1610612736
 
 [Files]
 Source: "..\src\*"; DestDir: "{app}\src"; Flags: recursesubdirs ignoreversion
@@ -52,7 +62,23 @@ Source: "..\index.html"; DestDir: "{app}"; Flags: ignoreversion
 Source: "start-adhdisplay.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "open-in-browser.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "print-qr.cjs"; DestDir: "{app}"; Flags: ignoreversion
+Source: "run-hidden.vbs"; DestDir: "{app}"; Flags: ignoreversion
+Source: "launch-server.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "launch-ollama.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "launch-tray.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "pull-ollama-models.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "tray-helper.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "adhdisplay.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "node-lts-x64.msi"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: not NodeIsInstalled
+; Two entries for the same source: the {app} copy is what the batch watchdog
+; and tray helper call at runtime once installed; the {tmp}/dontcopy one is
+; pulled on demand via ExtractTemporaryFile from [Code] at CurStepChanged's
+; ssInstall step, since that runs *before* Inno's own automatic extraction of
+; the {app} copy above - without this, there'd be nothing on disk yet (fresh
+; install) or only the previous version's copy (upgrade) for that early stop
+; call to actually run.
+Source: "adhdisplay-control.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "adhdisplay-control.ps1"; DestDir: "{tmp}"; Flags: dontcopy
 
 ; Ensure these exist even though their gitignored contents are excluded above —
 ; the local server writes into them on first boot (see server/store.ts / uploads.ts).
@@ -60,85 +86,25 @@ Source: "node-lts-x64.msi"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: 
 Name: "{app}\server\data"
 Name: "{app}\server\uploads"
 
+[InstallDelete]
+; Cleans up shortcuts left over from before the {autoprograms} -> {group} fix
+; below (an "Update" install no longer invokes the old uninstaller - see the
+; corrected InitializeSetup/CurStepChanged split - which used to be the only
+; thing that would have removed these on an upgrade).
+Type: files; Name: "{autoprograms}\{#AppName}.lnk"
+Type: files; Name: "{autoprograms}\{#AppName} (Open in Browser).lnk"
+Type: files; Name: "{autoprograms}\Uninstall {#AppName}.lnk"
+Type: files; Name: "{autodesktop}\{#AppName}.lnk"
+
 [Code]
+var
+  PriorInstallDetected: Boolean;
+  PriorDisplayVersion: String;
+  UpdateChoicePage: TInputOptionWizardPage;
+
 function NodeIsInstalled: Boolean;
 begin
   Result := RegKeyExists(HKLM, 'SOFTWARE\Node.js');
-end;
-
-// Stops this app's own running processes so neither an in-place update/repair
-// nor a full uninstall runs into locked files - scoped to the app's own ports
-// (4000 = the sync server, 4173 = vite preview) rather than a blanket "kill
-// every node.exe on this machine", which would also take down unrelated Node
-// processes. Tries a plain Stop-Process first (lets the server's own
-// SIGTERM-equivalent graceful shutdown - see server/index.ts's shutdown() -
-// run) and only falls back to -Force if something's still listening a moment
-// later. Also used by [UninstallRun] below (as plain commands there, since
-// that section can't call into this script's own Pascal procedures).
-//
-// The Electron window is killed separately, scoped to *this app's own*
-// electron.exe by full path rather than a blanket "taskkill /IM electron.exe"
-// (which this used to be) - the ADHDisplay Companion app (see
-// adhdisplay-companion.iss) uses the exact same unbranded Electron binary
-// name, so an unscoped kill here would also take down a running Companion
-// window if both apps are ever installed on the same machine.
-procedure StopRunningProcesses();
-var
-  ResultCode: Integer;
-begin
-  Exec('powershell.exe',
-    '-NoProfile -Command "' +
-    '$ids = Get-NetTCPConnection -LocalPort 4000,4173 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; ' +
-    'foreach ($procId in $ids) { Stop-Process -Id $procId -ErrorAction SilentlyContinue }; ' +
-    'Start-Sleep -Milliseconds 1500; ' +
-    '$ids = Get-NetTCPConnection -LocalPort 4000,4173 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique; ' +
-    'foreach ($procId in $ids) { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue }"',
-    '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Exec('powershell.exe',
-    '-NoProfile -Command "' +
-    '$path = ' + #39 + ExpandConstant('{app}') + '\node_modules\electron\dist\electron.exe' + #39 + '; ' +
-    '$ids = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq ' + #39 + 'electron.exe' + #39 + ' -and $_.ExecutablePath -eq $path } | Select-Object -ExpandProperty ProcessId; ' +
-    'foreach ($procId in $ids) { Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue }"',
-    '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-end;
-
-// Runs before the wizard even shows its first page. Without this, running the
-// installer again just overwrites the existing install's files in place with
-// no warning - which is fine for the app files themselves (ignoreversion), but
-// silently re-runs the full "install Node/npm install/npm build" sequence
-// every time and gives no chance to cleanly remove a previous install first,
-// or to stop the running app before touching its own files.
-function InitializeSetup(): Boolean;
-var
-  UninstallString: String;
-  InstalledVersion: String;
-  ResultCode: Integer;
-begin
-  Result := True;
-  if RegQueryStringValue(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{E4B0C442-1B1D-4B7A-9C2E-2D6D6E9E5A11}_is1', 'UninstallString', UninstallString) then
-  begin
-    case MsgBox('ADHDisplay is already installed.' + #13#10 + #13#10 +
-      'Click Yes to uninstall the existing version first (recommended), or No to install over it as-is.',
-      mbConfirmation, MB_YESNOCANCEL) of
-      IDYES:
-        // Update in place - stop whatever's running so files aren't locked,
-        // then fall through to the normal install steps below
-        // (CurStepChanged), which already overwrite [Files] (ignoreversion)
-        // and re-run npm install / npm run build. Data (server\data,
-        // server\uploads) is excluded from [Files], so it's untouched.
-        // Tick the "repair" task (see [Tasks] below) on the next wizard page
-        // for a clean node_modules/dist wipe too, if a plain update alone
-        // doesn't fix a broken install.
-        StopRunningProcesses();
-      IDNO:
-        begin
-          UninstallString := RemoveQuotes(UninstallString);
-          Exec(UninstallString, '/SILENT /NORESTART /SUPPRESSMSGBOXES', '', SW_SHOW, ewWaitUntilTerminated, ResultCode);
-        end;
-      IDCANCEL:
-        Result := False;
-    end;
-  end;
 end;
 
 // Used to call npm/node by full path rather than relying on PATH, since a
@@ -158,19 +124,199 @@ begin
     Result := ExpandConstant('{pf}') + '\nodejs\';
 end;
 
-// Node install / npm install / npm run build / scheduled-task registration
-// used to be plain [Run] entries, but Inno's [Run] section does not check
-// exit codes - if any of these failed, Setup silently moved on and reported
-// "completed successfully" regardless, leaving an install with no dist/ and
-// no node_modules and no way to tell why. Running them here via Exec lets
-// each one's exit code actually be checked and surfaced.
+// INFERRED default per-user install location for Ollama's own Windows
+// installer - not independently confirmed against a real OllamaSetup.exe run;
+// confirm during implementation/testing and adjust here (and in
+// pull-ollama-models.bat, and in CurUninstallStepChanged below) if it turns
+// out different.
+function OllamaBinDir: String;
+begin
+  Result := ExpandConstant('{localappdata}') + '\Programs\Ollama\';
+end;
+
+function OllamaIsInstalled: Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := FileExists(OllamaBinDir + 'ollama.exe');
+  if not Result then
+    Result := Exec('where.exe', 'ollama.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+end;
+
+function OllamaWasInstalledByADHDisplay: Boolean;
+begin
+  Result := FileExists(ExpandConstant('{app}\.ollama-installed-by-adhdisplay'));
+end;
+
+// Best-effort reachability probe so a machine with no internet connection
+// finds out before the multi-minute npm install / npm run build / Ollama
+// download steps, rather than discovering it only after one of them fails.
+// Warns rather than aborting, since npm install can in rare cases still
+// succeed off a local cache.
+function HasInternetConnection: Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := Exec('powershell.exe',
+    '-NoProfile -Command "try { Invoke-WebRequest -Uri ''https://nodejs.org'' -UseBasicParsing -TimeoutSec 5 -Method Head | Out-Null; exit 0 } catch { exit 1 }"',
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+end;
+
+// Pulls one dot-separated numeric part off the front of S (mutating S to the
+// remainder) and returns it as an integer, defaulting to 0 for a missing/
+// non-numeric part - used by CompareVersions below.
+function ExtractVersionPart(var S: String): Integer;
+var
+  DotPos: Integer;
+  PartStr: String;
+begin
+  DotPos := Pos('.', S);
+  if DotPos > 0 then
+  begin
+    PartStr := Copy(S, 1, DotPos - 1);
+    S := Copy(S, DotPos + 1, Length(S) - DotPos);
+  end
+  else
+  begin
+    PartStr := S;
+    S := '';
+  end;
+  Result := StrToIntDef(PartStr, 0);
+end;
+
+// Simple dot-separated numeric version compare for this project's own
+// "0.x.n" scheme - no generic semver library needed. Returns -1 if V1 < V2,
+// 0 if equal, 1 if V1 > V2. A shorter version string is treated as
+// zero-padded (e.g. "1.2" < "1.2.1").
+function CompareVersions(V1, V2: String): Integer;
+var
+  N1, N2: Integer;
+begin
+  Result := 0;
+  while (Result = 0) and ((V1 <> '') or (V2 <> '')) do
+  begin
+    N1 := ExtractVersionPart(V1);
+    N2 := ExtractVersionPart(V2);
+    if N1 < N2 then
+      Result := -1
+    else if N1 > N2 then
+      Result := 1;
+  end;
+end;
+
+// Only detects a prior install and reads its version - deliberately does
+// nothing else (no page creation, since the wizard doesn't exist yet at this
+// point; no process stopping, since [Files] under {app} haven't been touched
+// yet either; no invoking the old uninstaller, removed entirely - see the new
+// wizard page below for why). Both moved to where they actually belong:
+// InitializeWizard (page creation) and CurStepChanged's ssInstall step
+// (stopping running processes, right before the file copy that needs them
+// stopped).
+function InitializeSetup(): Boolean;
+begin
+  Result := True;
+  PriorInstallDetected := RegKeyExists(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{E4B0C442-1B1D-4B7A-9C2E-2D6D6E9E5A11}_is1');
+  if PriorInstallDetected then
+  begin
+    RegQueryStringValue(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{E4B0C442-1B1D-4B7A-9C2E-2D6D6E9E5A11}_is1', 'DisplayVersion', PriorDisplayVersion);
+    if (PriorDisplayVersion <> '') and (CompareVersions('{#SetupSetting("AppVersion")}', PriorDisplayVersion) < 0) and not WizardSilent() then
+    begin
+      if MsgBox('The version being installed ({#SetupSetting("AppVersion")}) is older than the version already installed (' + PriorDisplayVersion + ').' + #13#10 + #13#10 +
+        'Continuing will downgrade ADHDisplay. If that is not what you intended, click Cancel and use the current installer instead.',
+        mbConfirmation, MB_OKCANCEL) = IDCANCEL then
+        Result := False;
+    end;
+  end;
+
+  if Result and not HasInternetConnection() and not WizardSilent() then
+    MsgBox('No internet connection was detected. ADHDisplay needs internet access during installation to download Node.js and its dependencies' + #13#10 + #13#10 +
+      '(and, if selected, Ollama and its AI models). Setup will continue, but may fail partway through if the connection isn''t restored.',
+      mbInformation, MB_OK);
+end;
+
+// Replaces the old MsgBox-based Yes/No/Cancel prompt (whose Yes/No labels
+// were actually backwards from what the code did - see CLAUDE.md-tracked plan
+// notes) with a real wizard page offering an unambiguous choice. Neither
+// choice invokes the old installed uninstaller - the existing ignoreversion
+// file overwrite already handles a clean update, and "Clean reinstall" already
+// handles the deeper case by wiping node_modules/dist (formerly the separate
+// "repair" task, now driven by this page's own selection - see
+// WantsCleanReinstall below).
+procedure InitializeWizard();
+begin
+  UpdateChoicePage := CreateInputOptionPage(wpSelectDir,
+    'Existing Installation Found',
+    'ADHDisplay version ' + PriorDisplayVersion + ' is already installed on this machine.',
+    'Choose how you want to proceed, then click Next.',
+    True, False);
+  UpdateChoicePage.Add('Update (recommended) - keep your data, refresh the app files');
+  UpdateChoicePage.Add('Clean reinstall - also rebuild node_modules and dist from scratch');
+  UpdateChoicePage.SelectedValueIndex := 0;
+end;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := False;
+  if PageID = UpdateChoicePage.ID then
+    // Defaults to "Update" and skips the page entirely under /SILENT or
+    // /VERYSILENT, so a scripted/fleet redeploy never blocks waiting for
+    // input it can't provide - matching Finding 7's original diagnosis, now
+    // relocated onto this page instead of the old MsgBox.
+    Result := (not PriorInstallDetected) or WizardSilent();
+end;
+
+// The "repair" task (see [Tasks] below) still exists for /TASKS="repair"
+// scripted fleet redeploys wanting a forced clean reinstall even under
+// /VERYSILENT, where the page above is skipped - this is the single place
+// both paths (the interactive page's own selection, and the silent-mode task)
+// feed into.
+function WantsCleanReinstall: Boolean;
+begin
+  if WizardSilent() then
+    Result := WizardIsTaskSelected('repair')
+  else if PriorInstallDetected then
+    Result := (UpdateChoicePage.SelectedValueIndex = 1)
+  else
+    Result := False;
+end;
+
+// Node install / npm install / npm run build / Ollama install / scheduled-task
+// registration used to be plain [Run] entries, but Inno's [Run] section does
+// not check exit codes - if any of these failed, Setup silently moved on and
+// reported "completed successfully" regardless. Running them here via Exec
+// lets each one's exit code actually be checked and surfaced.
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
   NpmCmd: String;
+  ControlScriptTemp: String;
+  OllamaSetupPath: String;
+  OllamaWasInstalled: Boolean;
 begin
-  if CurStep = ssPostInstall then
+  if CurStep = ssInstall then
   begin
+    // Stop everything from a prior running instance *before* Inno's own
+    // automatic file copy begins (which happens right after this step, not
+    // controlled by this script) - closing the multi-minute window between
+    // the wizard's own dir/tasks pages and the actual npm steps, during which
+    // the watchdog used to get a chance to resurrect the server mid-install.
+    // {app}\adhdisplay-control.ps1 isn't on disk yet at this point (fresh
+    // install) or is still the *previous* version's copy (upgrade) - pulling
+    // it fresh to {tmp} via ExtractTemporaryFile (see the dontcopy [Files]
+    // entry above) sidesteps both cases.
+    ExtractTemporaryFile('adhdisplay-control.ps1');
+    ControlScriptTemp := ExpandConstant('{tmp}\adhdisplay-control.ps1');
+    Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -File "' + ControlScriptTemp + '" -Action StopAll -AppDir "' + ExpandConstant('{app}') + '"',
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end
+  else if CurStep = ssPostInstall then
+  begin
+    if WizardIsTaskSelected('installOllama') and WizardIsTaskSelected('restart') then
+      MsgBox('Both "Install Ollama and its models" and "Restart Windows when finished" are selected.' + #13#10 + #13#10 +
+        'Model downloads continue in the background after Setup finishes and can take a while - restarting Windows now will interrupt them. ' +
+        'You can re-download them later from Settings -> Integrations -> Ollama if that happens.',
+        mbInformation, MB_OK);
+
     if not NodeIsInstalled then
     begin
       WizardForm.StatusLabel.Caption := 'Installing Node.js...';
@@ -195,11 +341,7 @@ begin
         '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     end;
 
-    // Opt-in (see [Tasks] below) - for when a plain update-in-place doesn't
-    // fix a broken install (corrupted node_modules, a stale/half-built
-    // dist). Deleted before npm install/build below so both regenerate
-    // from scratch; harmless no-op on a fresh install where neither exists yet.
-    if WizardIsTaskSelected('repair') then
+    if WantsCleanReinstall then
     begin
       WizardForm.StatusLabel.Caption := 'Removing node_modules and dist for a clean reinstall...';
       DelTree(ExpandConstant('{app}\node_modules'), True, True, True);
@@ -227,6 +369,53 @@ begin
       Abort;
     end;
 
+    // Opt-in (see [Tasks] below), checked by default. Ollama itself is
+    // downloaded to {tmp} at install time rather than bundled in [Files] -
+    // see the header comment - so a machine that never selects this task
+    // never downloads it at all. Model pulls run in the background (via
+    // pull-ollama-models.bat, hidden through run-hidden.vbs) rather than
+    // blocking here, since two ~3B models is a multi-GB download that would
+    // otherwise freeze the wizard for a long, unpredictable time with no
+    // progress or cancel.
+    if WizardIsTaskSelected('installOllama') then
+    begin
+      OllamaWasInstalled := OllamaIsInstalled;
+      if not OllamaWasInstalled then
+      begin
+        WizardForm.StatusLabel.Caption := 'Downloading Ollama...';
+        OllamaSetupPath := ExpandConstant('{tmp}\OllamaSetup.exe');
+        Exec('powershell.exe',
+          '-NoProfile -Command "try { Invoke-WebRequest -Uri ''https://ollama.com/download/OllamaSetup.exe'' -OutFile ''' + OllamaSetupPath + ''' -UseBasicParsing; exit 0 } catch { exit 1 }"',
+          '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+        if (ResultCode = 0) and FileExists(OllamaSetupPath) then
+        begin
+          WizardForm.StatusLabel.Caption := 'Installing Ollama...';
+          // INFERRED silent-install flags (Ollama's Windows installer is,
+          // per its own public behaviour, also Inno-Setup-based) - confirm
+          // against a real download during implementation/testing.
+          if not Exec(OllamaSetupPath, '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+            MsgBox('Installing Ollama failed (exit code ' + IntToStr(ResultCode) + '). ADHDisplay will still work, just without local AI models. You can install Ollama manually later from ollama.com.',
+              mbInformation, MB_OK);
+        end
+        else
+          MsgBox('Downloading Ollama failed. ADHDisplay will still work, just without local AI models. You can install Ollama manually later from ollama.com.',
+            mbInformation, MB_OK);
+
+        // Only written when we're the one who installed it - uninstall reads
+        // this back to decide whether it's safe to offer removing Ollama too
+        // (never touching a copy that was already there independently).
+        if OllamaIsInstalled then
+          SaveStringToFile(ExpandConstant('{app}\.ollama-installed-by-adhdisplay'), 'installed by ADHDisplay setup', False);
+      end;
+
+      if OllamaIsInstalled then
+      begin
+        WizardForm.StatusLabel.Caption := 'Starting the AI model download in the background (check Settings -> Integrations -> Ollama for progress)...';
+        Exec('wscript.exe', '//B "' + ExpandConstant('{app}\run-hidden.vbs') + '" "' + ExpandConstant('{app}\pull-ollama-models.bat') + '"',
+          ExpandConstant('{app}'), SW_HIDE, ewNoWait, ResultCode);
+      end;
+    end;
+
     // See [Tasks] below - "autostart" is checked by default (it's the whole
     // point of this installer), but left visible/optional rather than always
     // silently registering a logon task.
@@ -238,6 +427,48 @@ begin
           'ADHDisplay is installed and can still be launched manually, but won''t start automatically on restart.',
           mbInformation, MB_OK);
     end;
+  end;
+end;
+
+// Doesn't exist prior to this change - uninstall used to stop nothing before
+// [UninstallDelete] tried to remove node_modules/dist/server\data/
+// server\uploads, which is why a still-running watchdog-resurrected server
+// could hold locks on those files during an uninstall.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    // {app}\adhdisplay-control.ps1 is still on disk here - Inno's own
+    // uninstall engine removes [Files]-tracked files *after* this step fires,
+    // not before, so no ExtractTemporaryFile-style workaround is needed on
+    // the uninstall side the way it was for ssInstall above.
+    Exec('powershell.exe', '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{app}\adhdisplay-control.ps1') + '" -Action StopAll -AppDir "' + ExpandConstant('{app}') + '"',
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+    // Only offered if ADHDisplay's own installer is what installed Ollama
+    // (see the marker file written above) - never touches a copy of Ollama
+    // that was already on this machine independently.
+    if OllamaWasInstalledByADHDisplay then
+    begin
+      if MsgBox('Also remove Ollama and its downloaded models (roughly 4 GB)?', mbConfirmation, MB_YESNO) = IDYES then
+      begin
+        // INFERRED uninstall path for Ollama's own Windows installer -
+        // confirm the exact location during implementation/testing.
+        if FileExists(OllamaBinDir + 'unins000.exe') then
+          Exec(OllamaBinDir + 'unins000.exe', '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+        DelTree(ExpandConstant('{localappdata}') + '\Programs\Ollama', True, True, True);
+        DelTree(ExpandConstant('{%USERPROFILE}') + '\.ollama', True, True, True);
+      end;
+    end;
+  end
+  else if CurUninstallStep = usPostUninstall then
+  begin
+    // A post-uninstall question rather than an install-time-style checkbox,
+    // matching how most uninstallers behave.
+    if MsgBox('ADHDisplay has been uninstalled. Restart Windows now?', mbConfirmation, MB_YESNO) = IDYES then
+      Exec('shutdown.exe', '/r /t 5', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   end;
 end;
 
@@ -261,8 +492,12 @@ Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""ADHDisp
 
 ; Offer to launch right away, without waiting for a restart. "nowait" is
 ; required here: the script's own watchdog loop never returns, so waiting
-; for it to exit would leave the wizard's Finish page open forever.
-Filename: "{app}\start-adhdisplay.bat"; Description: "Launch ADHDisplay now"; Flags: postinstall shellexec nowait skipifsilent
+; for it to exit would leave the wizard's Finish page open forever. Skipped
+; if "restart" is selected below - launching the kiosk just to immediately
+; reboot it doesn't make sense (Inno's own Finish page likely already
+; suppresses this when a restart is pending, but this is kept as free
+; belt-and-braces insurance either way).
+Filename: "{app}\start-adhdisplay.bat"; Description: "Launch ADHDisplay now"; Flags: postinstall shellexec nowait skipifsilent; Check: not WizardIsTaskSelected('restart')
 
 [UninstallRun]
 Filename: "schtasks.exe"; Parameters: "/Delete /TN ""ADHDisplayLauncher"" /F"; Flags: runhidden
@@ -274,13 +509,17 @@ Filename: "powershell.exe"; Parameters: "-NoProfile -Command ""Remove-MpPreferen
 [UninstallDelete]
 ; Removes everything npm install / npm run build / the running app generated
 ; that isn't tracked in [Files], so nothing is left behind in {app}.
-; Node.js itself is deliberately left installed — it's a shared system
-; runtime, not something this app owns.
+; Node.js and Ollama themselves are deliberately left installed by default —
+; they're shared system runtimes, not something this app owns (Ollama's own
+; removal is instead offered as an explicit, opt-in question during uninstall
+; — see CurUninstallStepChanged above — and only when ADHDisplay's own
+; installer is what put it there).
 Type: filesandordirs; Name: "{app}\node_modules"
 Type: filesandordirs; Name: "{app}\dist"
 Type: filesandordirs; Name: "{app}\logs"
 Type: filesandordirs; Name: "{app}\server\data"
 Type: filesandordirs; Name: "{app}\server\uploads"
+Type: files; Name: "{app}\.ollama-installed-by-adhdisplay"
 
 [Tasks]
 ; No "unchecked" flag - Inno checks a task by default unless told otherwise,
@@ -289,11 +528,20 @@ Type: filesandordirs; Name: "{app}\server\uploads"
 ; silent unconditional action.
 Name: "autostart"; Description: "Launch automatically when Windows starts (recommended)"; GroupDescription: "Additional shortcuts:"
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
+Name: "restart"; Description: "Restart Windows when finished"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
+Name: "installOllama"; Description: "Install Ollama and the AI assistant's local models (recommended)"; GroupDescription: "AI features:"
 Name: "defenderexclusion"; Description: "Add a Windows Defender exclusion for the install folder (helps avoid install failures caused by antivirus interference, e.g. ""corrupted tarball"" errors during npm install)"; GroupDescription: "Troubleshooting:"; Flags: unchecked
-Name: "repair"; Description: "Force a clean reinstall (delete node_modules and dist before reinstalling - use if updating doesn't fix a broken install)"; GroupDescription: "Troubleshooting:"; Flags: unchecked
+; No longer shown on this page interactively - the new "Existing Installation
+; Found" wizard page above covers the same Update-vs-Clean-reinstall decision
+; when a prior install is detected. Kept declared (INFERRED: Check: WizardSilent
+; should exclude it from the interactive page while still allowing
+; /TASKS="repair" for scripted/fleet redeploys under /VERYSILENT - confirm
+; this exact mechanism during implementation) so silent installs retain a way
+; to force a clean reinstall without needing the page.
+Name: "repair"; Description: "Force a clean reinstall (delete node_modules and dist before reinstalling)"; GroupDescription: "Troubleshooting:"; Flags: unchecked; Check: WizardSilent
 
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\start-adhdisplay.bat"
-Name: "{autoprograms}\{#AppName} (Open in Browser)"; Filename: "{app}\open-in-browser.bat"
-Name: "{autoprograms}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
+Name: "{group}\{#AppName}"; Filename: "{app}\start-adhdisplay.bat"
+Name: "{group}\{#AppName} (Open in Browser)"; Filename: "{app}\open-in-browser.bat"
+Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\start-adhdisplay.bat"; Tasks: desktopicon
