@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, Text } from 'react-native'
+import { FadeInView } from '../components/FadeInView'
+import { FocusableButton } from '../components/FocusableButton'
 import { StatusHeader } from '../components/StatusHeader'
+import { useDpadNav } from '../hooks/useDpadNav'
 import { sendPairingHeartbeat } from '../lib/pairing'
 import type { ServerConnection } from '../lib/serverConnection'
 
@@ -11,6 +14,7 @@ interface PairingScreenProps {
   machineID: string
   deviceLabel: string
   onApproved: () => void
+  onDisconnect: () => void
 }
 
 /**
@@ -24,10 +28,19 @@ interface PairingScreenProps {
  * dashboard's own pending card before clicking Approve, so a mis-click
  * among several near-identical devices pairing at once is still caught.
  * `machineID` is passed in synchronously from `App.tsx`, so the suffix
- * renders immediately, no loading/empty-string window to handle.
+ * renders immediately, no loading/empty-string window to handle. The
+ * Disconnect button here is the same `handleDisconnect` the triple-Back-press
+ * gesture and `WaitingForAssignmentScreen`'s own button both already call
+ * (see `App.tsx`'s own doc comment) — this screen otherwise has no visible
+ * way out of a wrong-server pairing besides that gesture, which isn't
+ * discoverable from the screen alone.
  */
-export function PairingScreen({ connection, machineID, deviceLabel, onApproved }: PairingScreenProps) {
+export function PairingScreen({ connection, machineID, deviceLabel, onApproved, onDisconnect }: PairingScreenProps) {
   const [error, setError] = useState<string | null>(null)
+  // Single item, but still routed through useDpadNav so pressing OK on the remote actually
+  // triggers Disconnect — see that hook's own doc comment for why native Android D-pad
+  // focus/select can't drive this directly on plain react-native Android.
+  const selectedIndex = useDpadNav(1, onDisconnect)
 
   useEffect(() => {
     let cancelled = false
@@ -54,7 +67,7 @@ export function PairingScreen({ connection, machineID, deviceLabel, onApproved }
   const idSuffix = `#${machineID.slice(-4)}`
 
   return (
-    <View style={styles.container}>
+    <FadeInView style={styles.container}>
       <StatusHeader deviceLabel={deviceLabel} connectedTo={connection.storeName ?? connection.host} />
       <Text style={styles.label}>{deviceLabel}</Text>
       <Text style={styles.idSuffix}>{idSuffix}</Text>
@@ -63,7 +76,10 @@ export function PairingScreen({ connection, machineID, deviceLabel, onApproved }
         Open Display Manager on the ADHDisplay dashboard and approve &quot;{deviceLabel}&quot; ({idSuffix}) to continue.
       </Text>
       {error && <Text style={styles.error}>{error}</Text>}
-    </View>
+      <FocusableButton focused={selectedIndex === 0} onPress={onDisconnect}>
+        Disconnect
+      </FocusableButton>
+    </FadeInView>
   )
 }
 

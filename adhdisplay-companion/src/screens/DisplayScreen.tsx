@@ -1,4 +1,5 @@
-import { StyleSheet } from 'react-native'
+import { useEffect, useRef } from 'react'
+import { Animated, StyleSheet } from 'react-native'
 import { WebView } from 'react-native-webview'
 import { contentOrigin, type ServerConnection } from '../lib/serverConnection'
 
@@ -28,22 +29,41 @@ interface DisplayScreenProps {
  * flash a light background before the screen's own configured color loads.
  * `injectedJavaScriptBeforeContentLoaded` is a belt-and-braces second path
  * to the same result, running before the page's own scripts.
+ *
+ * `opacity` dips to 0 the instant `screenId` changes (a fresh `source.uri`
+ * means the WebView is about to show a blank/loading state while it
+ * navigates) and fades back to 1 from `onLoadEnd`, once the new screen's
+ * own content is actually ready — covers both a Remote Screen Navigation
+ * commit and the very first load (`opacity` starts at 0, so there's no
+ * separate "is this the first render" branch needed).
  */
 export function DisplayScreen({ connection, screenId }: DisplayScreenProps) {
   const url = `${contentOrigin(connection)}/screens/${screenId}?unattended=1`
+  const opacity = useRef(new Animated.Value(0)).current
+
+  useEffect(() => {
+    opacity.setValue(0)
+  }, [screenId, opacity])
+
+  const handleLoadEnd = () => {
+    Animated.timing(opacity, { toValue: 1, duration: 320, useNativeDriver: true }).start()
+  }
 
   return (
-    <WebView
-      source={{ uri: url }}
-      style={styles.webview}
-      domStorageEnabled
-      javaScriptEnabled
-      mediaPlaybackRequiresUserAction={false}
-      allowsInlineMediaPlayback
-      originWhitelist={['*']}
-      applicationNameForUserAgent="ADHDisplayKiosk"
-      injectedJavaScriptBeforeContentLoaded="window.localStorage.setItem('theme', 'dark'); true;"
-    />
+    <Animated.View style={[styles.webview, { opacity }]}>
+      <WebView
+        source={{ uri: url }}
+        style={styles.webview}
+        domStorageEnabled
+        javaScriptEnabled
+        mediaPlaybackRequiresUserAction={false}
+        allowsInlineMediaPlayback
+        originWhitelist={['*']}
+        applicationNameForUserAgent="ADHDisplayKiosk"
+        injectedJavaScriptBeforeContentLoaded="window.localStorage.setItem('theme', 'dark'); true;"
+        onLoadEnd={handleLoadEnd}
+      />
+    </Animated.View>
   )
 }
 

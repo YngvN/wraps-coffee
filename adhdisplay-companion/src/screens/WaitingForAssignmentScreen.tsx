@@ -1,5 +1,8 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, Text } from 'react-native'
+import { FadeInView } from '../components/FadeInView'
+import { FocusableButton } from '../components/FocusableButton'
 import { StatusHeader } from '../components/StatusHeader'
+import { useDpadNav } from '../hooks/useDpadNav'
 import type { ServerConnection } from '../lib/serverConnection'
 
 interface WaitingForAssignmentScreenProps {
@@ -19,21 +22,24 @@ interface WaitingForAssignmentScreenProps {
  * screen already has chrome and nothing to accidentally trigger it.
  */
 export function WaitingForAssignmentScreen({ deviceLabel, connection, onDisconnect }: WaitingForAssignmentScreenProps) {
+  // Single item, but still routed through useDpadNav (rather than a plain FocusableButton
+  // with no `focused` prop) so pressing OK on the remote actually triggers Disconnect — see
+  // that hook's own doc comment for why native Android D-pad focus/select can't drive this
+  // directly on plain react-native Android.
+  const selectedIndex = useDpadNav(1, onDisconnect)
   return (
-    <View style={styles.container}>
+    <FadeInView style={styles.container}>
       <StatusHeader deviceLabel={deviceLabel} connectedTo={connection.storeName ?? connection.host} />
       <ActivityIndicator size="large" color="#dfa93e" />
       <Text style={styles.text}>Paired. Waiting for a screen to be assigned in Display Manager…</Text>
-      <Pressable style={styles.button} onPress={onDisconnect}>
-        <Text style={styles.buttonText}>Disconnect</Text>
-      </Pressable>
-    </View>
+      <FocusableButton focused={selectedIndex === 0} onPress={onDisconnect}>
+        Disconnect
+      </FocusableButton>
+    </FadeInView>
   )
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
   text: { color: '#ccc', fontSize: 16, textAlign: 'center' },
-  button: { backgroundColor: '#dfa93e', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 },
-  buttonText: { color: '#111', fontWeight: '700', fontSize: 16 },
 })

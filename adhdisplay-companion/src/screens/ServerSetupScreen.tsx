@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Animated, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native'
+import { FadeInView } from '../components/FadeInView'
+import { FocusableButton } from '../components/FocusableButton'
+import { useDpadNav } from '../hooks/useDpadNav'
+import { useFocusGrow } from '../hooks/useFocusGrow'
 import { browseForServerViaMdns, sweepLanForServer, type ServerConnection } from '../lib/serverConnection'
 
 interface ServerSetupScreenProps {
@@ -25,6 +29,41 @@ const SETTLE_WINDOW_MS = 1000
 /** Dedup key for `registerFoundConnection` — `pickIPv4` (see `serverConnection.ts`) already normalises `host` to an IPv4 literal whenever one's available on both the mDNS and sweep paths, so this is enough to recognise the same physical server found twice without any new host normalisation here. */
 function connectionKey(connection: ServerConnection): string {
   return `${connection.host}:${connection.wsPort}`
+}
+
+interface ServerRowProps {
+  connection: ServerConnection
+  focused: boolean
+  onPress: () => void
+}
+
+const SERVER_ROW_PADDING = 14
+
+/**
+ * One row in `'list'` mode's server picker — its own component (not inlined in the `.map()`
+ * below) purely so it can call `useFocusGrow` (React's rules of hooks forbid calling a hook a
+ * variable number of times inside a loop/callback).
+ */
+function ServerRow({ connection, focused, onPress }: ServerRowProps) {
+  const extraPadding = useFocusGrow(focused)
+  return (
+    <TouchableOpacity
+      style={[styles.serverRow, focused && styles.serverRowFocused, { padding: Animated.add(SERVER_ROW_PADDING, extraPadding) }]}
+      onPress={onPress}
+      focusable={false}
+      activeOpacity={0.7}
+    >
+      <Text style={styles.serverRowName} numberOfLines={1} ellipsizeMode="tail">
+        {connection.storeName || 'ADHDisplay'}
+      </Text>
+      {/* Host stays visible on every row, unconditionally — it's the only guaranteed way to tell two
+          same-named or both-unnamed servers apart, and it's also the only thing a person can actually
+          check when a name *looks* right but shouldn't be (a spoofed/impersonating store name on a shared
+          LAN). Don't "clean this up" as redundant once names are reliably sanitized — it's doing double
+          duty on purpose. */}
+      <Text style={styles.serverRowHost}>{connection.host}</Text>
+    </TouchableOpacity>
+  )
 }
 
 /**
@@ -192,90 +231,107 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
     setMode('searching')
   }
 
+  // Matches exactly the condition the interactive 'searching' JSX below renders under —
+  // the other two 'searching' sub-states (isSettling / !hasSweptOnce) are loading spinners
+  // with no navigable items at all.
+  const showSearchingButtons = mode === 'searching' && !isSettling && hasSweptOnce
+  /**
+   * How many D-pad-navigable items the currently-showing mode has, and what "select" does
+   * for each index — see `useDpadNav`'s own doc comment for why this screen needs a
+   * JS-driven selection state at all instead of relying on native Android focus. `'manual'`
+   * mode's two buttons are deliberately excluded (dpadItemCount stays 0 there): they sit
+   * below three `TextInput`s that need real native focus for the on-screen keyboard, and
+   * mixing that with this hook's own separate JS-owned selection would fight over D-pad
+   * up/down with no correct way to resolve which system wins.
+   */
+  const dpadItemCount = showSearchingButtons ? 2 : mode === 'found' && foundConnections[0] ? 2 : mode === 'list' ? foundConnections.length + 1 : 0
+  const handleDpadSelect = (index: number) => {
+    if (showSearchingButtons) {
+      if (index === 0) handleLookNow()
+      else setMode('manual')
+      return
+    }
+    if (mode === 'found' && foundConnections[0]) {
+      if (index === 0) onConnected(foundConnections[0])
+      else setMode('manual')
+      return
+    }
+    if (mode === 'list') {
+      if (index < foundConnections.length) onConnected(foundConnections[index])
+      else setMode('manual')
+    }
+  }
+  const selectedIndex = useDpadNav(dpadItemCount, handleDpadSelect)
+
   if (mode === 'searching' && isSettling) {
     return (
-      <View style={styles.container}>
+      <FadeInView key="settling" style={styles.container}>
         <ActivityIndicator size="large" color="#dfa93e" />
         <Text style={styles.text}>Found a server — checking for others…</Text>
-      </View>
+      </FadeInView>
     )
   }
 
   if (mode === 'searching' && !hasSweptOnce) {
     return (
-      <View style={styles.container}>
+      <FadeInView key="first-search" style={styles.container}>
         <ActivityIndicator size="large" color="#dfa93e" />
         <Text style={styles.text}>Looking for an ADHDisplay server on this network…</Text>
-      </View>
+      </FadeInView>
     )
   }
 
   if (mode === 'searching') {
     return (
-      <View style={styles.container}>
+      <FadeInView key="searching" style={styles.container}>
         <Text style={styles.text}>No ADHDisplay server found on this network yet.</Text>
         <Text style={styles.subText}>Checking again automatically every few seconds.</Text>
-        <Pressable style={styles.button} onPress={handleLookNow} hasTVPreferredFocus>
-          <Text style={styles.buttonText}>{isSweepRunning ? 'Searching…' : 'Look for server'}</Text>
-        </Pressable>
-        <Pressable style={styles.linkButton} onPress={() => setMode('manual')}>
-          <Text style={styles.linkText}>Enter a server manually</Text>
-        </Pressable>
-      </View>
+        <FocusableButton focused={selectedIndex === 0} onPress={handleLookNow}>
+          {isSweepRunning ? 'Searching…' : 'Look for server'}
+        </FocusableButton>
+        <FocusableButton variant="link" focused={selectedIndex === 1} onPress={() => setMode('manual')}>
+          Enter a server manually
+        </FocusableButton>
+      </FadeInView>
     )
   }
 
   if (mode === 'found' && foundConnections[0]) {
     const foundConnection = foundConnections[0]
     return (
-      <View style={styles.container}>
+      <FadeInView key="found" style={styles.container}>
         <Text style={styles.foundName} numberOfLines={1} ellipsizeMode="tail">
           {foundConnection.storeName || 'ADHDisplay'}
         </Text>
         <Text style={styles.text}>Found at {foundConnection.host} — connect?</Text>
-        <Pressable style={styles.button} onPress={() => onConnected(foundConnection)} hasTVPreferredFocus>
-          <Text style={styles.buttonText}>Connect</Text>
-        </Pressable>
-        <Pressable style={styles.linkButton} onPress={() => setMode('manual')}>
-          <Text style={styles.linkText}>Enter a server manually</Text>
-        </Pressable>
-      </View>
+        <FocusableButton focused={selectedIndex === 0} onPress={() => onConnected(foundConnection)}>
+          Connect
+        </FocusableButton>
+        <FocusableButton variant="link" focused={selectedIndex === 1} onPress={() => setMode('manual')}>
+          Enter a server manually
+        </FocusableButton>
+      </FadeInView>
     )
   }
 
   if (mode === 'list') {
     return (
-      <View style={styles.container}>
+      <FadeInView key="list" style={styles.container}>
         <Text style={styles.text}>Found {foundConnections.length} ADHDisplay servers — choose one</Text>
         <ScrollView style={styles.serverList} contentContainerStyle={styles.serverListContent}>
           {foundConnections.map((connection, index) => (
-            <Pressable
-              key={connectionKey(connection)}
-              style={styles.serverRow}
-              onPress={() => onConnected(connection)}
-              hasTVPreferredFocus={index === 0}
-            >
-              <Text style={styles.serverRowName} numberOfLines={1} ellipsizeMode="tail">
-                {connection.storeName || 'ADHDisplay'}
-              </Text>
-              {/* Host stays visible on every row, unconditionally — it's the only guaranteed way to tell two
-                  same-named or both-unnamed servers apart, and it's also the only thing a person can actually
-                  check when a name *looks* right but shouldn't be (a spoofed/impersonating store name on a shared
-                  LAN). Don't "clean this up" as redundant once names are reliably sanitized — it's doing double
-                  duty on purpose. */}
-              <Text style={styles.serverRowHost}>{connection.host}</Text>
-            </Pressable>
+            <ServerRow key={connectionKey(connection)} connection={connection} focused={selectedIndex === index} onPress={() => onConnected(connection)} />
           ))}
         </ScrollView>
-        <Pressable style={styles.linkButton} onPress={() => setMode('manual')}>
-          <Text style={styles.linkText}>Enter a server manually</Text>
-        </Pressable>
-      </View>
+        <FocusableButton variant="link" focused={selectedIndex === foundConnections.length} onPress={() => setMode('manual')}>
+          Enter a server manually
+        </FocusableButton>
+      </FadeInView>
     )
   }
 
   return (
-    <View style={styles.container}>
+    <FadeInView key="manual" style={styles.container}>
       <Text style={styles.text}>
         Enter this server&apos;s address — see Settings → &quot;For developers&quot; in the admin dashboard, or the &quot;On other devices&quot; line
         printed when the server starts.
@@ -306,13 +362,11 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
         onChangeText={setManualContentPort}
         keyboardType="number-pad"
       />
-      <Pressable style={styles.button} onPress={handleManualSubmit}>
-        <Text style={styles.buttonText}>Connect</Text>
-      </Pressable>
-      <Pressable style={styles.linkButton} onPress={handleSearchAutomatically}>
-        <Text style={styles.linkText}>Search automatically instead</Text>
-      </Pressable>
-    </View>
+      <FocusableButton onPress={handleManualSubmit}>Connect</FocusableButton>
+      <FocusableButton variant="link" onPress={handleSearchAutomatically}>
+        Search automatically instead
+      </FocusableButton>
+    </FadeInView>
   )
 }
 
@@ -321,14 +375,11 @@ const styles = StyleSheet.create({
   foundName: { color: '#fff', fontSize: 22, fontWeight: '700', textAlign: 'center', width: '100%', maxWidth: 320 },
   text: { color: '#ccc', fontSize: 16, textAlign: 'center' },
   subText: { color: '#888', fontSize: 13, textAlign: 'center' },
-  button: { backgroundColor: '#dfa93e', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 },
-  buttonText: { color: '#111', fontWeight: '700', fontSize: 16 },
-  linkButton: { paddingVertical: 8 },
-  linkText: { color: '#8ab4f8', fontSize: 14 },
   input: { width: '100%', maxWidth: 320, backgroundColor: '#222', color: '#eee', borderWidth: 1, borderColor: '#444', borderRadius: 6, padding: 10, fontSize: 16 },
   serverList: { width: '100%', maxWidth: 360, maxHeight: 320 },
   serverListContent: { gap: 10 },
-  serverRow: { backgroundColor: '#222', borderWidth: 1, borderColor: '#444', borderRadius: 8, padding: 14 },
+  serverRow: { backgroundColor: '#222', borderWidth: 1, borderColor: '#444', borderRadius: 8 },
+  serverRowFocused: { backgroundColor: '#2a2a2a', borderColor: '#dfa93e', borderWidth: 2 },
   serverRowName: { color: '#fff', fontSize: 18, fontWeight: '700' },
   serverRowHost: { color: '#888', fontSize: 13, marginTop: 4 },
 })

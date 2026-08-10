@@ -432,7 +432,11 @@ const httpServer = createServer((req, res) => {
       label: matched.label,
       customLabel: null,
       connectionType: 'mobile',
-      monitors: [{ id: 'device', label: matched.label, assignedScreenID: null }],
+      // A random published screen rather than leaving this unassigned — an admin approving a
+      // companion device wants it showing *something* immediately, not sitting on
+      // WaitingForAssignmentScreen until someone manually assigns one; still a completely normal
+      // Display Manager assignment from here on; the admin can reassign it same as any other.
+      monitors: [{ id: 'device', label: matched.label, assignedScreenID: pickRandomScreenID() }],
       lastSeenAt: new Date().toISOString(),
     }
     applyUpdate('admin.displayMachines', [...machines, approvedMachine])
@@ -2179,6 +2183,20 @@ function startUpdateFailureSweep() {
 function buildNavigableSet(): { screenId: string; name: string }[] {
   const screens = (store.get('admin.screens')?.value as ScreenConfig[] | undefined) ?? []
   return screens.map((screen) => ({ screenId: screen.screenID, name: screen.name }))
+}
+
+/**
+ * A random published screen's own `screenID`, for a freshly-approved companion device's
+ * initial `monitors[0].assignedScreenID` (see the `/display-machines/:id/approve` route) —
+ * `null` if the store has no screens configured yet, the only case `WaitingForAssignmentScreen`
+ * should still ever actually show for a newly-approved device. Reuses `admin.screens` the same
+ * way `buildNavigableSet` does (see its own doc comment for why that list is already
+ * published-only, no `.draft` filtering needed here either).
+ */
+function pickRandomScreenID(): string | null {
+  const screens = (store.get('admin.screens')?.value as ScreenConfig[] | undefined) ?? []
+  if (screens.length === 0) return null
+  return screens[Math.floor(Math.random() * screens.length)].screenID
 }
 
 /**

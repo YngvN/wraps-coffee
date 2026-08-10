@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text } from 'react-native'
+import { FadeInView } from './FadeInView'
 
 interface StatusHeaderProps {
   /** This device's own name — its dashboard rename if one's been pushed down and persisted (see `pairing.ts`'s `getStoredDeviceLabel`), else the generic `ADHDisplay Companion (${Platform.OS})` fallback. */
@@ -16,14 +17,14 @@ interface StatusHeaderProps {
  */
 export function StatusHeader({ deviceLabel, connectedTo }: StatusHeaderProps) {
   return (
-    <View style={styles.container} pointerEvents="none">
+    <FadeInView style={styles.container} pointerEvents="none" slideDistance={0}>
       <Text style={styles.deviceLabel} numberOfLines={1} ellipsizeMode="tail">
         {deviceLabel}
       </Text>
       <Text style={styles.connectedTo} numberOfLines={1} ellipsizeMode="tail">
         Connected to: {connectedTo}
       </Text>
-    </View>
+    </FadeInView>
   )
 }
 

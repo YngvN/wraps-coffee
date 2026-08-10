@@ -39,11 +39,12 @@ type AppState =
  * was removed in Display Manager) drops back to the pairing state.
  *
  * `handleDisconnect` (see `clearServerConnection`'s own doc comment for its
- * exact scope) is reachable two ways: `WaitingForAssignmentScreen`'s own
- * plain button, and a triple-Back-press-within-2s gesture via `BackHandler`,
- * mounted once here as a single global listener so it works from any screen
- * — including the full-bleed `DisplayScreen`, which has no chrome of its
- * own to put a button on. Every `hardwareBackPress` is deliberately
+ * exact scope) is reachable three ways: `PairingScreen`'s and
+ * `WaitingForAssignmentScreen`'s own plain buttons, and a triple-Back-press-
+ * within-2s gesture via `BackHandler`, mounted once here as a single global
+ * listener so it works from any screen — including the full-bleed
+ * `DisplayScreen`, which has no chrome of its own to put a button on. Every
+ * `hardwareBackPress` is deliberately
  * consumed (the listener always returns `true`), which also suppresses RN's
  * default single-back-press exit/background behavior app-wide — a
  * deliberate byproduct for this unattended kiosk app, not an oversight.
@@ -229,6 +230,7 @@ export default function App() {
           machineID={machineID ?? ''}
           deviceLabel={deviceLabel}
           onApproved={() => handleApproved(state.connection)}
+          onDisconnect={handleDisconnect}
         />
       )}
       {state.stage === 'waiting' && (
