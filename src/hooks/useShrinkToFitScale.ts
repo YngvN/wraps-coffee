@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, type RefObject } from 'react'
+import { useLayoutEffect, type RefObject } from 'react'
+import { createShrinkToFitScheduler } from './shrinkToFitScheduler'
 
 /**
  * Shrinks a pane's whole rendered content — fonts, padding, gaps, and any
@@ -56,9 +57,6 @@ const MUTATION_SETTLE_MS = 500
 const POLL_INTERVAL_MS = 2000
 
 export function useShrinkToFitScale(outerRef: RefObject<HTMLElement | null>, innerRef: RefObject<HTMLElement | null>, enabled: boolean, deps: readonly unknown[]) {
-  const frameRef = useRef<number | undefined>(undefined)
-  const settleTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-
   useLayoutEffect(() => {
     const outer = outerRef.current
     const inner = innerRef.current
@@ -77,15 +75,7 @@ export function useShrinkToFitScale(outerRef: RefObject<HTMLElement | null>, inn
       inner.style.transform = scale < 1 ? `scale(${scale})` : ''
     }
 
-    const scheduleMeasure = () => {
-      if (frameRef.current !== undefined) cancelAnimationFrame(frameRef.current)
-      frameRef.current = requestAnimationFrame(measureAndScale)
-    }
-
-    const scheduleMeasureAfterSettle = () => {
-      if (settleTimeoutRef.current !== undefined) clearTimeout(settleTimeoutRef.current)
-      settleTimeoutRef.current = setTimeout(scheduleMeasure, MUTATION_SETTLE_MS)
-    }
+    const scheduler = createShrinkToFitScheduler(measureAndScale)
 
     measureAndScale()
     // Disabled panes (e.g. `overflowMode: 'scroll'`) have nothing left to
@@ -94,22 +84,21 @@ export function useShrinkToFitScale(outerRef: RefObject<HTMLElement | null>, inn
     // every such pane on every screen, for as long as the kiosk stays up.
     if (!enabled) return
 
-    const resizeObserver = new ResizeObserver(scheduleMeasure)
+    const resizeObserver = new ResizeObserver(scheduler.scheduleMeasure)
     resizeObserver.observe(outer)
 
     // Deliberately doesn't watch `attributes` — this hook's own
     // `inner.style.transform` write would otherwise re-trigger itself.
-    const mutationObserver = new MutationObserver(scheduleMeasureAfterSettle)
+    const mutationObserver = new MutationObserver(() => scheduler.scheduleMeasureAfterSettle(MUTATION_SETTLE_MS))
     mutationObserver.observe(inner, { childList: true, subtree: true, characterData: true })
 
-    const pollInterval = setInterval(scheduleMeasure, POLL_INTERVAL_MS)
+    const pollInterval = setInterval(scheduler.scheduleMeasure, POLL_INTERVAL_MS)
 
     return () => {
       resizeObserver.disconnect()
       mutationObserver.disconnect()
       clearInterval(pollInterval)
-      if (frameRef.current !== undefined) cancelAnimationFrame(frameRef.current)
-      if (settleTimeoutRef.current !== undefined) clearTimeout(settleTimeoutRef.current)
+      scheduler.cancel()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measures on every entry in `deps` (content identity) in addition to `enabled`, not just when the refs themselves change.
   }, [enabled, ...deps])

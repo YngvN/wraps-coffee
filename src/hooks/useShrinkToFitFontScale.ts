@@ -1,5 +1,6 @@
-import { useLayoutEffect, useRef, type RefObject } from 'react'
+import { useLayoutEffect, type RefObject } from 'react'
 import { SLIDE_SIZE_VAR_NAMES } from '../utils/textSizeVars'
+import { createShrinkToFitScheduler } from './shrinkToFitScheduler'
 
 /** Same settle window as `useShrinkToFitScale` — see its own doc comment for why a DOM-mutation-triggered remeasure waits rather than firing on the very next frame. */
 const MUTATION_SETTLE_MS = 500
@@ -86,9 +87,6 @@ const GAP_SCALE_EXPONENT = 2
  * applied at a time, per `LayoutPane.tsx`'s own `enabled` gating).
  */
 export function useShrinkToFitFontScale(outerRef: RefObject<HTMLElement | null>, innerRef: RefObject<HTMLElement | null>, enabled: boolean, deps: readonly unknown[], checkWidth = false) {
-  const frameRef = useRef<number | undefined>(undefined)
-  const settleTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-
   useLayoutEffect(() => {
     const outer = outerRef.current
     const inner = innerRef.current
@@ -137,15 +135,7 @@ export function useShrinkToFitFontScale(outerRef: RefObject<HTMLElement | null>,
       applyScale(low)
     }
 
-    const scheduleMeasure = () => {
-      if (frameRef.current !== undefined) cancelAnimationFrame(frameRef.current)
-      frameRef.current = requestAnimationFrame(measureAndScale)
-    }
-
-    const scheduleMeasureAfterSettle = () => {
-      if (settleTimeoutRef.current !== undefined) clearTimeout(settleTimeoutRef.current)
-      settleTimeoutRef.current = setTimeout(scheduleMeasure, MUTATION_SETTLE_MS)
-    }
+    const scheduler = createShrinkToFitScheduler(measureAndScale)
 
     measureAndScale()
     // Disabled panes (e.g. `overflowMode: 'scroll'`, or a slide kind that
@@ -155,23 +145,22 @@ export function useShrinkToFitFontScale(outerRef: RefObject<HTMLElement | null>,
     // times every such pane on every screen, for as long as the kiosk stays up.
     if (!enabled) return
 
-    const resizeObserver = new ResizeObserver(scheduleMeasure)
+    const resizeObserver = new ResizeObserver(scheduler.scheduleMeasure)
     resizeObserver.observe(outer)
 
     // Deliberately doesn't watch `attributes` — this hook's own
     // `inner.style.setProperty(...)` writes would otherwise re-trigger
     // themselves.
-    const mutationObserver = new MutationObserver(scheduleMeasureAfterSettle)
+    const mutationObserver = new MutationObserver(() => scheduler.scheduleMeasureAfterSettle(MUTATION_SETTLE_MS))
     mutationObserver.observe(inner, { childList: true, subtree: true, characterData: true })
 
-    const pollInterval = setInterval(scheduleMeasure, POLL_INTERVAL_MS)
+    const pollInterval = setInterval(scheduler.scheduleMeasure, POLL_INTERVAL_MS)
 
     return () => {
       resizeObserver.disconnect()
       mutationObserver.disconnect()
       clearInterval(pollInterval)
-      if (frameRef.current !== undefined) cancelAnimationFrame(frameRef.current)
-      if (settleTimeoutRef.current !== undefined) clearTimeout(settleTimeoutRef.current)
+      scheduler.cancel()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measures on every entry in `deps` (content identity) in addition to `enabled`/`checkWidth`, not just when the refs themselves change.
   }, [enabled, checkWidth, ...deps])
