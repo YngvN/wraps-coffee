@@ -70,13 +70,14 @@ export interface WriteMessage {
 
 export interface SnapshotMessage {
   type: 'snapshot'
-  state: Partial<Record<SyncedKey, { seeded: boolean; value: unknown }>>
+  state: Partial<Record<SyncedKey, { seeded: boolean; value: unknown; revision: number }>>
 }
 
 export interface UpdateMessage {
   type: 'update'
   key: SyncedKey
   value: unknown
+  revision: number
 }
 
 /** A background/operational problem worth surfacing to every open admin tab — e.g. the Neon bridge losing its connection — not tied to any specific synced key, so (unlike `UpdateMessage`) it's broadcast to every connection regardless of its own interest set. See `src/lib/errorNotifications.ts`. */

@@ -23,6 +23,21 @@ interface StoredEntry {
   /** True until this key's first real client write — see "First-sync safety" in the sync-server plan. */
   seeded: boolean
   value: unknown
+  /**
+   * Monotonically increasing per-key counter, bumped on every real write
+   * (`set`) and persisted alongside `value` in the same `writeFileSync` call
+   * — never computed in-memory-only, since a client can be holding a higher
+   * last-seen revision than whatever the server would otherwise restart at,
+   * and a lower post-restart revision would then look permanently stale to
+   * it (see `syncClient.ts`'s own revision-gating). Lets a client reject an
+   * inbound `update`/`snapshot` entry that's out of order (arrived after a
+   * newer one it already applied) without needing to inspect `value` at
+   * all. A `StoredEntry` loaded from a file that predates this field has no
+   * `revision` key at all — `loadKey` normalizes that to `0` on load, same
+   * as a fresh seed, so every entry in `state` always has a real number
+   * once boot finishes.
+   */
+  revision: number
 }
 
 interface AdminUser {
@@ -133,13 +148,16 @@ const state = new Map<SyncedKey, StoredEntry>()
 function loadKey(key: SyncedKey) {
   const filePath = dataFilePath(key)
   if (existsSync(filePath)) {
-    state.set(key, JSON.parse(readFileSync(filePath, 'utf-8')) as StoredEntry)
+    const loaded = JSON.parse(readFileSync(filePath, 'utf-8')) as StoredEntry
+    // A file written before `revision` existed has no such key at all — normalize it to 0 here,
+    // once, so every entry in `state` has a real number for the rest of this module to rely on.
+    state.set(key, { ...loaded, revision: loaded.revision ?? 0 })
     return
   }
 
   const seedFile = SEED_FILES[key]
   const value = seedFile ? JSON.parse(readFileSync(join(SEED_DIR, seedFile), 'utf-8')) : HARDCODED_DEFAULTS[key]
-  const entry: StoredEntry = { seeded: true, value }
+  const entry: StoredEntry = { seeded: true, value, revision: 0 }
   state.set(key, entry)
   writeFileSync(filePath, JSON.stringify(entry), 'utf-8')
   mirrorFile(filePath)
@@ -217,7 +235,9 @@ function backfillProductNameFolded() {
   const recomputed = withRecomputedNameFolded(products)
   const changed = products.some((product, index) => product.nameFolded?.no !== recomputed[index].nameFolded?.no || product.nameFolded?.en !== recomputed[index].nameFolded?.en)
   if (changed) {
-    const updatedEntry: StoredEntry = { seeded: entry.seeded, value: recomputed }
+    // Preserves `revision` unchanged, same reasoning as preserving `seeded` — this is a boot-time
+    // backfill, not a real client write, so it shouldn't look like a newer revision to anyone.
+    const updatedEntry: StoredEntry = { seeded: entry.seeded, value: recomputed, revision: entry.revision }
     state.set('admin.products', updatedEntry)
     const filePath = dataFilePath('admin.products')
     writeFileSync(filePath, JSON.stringify(updatedEntry), 'utf-8')
@@ -242,9 +262,10 @@ export function get(key: SyncedKey): StoredEntry | undefined {
   return state.get(key)
 }
 
-/** Persists a real client write — always flips `seeded` to `false` permanently. */
+/** Persists a real client write — always flips `seeded` to `false` permanently, and always bumps `revision` by 1 from whatever this key's own current entry (if any) already has. */
 export function set(key: SyncedKey, value: unknown) {
-  const entry: StoredEntry = { seeded: false, value }
+  const revision = (state.get(key)?.revision ?? 0) + 1
+  const entry: StoredEntry = { seeded: false, value, revision }
   state.set(key, entry)
   const filePath = dataFilePath(key)
   writeFileSync(filePath, JSON.stringify(entry), 'utf-8')

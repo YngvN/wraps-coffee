@@ -2051,8 +2051,11 @@ function send(socket: WebSocket, message: ServerMessage) {
 }
 
 function broadcastUpdate(key: SyncedKey, value: unknown) {
+  // Called right after `store.set(key, value)` at every call site, so this is always that same
+  // write's own freshly-incremented revision, not a stale read.
+  const revision = store.get(key)?.revision ?? 0
   for (const [socket, keys] of interestSets) {
-    if (keys.has(key)) send(socket, { type: 'update', key, value })
+    if (keys.has(key)) send(socket, { type: 'update', key, value, revision })
   }
 }
 

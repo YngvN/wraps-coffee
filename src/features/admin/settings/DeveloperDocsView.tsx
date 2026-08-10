@@ -214,15 +214,16 @@ POST /users/<id>/password         (Authorization: Bearer <token>, admin/subadmin
         <p>{t('admin.settings.developerDocs.syncSnapshotText')}</p>
         <pre>
           <code>{`{ "type": "snapshot", "state": {
-  "admin.products": { "seeded": false, "value": [...] },
-  "admin.screens": { "seeded": false, "value": [...] }
+  "admin.products": { "seeded": false, "value": [...], "revision": 42 },
+  "admin.screens": { "seeded": false, "value": [...], "revision": 7 }
 } }`}</code>
         </pre>
 
         <p>{t('admin.settings.developerDocs.syncUpdateText')}</p>
         <pre>
-          <code>{`{ "type": "update", "key": "admin.products", "value": [...] }`}</code>
+          <code>{`{ "type": "update", "key": "admin.products", "value": [...], "revision": 43 }`}</code>
         </pre>
+        <p>{t('admin.settings.developerDocs.syncRevisionText')}</p>
 
         <p>{t('admin.settings.developerDocs.syncWriteText')}</p>
         <pre>

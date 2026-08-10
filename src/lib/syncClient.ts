@@ -2,7 +2,7 @@ import { wsUrl } from './localServer'
 import type { ClientMessage, ServerMessage, SyncedKey } from '../types/sync'
 
 type Listener = (value: unknown) => void
-type SnapshotEntry = { seeded: boolean; value: unknown }
+type SnapshotEntry = { seeded: boolean; value: unknown; revision?: number }
 type ErrorListener = (message: string, detail?: string) => void
 type ConnectionListener = (connected: boolean) => void
 
@@ -24,6 +24,9 @@ const declaredKeys = new Set<SyncedKey>()
 
 const pendingWrites = new Map<SyncedKey, ReturnType<typeof setTimeout>>()
 
+/** The revision of the last inbound `snapshot`/`update` entry actually applied per key — see `applyIfNewer`. Tab-lifetime only, reset on reload (a fresh `hello` always gets a fresh snapshot to rebuild it from, so nothing needs to persist this across page loads). */
+const lastAppliedRevision = new Map<SyncedKey, number>()
+
 let socket: WebSocket | null = null
 let authToken: string | null = null
 let reconnectDelay = INITIAL_RECONNECT_DELAY_MS
@@ -31,6 +34,30 @@ let connected = false
 
 function notify(key: SyncedKey, value: unknown) {
   for (const listener of listeners.get(key) ?? []) listener(value)
+}
+
+/**
+ * The single gate every inbound `value` (from a `snapshot` entry or an `update` message) goes
+ * through before reaching `notify` — rejects one that's not newer than the last one this tab
+ * actually applied for `key`, so a message that arrives out of order (e.g. two `update`s reordered
+ * in flight, or a `snapshot` landing after an `update` it predates) can't stomp something newer this
+ * tab already has. `revision` missing entirely (an older server that predates this field, or a
+ * `StoredEntry` that predates it and hasn't been normalized by a fresh `set()` yet) always passes —
+ * there's nothing to compare against, and refusing to apply would wedge that key forever instead of
+ * just falling back to today's un-gated behavior for it.
+ *
+ * Deliberately NOT a defense against a local edit still sitting in `pendingWrites` racing an inbound
+ * message that predates it — that edit has no revision of its own yet to compare against, since it
+ * hasn't reached the server. This only protects against out-of-order/duplicate delivery of messages
+ * this tab has already seen the server's own ordering for.
+ */
+function applyIfNewer(key: SyncedKey, value: unknown, revision: number | undefined) {
+  if (revision !== undefined) {
+    const last = lastAppliedRevision.get(key)
+    if (last !== undefined && revision <= last) return
+    lastAppliedRevision.set(key, revision)
+  }
+  notify(key, value)
 }
 
 /** Updates the shared connection flag and notifies subscribers, but only on an actual change — every `open`/`close` socket event calls this even when the state didn't move (e.g. a `close` right after another `close`), so this is what keeps listeners from re-rendering on a no-op. */
@@ -65,7 +92,7 @@ function handleSnapshot(state: Partial<Record<SyncedKey, SnapshotEntry>>) {
         continue
       }
     }
-    notify(key, entry.value)
+    applyIfNewer(key, entry.value, entry.revision)
   }
 }
 
@@ -112,7 +139,7 @@ function ensureSocket(): WebSocket {
       return
     }
     if (message.type === 'snapshot') handleSnapshot(message.state)
-    else if (message.type === 'update') notify(message.key, message.value)
+    else if (message.type === 'update') applyIfNewer(message.key, message.value, message.revision)
     else if (message.type === 'error') for (const listener of errorListeners) listener(message.message, message.detail)
   })
 
