@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Alert, BackButton, Badge, Button, Card, CloseIcon, CollapsibleSection, Input, PlusIcon, Spinner, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
@@ -12,11 +12,33 @@ import { useScrollToAndHighlight } from '../../../hooks/useScrollToAndHighlight'
 import { useLanguage } from '../../../i18n'
 import { goBack } from '../../../lib/backStack'
 import { approveDisplayPairing, getUpdatesStatus, setUpdateRollback } from '../../../lib/localServer'
-import type { DisplayMachine, DisplayUpdateProgressStatus } from '../../../types/displayMachine'
+import type { DisplayMachine, DisplayUpdateProgressStatus, DisplayUpdateTier } from '../../../types/displayMachine'
 import { resolveDisplayUpdateState, type DisplayUpdateState, type UpdatesHubStatus } from '../../../utils/displayUpdateState'
 import { connectionBadgeId } from './connectionBadge'
+import { PublishApkControl } from './PublishApkControl'
 import { useBulkUpdateRunner, type QueuedUpdate } from './updateQueue'
 import './DisplayManagerView.scss'
+
+/**
+ * Maps a `mobile` machine's own reported `updateTier` to a label + `Badge` variant, shown next to
+ * its connection-type badge — without this, "Update to current" looks identical for a Tier 1 (OTA
+ * only) and a Tier 3 (needs an on-device confirmation tap) device even though the hub already
+ * picks a genuinely different mechanism per machine server-side (`pushUpdateTriggersForNewEntries`
+ * in `server/index.ts`); this badge just makes that already-correct decision visible to the admin.
+ * `undefined` (a pre-Update-Channel client that's never reported a tier at all) renders nothing.
+ */
+function updateTierBadge(tier: DisplayUpdateTier | undefined): { variant: 'neutral' | 'info' | 'warning'; labelId: string } | null {
+  switch (tier) {
+    case 1:
+      return { variant: 'neutral', labelId: 'admin.displayManager.updateTierOta' }
+    case 2:
+      return { variant: 'info', labelId: 'admin.displayManager.updateTierSilent' }
+    case 3:
+      return { variant: 'warning', labelId: 'admin.displayManager.updateTierPrompted' }
+    default:
+      return null
+  }
+}
 
 /**
  * Maps a resolved `DisplayUpdateState` (see `resolveDisplayUpdateState`) to
@@ -131,24 +153,21 @@ export function DisplayManagerView() {
   // dashboard tab; a failed fetch is silently retried next interval, same best-effort posture as
   // every other polling loop in this codebase.
   const [updatesHubStatus, setUpdatesHubStatus] = useState<UpdatesHubStatus | null>(null)
-  useEffect(() => {
+  /** Also called directly after a successful APK publish (`PublishApkControl`'s `onPublished`) so the new `currentApk` shows immediately, without waiting out the rest of this interval. */
+  const refreshUpdatesHubStatus = useCallback(async () => {
     if (!session) return
-    let cancelled = false
-    const refresh = async () => {
-      try {
-        const status = await getUpdatesStatus(session.token)
-        if (!cancelled) setUpdatesHubStatus(status)
-      } catch {
-        // Ignore — see this effect's own doc comment above.
-      }
-    }
-    void refresh()
-    const interval = setInterval(() => void refresh(), 20_000)
-    return () => {
-      cancelled = true
-      clearInterval(interval)
+    try {
+      const status = await getUpdatesStatus(session.token)
+      setUpdatesHubStatus(status)
+    } catch {
+      // Ignore — see this state's own doc comment above.
     }
   }, [session])
+  useEffect(() => {
+    queueMicrotask(() => void refreshUpdatesHubStatus())
+    const interval = setInterval(() => void refreshUpdatesHubStatus(), 20_000)
+    return () => clearInterval(interval)
+  }, [refreshUpdatesHubStatus])
 
   const [updateProgress, setUpdateProgress] = useDisplayUpdateState()
 
@@ -323,18 +342,18 @@ export function DisplayManagerView() {
         {t('admin.displayManager.addDisplayButton')}
       </button>
 
-      {currentApk && (
-        <div className="display-manager-view__update-actions">
-          {actionableEntries.length > 0 &&
-            (bulkRunning ? (
-              <Button type="button" variant="secondary" onClick={abortBulkUpdate}>
-                {t('admin.displayManager.updateAllAbortButton')}
-              </Button>
-            ) : (
-              <Button type="button" onClick={() => startBulkUpdate(actionableEntries)}>
-                {t('admin.displayManager.updateAllButton')}
-              </Button>
-            ))}
+      <div className="display-manager-view__update-actions">
+        {currentApk && actionableEntries.length > 0 &&
+          (bulkRunning ? (
+            <Button type="button" variant="secondary" onClick={abortBulkUpdate}>
+              {t('admin.displayManager.updateAllAbortButton')}
+            </Button>
+          ) : (
+            <Button type="button" onClick={() => startBulkUpdate(actionableEntries)}>
+              {t('admin.displayManager.updateAllButton')}
+            </Button>
+          ))}
+        {currentApk && (
           <CollapsibleSection label={t('admin.displayManager.rollbackSectionLabel')} hint={t('admin.displayManager.rollbackSectionHint')}>
             {rollbackError && <Alert variant="error">{rollbackError}</Alert>}
             {currentApkRolledBack ? (
@@ -350,8 +369,12 @@ export function DisplayManagerView() {
               </Button>
             )}
           </CollapsibleSection>
-        </div>
-      )}
+        )}
+        {/* Not gated on currentApk existing — publishing the very first APK ever is exactly the case where currentApk is still null. */}
+        <CollapsibleSection label={t('admin.displayManager.publishApk.sectionLabel')} hint={t('admin.displayManager.publishApk.sectionHint')}>
+          <PublishApkControl updatesHubStatus={updatesHubStatus} onPublished={() => void refreshUpdatesHubStatus()} />
+        </CollapsibleSection>
+      </div>
 
       {pairingRequests.length > 0 && (
         <section className="display-manager-view__pending">
@@ -416,6 +439,10 @@ export function DisplayManagerView() {
                   <span className="display-manager-view__version-text">
                     {machine.versionName ? t('admin.displayManager.versionLabel', { versionName: machine.versionName }) : t('admin.displayManager.versionUnknown')}
                   </span>
+                  {(() => {
+                    const tierBadge = updateTierBadge(machine.updateTier)
+                    return tierBadge && <Badge variant={tierBadge.variant}>{t(tierBadge.labelId)}</Badge>
+                  })()}
                   {(() => {
                     // A pending progress entry (this machine's own update in flight, or recently
                     // failed) takes over the badge slot entirely — the resolved state underneath it

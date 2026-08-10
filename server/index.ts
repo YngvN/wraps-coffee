@@ -554,6 +554,28 @@ const httpServer = createServer((req, res) => {
     return
   }
 
+  // Publishes a new Tier 2/3 native build onto this hub — the admin-authenticated counterpart to
+  // the public GET route just above. Same "displaymanager" section gate as /updates/rollback,
+  // since this is the same feature area. Auth is checked before the (potentially 60MB+) request
+  // body is ever touched — on rejection the request is destroyed rather than just left dangling,
+  // since ending the response without consuming/discarding a large unread body can leave the
+  // connection in a bad state instead of surfacing a clean auth error to the client.
+  if (req.method === 'POST' && url.pathname === '/updates/apk') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      req.destroy()
+      return
+    }
+    if (session.role === 'limited' && !session.allowedSections?.includes('displaymanager')) {
+      sendJson(res, 403, { error: 'Only accounts with Display Manager access can publish an APK' })
+      req.destroy()
+      return
+    }
+    void updates.handleUpdatesApkPublish(req, res, url.searchParams)
+    return
+  }
+
   // Admin-facing (Display Manager's own state resolution, see src/utils/displayUpdateState.ts) —
   // any authenticated session, same unrestricted-read posture every synced-key read already has;
   // this just isn't itself a synced key since it's read from disk on demand rather than cached.
@@ -2129,13 +2151,21 @@ function reconcileStockForOrders(previousOrders: OrderRecord[], incomingOrders: 
  * queue, both client-side) actually causes anything to happen on a device;
  * writing the synced key alone only makes the progress badge appear.
  *
- * Mechanism selection reads the machine's own `updateTier` fresh from
- * `admin.displayMachines` here, server-side, rather than trusting whatever
- * the client wrote the entry with — "hub decides mechanism from resolved
- * state" (spec §5.4) means this function is the actual decision point, not
- * a rubber stamp on the caller's own guess. A `targetVersionCode` entry
- * without tier 2/3 (or vice versa) still gets the message its *current*
- * tier calls for, not whatever the entry's own shape implies.
+ * Mechanism selection is keyed off which field the entry itself set —
+ * `targetUpdateId` (OTA) always gets `check-update`, `targetVersionCode`
+ * (APK) gets `install-update` *if* the machine's own `updateTier` (read
+ * fresh from `admin.displayMachines` here, server-side, never trusted from
+ * whatever the client wrote the entry with) actually supports it, else it
+ * also falls back to `check-update` — a harmless no-op-ish signal, unlike
+ * pushing `install-update` at a device with no `PackageInstallerModule`
+ * capability at all. Tier 2/3 capability is a *superset* of Tier 1, not a
+ * replacement for it: a device that's since been elevated past Tier 1 can
+ * still receive a same-native-build, JS-only OTA update exactly the same
+ * way a Tier 1 device does — an earlier version of this function decided
+ * the mechanism from `updateTier` alone, which meant a Tier 2/3 device
+ * could never receive `check-update` again even for a pure JS change,
+ * forcing every future fix (however small) through a full native rebuild.
+ * Only surfaced once a real Tier 2/3 device existed to hit it.
  */
 function pushUpdateTriggersForNewEntries(previous: DisplayUpdateProgress[], incoming: DisplayUpdateProgress[]) {
   const previousByMachineID = new Map(previous.map((entry) => [entry.machineID, entry]))
@@ -2147,7 +2177,8 @@ function pushUpdateTriggersForNewEntries(previous: DisplayUpdateProgress[], inco
       !before || before.targetUpdateId !== entry.targetUpdateId || before.targetVersionCode !== entry.targetVersionCode || before.startedAt !== entry.startedAt
     if (!isNewRun) continue
     const updateTier = machinesByID.get(entry.machineID)?.updateTier
-    const message: DeviceServerMessage = updateTier === 2 || updateTier === 3 ? { type: 'install-update', mechanism: 'apk' } : { type: 'check-update' }
+    const message: DeviceServerMessage =
+      entry.targetVersionCode !== undefined && (updateTier === 2 || updateTier === 3) ? { type: 'install-update', mechanism: 'apk' } : { type: 'check-update' }
     pushToDevice(entry.machineID, message)
   }
 }

@@ -192,6 +192,31 @@ export async function uploadVideo(file: File, token: string, onProgress?: (fract
   return body as VideoUploadAck
 }
 
+/**
+ * Publishes a new Tier 2/3 native build onto this hub — see `POST /updates/apk` in
+ * `server/updates.ts` for the full validation this goes through server-side (versionCode/versionName
+ * cross-checked against both each other and `file.name`, signed-APK verification, atomic write,
+ * old-version pruning). `onProgress` (0-1) reports network-transfer progress only, same as
+ * `uploadVideo`/`uploadImage`. `overwrite` mirrors the server's own `?overwrite=1` escape hatch for
+ * republishing an already-published (or older) `versionCode` on purpose.
+ */
+export async function publishApk(
+  file: File,
+  versionCode: number,
+  versionName: string,
+  runtimeVersion: string,
+  token: string,
+  onProgress?: (fraction: number) => void,
+  overwrite?: boolean,
+): Promise<NonNullable<UpdatesHubStatus['currentApk']>> {
+  const params = new URLSearchParams({ versionCode: String(versionCode), versionName, runtimeVersion, filename: file.name })
+  if (overwrite) params.set('overwrite', '1')
+  const { status, body } = await xhrUpload(`${serverBaseUrl()}/updates/apk?${params.toString()}`, file, token, onProgress)
+  if (status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (status < 200 || status >= 300) throw new UploadError((body as { error?: string }).error ?? 'Publish failed')
+  return body as NonNullable<UpdatesHubStatus['currentApk']>
+}
+
 /** Re-attempts a failed transcode against its still-staged source, without needing the file re-uploaded. 404s (surfaced as a thrown `UploadError`) if that staged copy is gone — already succeeded, deleted, or swept after 48h abandoned. */
 export async function retryVideoUpload(id: string, token: string): Promise<VideoUploadAck> {
   let response: Response

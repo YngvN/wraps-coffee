@@ -10,6 +10,7 @@ import { runPendingMigrations } from './src/lib/migrations'
 import { useRemoteNav } from './src/lib/remoteNav'
 import { setUpdateOrigin, startUpdateListener } from './src/lib/updates'
 import { RemoteNavHud } from './src/components/RemoteNavHud'
+import { UpdatingWatermark } from './src/components/UpdatingWatermark'
 import { DisplayScreen } from './src/screens/DisplayScreen'
 import { PairingScreen } from './src/screens/PairingScreen'
 import { ServerSetupScreen } from './src/screens/ServerSetupScreen'
@@ -212,16 +213,18 @@ export default function App() {
   // socket just because a screen got assigned; `connectDeviceSocket`'s own dedup guard exists for
   // this exact reason, but keying the effect this way avoids relying on it for the common case.
   const pairedConnection = state.stage === 'waiting' || state.stage === 'displaying' ? state.connection : null
+  const [installingApk, setInstallingApk] = useState(false)
   useEffect(() => {
     if (!pairedConnection || !machineID) return
     connectDeviceSocket(pairedConnection, machineID)
     setUpdateOrigin(pairedConnection)
-    return startUpdateListener(pairedConnection)
+    return startUpdateListener(pairedConnection, () => setInstallingApk(true))
   }, [pairedConnection, machineID])
 
   return (
     <View style={styles.root}>
       <StatusBar hidden />
+      <UpdatingWatermark installingApk={installingApk} />
       {state.stage === 'loading' && null}
       {state.stage === 'server-setup' && <ServerSetupScreen onConnected={handleConnected} />}
       {state.stage === 'pairing' && (

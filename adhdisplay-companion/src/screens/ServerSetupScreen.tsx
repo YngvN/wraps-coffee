@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, Animated, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native'
+import { ActivityIndicator, Animated, BackHandler, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity } from 'react-native'
 import { FadeInView } from '../components/FadeInView'
 import { FocusableButton } from '../components/FocusableButton'
 import { useDpadNav } from '../hooks/useDpadNav'
@@ -236,15 +236,41 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
   // with no navigable items at all.
   const showSearchingButtons = mode === 'searching' && !isSettling && hasSweptOnce
   /**
-   * How many D-pad-navigable items the currently-showing mode has, and what "select" does
-   * for each index — see `useDpadNav`'s own doc comment for why this screen needs a
-   * JS-driven selection state at all instead of relying on native Android focus. `'manual'`
-   * mode's two buttons are deliberately excluded (dpadItemCount stays 0 there): they sit
-   * below three `TextInput`s that need real native focus for the on-screen keyboard, and
-   * mixing that with this hook's own separate JS-owned selection would fight over D-pad
-   * up/down with no correct way to resolve which system wins.
+   * `'manual'` mode's own 5 items (3 `TextInput`s, indices 0-2, then the 2 buttons, indices
+   * 3-4) — all part of this hook, same as every other mode's items, so all 5 get a real, JS-driven
+   * ring (confirmed reliable everywhere else in this file) rather than depending on native focus
+   * events for it. Two earlier designs were tried and confirmed broken on real hardware first:
+   *
+   * 1. Reactively calling `.focus()` on whichever `TextInput` ref `selectedIndex` pointed at
+   *    (a plain effect keyed on `selectedIndex`) — the moment a `TextInput` gains real native
+   *    focus this way, Android's key event dispatch stops reaching this app's own
+   *    `dispatchKeyEvent` override (`withKeyEventBridge.js`) *at all*, even before any keyboard
+   *    is visibly shown — breaking D-pad input for the rest of the screen, not just that input.
+   * 2. Leaving the `TextInput`s on bare native focus (`hasTVPreferredFocus`) and driving their
+   *    ring off their own `onFocus`/`onBlur` — confirmed via `adb shell dumpsys input_method`
+   *    that these never fire for real D-pad-driven focus on this hardware either (same
+   *    unreliability `useDpadNav`'s own doc comment already established for plain
+   *    `View`/`TouchableOpacity` — evidently true for `TextInput` here too, contrary to the
+   *    reasonable-sounding assumption that its real IME-backed focus callbacks would differ).
+   *
+   * This is the third design: browsing (`selectedIndex` moving on up/down) never touches real
+   * focus at all, so the D-pad bridge stays intact the whole time — `.focus()` is only ever
+   * called once, imperatively, as the direct result of an explicit "select" press on one of the
+   * 3 input indices (see `handleDpadSelect` below), the same deliberate gesture that already
+   * activates a button. From that point the person is editing text, same as using any on-screen
+   * keyboard — D-pad browsing naturally isn't available again until they submit (see each
+   * `TextInput`'s own `onSubmitEditing`, which blurs it back to hand control back to this hook).
    */
-  const dpadItemCount = showSearchingButtons ? 2 : mode === 'found' && foundConnections[0] ? 2 : mode === 'list' ? foundConnections.length + 1 : 0
+  const manualItemRefs = useRef<(TextInput | null)[]>([])
+  const dpadItemCount = showSearchingButtons
+    ? 2
+    : mode === 'found' && foundConnections[0]
+      ? 2
+      : mode === 'list'
+        ? foundConnections.length + 1
+        : mode === 'manual'
+          ? 5
+          : 0
   const handleDpadSelect = (index: number) => {
     if (showSearchingButtons) {
       if (index === 0) handleLookNow()
@@ -259,9 +285,32 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
     if (mode === 'list') {
       if (index < foundConnections.length) onConnected(foundConnections[index])
       else setMode('manual')
+      return
+    }
+    if (mode === 'manual') {
+      if (index <= 2) manualItemRefs.current[index]?.focus()
+      else if (index === 3) handleManualSubmit()
+      else handleSearchAutomatically()
     }
   }
   const selectedIndex = useDpadNav(dpadItemCount, handleDpadSelect)
+
+  // Feature: pressing Back while on the manual-entry screen returns to auto-search, rather than
+  // just counting toward the global triple-Back-press disconnect gesture (App.tsx's own
+  // top-level listener) — registered only while `mode === 'manual'`, and only for as long as
+  // that's true, so leaving this mode any other way (Connect, "Search automatically") doesn't
+  // leave a stale listener intercepting Back on some *later* screen. `BackHandler` calls the
+  // most-recently-registered listener first, so this takes priority over the app-level one
+  // while mounted.
+  useEffect(() => {
+    if (mode !== 'manual') return
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleSearchAutomatically()
+      return true
+    })
+    return () => sub.remove()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleSearchAutomatically is stable across renders (only closes over stable setState setters).
+  }, [mode])
 
   if (mode === 'searching' && isSettling) {
     return (
@@ -337,33 +386,49 @@ export function ServerSetupScreen({ onConnected }: ServerSetupScreenProps) {
         printed when the server starts.
       </Text>
       <TextInput
-        style={styles.input}
+        ref={(ref) => {
+          manualItemRefs.current[0] = ref
+        }}
+        style={[styles.input, selectedIndex === 0 && styles.inputFocused]}
         placeholder="192.168.1.47"
         placeholderTextColor="#888"
         value={manualHost}
         onChangeText={setManualHost}
         autoCapitalize="none"
         autoCorrect={false}
-        hasTVPreferredFocus
+        returnKeyType="done"
+        onSubmitEditing={() => manualItemRefs.current[0]?.blur()}
       />
       <TextInput
-        style={styles.input}
+        ref={(ref) => {
+          manualItemRefs.current[1] = ref
+        }}
+        style={[styles.input, selectedIndex === 1 && styles.inputFocused]}
         placeholder="Sync port (default 4000)"
         placeholderTextColor="#888"
         value={manualWsPort}
         onChangeText={setManualWsPort}
         keyboardType="number-pad"
+        returnKeyType="done"
+        onSubmitEditing={() => manualItemRefs.current[1]?.blur()}
       />
       <TextInput
-        style={styles.input}
+        ref={(ref) => {
+          manualItemRefs.current[2] = ref
+        }}
+        style={[styles.input, selectedIndex === 2 && styles.inputFocused]}
         placeholder="Content port (default 4173)"
         placeholderTextColor="#888"
         value={manualContentPort}
         onChangeText={setManualContentPort}
         keyboardType="number-pad"
+        returnKeyType="done"
+        onSubmitEditing={() => manualItemRefs.current[2]?.blur()}
       />
-      <FocusableButton onPress={handleManualSubmit}>Connect</FocusableButton>
-      <FocusableButton variant="link" onPress={handleSearchAutomatically}>
+      <FocusableButton focused={selectedIndex === 3} onPress={handleManualSubmit}>
+        Connect
+      </FocusableButton>
+      <FocusableButton variant="link" focused={selectedIndex === 4} onPress={handleSearchAutomatically}>
         Search automatically instead
       </FocusableButton>
     </FadeInView>
@@ -375,7 +440,11 @@ const styles = StyleSheet.create({
   foundName: { color: '#fff', fontSize: 22, fontWeight: '700', textAlign: 'center', width: '100%', maxWidth: 320 },
   text: { color: '#ccc', fontSize: 16, textAlign: 'center' },
   subText: { color: '#888', fontSize: 13, textAlign: 'center' },
+  // borderColor-only change on focus (borderWidth stays constant throughout) — same
+  // "no layout shift on focus" reasoning as FocusableButton's own focus ring, just swapping
+  // shades on an already-visible border instead of appearing from nothing.
   input: { width: '100%', maxWidth: 320, backgroundColor: '#222', color: '#eee', borderWidth: 1, borderColor: '#444', borderRadius: 6, padding: 10, fontSize: 16 },
+  inputFocused: { borderColor: '#dfa93e' },
   serverList: { width: '100%', maxWidth: 360, maxHeight: 320 },
   serverListContent: { gap: 10 },
   serverRow: { backgroundColor: '#222', borderWidth: 1, borderColor: '#444', borderRadius: 8 },

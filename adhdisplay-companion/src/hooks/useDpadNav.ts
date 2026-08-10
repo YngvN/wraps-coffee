@@ -22,10 +22,22 @@ import { subscribeToRemoteKeyEvents } from '../lib/remoteKeyEvents'
  * `super.dispatchKeyEvent()` in addition to emitting the bridge event, so leaving these
  * items natively focusable risks a second, independent native focus/click system running
  * in parallel and drifting out of sync with this hook's own `selectedIndex` — silently
- * pressing the wrong (or a duplicate) action. Not appropriate for a screen mixing this with
- * `TextInput`s that need real native focus for the on-screen keyboard (see
- * `ServerSetupScreen`'s own `'manual'` mode, which deliberately does NOT use this hook for
- * its buttons for exactly that reason).
+ * pressing the wrong (or a duplicate) action.
+ *
+ * A screen that also has real `TextInput`s needing native focus for the on-screen keyboard
+ * (`ServerSetupScreen`'s own `'manual'` mode) can still use this hook for 100% of its navigable
+ * items, `TextInput`s included, but real focus must only ever be taken *imperatively, once, as
+ * the direct result of an explicit "select" press* on that item's own index — never reactively
+ * off `selectedIndex` changing as the person merely browses past it. An earlier version did the
+ * reactive version (a plain effect keyed on `selectedIndex`, calling `.focus()` on whichever
+ * `TextInput` ref it currently pointed at) — confirmed on real hardware that this breaks D-pad
+ * input entirely, not just for that one input: the moment a `TextInput` gains real native focus
+ * this way, the native key-event bridge this hook itself depends on
+ * (`withKeyEventBridge.js` -> `onRemoteKeyEvent` -> `remoteKeyEvents.ts`) stops receiving events
+ * at all, even before any keyboard is visibly shown. See `ServerSetupScreen`'s own
+ * `dpadItemCount` doc comment for the full account, including why plain `onFocus`/`onBlur`
+ * (this hook's own usual recommendation, see above) doesn't work as a fallback for `TextInput`
+ * either on this hardware.
  */
 export function useDpadNav(itemCount: number, onSelect: (index: number) => void, enabled = true): number {
   const [selectedIndex, setSelectedIndex] = useState(0)

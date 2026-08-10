@@ -19,10 +19,13 @@ import { syncOrigin, type ServerConnection } from './serverConnection'
  * mechanism — which one arrives is the hub's own decision (§5.4), not this
  * function's.
  */
-export function startUpdateListener(connection: ServerConnection): () => void {
+export function startUpdateListener(connection: ServerConnection, onInstallStart?: () => void): () => void {
   return subscribeToDeviceMessages((message) => {
     if (message.type === 'check-update') void checkAndApplyUpdate()
-    if (message.type === 'install-update') void handleInstallUpdate(connection)
+    if (message.type === 'install-update') {
+      onInstallStart?.()
+      void handleInstallUpdate(connection)
+    }
   })
 }
 

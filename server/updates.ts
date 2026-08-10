@@ -1,5 +1,19 @@
+import AdmZip from 'adm-zip'
 import { createHash, createSign } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import {
+  closeSync,
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  readdirSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -51,6 +65,11 @@ function readCurrentApkInfo(): CurrentApkInfo | null {
   }
 }
 
+function writeCurrentApkInfo(info: CurrentApkInfo) {
+  writeFileSync(CURRENT_APK_FILE, JSON.stringify(info), 'utf-8')
+  mirrorFile(CURRENT_APK_FILE)
+}
+
 /**
  * `GET /updates/apk/current` — the file a Tier 2/3 companion device
  * actually downloads (Update Channel spec §3.3.2), public/no-auth, same
@@ -81,6 +100,161 @@ export function handleUpdatesApk(res: ServerResponse) {
     ...CORS_HEADERS,
   })
   res.end(readFileSync(filePath))
+}
+
+/** Same formula `adhdisplay-companion/scripts/build-tv-apk.js`'s own `computeVersionCode` uses — kept in exact sync (not imported, since that script lives in a separate package with its own module boundary) so a hand-typed `versionCode` that doesn't match its own `versionName` gets caught here too, not just client-side. */
+function computeVersionCodeFromVersionName(versionName: string): number | null {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(versionName)
+  if (!match) return null
+  const [, major, minor, patch] = match.map(Number)
+  if (minor >= 100 || patch >= 100) return null
+  return major * 10000 + minor * 100 + patch
+}
+
+/** The exact filename `build-tv-apk.js` itself produces — cross-checked against the caller's own `versionCode`/`versionName` query params below so a stale or hand-renamed file gets caught before it ever reaches disk. */
+function expectedApkFilename(versionName: string, versionCode: number): string {
+  return `adhdisplay-companion-${versionName}-${versionCode}.apk`
+}
+
+const MAX_APK_UPLOAD_BYTES = 250 * 1024 * 1024
+
+/** Streams the request body to `destPath` with a hard size cap enforced mid-transfer (not after the fact) — same shape as `videoUploads.ts`'s own `streamBodyToFile`, since an APK is the same "large binary body, must not buffer the whole thing in memory" case a video upload already is. Cleans up the partial file itself on any failure. */
+async function streamRequestBodyToFile(req: IncomingMessage, destPath: string, maxBytes: number): Promise<void> {
+  const writeStream = createWriteStream(destPath)
+  let total = 0
+  try {
+    for await (const chunk of req) {
+      total += (chunk as Buffer).length
+      if (total > maxBytes) throw new Error('PAYLOAD_TOO_LARGE')
+      writeStream.write(chunk)
+    }
+    await new Promise<void>((resolve, reject) => writeStream.end((error?: Error | null) => (error ? reject(error) : resolve())))
+  } catch (error) {
+    writeStream.destroy()
+    if (existsSync(destPath)) unlinkSync(destPath)
+    throw error
+  }
+}
+
+/** `true` only if `filePath` is a real, signed APK — a plain zip whose central directory contains both `AndroidManifest.xml` and at least one `META-INF/*.{RSA,EC,DSA}` signing-block entry. Cheap magic-byte check first (every zip, valid or not, starts with this) before bothering to open it as a zip at all. */
+function looksLikeSignedApk(filePath: string): boolean {
+  const header = Buffer.alloc(4)
+  const fd = openSync(filePath, 'r')
+  try {
+    readSync(fd, header, 0, 4, 0)
+  } finally {
+    closeSync(fd)
+  }
+  if (!header.equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]))) return false
+
+  try {
+    const zip = new AdmZip(filePath)
+    const entries = zip.getEntries().map((entry) => entry.entryName)
+    const hasManifest = entries.includes('AndroidManifest.xml')
+    const hasSigningBlock = entries.some((name) => /^META-INF\/.*\.(RSA|EC|DSA)$/.test(name))
+    return hasManifest && hasSigningBlock
+  } catch {
+    return false
+  }
+}
+
+/** Keeps only the newest `keep` versionCodes' own `.apk` files under `UPDATE_APK_DIR`, deleting the rest — every publish is 60MB+ on disk (and again in the backup mirror), so this is not optional bookkeeping. Never touches `CURRENT_APK_FILE` itself, only the numbered files sitting alongside it. */
+function pruneOldApks(keep: number) {
+  const versionCodes = readdirSync(UPDATE_APK_DIR)
+    .filter((name) => name.endsWith('.apk'))
+    .map((name) => Number(name.slice(0, -'.apk'.length)))
+    .filter((versionCode) => Number.isFinite(versionCode))
+    .sort((a, b) => b - a)
+  for (const versionCode of versionCodes.slice(keep)) {
+    const filePath = join(UPDATE_APK_DIR, `${versionCode}.apk`)
+    unlinkSync(filePath)
+    mirrorFile(filePath)
+  }
+}
+
+/**
+ * `POST /updates/apk?versionCode=&versionName=&runtimeVersion=&filename=[&overwrite=1]` — the
+ * admin-authenticated counterpart to `handleUpdatesApk` above, publishing a new Tier 2/3 APK build
+ * (`adhdisplay-companion/scripts/build-tv-apk.js`'s own `dist/` output) onto this hub. Auth/section
+ * gating happens in `server/index.ts` before this is ever called, same as every other write route.
+ *
+ * Raw binary body (the `.apk` file itself), same convention `/uploads` and `/uploads/video` already
+ * use — no multipart parser in this codebase, and this isn't the route to introduce one. Streamed to
+ * a `.part` temp file first (mid-transfer size cap enforced, see `streamRequestBodyToFile`), validated
+ * as a real signed APK, then atomically renamed into place — an aborted upload must never leave a
+ * truncated file sitting at the exact path `handleUpdatesApk` serves from.
+ */
+export async function handleUpdatesApkPublish(req: IncomingMessage, res: ServerResponse, query: URLSearchParams) {
+  const versionCodeRaw = query.get('versionCode')
+  const versionName = query.get('versionName')
+  const runtimeVersion = query.get('runtimeVersion')
+  const filename = query.get('filename')
+  const overwrite = query.get('overwrite') === '1'
+
+  const versionCode = versionCodeRaw ? Number(versionCodeRaw) : NaN
+  if (!Number.isInteger(versionCode) || versionCode <= 0) {
+    sendJson(res, 400, { error: 'versionCode must be a positive integer' })
+    return
+  }
+  if (!versionName || !/^\d+\.\d+\.\d+$/.test(versionName)) {
+    sendJson(res, 400, { error: 'versionName must look like "0.2.30"' })
+    return
+  }
+  if (!runtimeVersion) {
+    sendJson(res, 400, { error: 'runtimeVersion is required' })
+    return
+  }
+  if (!filename) {
+    sendJson(res, 400, { error: 'filename is required' })
+    return
+  }
+  const computedVersionCode = computeVersionCodeFromVersionName(versionName)
+  if (computedVersionCode !== versionCode) {
+    sendJson(res, 400, { error: `versionCode ${versionCode} doesn't match versionName ${versionName} (expected ${computedVersionCode})` })
+    return
+  }
+  if (filename !== expectedApkFilename(versionName, versionCode)) {
+    sendJson(res, 400, { error: `filename doesn't match the expected build-tv-apk.js naming convention: ${expectedApkFilename(versionName, versionCode)}` })
+    return
+  }
+  const contentType = req.headers['content-type']
+  if (contentType !== 'application/vnd.android.package-archive' && contentType !== 'application/octet-stream') {
+    sendJson(res, 400, { error: 'Content-Type must be application/vnd.android.package-archive or application/octet-stream' })
+    return
+  }
+
+  const currentApk = readCurrentApkInfo()
+  if (currentApk && versionCode < currentApk.versionCode && !overwrite) {
+    sendJson(res, 409, { error: `versionCode ${versionCode} is older than the currently published ${currentApk.versionCode} — pass ?overwrite=1 to publish it anyway` })
+    return
+  }
+  const apkPath = join(UPDATE_APK_DIR, `${versionCode}.apk`)
+  if (existsSync(apkPath) && !overwrite) {
+    sendJson(res, 409, { error: `versionCode ${versionCode} has already been published — pass ?overwrite=1 to replace it` })
+    return
+  }
+
+  const tempPath = `${apkPath}.part`
+  try {
+    await streamRequestBodyToFile(req, tempPath, MAX_APK_UPLOAD_BYTES)
+  } catch {
+    sendJson(res, 413, { error: `File too large (${MAX_APK_UPLOAD_BYTES / (1024 * 1024)}MB limit)` })
+    return
+  }
+
+  if (!looksLikeSignedApk(tempPath)) {
+    unlinkSync(tempPath)
+    sendJson(res, 400, { error: "This doesn't look like a signed APK (expected a zip containing AndroidManifest.xml and a META-INF signing block)" })
+    return
+  }
+
+  renameSync(tempPath, apkPath)
+  mirrorFile(apkPath)
+  const info: CurrentApkInfo = { versionCode, versionName, runtimeVersion }
+  writeCurrentApkInfo(info)
+  pruneOldApks(3)
+
+  sendJson(res, 200, info)
 }
 
 /** One runtimeVersion → whether Display Manager's own "revert to previous update" (commit 5) has pinned that runtime version to serve its previous bundle instead of its newest one. */
@@ -198,10 +372,12 @@ function assetManifestEntry(update: ResolvedUpdate, asset: UpdateAssetDescriptor
 
 const MULTIPART_BOUNDARY = 'adhdisplay-updates-boundary'
 
-function writeMultipartPart(res: ServerResponse, name: string, contentType: string, body: string) {
+function writeMultipartPart(res: ServerResponse, name: string, contentType: string, body: string, extraHeaders?: Record<string, string>) {
   res.write(`--${MULTIPART_BOUNDARY}\r\n`)
   res.write(`Content-Disposition: form-data; name="${name}"\r\n`)
-  res.write(`Content-Type: ${contentType}\r\n\r\n`)
+  res.write(`Content-Type: ${contentType}\r\n`)
+  for (const [key, value] of Object.entries(extraHeaders ?? {})) res.write(`${key}: ${value}\r\n`)
+  res.write('\r\n')
   res.write(body)
   res.write('\r\n')
 }
@@ -341,7 +517,17 @@ export function handleUpdatesManifest(req: IncomingMessage, res: ServerResponse,
     return
   }
 
-  writeMultipartPart(res, 'manifest', 'application/json', manifestJson)
+  // The client's own multipart parser (`FileDownloader.kt`'s `parseMultipartRemoteUpdateResponse`) reads
+  // `expo-signature` off this "manifest" part's own headers, not the top-level HTTP response header set
+  // above — confirmed against a real device, which otherwise rejects an unsigned-looking manifest
+  // ("No expo-signature header specified") despite the top-level header being present and valid.
+  writeMultipartPart(
+    res,
+    'manifest',
+    'application/json',
+    manifestJson,
+    signature ? { 'expo-signature': `sig="${signature}", keyid="${CODE_SIGNING_KEY_ID}"` } : undefined,
+  )
   res.write(`--${MULTIPART_BOUNDARY}--\r\n`)
   res.end()
 }

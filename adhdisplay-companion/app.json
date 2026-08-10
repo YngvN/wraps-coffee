@@ -2,7 +2,7 @@
   "expo": {
     "name": "ADHDisplay Companion",
     "slug": "adhdisplay-companion",
-    "version": "0.2.29",
+    "version": "0.2.31",
     "orientation": "landscape",
     "userInterfaceStyle": "dark",
     "icon": "./assets/icon.png",
@@ -32,7 +32,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#111111"
       },
-      "versionCode": 229,
+      "versionCode": 231,
       "permissions": [
         "ACCESS_NETWORK_STATE",
         "ACCESS_WIFI_STATE",
@@ -69,7 +69,8 @@
       "codeSigningMetadata": {
         "keyid": "main",
         "alg": "rsa-v1_5-sha256"
-      }
+      },
+      "disableAntiBrickingMeasures": true
     }
   }
 }

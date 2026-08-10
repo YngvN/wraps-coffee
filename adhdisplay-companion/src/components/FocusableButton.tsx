@@ -11,12 +11,15 @@ interface FocusableButtonProps {
    * Externally-controlled focus ring, driven by a `useDpadNav` selection index (see that
    * hook's own doc comment for why this can't just be tracked internally via
    * `onFocus`/`onBlur` — those never fire for real D-pad focus on plain `react-native`
-   * Android). Passing this (even `false`) switches the button to `focusable={false}` +
-   * no `hasTVPreferredFocus`, removing it from Android's native D-pad focus chain entirely
-   * so `useDpadNav`'s own JS-driven selection is the sole system deciding what "select"
-   * does — leave unset for a screen that still relies on native focus instead (e.g.
-   * `ServerSetupScreen`'s `'manual'` mode, whose buttons sit next to `TextInput`s that need
-   * real native focus for the on-screen keyboard).
+   * Android, confirmed true for `TextInput` too, not just plain `View`/`TouchableOpacity`).
+   * Passing this (even `false`) switches the button to `focusable={false}` + no
+   * `hasTVPreferredFocus`, removing it from Android's native D-pad focus chain entirely so
+   * `useDpadNav`'s own JS-driven selection is the sole system deciding what "select" does.
+   * Every current call site passes this now, `ServerSetupScreen`'s `'manual'` mode included
+   * — see that screen's own `dpadItemCount` doc comment for how it reconciles this with its
+   * `TextInput`s needing real native focus for the on-screen keyboard (short version: real
+   * focus is only ever taken imperatively, once, on an explicit "select" press — never
+   * reactively — so the D-pad bridge these buttons depend on stays intact for browsing).
    */
   focused?: boolean
   hasTVPreferredFocus?: boolean

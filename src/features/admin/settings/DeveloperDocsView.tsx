@@ -369,6 +369,29 @@ Downloaded by a Tier 2/3 (device-owner / install-unknown-apps) companion device'
 PackageInstallerModule.kt, which verifies the downloaded bytes' own signing certificate against its
 build-time-embedded expectation before installing — this route itself attaches no signature.
 
+POST /updates/apk?versionCode=&versionName=&runtimeVersion=&filename=[&overwrite=1]
+                                    (Authorization: Bearer <token>, "displaymanager" section)
+Body: the raw .apk bytes (Content-Type: application/vnd.android.package-archive or
+application/octet-stream — same raw-binary-body convention /uploads and /uploads/video already use,
+no multipart parser anywhere in this codebase)
+→ 200 { "versionCode", "versionName", "runtimeVersion" }   (the new CurrentApkInfo)
+→ 400 { "error": "..." }   (malformed versionCode/versionName/runtimeVersion/filename; filename doesn't
+  match the "adhdisplay-companion-<versionName>-<versionCode>.apk" naming convention build-tv-apk.js
+  itself produces; versionCode doesn't match versionName's own major*10000+minor*100+patch; wrong
+  Content-Type; body isn't a signed APK — not a zip, or missing AndroidManifest.xml/a META-INF
+  signing-block entry)
+→ 401 { "error": "..." }   /   403 { "error": "..." }   (a "limited" token without the Display Manager
+  section — the request is destroyed rather than left dangling, so a large unsent body doesn't leave
+  the connection in a bad state)
+→ 409 { "error": "..." }   (this versionCode is older than, or the same as, what's already published —
+  pass ?overwrite=1 to publish it anyway)
+→ 413 { "error": "..." }   (over the 250MB cap — enforced mid-transfer, not after the full body lands)
+Streams to a ".part" temp file first, validates it, then atomically renames into place — an aborted
+upload never leaves a truncated file at the exact path GET /updates/apk/current serves from. Prunes
+every APK beyond the newest 3 versionCodes on success (each publish is 60MB+, twice over counting the
+backup mirror). This is the one Tier 2/3 counterpart to OTA's own still-entirely-out-of-band publish
+process below — see build-tv-apk.js's own dist/ output for what to upload here.
+
 POST /updates/rollback             (Authorization: Bearer <token>, "displaymanager" section)
 { "runtimeVersion": "...", "rolledBack": boolean }
 → 200 { "ok": true }
@@ -391,16 +414,16 @@ in server/index.ts). A pending run completes the moment a later heartbeat report
 updateId (OTA) or versionCode (APK) the hub pushed it toward; 10 minutes without that match marks
 it update-failed (no automatic retry).
 
-Publishing is out-of-band — this hub only serves. A build process drops a published update's own
-files under server/data/updates/bundles/<runtimeVersion>/<updateId>/ (a metadata.json plus the actual
-bundle/asset files it describes) and, for a new native release, both writes
-server/data/updates/current-apk.json and drops the APK itself at
-server/data/updates/apk/<versionCode>.apk — none of this is a route on this server, so there's
-deliberately no publish endpoint here. "Current" and "previous" per runtime version
-are just the newest and second-newest published folders by their own createdAt, unless Display
-Manager's own "revert to previous update" action has pinned that runtime version back (see
-server/updates.ts's setRollbackFlag) — retention beyond current+previous is the publish process's own
-job to prune, not enforced by this server.`}</code>
+OTA bundle publishing is still out-of-band — this hub only serves it. A build process drops a
+published update's own files under
+server/data/updates/bundles/<runtimeVersion>/<updateId>/ (a metadata.json plus the actual bundle/asset
+files it describes), with no HTTP route to do this through — "current" and "previous" per runtime
+version are just the newest and second-newest published folders by their own createdAt, unless
+Display Manager's own "revert to previous update" action has pinned that runtime version back (see
+server/updates.ts's setRollbackFlag). Retention beyond current+previous is the publish process's own
+job to prune, not enforced by this server. Native APK publishing, by contrast, now has a real route
+— see POST /updates/apk above — which handles both the write and its own retention (newest 3
+versionCodes) itself.`}</code>
         </pre>
 
         <p>{t('admin.settings.developerDocs.updateChannelSocketText')}</p>
