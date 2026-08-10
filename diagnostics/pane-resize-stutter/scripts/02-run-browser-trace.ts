@@ -45,6 +45,8 @@ async function main() {
   const screenId = args.get('screenId')
   if (!screenId) throw new Error('--screenId is required')
   const durationMs = args.get('durationMs') ? Number(args.get('durationMs')) : DEFAULT_CAPTURE_DURATION_MS
+  /** Optional free-text tag (e.g. `before`/`after`) surfaced in the aggregated report's own Notes column — lets a before/after comparison against the same shared results/ directory stay distinguishable. */
+  const label = args.get('label')
   const variant = variantFromScreenId(screenId)
   const { contentUrl } = resolveServerUrls({ host: args.get('host'), contentPort: args.get('contentPort') ? Number(args.get('contentPort')) : undefined })
 
@@ -82,7 +84,7 @@ async function main() {
     target: browserName,
     variant,
     screenId,
-    meta: {},
+    meta: label ? { build: label } : {},
     rafDelta,
     layoutWindows,
     tracePath,
