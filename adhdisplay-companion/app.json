@@ -32,7 +32,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#111111"
       },
-      "versionCode": 231,
+      "versionCode": 232,
       "permissions": [
         "ACCESS_NETWORK_STATE",
         "ACCESS_WIFI_STATE",
