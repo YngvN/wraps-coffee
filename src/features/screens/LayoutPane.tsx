@@ -268,10 +268,16 @@ export function LayoutPane({
   // fallback is still absorbing the overflow itself.
   const checkWidth0 = isEventMonth(contentSlots[0]?.content) || contentSlots[0]?.content?.kind === 'weather'
   const checkWidth1 = isEventMonth(contentSlots[1]?.content) || contentSlots[1]?.content?.kind === 'weather'
-  useShrinkToFitScale(contentOuterRef0, contentInnerRef0, overflowMode === 'shrink' && !usesFontScale0, [shrinkDep0])
-  useShrinkToFitScale(contentOuterRef1, contentInnerRef1, overflowMode === 'shrink' && !usesFontScale1, [shrinkDep1])
-  useShrinkToFitFontScale(contentOuterRef0, contentInnerRef0, overflowMode === 'shrink' && usesFontScale0, [shrinkDep0], checkWidth0)
-  useShrinkToFitFontScale(contentOuterRef1, contentInnerRef1, overflowMode === 'shrink' && usesFontScale1, [shrinkDep1], checkWidth1)
+  // The inactive (exiting) crossfade slot is fading to opacity 0 and its
+  // content is frozen — no point spending a resize-triggered forced-layout
+  // remeasure keeping its scale live. Only gates the resize trigger, not
+  // `enabled` itself, so its last-good scale stays applied rather than
+  // being stripped back to full size (see `trackResize`'s own doc comment
+  // on `useShrinkToFitScale`).
+  useShrinkToFitScale(contentOuterRef0, contentInnerRef0, overflowMode === 'shrink' && !usesFontScale0, [shrinkDep0], activeContentSlot === 0)
+  useShrinkToFitScale(contentOuterRef1, contentInnerRef1, overflowMode === 'shrink' && !usesFontScale1, [shrinkDep1], activeContentSlot === 1)
+  useShrinkToFitFontScale(contentOuterRef0, contentInnerRef0, overflowMode === 'shrink' && usesFontScale0, [shrinkDep0], checkWidth0, activeContentSlot === 0)
+  useShrinkToFitFontScale(contentOuterRef1, contentInnerRef1, overflowMode === 'shrink' && usesFontScale1, [shrinkDep1], checkWidth1, activeContentSlot === 1)
 
   const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
     if (!onDropImage) return

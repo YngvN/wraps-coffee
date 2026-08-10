@@ -1,5 +1,5 @@
 import { useLayoutEffect, type RefObject } from 'react'
-import { createShrinkToFitScheduler } from './shrinkToFitScheduler'
+import { createShrinkToFitScheduler, RESIZE_SETTLE_MS } from './shrinkToFitScheduler'
 
 /**
  * Shrinks a pane's whole rendered content — fonts, padding, gaps, and any
@@ -22,7 +22,7 @@ import { createShrinkToFitScheduler } from './shrinkToFitScheduler'
  * whenever `enabled` is false — e.g. a pane whose own `overflowMode` is
  * `'scroll'` instead of `'shrink'`.
  *
- * Re-measures on every resize of `outerRef` (a `ResizeObserver`, so divider
+ * Re-measures on any resize of `outerRef` (a `ResizeObserver`, so divider
  * drags, stage changes, and window resizes are all covered), on any DOM
  * content change inside `innerRef` (a `MutationObserver` — a slide's own
  * *internal* async data, e.g. `TransitSlide`'s live departures or
@@ -34,14 +34,18 @@ import { createShrinkToFitScheduler } from './shrinkToFitScheduler'
  * whenever an entry in `deps` changes (so a text-size edit gets its own
  * fresh measurement even on content that happens not to mutate its DOM).
  *
- * A DOM mutation's own remeasure is debounced (not just deferred a single
- * frame, like a resize's) — several slides animate a content change in over
- * ~0.4s (e.g. `TransitSlide`'s own departure rows sliding in/out one at a
- * time via framer-motion), and measuring mid-transition can catch a
+ * Both the resize and DOM-mutation triggers are debounced (`RESIZE_SETTLE_MS`
+ * and `MUTATION_SETTLE_MS` respectively — see `shrinkToFitScheduler.ts`'s own
+ * doc comment on the former), not just deferred a single frame: an automated
+ * stage transition animates pane geometry over dozens of resize ticks across
+ * ~0.5s, and several slides animate a content change in over ~0.4s (e.g.
+ * `TransitSlide`'s own departure rows sliding in/out one at a time via
+ * framer-motion) — measuring mid-resize or mid-mutation can catch a
  * transient DOM/layout state that doesn't match where things actually
- * settle, computing a scale that's already stale by the time it's applied.
- * Waiting for mutations to go quiet for a bit longer than that settles on
- * the real final size instead.
+ * settle, computing a scale that's already stale by the time it's applied,
+ * as well as forcing a synchronous layout read on every single tick for no
+ * benefit. Waiting for either to go quiet settles on the real final state
+ * instead, at a small fraction of the cost.
  *
  * On top of those two triggers, a `POLL_INTERVAL_MS` safety-net remeasure
  * runs on a plain interval regardless — a slide's own async content (a
@@ -56,7 +60,24 @@ import { createShrinkToFitScheduler } from './shrinkToFitScheduler'
 const MUTATION_SETTLE_MS = 500
 const POLL_INTERVAL_MS = 2000
 
-export function useShrinkToFitScale(outerRef: RefObject<HTMLElement | null>, innerRef: RefObject<HTMLElement | null>, enabled: boolean, deps: readonly unknown[]) {
+export function useShrinkToFitScale(
+  outerRef: RefObject<HTMLElement | null>,
+  innerRef: RefObject<HTMLElement | null>,
+  enabled: boolean,
+  deps: readonly unknown[],
+  /**
+   * Set `false` to stop attaching the `ResizeObserver` — only that trigger
+   * is skipped; `enabled`, the `MutationObserver`, the poll, and the initial
+   * measurement are all unaffected. For a `LayoutPane` crossfade slot that's
+   * no longer the active one (fading out, frozen content), there's nothing
+   * left worth spending a forced-layout remeasure on — but *also* no reason
+   * to strip its already-correct scale back to full size the way `enabled:
+   * false` deliberately does (see its own doc comment above), which would
+   * cause a visible pop right as the slot starts fading. This lets a caller
+   * freeze a slot's last-good scale in place instead.
+   */
+  trackResize = true,
+) {
   useLayoutEffect(() => {
     const outer = outerRef.current
     const inner = innerRef.current
@@ -84,8 +105,11 @@ export function useShrinkToFitScale(outerRef: RefObject<HTMLElement | null>, inn
     // every such pane on every screen, for as long as the kiosk stays up.
     if (!enabled) return
 
-    const resizeObserver = new ResizeObserver(scheduler.scheduleMeasure)
-    resizeObserver.observe(outer)
+    let resizeObserver: ResizeObserver | undefined
+    if (trackResize) {
+      resizeObserver = new ResizeObserver(() => scheduler.scheduleMeasureAfterSettle(RESIZE_SETTLE_MS))
+      resizeObserver.observe(outer)
+    }
 
     // Deliberately doesn't watch `attributes` — this hook's own
     // `inner.style.transform` write would otherwise re-trigger itself.
@@ -95,11 +119,11 @@ export function useShrinkToFitScale(outerRef: RefObject<HTMLElement | null>, inn
     const pollInterval = setInterval(scheduler.scheduleMeasure, POLL_INTERVAL_MS)
 
     return () => {
-      resizeObserver.disconnect()
+      resizeObserver?.disconnect()
       mutationObserver.disconnect()
       clearInterval(pollInterval)
       scheduler.cancel()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measures on every entry in `deps` (content identity) in addition to `enabled`, not just when the refs themselves change.
-  }, [enabled, ...deps])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measures on every entry in `deps` (content identity) in addition to `enabled`/`trackResize`, not just when the refs themselves change.
+  }, [enabled, trackResize, ...deps])
 }

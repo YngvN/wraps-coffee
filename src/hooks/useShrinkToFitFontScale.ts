@@ -1,6 +1,6 @@
 import { useLayoutEffect, type RefObject } from 'react'
 import { SLIDE_SIZE_VAR_NAMES } from '../utils/textSizeVars'
-import { createShrinkToFitScheduler } from './shrinkToFitScheduler'
+import { createShrinkToFitScheduler, RESIZE_SETTLE_MS } from './shrinkToFitScheduler'
 
 /** Same settle window as `useShrinkToFitScale` — see its own doc comment for why a DOM-mutation-triggered remeasure waits rather than firing on the very next frame. */
 const MUTATION_SETTLE_MS = 500
@@ -68,11 +68,17 @@ const GAP_SCALE_EXPONENT = 2
  * case). No minimum floor beyond `MIN_SCALE`'s own numerical safety margin.
  *
  * Same triggers and signature as `useShrinkToFitScale` (see its own doc
- * comment) — a `ResizeObserver` on `outerRef`, a debounced `MutationObserver`
- * on `innerRef` for a slide's own internal async content changes, `deps`
- * for external (e.g. text-size edit) changes, and a periodic safety-net
- * poll — so `LayoutPane.tsx` can point both hooks at the exact same ref
- * pair and just switch which one is actually `enabled` per pane.
+ * comment) — a debounced `ResizeObserver` on `outerRef`, a debounced
+ * `MutationObserver` on `innerRef` for a slide's own internal async content
+ * changes, `deps` for external (e.g. text-size edit) changes, and a periodic
+ * safety-net poll — so `LayoutPane.tsx` can point both hooks at the exact
+ * same ref pair and just switch which one is actually `enabled` per pane.
+ * The resize debounce matters even more here than in `useShrinkToFitScale`:
+ * every candidate in the binary search below forces its own synchronous
+ * layout, so an un-debounced resize burst (e.g. an automated stage
+ * transition's ~30-tick, ~0.5s geometry animation) would force up to
+ * `SEARCH_ITERATIONS` layouts on every single tick, not just once per
+ * resize.
  *
  * Also exposes `--fit-gap-scale` on `innerRef`, alongside the `--slide-*-
  * size` vars — a *steeper* multiplier (see `GAP_SCALE_EXPONENT`) a slide's
@@ -86,7 +92,15 @@ const GAP_SCALE_EXPONENT = 2
  * ever has *one* of `--fit-gap-scale`/`useShrinkToFitScale`'s own `transform`
  * applied at a time, per `LayoutPane.tsx`'s own `enabled` gating).
  */
-export function useShrinkToFitFontScale(outerRef: RefObject<HTMLElement | null>, innerRef: RefObject<HTMLElement | null>, enabled: boolean, deps: readonly unknown[], checkWidth = false) {
+export function useShrinkToFitFontScale(
+  outerRef: RefObject<HTMLElement | null>,
+  innerRef: RefObject<HTMLElement | null>,
+  enabled: boolean,
+  deps: readonly unknown[],
+  checkWidth = false,
+  /** See `useShrinkToFitScale`'s own doc comment on the same parameter. */
+  trackResize = true,
+) {
   useLayoutEffect(() => {
     const outer = outerRef.current
     const inner = innerRef.current
@@ -145,8 +159,11 @@ export function useShrinkToFitFontScale(outerRef: RefObject<HTMLElement | null>,
     // times every such pane on every screen, for as long as the kiosk stays up.
     if (!enabled) return
 
-    const resizeObserver = new ResizeObserver(scheduler.scheduleMeasure)
-    resizeObserver.observe(outer)
+    let resizeObserver: ResizeObserver | undefined
+    if (trackResize) {
+      resizeObserver = new ResizeObserver(() => scheduler.scheduleMeasureAfterSettle(RESIZE_SETTLE_MS))
+      resizeObserver.observe(outer)
+    }
 
     // Deliberately doesn't watch `attributes` — this hook's own
     // `inner.style.setProperty(...)` writes would otherwise re-trigger
@@ -157,11 +174,11 @@ export function useShrinkToFitFontScale(outerRef: RefObject<HTMLElement | null>,
     const pollInterval = setInterval(scheduler.scheduleMeasure, POLL_INTERVAL_MS)
 
     return () => {
-      resizeObserver.disconnect()
+      resizeObserver?.disconnect()
       mutationObserver.disconnect()
       clearInterval(pollInterval)
       scheduler.cancel()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measures on every entry in `deps` (content identity) in addition to `enabled`/`checkWidth`, not just when the refs themselves change.
-  }, [enabled, checkWidth, ...deps])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measures on every entry in `deps` (content identity) in addition to `enabled`/`checkWidth`/`trackResize`, not just when the refs themselves change.
+  }, [enabled, checkWidth, trackResize, ...deps])
 }

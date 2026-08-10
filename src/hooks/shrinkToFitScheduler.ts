@@ -15,6 +15,24 @@
  * closure over local variables is enough — no need to persist an instance
  * across renders the way a ref would.
  */
+/**
+ * How long a pane's `ResizeObserver` must go quiet before a resize-triggered
+ * remeasure actually runs — see `useShrinkToFitScale.ts`'s own doc comment
+ * (under "Re-measures on every resize") for the full rationale. In short: an
+ * automated stage transition animates pane geometry over ~30 resize ticks in
+ * ~0.5s, and remeasuring on every one of those forces a synchronous layout
+ * each time; collapsing the whole burst into one remeasure after it settles
+ * removes ~29 of those 30 forced layouts per transition. Chosen well above
+ * one animation-frame interval (~16ms at 60fps) so a smooth burst reliably
+ * collapses to a single trailing call, while staying under the ~100-150ms
+ * "feels instant" perceptual threshold so a manual divider-drag pause still
+ * reads as responsive (there's no CSS transition running during a drag —
+ * `SplitLayout.tsx`'s `gridTransition` is `false` while `isDragging` — so a
+ * drag's own resize ticks come straight from mouse movement, not an
+ * animation, and settle on release/pause rather than looping for 0.5s).
+ */
+export const RESIZE_SETTLE_MS = 50
+
 export interface ShrinkToFitScheduler {
   /** Coalesces to at most one `measureAndScale` per animation frame — cancels any already-pending call and reschedules. */
   scheduleMeasure: () => void
