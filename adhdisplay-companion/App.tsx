@@ -180,7 +180,16 @@ export default function App() {
           setDeviceLabel(result.customLabel)
         }
         const assignedScreenID = result.monitors.find((monitor) => monitor.id === DEVICE_MONITOR_ID)?.assignedScreenID ?? null
-        setState(assignedScreenID ? { stage: 'displaying', connection, screenId: assignedScreenID } : { stage: 'waiting', connection })
+        // Only actually transition state when the derived stage/assignment differs from what's
+        // already there — `setState` with a freshly-literal object here is otherwise never
+        // `Object.is`-equal to the previous state even when nothing changed, which (since this
+        // effect depends on the whole `state` object below) unconditionally re-triggers this
+        // effect on every single heartbeat response and re-invokes `beat()` immediately, turning
+        // the intended HEARTBEAT_INTERVAL_MS cadence into a tight loop.
+        const unchanged = assignedScreenID ? state.stage === 'displaying' && state.screenId === assignedScreenID : state.stage === 'waiting'
+        if (!unchanged) {
+          setState(assignedScreenID ? { stage: 'displaying', connection, screenId: assignedScreenID } : { stage: 'waiting', connection })
+        }
       } catch {
         // Ignore — see this effect's own doc comment above.
       }
