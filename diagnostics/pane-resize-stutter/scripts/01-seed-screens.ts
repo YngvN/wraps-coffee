@@ -1,5 +1,5 @@
 /**
- * Seeds (or, with `--remove`, cleans up) the 4 synthetic pane-resize-stutter screens via the server's
+ * Seeds (or, with `--remove`, cleans up) the 5 synthetic pane-resize-stutter screens via the server's
  * real `/login` + WS `write` sync protocol — the same path the admin dashboard itself uses, so the TV
  * companion app can load these screens exactly like any real one (see the plan's "seeded via the
  * server's real sync path" design decision).

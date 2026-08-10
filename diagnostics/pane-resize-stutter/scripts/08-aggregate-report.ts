@@ -26,6 +26,7 @@ const VARIANT_DESCRIPTIONS: Record<ScenarioVariant, string> = {
   emptycatalogue: 'catalogue x2 (0-1 items) + time',
   textblock: 'catalogue x2 (short names, no descriptions) + time',
   emptied: 'none x2 + time',
+  human: 'slide transition, 3 stages, per-stage catalogue-category swap (dual-slot concurrent font-scale) + time, borders on',
 }
 
 function median(values: number[]): number {
@@ -39,6 +40,7 @@ function toReportRow(result: CaptureResult): ReportRow {
   const worstValues = (result.layoutWindows ?? []).map((window) => window.worstLayoutMs)
   const medianValues = (result.layoutWindows ?? []).map((window) => window.medianLayoutMs)
   const countValues = (result.layoutWindows ?? []).map((window) => window.layoutCount)
+  const paintCompositeValues = (result.layoutWindows ?? []).map((window) => window.paintCompositeDurationMs)
   const anyForcedSync = (result.layoutWindows ?? []).some((window) => window.forcedSyncLayoutSuspected)
 
   return {
@@ -51,6 +53,7 @@ function toReportRow(result: CaptureResult): ReportRow {
     layoutCountMedian: result.layoutWindows ? median(countValues) : undefined,
     layoutMsWorst: result.layoutWindows ? Math.max(0, ...worstValues) : undefined,
     layoutMsMedian: result.layoutWindows ? median(medianValues) : undefined,
+    paintCompositeMsMedian: result.layoutWindows ? median(paintCompositeValues) : undefined,
     forcedSyncLayoutSuspected: result.layoutWindows ? anyForcedSync : undefined,
     isFloorMeasurement: result.variant === 'emptied',
     notes: Object.entries(result.meta)

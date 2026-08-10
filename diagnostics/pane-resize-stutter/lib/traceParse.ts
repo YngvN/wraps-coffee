@@ -44,6 +44,18 @@ export function findTransitionWindows(trace: CapturedTrace): TransitionWindow[] 
 const LAYOUT_EVENT_NAMES = new Set(['Layout'])
 /** The style-recalculation step — `UpdateLayoutTree` is current Chrome's name for it; `RecalculateStyles` is kept for older versions. Answers the diagnostic spec's own separate "Whether Recalculate Style is also per-frame" question (P2.1) — deliberately NOT folded into `layoutCount`. */
 const RECALCULATE_STYLE_EVENT_NAMES = new Set(['RecalculateStyles', 'UpdateLayoutTree'])
+/**
+ * Paint + GPU-compositing cost — kept separate from `layoutCount`/`layoutDurationsMs` so the two
+ * mechanisms this repo's slide-transition-stutter fix cares about stay distinguishable in the report:
+ * the fix itself only targets forced-synchronous-layout cost (the font-scale hook's binary search), not
+ * paint (e.g. a screen's `showSlotBorders`/per-stage `backgroundColor` change). Without this, a
+ * screen with meaningful paint cost of its own could show a smaller-than-expected before/after
+ * improvement on `layoutCountMedian` alone and read as "the fix underperformed," when the unaddressed
+ * share was simply never a layout cost to begin with. `UpdateLayerTree` (compositing layer tree
+ * recompute) is intentionally distinct from `UpdateLayoutTree` (style recalc, see
+ * `RECALCULATE_STYLE_EVENT_NAMES` above) — easy to confuse by name, not the same pipeline stage.
+ */
+const PAINT_COMPOSITE_EVENT_NAMES = new Set(['Paint', 'CompositeLayers', 'UpdateLayerTree'])
 
 /** Trace-event stack-frame function names that indicate a Layout event was forced synchronously from inside the suspect font-scale hook's own read-after-write pattern (`useShrinkToFitFontScale.ts`'s `fitsAt()`) — see the plan's P2.3 attribution. Empirically confirmed (against an unminified `vite dev` build) at `event.args.beginData.stackTrace` on BOTH `Layout` and `UpdateLayoutTree` events, NOT `event.args.data.stackTrace` as originally guessed — both are checked below for robustness across Chrome versions/event shapes. */
 const FORCED_SYNC_LAYOUT_STACK_PATTERN = /useShrinkToFitFontScale|useShrinkToFitScale|fitsAt|measureAndScale|applyScale/
@@ -69,6 +81,8 @@ export function summarizeLayoutWindow(trace: CapturedTrace, window: TransitionWi
   const layoutEvents = inWindow.filter((event) => LAYOUT_EVENT_NAMES.has(event.name))
   const layoutDurationsMs = layoutEvents.map((event) => (event.dur ?? 0) / 1000)
   const recalculateStyleCount = inWindow.filter((event) => RECALCULATE_STYLE_EVENT_NAMES.has(event.name)).length
+  const paintCompositeEvents = inWindow.filter((event) => PAINT_COMPOSITE_EVENT_NAMES.has(event.name))
+  const paintCompositeDurationMs = paintCompositeEvents.reduce((sum, event) => sum + (event.dur ?? 0) / 1000, 0)
 
   return {
     window,
@@ -78,6 +92,8 @@ export function summarizeLayoutWindow(trace: CapturedTrace, window: TransitionWi
     medianLayoutMs: median(layoutDurationsMs),
     recalculateStyleCount,
     forcedSyncLayoutSuspected: layoutEvents.some(isForcedSyncLayoutSuspect),
+    paintCompositeCount: paintCompositeEvents.length,
+    paintCompositeDurationMs,
   }
 }
 

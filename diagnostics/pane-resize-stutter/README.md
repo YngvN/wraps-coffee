@@ -2,9 +2,18 @@
 
 Throwaway diagnostic tooling for the "Diagnostic Spec: Pane-Resize Stutter on Stage Transitions" —
 measures and attributes the stutter, doesn't fix it. Zero changes to shipped `src/`/`server/`/`electron/`
-code. Safe to delete this whole directory once done; the only side effects outside it are the 4 seeded
+code. Safe to delete this whole directory once done; the only side effects outside it are the 5 seeded
 screens/products/catalogues (cleaned up by `01-seed-screens.ts --remove`) and the copy of the final
 report under `QA/Reports/`.
+
+A 5th scenario, `human`, was added alongside the fix for this bug (see the top-level plan/commit history)
+— the original 4 scenarios all seed exactly one content checkpoint per pane, so `useCrossfadeSlot` never
+actually flips slots across a stage transition and only one crossfade slot is ever measured at a time.
+`human` mirrors the real "Human testing" screen that surfaced the stutter: 3 stages, `transitionStyle:
+'slide'`, `showSlotBorders`, a per-stage background-color change, and a pane whose `catalogue` category
+genuinely changes every stage — so a transition crossfades between two different resolved contents that
+both trigger `useShrinkToFitFontScale` concurrently, in both slots at once. See
+`buildHumanScenarioScreen`'s own doc comment in `lib/buildScenarioScreens.ts`.
 
 See `/Users/yngvenykas/.claude/plans/diagnostic-spec-pane-resize-stutter-functional-thimble.md` for the
 full design rationale — this file is just the practical run-through.
@@ -36,13 +45,13 @@ desktop Chrome/Firefox, in Electron, and on the actual TV hardware.
 0. **Phase 0 spike** — see `scripts/00-spike-check.md`. ~10 minutes, do this first; it can save building
    out the rest if the hypothesis is already clear, and it gates whether the TV branch is even
    meaningful on this hardware.
-1. `npx tsx scripts/01-seed-screens.ts --username admin --password <pw>` — seeds the 4 scenario screens
-   (`as-is`/`emptycatalogue`/`textblock`/`emptied`), prints their URLs. Sanity-check one URL in a plain
-   browser tab, and confirm no existing real screen went missing from the admin dashboard.
+1. `npx tsx scripts/01-seed-screens.ts --username admin --password <pw>` — seeds the 5 scenario screens
+   (`as-is`/`emptycatalogue`/`textblock`/`emptied`/`human`), prints their URLs. Sanity-check one URL in a
+   plain browser tab, and confirm no existing real screen went missing from the admin dashboard.
 2. **⚠️ Confirmation checkpoint** — per this repo's CLAUDE.md, get explicit confirmation before running
    any of steps 3, 4, or 6 below; they drive real browser/Electron/CDP automation against the live app.
 3. `npx tsx scripts/02-run-browser-trace.ts --browser=chromium --screenId=<id>` and
-   `--browser=firefox --screenId=<id>`, for each of the 4 seeded screen ids.
+   `--browser=firefox --screenId=<id>`, for each of the 5 seeded screen ids.
 4. `npx tsx scripts/03-run-electron-trace.ts --screenId=<as-is-id> --flag=off` and `--flag=on`.
    `npx electron scripts/04-electron-gpu-status.cjs` both ways too (P3, time-boxed to ~10 min).
 5. One-time TV setup: install the release apk for step 6a, and separately a debug apk + Metro for step
