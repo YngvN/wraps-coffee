@@ -146,9 +146,17 @@ export function buildHumanScenarioScreen(slideDurationSeconds = 5): ScenarioScre
     name: '[diagnostic] pane-resize-stutter (human)',
     layout: { 1: treeStage1, 2: treeStage2, 3: treeStage3 },
     paneSlots: {
+      // Every pane carries its own strongly-contrasting background, changing
+      // per stage. Two reasons, both about making a transition *observable*:
+      // the borders (see `borderColor` below) need something to contrast
+      // against on both sides to be visible at all while they shrink/grow,
+      // and distinctly-colored blocks are the only way to actually see
+      // whether pane geometry visibly jumps when it changes — against a
+      // uniform background a jump is invisible, which would make a broken
+      // transition look fine.
       [idA]: {
         content: { 1: { kind: 'time' }, 2: catalogueContent(categoryAId), 3: catalogueContent(categoryBId) },
-        backgroundColor: {},
+        backgroundColor: { 1: '#1d3557', 2: '#457b9d', 3: '#1d3557' },
         backgroundImage: {},
         textSizes: {},
       },
@@ -160,7 +168,12 @@ export function buildHumanScenarioScreen(slideDurationSeconds = 5): ScenarioScre
         backgroundImage: {},
         textSizes: {},
       },
-      [idC]: emptySlotTimeline({ kind: 'time' }),
+      [idC]: {
+        content: { 1: { kind: 'time' } },
+        backgroundColor: { 1: '#6a4c93', 2: '#b5179e', 3: '#6a4c93' },
+        backgroundImage: {},
+        textSizes: {},
+      },
     },
     useStages: true,
     stageCount: 3,
@@ -169,7 +182,14 @@ export function buildHumanScenarioScreen(slideDurationSeconds = 5): ScenarioScre
     textSizes: { heading: 11, itemTitle: 5.5, description: 4, price: 5, itemPrice: 5 },
     usesPercentTextSizes: true,
     showSlotBorders: true,
-    borderColor: '#ffffff',
+    // Deliberately a loud magenta rather than the real screens' subtle
+    // contrast-derived border: this scenario exists to make the border's own
+    // shrink/grow animation watchable frame by frame, and white borders
+    // disappear against any light pane background. `borderColor` is
+    // screen-level (`ScreenConfig['borderColor']`), so every border shares
+    // this one color — the per-pane backgrounds above are what make
+    // individual borders distinguishable from each other.
+    borderColor: '#ff00d4',
   }
 
   return { variant: 'human', screen, catalogue, products }

@@ -10,6 +10,7 @@
  * Usage:
  *   npx tsx diagnostics/pane-resize-stutter/scripts/02-run-browser-trace.ts --browser=chromium --screenId=diag-pane-resize-as-is
  *   npx tsx diagnostics/pane-resize-stutter/scripts/02-run-browser-trace.ts --browser=firefox --screenId=diag-pane-resize-textblock --durationMs=30000
+ *   npx tsx diagnostics/pane-resize-stutter/scripts/02-run-browser-trace.ts --browser=chromium --screenId=diag-pane-resize-human --headed --label=before
  */
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
@@ -47,11 +48,13 @@ async function main() {
   const durationMs = args.get('durationMs') ? Number(args.get('durationMs')) : DEFAULT_CAPTURE_DURATION_MS
   /** Optional free-text tag (e.g. `before`/`after`) surfaced in the aggregated report's own Notes column — lets a before/after comparison against the same shared results/ directory stay distinguishable. */
   const label = args.get('label')
+  /** `--headed` runs the capture in a real visible window instead of headless, so the transition can actually be watched while it's measured. Timing numbers stay comparable either way (same engine, same compositor path) — this only affects whether a window is shown. */
+  const headed = args.has('headed')
   const variant = variantFromScreenId(screenId)
   const { contentUrl } = resolveServerUrls({ host: args.get('host'), contentPort: args.get('contentPort') ? Number(args.get('contentPort')) : undefined })
 
   const browserType = browserName === 'firefox' ? firefox : chromium
-  const browser = await browserType.launch()
+  const browser = await browserType.launch({ headless: !headed })
   const page = await browser.newPage()
   await page.goto(`${contentUrl}/screens/${screenId}?unattended=1`)
   await page.evaluate(installRafDeltaCollector)

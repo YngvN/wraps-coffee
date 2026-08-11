@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import type { LanguageCode } from '../../i18n'
-import type { BackgroundImage, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
+import type { PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
 import type { Rect } from '../../utils/layoutGeometry'
 import type { PaneGrowthOrigin } from '../../utils/paneGrowth'
 import { collapsedClipPath, FULL_REVEAL_CLIP_PATH, PANE_GROWTH_DURATION_SECONDS } from './paneGrowthMotion'
@@ -17,12 +17,6 @@ interface ExitingPaneGhostProps {
   transitionStyle: ScreenConfig['transitionStyle']
   resolveTextSizes: (leafId: PaneId, stage: number, content: ScreenSlotContent) => TextSizes
   defaultPaneLanguage: LanguageCode
-  /** Threaded straight through to the wrapped `LayoutPane`. See `LayoutTree`'s own prop of the same name. */
-  screenBackgroundImage?: BackgroundImage
-  /** `.split-layout`'s own measured pixel size — combined with this ghost's own `rect` to compute the wrapped `LayoutPane`'s own `screenBackgroundWindow`, same as `LayoutTree.tsx` does for a live leaf. See `SplitLayout.tsx`'s own `containerSize`. */
-  containerSize: { width: number; height: number }
-  /** Threaded straight through to the wrapped `LayoutPane`, same re-basing role as `LayoutTree.tsx`'s own prop of the same name. See `SplitLayout.tsx`'s own `screenBackgroundCoverRect`. */
-  screenBackgroundCoverRect?: { left: number; top: number; width: number; height: number }
   /** Called once the collapse animation finishes, so the caller (`SplitLayout`) can prune this ghost from its own tracking state. */
   onCollapseComplete: (leafId: PaneId) => void
   /** Threaded straight through to the wrapped `LayoutPane`. See `LayoutTree`'s own prop of the same name. */
@@ -59,29 +53,22 @@ export function ExitingPaneGhost({
   transitionStyle,
   resolveTextSizes,
   defaultPaneLanguage,
-  screenBackgroundImage,
-  containerSize,
-  screenBackgroundCoverRect,
   onCollapseComplete,
   newsSlots,
   stageTick,
   onRequestStageAdvance,
 }: ExitingPaneGhostProps) {
   const collapsedPath = growth.kind !== 'fade' ? collapsedClipPath(growth.edge) : FULL_REVEAL_CLIP_PATH
-  const screenBackgroundWindow =
-    containerSize.width > 0 && containerSize.height > 0 && screenBackgroundCoverRect
-      ? {
-          left: (rect.x / 100) * containerSize.width - screenBackgroundCoverRect.left,
-          top: (rect.y / 100) * containerSize.height - screenBackgroundCoverRect.top,
-          screenWidth: screenBackgroundCoverRect.width,
-          screenHeight: screenBackgroundCoverRect.height,
-        }
-      : undefined
 
   return (
     <motion.div
       className="split-layout__pane-ghost"
-      style={{ position: 'absolute', left: `${rect.x}%`, top: `${rect.y}%`, width: `${rect.width}%`, height: `${rect.height}%`, pointerEvents: 'none' }}
+      // Paints its own opaque `--screen-bg` so it still occludes the live
+      // panes it's floating over. It used to get that for free from
+      // `.split-layout__pane`'s own opaque background; panes are transparent
+      // now (their backdrop moved onto the content slots), so without this a
+      // collapsing ghost would be see-through.
+      style={{ position: 'absolute', left: `${rect.x}%`, top: `${rect.y}%`, width: `${rect.width}%`, height: `${rect.height}%`, pointerEvents: 'none', background: 'var(--screen-bg)' }}
       initial={{ clipPath: FULL_REVEAL_CLIP_PATH, opacity: 1 }}
       animate={{ clipPath: collapsedPath, opacity: growth.kind === 'fade' ? 0 : 1 }}
       transition={{ duration: PANE_GROWTH_DURATION_SECONDS, ease: 'easeInOut' }}
@@ -95,8 +82,6 @@ export function ExitingPaneGhost({
         slideDirection="right"
         resolveTextSizes={resolveTextSizes}
         defaultPaneLanguage={defaultPaneLanguage}
-        screenBackgroundImage={screenBackgroundImage}
-        screenBackgroundWindow={screenBackgroundWindow}
         editingFocus={undefined}
         transitionDuration={0.6}
         reducedMotion={false}

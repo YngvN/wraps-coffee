@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import type { LanguageCode } from '../../i18n'
-import type { BackgroundImage, LayoutNode, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SplitDirection, TextSizes } from '../../types/screen'
+import type { LayoutNode, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SplitDirection, TextSizes } from '../../types/screen'
 import type { Divider, Rect } from '../../utils/layoutGeometry'
 import { listLeaves } from '../../utils/layoutTree'
 import type { PaneGrowthOrigin } from '../../utils/paneGrowth'
@@ -9,6 +9,7 @@ import { nodeGridTemplate, paneDefaultSlideDirection, pathKey, resolveRatio, typ
 import { resolveSlotBackgroundColor, resolveSlotLocked, subtreeGroupId, subtreeHasLockedLeaf } from '../../utils/screenStages'
 import { LayoutPane } from './LayoutPane'
 import { PaneCornerHandle } from './PaneCornerHandle'
+import { SLOT_BORDER_THICKNESS_PX, SplitBorderLine } from './SplitBorderLine'
 import { SplitLayoutDivider } from './SplitLayoutDivider'
 
 /** How close (in ratio percentage points) a `split` node's two qualifying children's own ratios need to be before they're treated as visually aligned into a true "+" — see this file's own doc comment — and merged into a single combined `PaneCornerHandle` instead of two separate ones. Slightly looser than `layoutGeometry.ts`'s pure-geometry `EPSILON`, since this is a UX affordance (when to show one merged handle vs two) rather than a correctness check. */
@@ -34,12 +35,6 @@ interface LayoutTreeProps {
   /** Threaded straight through to every `LayoutPane`'s own prop of the same name — see `SplitLayout`'s own `contentPhase` state for what each phase drives. */
   contentPhase: 'idle' | 'exiting' | 'holding'
   reducedMotion: boolean | null
-  /** The screen's own whole-screen background image, if any — threaded down to every leaf so it can render its own "window" onto it (see `LayoutPane.tsx`'s own `screenBackgroundWindow`) whenever it has neither its own background color nor image, together looking like one continuous image behind the whole arrangement rather than each independently cropped. */
-  screenBackgroundImage?: BackgroundImage
-  /** `.split-layout`'s own measured pixel size (see `SplitLayout.tsx`'s `containerSize`) — combined with a leaf's own `box` (this node's percentage rect) to work out exactly which slice of `screenBackgroundImage` that leaf's own window should show. `{ width: 0, height: 0 }` before the very first `ResizeObserver` callback fires; leaves skip rendering their own window until then rather than dividing by zero. */
-  containerSize: { width: number; height: number }
-  /** Where `screenBackgroundImage` would actually be drawn (in the same pixel space as `containerSize`) if it were sized with a plain `background-size: cover` against the whole screen — computed once in `SplitLayout.tsx` from the image's own natural dimensions, so every leaf's own window (see `screenBackgroundWindow` below) crops a properly aspect-ratio-preserving fit instead of a stretched one, while still lining up seamlessly across pane boundaries. `undefined` until the image's natural size has loaded — leaves skip rendering their own window until then, same as an unmeasured `containerSize`. */
-  screenBackgroundCoverRect?: { left: number; top: number; width: number; height: number }
   /** Omit to render every divider read-only (no drag handles at all) — e.g. while the screen is locked. */
   onLiveChange?: (path: NodePath, ratio: number) => void
   onCommit?: (path: NodePath, ratio: number) => void
@@ -51,6 +46,8 @@ interface LayoutTreeProps {
   /** Threaded straight through to every `SplitLayoutDivider`'s own prop of the same name — a plain click (not a drag) on any border opens the screen-wide border settings, since the setting itself isn't specific to any one divider. Omit together with `onLiveChange`/`onCommit` to disable entirely. */
   onBorderClick?: () => void
   gridTransition: string | false
+  /** Whether this screen draws lines between its panes at all (`ScreenConfig.showSlotBorders`) — when false the split's own `gap` is closed by CSS and no `SplitBorderLine` is rendered, so there's nothing to animate either. */
+  showSlotBorders: boolean
   /** Draws a persistent highlight ring around this one pane, if any — see `SplitLayout`'s own doc comment. */
   selectedLeafId?: PaneId
   /** See `SplitLayout`'s own prop of the same name. */
@@ -116,9 +113,6 @@ export function LayoutTree({
   transitionDuration,
   contentPhase,
   reducedMotion,
-  screenBackgroundImage,
-  containerSize,
-  screenBackgroundCoverRect,
   onLiveChange,
   onCommit,
   onLiveChangeMulti,
@@ -126,6 +120,7 @@ export function LayoutTree({
   allDividers,
   onBorderClick,
   gridTransition,
+  showSlotBorders,
   selectedLeafId,
   dimUnselectedPanes,
   onSplitPane,
@@ -149,16 +144,6 @@ export function LayoutTree({
     if (!slot) return null
     const slideDirection = paneDefaultSlideDirection(root, node.id)
     const locked = resolveSlotLocked(slot, stage)
-    /** This leaf's own "window" onto `screenBackgroundImage` — `box` is already this exact leaf's own rect (0-100 percentage space), converted to pixels against `containerSize`, then re-based onto `screenBackgroundCoverRect`'s own top-left (not the container's) so `LayoutPane`'s `background-position`/`background-size` ends up cropping the image's own *cover*-fitted placement rather than stretching it to the container's raw pixel size. `undefined` until both the container's real pixel size and the image's own natural size (via `screenBackgroundCoverRect`) are known (skips rendering for the handful of frames before either is measured). */
-    const screenBackgroundWindow =
-      containerSize.width > 0 && containerSize.height > 0 && screenBackgroundCoverRect
-        ? {
-            left: (box.x / 100) * containerSize.width - screenBackgroundCoverRect.left,
-            top: (box.y / 100) * containerSize.height - screenBackgroundCoverRect.top,
-            screenWidth: screenBackgroundCoverRect.width,
-            screenHeight: screenBackgroundCoverRect.height,
-          }
-        : undefined
     return (
       <LayoutPane
         key={node.id}
@@ -175,8 +160,6 @@ export function LayoutTree({
         transitionDuration={transitionDuration}
         contentPhase={contentPhase}
         reducedMotion={reducedMotion}
-        screenBackgroundImage={screenBackgroundImage}
-        screenBackgroundWindow={screenBackgroundWindow}
         selected={node.id === selectedLeafId}
         dimmed={Boolean(dimUnselectedPanes && selectedLeafId !== undefined && node.id !== selectedLeafId)}
         onSplitPane={locked ? undefined : onSplitPane}
@@ -232,6 +215,22 @@ export function LayoutTree({
   const sharedGroupId = firstGroupId && firstGroupId === secondGroupId ? firstGroupId : undefined
   const groupColor = sharedGroupId ? resolveSlotBackgroundColor(paneSlots[listLeaves(node.first)[0].id], stage) : undefined
 
+  /** This split's own visible line thickness, in px — `0` (draw nothing) whenever the gap it would fill is itself closed: borders turned off screen-wide, or a grouped split deliberately hiding its own seam. */
+  const borderThickness = showSlotBorders && !sharedGroupId ? SLOT_BORDER_THICKNESS_PX : 0
+  /**
+   * Hidden only while the old content is leaving; grown back during
+   * `'holding'`, which is the phase whose entire job is now "the borders
+   * arrive at their new positions". That ordering is deliberate and is the
+   * whole shape of the sequence: content out (borders shrinking) → geometry
+   * snaps → borders grow into their new places → new content slides in.
+   *
+   * The snap and this grow-back begin on the *same* commit, which is
+   * precisely why nothing is seen jumping: the line is still at zero
+   * thickness on the frame the grid reflows, and only then expands, already
+   * at its new position.
+   */
+  const bordersVisible = contentPhase !== 'exiting'
+
   /** Builds one `PaneCornerHandle`'s props: `childPaths` is one path (a single T-junction corner) or two (a merged "+", both kept equal through the drag). */
   const cornerHandle = (key: string, childRatio: number, childPaths: NodePath[]) => {
     if (!onLiveChangeMulti || !onCommitMulti) return null
@@ -265,6 +264,17 @@ export function LayoutTree({
         ...(!reducedMotion ? { transition: [gridTemplate.transition, 'background-color 0.3s ease', 'gap 0.3s ease'].filter(Boolean).join(', ') } : {}),
       }}
     >
+      {/*
+        Rendered before the children purely for readability — it's absolutely
+        positioned and `pointer-events: none`, so its DOM order affects
+        neither layout nor hit-testing. Skipped entirely at zero thickness
+        (borders turned off screen-wide, or a grouped split whose seam is
+        meant to disappear), so there's no invisible element left animating
+        for something that will never be seen.
+      */}
+      {borderThickness > 0 && (
+        <SplitBorderLine direction={node.direction} share={resolveRatio(node)} thickness={borderThickness} visible={bordersVisible} reducedMotion={Boolean(reducedMotion)} />
+      )}
       <LayoutTree
         node={node.first}
         path={[...path, 'first']}
@@ -281,9 +291,6 @@ export function LayoutTree({
         transitionDuration={transitionDuration}
         contentPhase={contentPhase}
         reducedMotion={reducedMotion}
-        screenBackgroundImage={screenBackgroundImage}
-        containerSize={containerSize}
-        screenBackgroundCoverRect={screenBackgroundCoverRect}
         onLiveChange={onLiveChange}
         onCommit={onCommit}
         onLiveChangeMulti={onLiveChangeMulti}
@@ -291,6 +298,7 @@ export function LayoutTree({
         allDividers={allDividers}
         onBorderClick={onBorderClick}
         gridTransition={gridTransition}
+        showSlotBorders={showSlotBorders}
         selectedLeafId={selectedLeafId}
         dimUnselectedPanes={dimUnselectedPanes}
         onSplitPane={onSplitPane}
@@ -323,9 +331,6 @@ export function LayoutTree({
         transitionDuration={transitionDuration}
         contentPhase={contentPhase}
         reducedMotion={reducedMotion}
-        screenBackgroundImage={screenBackgroundImage}
-        containerSize={containerSize}
-        screenBackgroundCoverRect={screenBackgroundCoverRect}
         onLiveChange={onLiveChange}
         onCommit={onCommit}
         onLiveChangeMulti={onLiveChangeMulti}
@@ -333,6 +338,7 @@ export function LayoutTree({
         allDividers={allDividers}
         onBorderClick={onBorderClick}
         gridTransition={gridTransition}
+        showSlotBorders={showSlotBorders}
         selectedLeafId={selectedLeafId}
         dimUnselectedPanes={dimUnselectedPanes}
         onSplitPane={onSplitPane}

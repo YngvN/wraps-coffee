@@ -1,4 +1,4 @@
-import { isOwnUploadUrl } from '../lib/localServer'
+import { isOwnUploadUrl, normalizeUploadUrl } from '../lib/localServer'
 
 /** Minimal shape of the Network Information API, where supported (not in every browser). */
 interface NetworkInformationLike {
@@ -15,24 +15,30 @@ function hasSlowConnection(): boolean {
  * when the viewport is narrow and/or the connection looks slow — only for
  * URLs this same local server actually served (and therefore has a
  * compressed companion for); an external URL is returned unchanged.
+ *
+ * Every helper in this file normalizes an own-upload URL's origin to this
+ * client's own first (see `normalizeUploadUrl`) — a stored URL carries
+ * whichever host the *uploading admin* happened to use, which is not
+ * necessarily one the device rendering it can reach at all.
  */
 export function pickImageVariant(url: string): string {
   if (!url || !isOwnUploadUrl(url)) return url
+  const normalized = normalizeUploadUrl(url)
   const isNarrow = window.innerWidth < 768
-  if (isNarrow || hasSlowConnection()) return `${url}?size=small`
-  return url
+  if (isNarrow || hasSlowConnection()) return `${normalized}?size=small`
+  return normalized
 }
 
 /** Always the most compressed variant — for thumbnail-grid contexts (the Image Library) where many images render at once, regardless of the viewing device's own network/viewport. External URLs are returned unchanged. */
 export function getThumbnailUrl(url: string): string {
   if (!url || !isOwnUploadUrl(url)) return url
-  return `${url}?size=thumb`
+  return `${normalizeUploadUrl(url)}?size=thumb`
 }
 
 /** Always the "small" variant, regardless of viewport/network — for a small live preview (e.g. the image-slide editor's own size/fit preview), where the full-size original would be wasted bandwidth for how small it's actually shown. External URLs are returned unchanged. */
 export function getSmallUrl(url: string): string {
   if (!url || !isOwnUploadUrl(url)) return url
-  return `${url}?size=small`
+  return `${normalizeUploadUrl(url)}?size=small`
 }
 
 /**
@@ -51,5 +57,6 @@ export function getSmallUrl(url: string): string {
  */
 export function getBackgroundImageUrl(url: string, blur: boolean): string {
   if (!url || !isOwnUploadUrl(url)) return url
-  return blur ? `${url}?size=blur` : `${url}?size=small`
+  const normalized = normalizeUploadUrl(url)
+  return blur ? `${normalized}?size=blur` : `${normalized}?size=small`
 }

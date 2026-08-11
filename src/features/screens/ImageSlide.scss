@@ -39,3 +39,28 @@
     object-fit: cover;
   }
 }
+
+// Shown in place of an image that failed to load (see `ImageSlide.tsx`).
+// Always `contain`, never `cover`-cropped the way real content can be — a
+// logo standing in for missing content should read as intact and
+// deliberately placed, not filled edge to edge as if it were the content
+// itself. Held back visually for the same reason.
+.image-slide__fallback-logo {
+  max-width: 50%;
+  max-height: 50%;
+  object-fit: contain;
+  opacity: 0.55;
+}
+
+// Last resort when no store logo is configured either. Deliberately still
+// *visible* rather than rendering nothing: a silently blank pane is what let
+// a real broken-image bug run unnoticed on a TV in the first place. Uses the
+// screen's own theme variables, so it works on a light or dark screen alike
+// without its own media query.
+.image-slide__fallback-placeholder {
+  width: 40%;
+  height: 40%;
+  border: 2px dashed var(--screen-border);
+  border-radius: 6px;
+  opacity: 0.4;
+}

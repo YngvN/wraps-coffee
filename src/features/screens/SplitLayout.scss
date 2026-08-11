@@ -19,9 +19,12 @@
     font-family: var(--screen-font-subheading, #{$font-subheading});
   }
 
+  // The line itself is no longer this grid's own background showing through
+  // its gap (see `SplitBorderLine`), so turning borders off is purely a
+  // matter of closing the gap — `LayoutTree` skips rendering the line
+  // entirely at zero thickness, leaving nothing to hide here.
   &--no-borders .layout-tree__split {
     gap: 0;
-    background-color: transparent;
   }
 
   &--empty {
@@ -33,12 +36,14 @@
   }
 }
 
-// The screen's own whole-screen background image, rendered in `.split-layout`'s
-// own empty-screen branch only (see `SplitLayout.tsx`) — there are no real
-// panes there to fall back to it individually, unlike the normal case, where
-// every real pane renders its own "window" onto the same image instead (see
-// `.split-layout__pane-bg` below and `LayoutPane.tsx`'s own `screenBackgroundWindow`),
-// since a pane's own background always has to stay opaque.
+// The screen's own whole-screen background image — one element behind the
+// whole pane tree (and behind the empty-screen placeholder alike; see
+// `SplitLayout.tsx`'s own `screenBackgroundLayer`). Panes paint no background
+// of their own, so this simply shows through wherever a pane has no backdrop
+// of its own, naturally continuous across every pane boundary. It previously
+// couldn't be done this way — opaque panes hid it entirely, so each pane
+// instead rendered its own separately-cropped "window" onto a shared copy of
+// it, purely to fake that continuity.
 .split-layout__bg {
   position: absolute;
   inset: 0;
@@ -74,10 +79,15 @@
 // plain 2-cell grid holding that node's own two children (each in turn a
 // pane or another nested split), sized live via inline style
 // (`nodeGridTemplate`, driven by that node's own adjustable ratio,
-// draggable right on this grid via `SplitLayoutDivider`). The divider line
-// itself is just this grid's own background showing through its `gap` —
-// grid gap only ever appears *between* cells, never around the outside, so
-// nesting these can't produce a doubled-up or missing border anywhere.
+// draggable right on this grid via `SplitLayoutDivider`). The `gap` below
+// reserves the space the divider line occupies; the line itself is drawn by
+// a `SplitBorderLine` child positioned into that gap, *not* by this grid's
+// own background showing through it as it used to be. That change is what
+// lets a stage transition shrink the border away and grow it back with a
+// `transform` (compositor-only) instead of animating `gap` (which would
+// re-run layout every frame). Grid gap only ever appears *between* cells,
+// never around the outside, so nesting these still can't produce a
+// doubled-up or missing border anywhere.
 .layout-tree__split {
   position: relative;
   display: grid;
@@ -94,8 +104,10 @@
   overflow: hidden;
   min-width: 0;
   min-height: 0;
+  // Kept in sync with `SLOT_BORDER_THICKNESS_PX` (`LayoutTree.tsx`), which is
+  // what sizes the `SplitBorderLine` filling this gap — the two have to match
+  // exactly or the line won't cover the space reserved for it.
   gap: 4px;
-  background-color: var(--screen-border);
 }
 
 .split-layout__pane {
@@ -108,12 +120,18 @@
   // own layout-switching container query; this makes the same container
   // queryable for text sizing everywhere.
   container-type: size;
-  // Always paints its own background (not just relying on the screen's own
-  // showing through) so it fully covers its parent grid's own background —
-  // otherwise that divider color (see `.layout-tree__split`'s own
-  // `background`) would show through the whole pane, not just the gap
-  // around it.
-  background-color: var(--screen-bg);
+  // Deliberately paints *no* background of its own — whatever is behind it
+  // (the screen's own background color, or the single `.split-layout__bg`
+  // image layer) shows straight through. A pane's own backdrop is painted by
+  // its content slots instead (see `LayoutPane.tsx`), so it travels with the
+  // content it belongs to rather than sitting still underneath it; painting
+  // the same color here as well would mask that movement completely.
+  //
+  // This used to be opaque, to stop `.layout-tree__split`'s own background
+  // (which painted the divider line through its `gap`) showing through the
+  // whole pane. That reason is gone — the line is its own `SplitBorderLine`
+  // element now and the split paints nothing.
+  //
   // Re-declares `color` here (not just inherits it from `.screen-display`)
   // so that when this pane's own background color redefines `--screen-text`
   // (see `slotBackgroundColorStyle`), its text actually picks that up —

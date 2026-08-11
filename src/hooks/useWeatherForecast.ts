@@ -121,8 +121,23 @@ export function useWeatherForecast(lat: number | undefined, lon: number | undefi
 
     const seed = seedFromCache(lat, lon, hours)
     fullRef.current = seed.full
-    setState(seed.state)
     let cancelled = false
+    // Deferred by a microtask rather than called straight from the effect
+    // body — a synchronous `setState` there trips this codebase's own
+    // `react-hooks/set-state-in-effect` rule (same reasoning, and the same
+    // fix, as the deep-linkable admin views documented in CLAUDE.md). Still
+    // lands before the browser paints, so the cached forecast shows up on the
+    // same frame either way; only the ref write above has to stay synchronous,
+    // since `refresh` below closes over it immediately.
+    //
+    // Guarded on `cancelled` for the same reason every other async path here
+    // is: once deferred, this can outlive its own effect (a fast
+    // location/hours change, or an unmount), and seeding a *superseded*
+    // location's cached forecast over a newer one would be a real bug rather
+    // than just a wasted render.
+    queueMicrotask(() => {
+      if (!cancelled) setState(seed.state)
+    })
     const refresh = () => {
       fetchWeather(lat, lon, hours)
         .then((result) => {

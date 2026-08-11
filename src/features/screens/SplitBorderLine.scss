@@ -1,0 +1,17 @@
+// The visible line between a split's own two children — see
+// `SplitBorderLine.tsx` for why this is a real element rather than the split
+// grid's own background showing through its `gap`.
+//
+// Sits *below* the drag divider (`SplitLayoutDivider.scss`, z-index 8) and
+// the corner handles (`PaneCornerHandle.scss`, z-index 9), and is fully
+// click-through, so making the border a real element can't steal any of the
+// editor's own interactions from them.
+.split-border-line {
+  position: absolute;
+  z-index: 7;
+  pointer-events: none;
+  background-color: var(--screen-border);
+  // Both the exact size and the exact offset come from inline styles (see
+  // `SplitBorderLine.tsx`) — they depend on the split's own live ratio and
+  // gap, neither of which is knowable from CSS alone.
+}

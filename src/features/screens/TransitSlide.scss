@@ -1,6 +1,15 @@
 @use '../../styles/variables' as *;
 @use '../../styles/mixins' as *;
 
+// The column's own shared track list, plus the two slices of it that
+// `.transit-slide__leading`/`__trailing` each span. Declared once here (and
+// referenced by `.transit-slide__column` itself below) purely so the
+// no-subgrid fallback at the bottom of this file can restate the exact same
+// tracks without the two definitions silently drifting apart.
+$transit-tracks: auto auto minmax(0, 1fr) minmax(0, max-content) minmax(0, max-content);
+$transit-leading-tracks: auto auto minmax(0, 1fr); // `.transit-slide__leading`'s own `grid-column: span 3`
+$transit-trailing-tracks: minmax(0, max-content) minmax(0, max-content); // `.transit-slide__trailing`'s own `grid-column: span 2`
+
 .transit-slide {
   position: relative;
   display: flex;
@@ -91,7 +100,7 @@
   flex: 1 1 0;
   min-width: 0;
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) minmax(0, max-content) minmax(0, max-content);
+  grid-template-columns: $transit-tracks;
   align-content: start;
   align-items: center;
   row-gap: 0.4em;
@@ -351,4 +360,44 @@
   // above) is what keeps this from overlapping it, since this overlay
   // doesn't occupy any flow space of its own.
   height: calc(var(--slide-heading-size, 8cqmin) * 0.7);
+}
+
+// Fallback for engines without `subgrid` — notably Chromium < 117, which
+// includes the AOSP Android System WebView (`com.android.webview`) still
+// shipping on some of this fleet's TVs. There, every `grid-template-columns:
+// subgrid` above is an *invalid value* and gets dropped at parse time, which
+// left `.transit-slide__leading` as a single implicit column: its icon, line
+// badge and destination stacked vertically instead of sitting side by side,
+// and `.transit-slide__item`'s own `overflow: hidden` then clipped that
+// 3x-taller content straight into the next row, so departures rendered
+// visibly overlapping each other.
+//
+// Restating the tracks explicitly fixes that. The trade-off versus real
+// subgrid: each row now sizes its own tracks independently rather than
+// sharing one set across the whole column, so columns line up only
+// approximately across rows instead of exactly. In practice the fixed cells
+// (mode icon, line badge, platform, arrival time) are near-identical widths
+// and the destination is the only flexible one (`minmax(0, 1fr)`), so this
+// reads as aligned — and it is unconditionally better than overlapping text.
+// A real `subgrid` also *inherits its parent grid's own gaps*; an explicit
+// track list does not, so `column-gap` has to be restated too. Without it the
+// header's own "Spor"/"Ankomst" labels sit flush against each other and read
+// as one run-together word ("SPORANKOMST"), and every row's cells lose the
+// breathing room `.transit-slide__column`'s own `column-gap` gives them.
+@supports not (grid-template-columns: subgrid) {
+  .transit-slide__column-header,
+  .transit-slide__item {
+    grid-template-columns: $transit-tracks;
+    column-gap: 0.5em;
+  }
+
+  .transit-slide__leading {
+    grid-template-columns: $transit-leading-tracks;
+    column-gap: 0.5em;
+  }
+
+  .transit-slide__trailing {
+    grid-template-columns: $transit-trailing-tracks;
+    column-gap: 0.5em;
+  }
 }

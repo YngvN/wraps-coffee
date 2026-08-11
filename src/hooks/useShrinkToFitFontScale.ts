@@ -160,23 +160,25 @@ export function useShrinkToFitFontScale(
     if (!enabled) return
 
     let resizeObserver: ResizeObserver | undefined
+    let mutationObserver: MutationObserver | undefined
+    let pollInterval: ReturnType<typeof setInterval> | undefined
     if (trackResize) {
       resizeObserver = new ResizeObserver(() => scheduler.scheduleMeasureAfterSettle(RESIZE_SETTLE_MS))
       resizeObserver.observe(outer)
+
+      // Deliberately doesn't watch `attributes` — this hook's own
+      // `inner.style.setProperty(...)` writes would otherwise re-trigger
+      // themselves.
+      mutationObserver = new MutationObserver(() => scheduler.scheduleMeasureAfterSettle(MUTATION_SETTLE_MS))
+      mutationObserver.observe(inner, { childList: true, subtree: true, characterData: true })
+
+      pollInterval = setInterval(scheduler.scheduleMeasure, POLL_INTERVAL_MS)
     }
-
-    // Deliberately doesn't watch `attributes` — this hook's own
-    // `inner.style.setProperty(...)` writes would otherwise re-trigger
-    // themselves.
-    const mutationObserver = new MutationObserver(() => scheduler.scheduleMeasureAfterSettle(MUTATION_SETTLE_MS))
-    mutationObserver.observe(inner, { childList: true, subtree: true, characterData: true })
-
-    const pollInterval = setInterval(scheduler.scheduleMeasure, POLL_INTERVAL_MS)
 
     return () => {
       resizeObserver?.disconnect()
-      mutationObserver.disconnect()
-      clearInterval(pollInterval)
+      mutationObserver?.disconnect()
+      if (pollInterval !== undefined) clearInterval(pollInterval)
       scheduler.cancel()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measures on every entry in `deps` (content identity) in addition to `enabled`/`checkWidth`/`trackResize`, not just when the refs themselves change.

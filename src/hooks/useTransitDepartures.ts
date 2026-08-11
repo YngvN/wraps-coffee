@@ -121,8 +121,13 @@ export function useTransitDepartures(stopId: string | undefined, count: number):
 
     const seed = seedFromCache(stopId, count)
     fullRef.current = seed.full
-    setState(seed.state)
     let cancelled = false
+    // See `useWeatherForecast`'s own identical seed step for why this is
+    // deferred by a microtask instead of being called straight from the effect
+    // body, and why it still has to respect `cancelled`.
+    queueMicrotask(() => {
+      if (!cancelled) setState(seed.state)
+    })
     const refresh = () => {
       fetchDepartures(stopId, count)
         .then((result) => {

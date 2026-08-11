@@ -15,7 +15,7 @@ import { getBackgroundImageUrl } from '../../utils/responsiveImage'
 import { isSlotActive, resolveSlotContent, resolveStageValue, writeStageCheckpoint } from '../../utils/screenStages'
 import { ExitingPaneGhost } from './ExitingPaneGhost'
 import { LayoutTree } from './LayoutTree'
-import { CONTENT_TRANSITION_DURATION_SECONDS, EXIT_PHASE_DURATION_SECONDS, PANE_GROWTH_DURATION_SECONDS } from './paneGrowthMotion'
+import { BORDER_TRANSITION_DURATION_SECONDS, CONTENT_TRANSITION_DURATION_SECONDS, EXIT_PHASE_DURATION_SECONDS, PANE_GROWTH_DURATION_SECONDS } from './paneGrowthMotion'
 import './SplitLayout.scss'
 
 /** The stage-transition sequence's own three phases — see `SplitLayout`'s own `contentPhase` state and doc comment for what each drives. */
@@ -121,8 +121,6 @@ export function SplitLayout({
   const containerRef = useRef<HTMLDivElement>(null)
   const [liveRatios, setLiveRatios] = useState<RatioPatch>({})
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
-  /** The whole-screen background image's own natural pixel dimensions, once loaded — see `screenBackgroundCoverRect` below. `undefined` while unset, not yet loaded, or mid-swap to a different image. */
-  const [backgroundImageNaturalSize, setBackgroundImageNaturalSize] = useState<{ width: number; height: number } | undefined>(undefined)
   const [mediaNaturalSizes, setMediaNaturalSizes] = useState<Record<string, { width: number; height: number }>>({})
   const requestedMediaRef = useRef<Set<string>>(new Set())
   const effectiveStage = forcedStage ?? stage
@@ -203,7 +201,11 @@ export function SplitLayout({
       return () => clearTimeout(timer)
     }
     if (contentPhase === 'holding') {
-      const timer = setTimeout(() => setContentPhase('idle'), PANE_GROWTH_DURATION_SECONDS * 1000)
+      // Just long enough for the borders to finish growing back into their
+      // new positions (`SplitBorderLine`) before the new content starts
+      // sliding in — the geometry itself already snapped on the commit that
+      // entered this phase, so there's no animation left to wait out.
+      const timer = setTimeout(() => setContentPhase('idle'), BORDER_TRANSITION_DURATION_SECONDS * 1000)
       return () => clearTimeout(timer)
     }
   }, [contentPhase, effectiveStage, effectiveTick])
@@ -232,26 +234,33 @@ export function SplitLayout({
     return () => observer.disconnect()
   }, [])
 
-  /** Loads the whole-screen background image's own natural pixel size whenever its URL changes — same one-off `new Image()` technique as `mediaNaturalSizes` below, just for this one image instead of a set of them. Reset to `undefined` on every URL change (including to no image at all) so a stale size from a previous image can never leak into `screenBackgroundCoverRect` for a frame before the new one loads. */
-  useEffect(() => {
-    const url = screen.backgroundImage?.imageUrl
-    queueMicrotask(() => setBackgroundImageNaturalSize(undefined))
-    if (!url) return
-    const img = new Image()
-    img.onload = () => setBackgroundImageNaturalSize({ width: img.naturalWidth, height: img.naturalHeight })
-    img.src = url
-  }, [screen.backgroundImage?.imageUrl])
-
-  /** Where the whole-screen background image would actually be drawn (in the same pixel space as `containerSize`) under a plain `background-size: cover` — the standard "scale to fill, preserving aspect ratio, centered" formula, computed once here from the image's own natural size rather than per-pane, so every leaf's own window (see `LayoutTree.tsx`'s own `screenBackgroundWindow`) crops a consistent, aspect-ratio-correct fit instead of each independently stretching to its own container guess. `undefined` until both the container and the image's own natural size are known. */
-  const screenBackgroundCoverRect =
-    backgroundImageNaturalSize && containerSize.width > 0 && containerSize.height > 0
-      ? (() => {
-          const scale = Math.max(containerSize.width / backgroundImageNaturalSize.width, containerSize.height / backgroundImageNaturalSize.height)
-          const width = backgroundImageNaturalSize.width * scale
-          const height = backgroundImageNaturalSize.height * scale
-          return { left: (containerSize.width - width) / 2, top: (containerSize.height - height) / 2, width, height }
-        })()
-      : undefined
+  /**
+   * The screen's own whole-screen background image, rendered once behind
+   * everything else.
+   *
+   * This used to be impossible: `.split-layout__pane` always painted an
+   * opaque background, so anything drawn at this level was completely hidden
+   * behind the real panes. Instead every pane with no backdrop of its own
+   * rendered its *own* "window" onto a shared screen-sized copy of the image
+   * — a whole apparatus of container measuring, a `cover`-fit rect, per-leaf
+   * slice offsets and a `-30px` overscan so `filter: blur` had real pixels to
+   * sample past each pane's edge — purely to make N independent crops line up
+   * as one continuous image. Panes are transparent now (their backdrop moved
+   * onto the sliding content slots, see `LayoutPane`), so a single element
+   * behind them is both genuinely continuous and far less machinery.
+   */
+  const screenBackgroundLayer = screen.backgroundImage ? (
+    <div className="split-layout__bg">
+      <div
+        className="split-layout__bg-image"
+        style={{
+          backgroundImage: `url(${getBackgroundImageUrl(screen.backgroundImage.imageUrl, screen.backgroundImage.blur ?? true)})`,
+          filter: (screen.backgroundImage.blur ?? true) ? 'blur(4px)' : 'none',
+        }}
+      />
+      {screen.backgroundImage.overlay !== 'none' && <div className={`split-layout__bg-overlay split-layout__bg-overlay--${screen.backgroundImage.overlay}`} />}
+    </div>
+  ) : null
 
   const fallbackLeafId = Object.keys(screen.paneSlots)[0] ?? 'none'
   // Memoized so it's a *stable* reference across renders that don't change
@@ -299,8 +308,25 @@ export function SplitLayout({
    */
   const [prevTree, setPrevTree] = useState<LayoutNode>(tree)
   const [diffBase, setDiffBase] = useState<LayoutNode | null>(null)
+  /**
+   * Whether the pending diff came from a *stage advance* rather than an
+   * editor edit — captured at the moment the tree actually changed, not read
+   * later, since `diffBase` outlives the phase that produced it.
+   *
+   * The distinction matters because the same `tree` change drives both: a
+   * stage advance (the timer below moving `displayStage` on, which lands on
+   * the same commit as `contentPhase: 'holding'`) and an ordinary layout edit
+   * (splitting or deleting a pane in the editor, with the phase still
+   * `'idle'`). A stage advance no longer wants the grow-in/collapse
+   * animations at all — its geometry snaps behind a blanked screen, so
+   * animating panes there would put movement back into the exact window this
+   * rework empties out, at the cost of a full extra `LayoutPane` mount per
+   * disappearing pane. An editor edit still wants them.
+   */
+  const [diffFromStageAdvance, setDiffFromStageAdvance] = useState(false)
   if (prevTree !== tree) {
     setDiffBase(prevTree)
+    setDiffFromStageAdvance(contentPhase !== 'idle')
     setPrevTree(tree)
   }
 
@@ -308,12 +334,12 @@ export function SplitLayout({
   const diffWithBase = useMemo(() => (diffBase ? { diffBase, diff: diffLeafSets(diffBase, tree) } : null), [diffBase, tree])
 
   const enteringGrowth = useMemo<Record<PaneId, PaneGrowthOrigin>>(() => {
-    if (!diffWithBase || reducedMotion) return {}
+    if (!diffWithBase || reducedMotion || diffFromStageAdvance) return {}
     return Object.fromEntries(diffWithBase.diff.appeared.map((id) => [id, resolvePaneGrowthOrigin(tree, diffWithBase.diffBase, id, paneGrowthFallback)]))
-  }, [diffWithBase, reducedMotion, tree, paneGrowthFallback])
+  }, [diffWithBase, reducedMotion, diffFromStageAdvance, tree, paneGrowthFallback])
 
   const [exitingGhosts, setExitingGhosts] = useState<Record<PaneId, { rect: Rect; growth: PaneGrowthOrigin }>>({})
-  if (diffWithBase && !reducedMotion) {
+  if (diffWithBase && !reducedMotion && !diffFromStageAdvance) {
     const { diffBase: baseForExit, diff } = diffWithBase
     const newlyDisappeared = diff.disappeared.filter((id) => !(id in exitingGhosts))
     if (newlyDisappeared.length > 0) {
@@ -449,37 +475,14 @@ export function SplitLayout({
   const layoutTree = Object.keys(liveOverridePatch).length > 0 ? applyRatioPatchPreservingDescendants(tree, liveOverridePatch, geometry) : tree
 
   /**
-   * The screen's own whole-screen background image is *not* rendered as one
-   * element sitting behind every pane here — `.split-layout__pane` always
-   * paints its own opaque background (even with nothing of its own
-   * configured, it falls back to the plain `--screen-bg` color; see that
-   * class's own comment on why it can't just be transparent), so a bg image
-   * painted only at this level would never actually be visible behind any
-   * real pane. Instead it's threaded down through `LayoutTree`/`LayoutPane`
-   * (`screenBackgroundImage`/`containerSize` below), and each pane with
-   * neither its own background color nor image renders its own "window"
-   * onto one shared screen-sized rendering of it — together reading as one
-   * continuous image rather than each independently cropped (see
-   * `LayoutPane.tsx`'s own `screenBackgroundWindow`). Only the empty-screen
-   * branch immediately below still renders it directly, as a single
-   * `.split-layout__bg` element — there are no real panes there to
-   * individually fall back to it.
+   * The screen's own whole-screen background image, as one element behind
+   * everything — see `screenBackgroundLayer` below, which both this
+   * empty-screen branch and the real pane tree render.
    */
   if (!leaves.some((leaf) => screen.paneSlots[leaf.id] && isSlotActive(screen.paneSlots[leaf.id]))) {
     return (
       <div className="split-layout split-layout--empty" style={screenColorStyle}>
-        {screen.backgroundImage && (
-          <div className="split-layout__bg">
-            <div
-              className="split-layout__bg-image"
-              style={{
-                backgroundImage: `url(${getBackgroundImageUrl(screen.backgroundImage.imageUrl, screen.backgroundImage.blur ?? true)})`,
-                filter: (screen.backgroundImage.blur ?? true) ? 'blur(4px)' : 'none',
-              }}
-            />
-            {screen.backgroundImage.overlay !== 'none' && <div className={`split-layout__bg-overlay split-layout__bg-overlay--${screen.backgroundImage.overlay}`} />}
-          </div>
-        )}
+        {screenBackgroundLayer}
         <p>{t('screenDisplay.emptyLabel')}</p>
       </div>
     )
@@ -487,7 +490,26 @@ export function SplitLayout({
 
   // Borders default off (an absent `showSlotBorders` means no-borders, not shown) — see that field's own doc comment for why: the divider gap's translucent tint reads as an unwanted glow against a whole-screen background image, so a screen only gets visible borders once explicitly opted into.
   const borderModifier = screen.showSlotBorders ? '' : ' split-layout--no-borders'
-  const gridTransition = isDragging ? false : 'grid-template-columns 0.5s ease, grid-template-rows 0.5s ease, background-color 0.4s ease'
+  /**
+   * A stage transition deliberately gets **no** grid-template transition at
+   * all: its geometry snaps in a single reflow on the commit that enters
+   * `'holding'`, at the one moment nothing distinguishable is on screen to
+   * see it move: the borders have shrunk away, and every pane's content — its
+   * backdrop along with it, since the two travel together now — has already
+   * slid off, leaving nothing but the screen's own flat background.
+   * Animating it instead — as this used to, unconditionally
+   * — meant `grid-template-columns`/`-rows`, both layout-affecting, re-running
+   * layout on the main thread every frame for half a second, with the
+   * highest-contrast thing on screen gliding along carrying every dropped
+   * frame with it.
+   *
+   * Editor-driven changes keep the animation: dragging a divider, splitting a
+   * pane or switching the previewed stage tab are direct manipulations where
+   * a smooth glide is the point and the cost is paid once, not every 10
+   * seconds forever on a kiosk. `isDragging` still opts out separately, since
+   * a transition actively fights a drag that's already updating every frame.
+   */
+  const gridTransition = isDragging || contentPhase !== 'idle' ? false : `grid-template-columns ${PANE_GROWTH_DURATION_SECONDS}s ease, grid-template-rows ${PANE_GROWTH_DURATION_SECONDS}s ease, background-color 0.4s ease`
 
   const mediaResizeScaleFromPatch = (patch: RatioPatch): number | undefined => {
     if (!activeMediaResize) return undefined
@@ -548,6 +570,7 @@ export function SplitLayout({
 
   return (
     <div ref={containerRef} className={`split-layout${borderModifier}`} style={screenColorStyle}>
+      {screenBackgroundLayer}
       <LayoutTree
         node={layoutTree}
         path={[]}
@@ -564,9 +587,6 @@ export function SplitLayout({
         transitionDuration={CONTENT_TRANSITION_DURATION_SECONDS}
         contentPhase={contentPhase}
         reducedMotion={reducedMotion}
-        screenBackgroundImage={screen.backgroundImage}
-        containerSize={containerSize}
-        screenBackgroundCoverRect={screenBackgroundCoverRect}
         selectedLeafId={selectedLeafId}
         dimUnselectedPanes={dimUnselectedPanes}
         onLiveChange={onResizeDivider ? handleLiveChange : undefined}
@@ -579,6 +599,7 @@ export function SplitLayout({
         selectedLeafIds={selectedLeafIds}
         onToggleChecked={onToggleChecked}
         gridTransition={gridTransition}
+        showSlotBorders={Boolean(screen.showSlotBorders)}
         onSplitPane={onSplitPane}
         onSplitFour={onSplitFour}
         disableSplitOnTouch={disableSplitOnTouch}
@@ -605,9 +626,6 @@ export function SplitLayout({
             transitionStyle={screen.transitionStyle}
             resolveTextSizes={resolveTextSizes}
             defaultPaneLanguage={defaultPaneLanguage}
-            screenBackgroundImage={screen.backgroundImage}
-            containerSize={containerSize}
-            screenBackgroundCoverRect={screenBackgroundCoverRect}
             onCollapseComplete={removeGhost}
             newsSlots={newsSlots}
             stageTick={stageTick}

@@ -323,3 +323,38 @@
   width: calc(var(--slide-heading-size, 8cqmin) * 0.7);
   height: calc(var(--slide-heading-size, 8cqmin) * 0.7);
 }
+
+// Fallback for engines without `subgrid` — see `TransitSlide.scss`'s own
+// equivalent block for the full reasoning (Chromium < 117, i.e. the AOSP
+// Android System WebView still shipping on some of this fleet's TVs, drops
+// every `subgrid` declaration above as an invalid value, collapsing each
+// subgridded child to a single implicit track and piling its cells on top of
+// one another).
+//
+// Both parents already size their tracks off `--weather-track-count` (set
+// inline by `WeatherSlide.tsx`), so the fallback just restates that same
+// expression rather than duplicating a literal count. Alignment survives
+// this better than `TransitSlide`'s own fallback does: every track is a
+// uniform `auto` and each hour column/row carries the exact same field
+// structure, so independently-sized tracks still come out near-identical.
+// Gaps are restated for the same reason `TransitSlide`'s own fallback
+// restates them: a real `subgrid` inherits its parent grid's gaps, an
+// explicit track list doesn't, so without this every shared track sits flush
+// against the next one.
+@supports not (grid-template-rows: subgrid) {
+  // Horizontal mode — columns of hours sharing the list's own row tracks.
+  .weather-slide__item,
+  .weather-slide__row-labels {
+    grid-template-rows: repeat(var(--weather-track-count, 3), auto);
+    row-gap: calc($spacing-unit / 2);
+  }
+}
+
+@supports not (grid-template-columns: subgrid) {
+  // Vertical mode — rows of hours sharing the list's own column tracks.
+  .weather-slide__column-header,
+  .weather-slide__row {
+    grid-template-columns: repeat(var(--weather-track-count, 3), auto);
+    column-gap: $spacing-unit * 1.5;
+  }
+}

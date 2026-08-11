@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useRef, useState, type CSSProperties, type DragEvent } from 'react'
 import { useCrossfadeSlot } from '../../hooks/useCrossfadeSlot'
 import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
@@ -6,7 +6,7 @@ import { useShrinkToFitFontScale } from '../../hooks/useShrinkToFitFontScale'
 import { useShrinkToFitScale } from '../../hooks/useShrinkToFitScale'
 import { useLanguage, type LanguageCode } from '../../i18n'
 import type { BackgroundImage, BackgroundImageOverlay, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SlideTransitionDirection, SplitDirection, TextSizes } from '../../types/screen'
-import { backgroundImageTextStyle, slotBackgroundColorStyle } from '../../utils/screenColors'
+import { backgroundImageTextStyle, getScreenColorVars, slotBackgroundColorStyle } from '../../utils/screenColors'
 import type { PaneGrowthOrigin } from '../../utils/paneGrowth'
 import { getBackgroundImageUrl } from '../../utils/responsiveImage'
 import { resolveContentBackgroundImage } from '../../utils/screenSlots'
@@ -38,10 +38,6 @@ interface LayoutPaneProps {
   /** Which phase of the stage-transition sequence is currently playing (see `SplitLayout`'s own `contentPhase` state) — `'idle'` (the default, when omitted, e.g. `ExitingPaneGhost`'s own wrapped instance) renders content normally; `'exiting'`/`'holding'` both force this pane's content (and background) into their own hidden/exit state via `suppressEnter` below, regardless of whether `activeContentSlot` would otherwise say a slot should be entering. */
   contentPhase?: 'idle' | 'exiting' | 'holding'
   reducedMotion: boolean | null
-  /** The screen's own whole-screen background image, if any — this pane's own fallback whenever it has neither its own background color nor image at the current stage (a color always wins outright). Rendered as a "window" onto it (see `screenBackgroundWindow`) rather than independently cropped, so every pane using this fallback together looks like one continuous image rather than each showing its own separate crop. */
-  screenBackgroundImage?: BackgroundImage
-  /** This pane's own slice of `screenBackgroundImage`, in pixels — `left`/`top` is this pane's own offset from the whole screen's own top-left corner, `screenWidth`/`screenHeight` is the whole screen's own measured size. `undefined` before the container's real pixel size is known yet (see `LayoutTree.tsx`'s own `containerSize`) — the fallback image simply doesn't render for those first few frames rather than momentarily flashing an unwindowed/wrongly-cropped one. */
-  screenBackgroundWindow?: { left: number; top: number; screenWidth: number; screenHeight: number }
   /** Hovering close to the pane's own middle (either axis) reveals a "Split" line/label there; clicking splits it 50/50 along that axis — see `PaneSplitZones`. Omit (like `onEditSlide`) to disable, e.g. while the screen is locked. Only ever actually rendered while `selected` is also true (see the render below) — an unselected pane offers no split zones at all, regardless of this prop. */
   onSplitPane?: (leafId: PaneId, axis: SplitDirection, edge: 'start' | 'end') => void
   /** Hovering dead center instead splits this pane straight into a clean 2x2 of 4 — see `PaneSplitZones`' own doc comment. Omit (like `onSplitPane`) to disable. */
@@ -79,18 +75,23 @@ interface LayoutPaneProps {
 /**
  * One checkpoint's own frozen render input — snapshotted the moment it
  * becomes current (see `useCrossfadeSlot`), so a still-exiting checkpoint's
- * content never has its own text size/language/background swapped out from
- * under it by a *later* checkpoint's values before its own exit animation
- * finishes. `backgroundColor`/`overlay` are only actually applied per-slot
- * while `transitionStyle` is `'slide'` (see the render below) — for
- * `'fade'` the background stays on the always-live ancestor pane exactly as
- * before, switching immediately.
+ * content never has its own text size/language swapped out from under it by
+ * a *later* checkpoint's values before its own exit animation finishes.
+ *
+ * This is where a checkpoint's whole *backdrop* lives, not just its content:
+ * `backgroundColor`/`backgroundImage`/`overlay` are all painted by the slot
+ * holding this snapshot (see the render below), so they travel with the
+ * content they belong to — a sliding checkpoint's background slides out with
+ * it. The pane underneath deliberately paints nothing at all (see
+ * `paneStyle`), which is what makes that movement visible rather than
+ * masking it behind an identical color.
  */
 interface PaneContentSnapshot {
   content: ScreenSlotContent
   textSizeVars: CSSProperties
   language: LanguageCode
   backgroundColor: string | undefined
+  backgroundImage: BackgroundImage | undefined
   overlay: BackgroundImageOverlay | undefined
 }
 
@@ -119,8 +120,6 @@ export function LayoutPane({
   transitionDuration,
   contentPhase = 'idle',
   reducedMotion,
-  screenBackgroundImage,
-  screenBackgroundWindow,
   onSplitPane,
   onSplitFour,
   disableSplitOnTouch,
@@ -182,27 +181,30 @@ export function LayoutPane({
   const content = resolveSlotContent(slot, stage)
   const backgroundColor = resolveSlotBackgroundColor(slot, stage)
   const slotBackgroundImage = resolveSlotBackgroundImage(slot, stage)
+  /** This pane's own background image at this stage, if any. A pane with none simply paints no backdrop of its own and lets the screen's own background (color or image, painted once behind the whole tree — see `SplitLayout`'s own `.split-layout__bg`) show through it. */
   const backgroundImage = resolveContentBackgroundImage(content, slotBackgroundImage)
-  /** Whether this pane, having neither a background color nor image of its own at the current stage, is the one falling back to the screen's own whole-screen image — a color always wins outright (matches `SplitLayout.tsx`'s own doc comment: "shown through any pane that doesn't have its own background color/image"). */
-  const usesScreenBackgroundFallback = !backgroundImage && !backgroundColor && Boolean(screenBackgroundImage)
-  const effectiveBackgroundImage = backgroundImage ?? (usesScreenBackgroundFallback ? screenBackgroundImage : undefined)
-  /** `effectiveBackgroundImage` is ready to actually render — always true for a pane's own image; for the screen-wide fallback, only once `screenBackgroundWindow` (this pane's own pixel slice of it) is known, so it never flashes an unwindowed/wrongly-cropped image for a frame first. */
-  const showBackgroundImage = Boolean(effectiveBackgroundImage) && (!usesScreenBackgroundFallback || Boolean(screenBackgroundWindow))
-  /** `effectiveBackgroundImage.blur` falls back to on (matching this feature's original always-blurred behavior) when absent — see `BackgroundImage.blur`'s own doc comment. Drives both the live CSS `filter` below *and* which pre-processed image variant is actually requested (see `getBackgroundImageUrl`) — the residual CSS blur alone isn't enough to turn a genuinely sharp image back on, since most of an own-upload's own softness is pre-baked server-side into its `?size=blur` variant, not applied live. */
-  const effectiveBackgroundImageBlur = effectiveBackgroundImage?.blur ?? true
-  const effectiveBackgroundImageFilter = effectiveBackgroundImageBlur ? 'blur(4px)' : 'none'
   const language = resolveSlotLanguage(slot, stage) ?? defaultPaneLanguage
-  const isSlideStyle = transitionStyle === 'slide'
-  // While `'fade'`, the background stays here — on the always-live
-  // ancestor, switching immediately the instant the checkpoint/stage
-  // changes (unchanged from before). While `'slide'`, each content slot
-  // below carries its *own* frozen background instead, so it visually
-  // travels with the sliding content rather than snapping separately on
-  // the pane underneath it — this object becomes a harmless fallback base
-  // layer in that case (covered by whichever slot is on top).
+  // The pane itself paints *nothing* — it only publishes this checkpoint's
+  // own `--screen-*` custom properties, and stays transparent so whatever is
+  // behind it (the screen's own background color or image) shows through.
+  //
+  // The actual backdrop — background color *and* image alike — is painted by
+  // each crossfade slot instead (see the render below), so it travels with
+  // the content it belongs to: a sliding checkpoint's whole backdrop slides
+  // out with it rather than sitting still on the pane underneath while only
+  // the content moves. Painting it here as well would defeat that entirely,
+  // since an identical color behind the sliding one makes the movement
+  // invisible.
+  //
+  // The vars still have to live here, not only on the slots: several
+  // consumers are *siblings* of the slots rather than descendants — the
+  // selection ring's own `--screen-accent`, and `PaneSplitZones`/
+  // `PaneCornerHandle`, which deliberately want this pane's own
+  // contrast-matched `--screen-bg`/`--screen-text` (see `PaneSplitZones.scss`'s
+  // own doc comment).
   const paneStyle = {
-    ...slotBackgroundColorStyle(backgroundColor),
-    ...backgroundImageTextStyle(showBackgroundImage ? effectiveBackgroundImage?.overlay : undefined),
+    ...(backgroundColor ? getScreenColorVars(backgroundColor) : {}),
+    ...backgroundImageTextStyle(backgroundImage?.overlay),
     ...(!reducedMotion ? { transition: 'background-color 0.4s ease, color 0.4s ease' } : {}),
   }
   const variants = resolveTransitionVariants(transitionStyle, slideDirection)
@@ -212,7 +214,8 @@ export function LayoutPane({
     textSizeVars: textSizesToCssVars(resolveTextSizes(leafId, stage, content)),
     language,
     backgroundColor,
-    overlay: showBackgroundImage ? effectiveBackgroundImage?.overlay : undefined,
+    backgroundImage,
+    overlay: backgroundImage?.overlay,
   }
   // Keyed on the *resolved content itself* (a stable JSON signature), not
   // which checkpoint number it happened to resolve from — a stage advance
@@ -228,7 +231,7 @@ export function LayoutPane({
   // that's genuinely different still transitions correctly, since the
   // signature simply reflects whatever the resolved values actually are.
   const { slots: contentSlots, activeSlot: activeContentSlot } = useCrossfadeSlot<PaneContentSnapshot>(contentSnapshot, (item) =>
-    JSON.stringify({ content: item.content, backgroundColor: item.backgroundColor, overlay: item.overlay, language: item.language }),
+    JSON.stringify({ content: item.content, backgroundColor: item.backgroundColor, backgroundImage: item.backgroundImage, overlay: item.overlay, language: item.language }),
   )
 
   // Re-measures whenever this exact slot's own resolved content or text
@@ -268,12 +271,17 @@ export function LayoutPane({
   // fallback is still absorbing the overflow itself.
   const checkWidth0 = isEventMonth(contentSlots[0]?.content) || contentSlots[0]?.content?.kind === 'weather'
   const checkWidth1 = isEventMonth(contentSlots[1]?.content) || contentSlots[1]?.content?.kind === 'weather'
-  // The inactive (exiting) crossfade slot is fading to opacity 0 and its
-  // content is frozen — no point spending a resize-triggered forced-layout
-  // remeasure keeping its scale live. Only gates the resize trigger, not
-  // `enabled` itself, so its last-good scale stays applied rather than
-  // being stripped back to full size (see `trackResize`'s own doc comment
-  // on `useShrinkToFitScale`).
+  // The inactive (exiting) crossfade slot is fading to opacity 0 — no point
+  // spending forced-layout remeasures keeping its scale live, so `false`
+  // here drops its resize observer, mutation observer and poll alike. Gates
+  // only those triggers, not `enabled` itself, so its last-good scale stays
+  // applied rather than being stripped back to full size (see `trackResize`'s
+  // own doc comment on `useShrinkToFitScale`). A slot becoming active again
+  // re-runs the hook and measures fresh before painting, so nothing is
+  // stale — which matters because an inactive slot's *rendered* content
+  // isn't actually frozen the way its `content` prop is: the slide component
+  // stays mounted and keeps polling its own live data (a `WeatherSlide`'s
+  // forecast, a `TransitSlide`'s departures) regardless of activeness.
   useShrinkToFitScale(contentOuterRef0, contentInnerRef0, overflowMode === 'shrink' && !usesFontScale0, [shrinkDep0], activeContentSlot === 0)
   useShrinkToFitScale(contentOuterRef1, contentInnerRef1, overflowMode === 'shrink' && !usesFontScale1, [shrinkDep1], activeContentSlot === 1)
   useShrinkToFitFontScale(contentOuterRef0, contentInnerRef0, overflowMode === 'shrink' && usesFontScale0, [shrinkDep0], checkWidth0, activeContentSlot === 0)
@@ -318,52 +326,55 @@ export function LayoutPane({
           <p>{t('screenDisplay.dropImageHint')}</p>
         </div>
       )}
-      <AnimatePresence mode="wait">
-        {showBackgroundImage && effectiveBackgroundImage && (
-          <motion.div
-            key={`${effectiveBackgroundImage.imageUrl}|${effectiveBackgroundImage.overlay}`}
-            className="split-layout__pane-bg"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: suppressEnter ? 0 : 1 }}
-            exit={{ opacity: 0 }}
-            transition={suppressEnter ? exitTransition : enterTransition}
-          >
-            <div
-              className="split-layout__pane-bg-image"
-              style={
-                usesScreenBackgroundFallback && screenBackgroundWindow
-                  ? {
-                      backgroundImage: `url(${getBackgroundImageUrl(effectiveBackgroundImage.imageUrl, effectiveBackgroundImageBlur)})`,
-                      // Overrides the class's own `cover`/`center` (meant for a single self-contained crop) with a "window": this pane's own slice of one screen-sized rendering of the image, positioned by its own on-screen offset — every pane using this same fallback lines up into what reads as one continuous image, not each independently cropped. Still keeps the class's own `-30px` overscan (not `inset: 0`) — without it, this div's own box is exactly the pane's own edge-to-edge size, giving `filter: blur` nothing real to sample *past* that edge, which shows up as a soft light seam right at the boundary instead of a clean crop. `backgroundPosition` gets the matching `+30` to compensate, so the crop that actually lands within the pane's own visible area (post-`overflow: hidden`) is unchanged — only the now-larger, blurred-with-real-data margin around it differs.
-                      backgroundSize: `${screenBackgroundWindow.screenWidth}px ${screenBackgroundWindow.screenHeight}px`,
-                      backgroundPosition: `${30 - screenBackgroundWindow.left}px ${30 - screenBackgroundWindow.top}px`,
-                      filter: effectiveBackgroundImageFilter,
-                    }
-                  : { backgroundImage: `url(${getBackgroundImageUrl(effectiveBackgroundImage.imageUrl, effectiveBackgroundImageBlur)})`, filter: effectiveBackgroundImageFilter }
-              }
-            />
-            {effectiveBackgroundImage.overlay !== 'none' && (
-              <div className={`split-layout__pane-bg-overlay split-layout__pane-bg-overlay--${effectiveBackgroundImage.overlay}`} />
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
       {contentSlots.map((snapshot, slotIndex) => {
         if (!snapshot) return null
-        const slotBackgroundStyle = isSlideStyle
-          ? { ...slotBackgroundColorStyle(snapshot.backgroundColor), ...backgroundImageTextStyle(snapshot.overlay) }
-          : {}
+        const slotBlur = snapshot.backgroundImage?.blur ?? true
         return (
           <motion.div
             key={slotIndex}
             ref={slotIndex === 0 ? contentOuterRef0 : contentOuterRef1}
             className={`split-layout__pane-content${overflowMode === 'scroll' ? ' split-layout__pane-content--scroll' : ''}`}
-            style={{ ...snapshot.textSizeVars, ...slotBackgroundStyle }}
+            // This slot's own frozen backdrop, painted here rather than on the
+            // pane so it travels with the content it belongs to. `color` has to
+            // be re-declared alongside the vars, not just inherited: the pane
+            // above already resolved its own `color: var(--screen-text)`, and
+            // redefining that custom property down here doesn't retroactively
+            // change a value resolved higher up (same reasoning as
+            // `.split-layout__pane`'s own re-declaration — see its doc comment
+            // in `SplitLayout.scss`). Without it a checkpoint's text would keep
+            // the *pane's* color while its background slid away underneath.
+            style={{
+              ...snapshot.textSizeVars,
+              ...slotBackgroundColorStyle(snapshot.backgroundColor),
+              ...backgroundImageTextStyle(snapshot.overlay),
+              ...(snapshot.backgroundColor ? { color: 'var(--screen-text)' } : {}),
+            }}
             variants={variants}
             initial="initial"
             animate={!suppressEnter && activeContentSlot === slotIndex ? 'animate' : 'exit'}
             transition={!suppressEnter && activeContentSlot === slotIndex ? enterTransition : exitTransition}
           >
+            {/*
+              Inside the slot, and before the content, so it both travels with
+              this checkpoint and keeps painting *over* this slot's own
+              background color — the same order the pane-level version had.
+              (Everything here is `z-index: auto`, so paint order is DOM
+              order; a background color painted on the slot with the image
+              still outside it would have covered the image entirely.)
+              No `AnimatePresence` any more: the slot's own enter/exit is what
+              animates this now, which is what that wrapper was emulating.
+            */}
+            {snapshot.backgroundImage && (
+              <div className="split-layout__pane-bg">
+                <div
+                  className="split-layout__pane-bg-image"
+                  style={{ backgroundImage: `url(${getBackgroundImageUrl(snapshot.backgroundImage.imageUrl, slotBlur)})`, filter: slotBlur ? 'blur(4px)' : 'none' }}
+                />
+                {snapshot.backgroundImage.overlay !== 'none' && (
+                  <div className={`split-layout__pane-bg-overlay split-layout__pane-bg-overlay--${snapshot.backgroundImage.overlay}`} />
+                )}
+              </div>
+            )}
             <div className="split-layout__pane-content-inner" ref={slotIndex === 0 ? contentInnerRef0 : contentInnerRef1}>
               <PaneLanguageScope language={snapshot.language}>
                 <SlotContent slot={snapshot.content} newsSlots={newsSlots} stageTick={stageTick} stage={stage} onRequestStageAdvance={onRequestStageAdvance} />

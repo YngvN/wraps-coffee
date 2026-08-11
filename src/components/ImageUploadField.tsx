@@ -2,7 +2,7 @@ import type { ChangeEvent, DragEvent } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useAdminSession } from '../hooks/useAdminSession'
 import { useLanguage } from '../i18n'
-import { deleteUpload, isOwnUploadUrl } from '../lib/localServer'
+import { deleteUpload, isOwnUploadUrl, normalizeUploadUrl } from '../lib/localServer'
 import { dismissUpload, retryUpload, startUpload, useUpload } from '../lib/uploadManager'
 import { getThumbnailUrl } from '../utils/responsiveImage'
 import { Input } from './Input'
@@ -161,7 +161,7 @@ export function ImageUploadField({ id, value, onChange, acceptVideo }: ImageUplo
       {hasValue && !showUrlInput ? (
         <div className="image-upload-field__row">
           <div className="image-upload-field__preview-wrap">
-            <img src={isVideoUrl(value) ? getThumbnailUrl(value) : value} alt="" className="image-upload-field__preview" />
+            <img src={isVideoUrl(value) ? getThumbnailUrl(value) : normalizeUploadUrl(value)} alt="" className="image-upload-field__preview" />
             <p className="image-upload-field__replace-hint">{t('imageUpload.dragToReplace')}</p>
           </div>
           <div className="image-upload-field__actions">
