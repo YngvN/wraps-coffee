@@ -73,6 +73,8 @@ interface LayoutTreeProps {
   onToggleChecked?: (leafId: PaneId) => void
   /** Threaded straight through to every `LayoutPane`'s own prop of the same name — see `SplitLayout`'s own doc comment. */
   onRequestStageAdvance?: () => void
+  /** Threaded straight through to every `LayoutPane`'s own prop of the same name — see `SplitLayout`'s own doc comment. */
+  captureMode?: boolean
 }
 
 /**
@@ -136,6 +138,7 @@ export function LayoutTree({
   selectedLeafIds,
   onToggleChecked,
   onRequestStageAdvance,
+  captureMode,
 }: LayoutTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -176,6 +179,7 @@ export function LayoutTree({
         onRequestStageAdvance={onRequestStageAdvance}
         checked={selectedLeafIds?.has(node.id)}
         onToggleChecked={locked ? undefined : onToggleChecked ? () => onToggleChecked(node.id) : undefined}
+        captureMode={captureMode}
       />
     )
   }
@@ -314,6 +318,7 @@ export function LayoutTree({
         onRequestStageAdvance={onRequestStageAdvance}
         selectedLeafIds={selectedLeafIds}
         onToggleChecked={onToggleChecked}
+        captureMode={captureMode}
       />
       <LayoutTree
         node={node.second}
@@ -354,6 +359,7 @@ export function LayoutTree({
         onRequestStageAdvance={onRequestStageAdvance}
         selectedLeafIds={selectedLeafIds}
         onToggleChecked={onToggleChecked}
+        captureMode={captureMode}
       />
       {onLiveChange && onCommit && !dividerLocked && (
         <SplitLayoutDivider

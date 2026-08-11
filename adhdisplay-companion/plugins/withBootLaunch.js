@@ -1,10 +1,23 @@
 // Expo config plugin: registers a broadcast receiver that relaunches this
-// app both after the device reboots (BOOT_COMPLETED) and right after this
-// app's own package is replaced in place (MY_PACKAGE_REPLACED) — the latter
-// is what makes a Tier 2/3 self-install (packageInstaller.ts) actually bring
-// the kiosk screen back afterward instead of leaving it dead on the
-// launcher home screen; Android kills the process on package replace and
-// does not relaunch it on its own. This is the only genuinely native code
+// app right after this app's own package is replaced in place
+// (MY_PACKAGE_REPLACED) — that is what makes a Tier 2/3 self-install
+// (packageInstaller.ts) actually bring the kiosk screen back afterward
+// instead of leaving it dead on the launcher home screen; Android kills the
+// process on package replace and does not relaunch it on its own.
+//
+// RELAUNCH-ON-BOOT IS DELIBERATELY OFF. This plugin used to also register
+// BOOT_COMPLETED (plus the RECEIVE_BOOT_COMPLETED permission) so an
+// unattended display would come back on its own after a power cut. That was
+// turned off on request; it is not a regression and not an oversight. To put
+// it back, re-add 'android.permission.RECEIVE_BOOT_COMPLETED' to the
+// permissions list below and the BOOT_COMPLETED action to the receiver's own
+// intent-filter, and restore the matching branch in RECEIVER_SOURCE's
+// onReceive — nothing else in this file, or in RelaunchService, is
+// boot-specific. Note the app's own README and docs/INSTALL-TV.md still
+// describe auto-launch-on-boot as a platform capability; only this Android
+// receiver is disabled.
+//
+// This is the only genuinely native code
 // anywhere in this app — every other module used elsewhere (expo-camera,
 // react-native-webview, expo-keep-awake) is stock Expo with zero custom
 // native code. Only affects the Android prebuild (`expo prebuild` /
@@ -35,17 +48,19 @@ import android.content.Context
 import android.content.Intent
 
 /**
- * Triggers ADHDisplay Companion's own recovery-to-foreground path both after
- * the device finishes booting and right after this app's own package is
- * replaced in place, so an unattended kiosk display recovers into its own
- * standby/pairing/displaying state (see App.tsx's own persisted
- * serverConnection/pairing state) without anyone physically present to tap
- * the app icon. Registered against both android.intent.action.BOOT_COMPLETED
- * and android.intent.action.MY_PACKAGE_REPLACED in AndroidManifest.xml — see
- * plugins/withBootLaunch.js, which generates this file and injects this
- * receiver plus the permissions/service it needs during \`expo prebuild\`. Not
- * checked in directly: regenerated fresh on every prebuild, same as the rest
- * of android/.
+ * Triggers ADHDisplay Companion's own recovery-to-foreground path right after
+ * this app's own package is replaced in place, so an unattended kiosk display
+ * recovers into its own standby/pairing/displaying state (see App.tsx's own
+ * persisted serverConnection/pairing state) without anyone physically present
+ * to tap the app icon. Registered against android.intent.action.MY_PACKAGE_REPLACED
+ * in AndroidManifest.xml — see plugins/withBootLaunch.js, which generates this
+ * file and injects this receiver plus the permissions/service it needs during
+ * \`expo prebuild\`. Not checked in directly: regenerated fresh on every
+ * prebuild, same as the rest of android/.
+ *
+ * Relaunch after a device REBOOT (BOOT_COMPLETED) is deliberately not
+ * registered — see the header comment in plugins/withBootLaunch.js for why
+ * and for exactly what to restore to turn it back on.
  *
  * Deliberately does NOT call startActivity() directly — confirmed on this
  * app's own real hardware that Android 10+'s background-activity-launch
@@ -62,7 +77,7 @@ import android.content.Intent
  */
 class ${RECEIVER_CLASS} : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
-    if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+    if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
     context.startForegroundService(Intent(context, ${SERVICE_CLASS}::class.java))
   }
 }
@@ -192,7 +207,8 @@ function withBootLaunchManifest(config) {
 
     manifest.manifest['uses-permission'] = manifest.manifest['uses-permission'] ?? []
     const permissions = [
-      'android.permission.RECEIVE_BOOT_COMPLETED',
+      // RECEIVE_BOOT_COMPLETED deliberately omitted — relaunch-on-reboot is off, see this file's
+      // own header comment. The three below are for the package-replace relaunch path only.
       'android.permission.SYSTEM_ALERT_WINDOW',
       'android.permission.FOREGROUND_SERVICE',
       'android.permission.FOREGROUND_SERVICE_SPECIAL_USE',
@@ -211,10 +227,8 @@ function withBootLaunchManifest(config) {
         $: { 'android:name': `.${RECEIVER_CLASS}`, 'android:exported': 'true', 'android:enabled': 'true' },
         'intent-filter': [
           {
-            action: [
-              { $: { 'android:name': 'android.intent.action.BOOT_COMPLETED' } },
-              { $: { 'android:name': 'android.intent.action.MY_PACKAGE_REPLACED' } },
-            ],
+            // BOOT_COMPLETED deliberately absent — see this file's own header comment.
+            action: [{ $: { 'android:name': 'android.intent.action.MY_PACKAGE_REPLACED' } }],
           },
         ],
       })

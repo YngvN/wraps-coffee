@@ -63,7 +63,7 @@ The standing fixture is **`AutoDeler`** (a car-parts catalogue: Dekk/Bremser/Mot
 | `settings` | `server/assistant/entities/settings.qa-scenarios.md` | Settings entity (clock/date format, sidebar visibility, etc.) |
 | `mediaLibrary` | `server/assistant/entities/mediaLibrary.qa-scenarios.md` | Media Library rename/delete |
 | `screen` | `server/assistant/entities/screen.qa-scenarios.md` | Screen entity (global settings only, never pane layout/content) |
-| `displayManager` | `server/assistant/entities/displayManager.qa-scenarios.md` | Display machine rename + monitor screen assignment |
+| `displayManager` | `server/assistant/entities/displayManager.qa-scenarios.md` | Display machine rename + monitor screen assignment + per-unit max image resolution |
 | `orders` | `server/assistant/entities/orders.qa-scenarios.md` | Order status changes (website/Wolt/Foodora) |
 
 **As of 2026-08-04, none of these six files have ever been exercised in an actual QA cycle** — all six entities (and the `contactInfo` flag) shipped the same day their scenario banks were written. Don't read their presence here as "already verified."

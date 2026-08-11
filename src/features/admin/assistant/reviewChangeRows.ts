@@ -6,6 +6,7 @@ import type { AppearanceTheme, AppearanceThemeColor } from '../../../types/appea
 import type { Catalogue, Category } from '../../../types/category'
 import type { ContactInfo, DayHours } from '../../../types/contactInfo'
 import type { CustomFieldDefinition } from '../../../types/customFields'
+import type { DisplayMaxImagePx } from '../../../types/displayMachine'
 import type { EventRecord } from '../../../types/event'
 import type { MessageBoard, MessageBoardPost } from '../../../types/messageBoard'
 import { NEWS_SOURCES } from '../../../types/news'
@@ -516,6 +517,7 @@ export interface DisplayManagerDraft {
   monitorLabel: string
   machineLabel: string
   assignedScreenID: string | null
+  maxImagePx?: DisplayMaxImagePx
 }
 
 export function buildDisplayManagerChangeRows(t: Translate, current: DisplayManagerDraft, draft: DisplayManagerDraft, screens: ScreenConfig[]): ReviewChangeRow[] {
@@ -523,6 +525,9 @@ export function buildDisplayManagerChangeRows(t: Translate, current: DisplayMana
   const screenName = (id: string | null) => (id ? (screens.find((screen) => screen.screenID === id)?.name ?? id) : t('admin.displayManager.unassignedOption'))
   pushRow(rows, t('admin.displayManager.machineLabelLabel'), current.machineLabel, draft.machineLabel)
   pushRow(rows, t('admin.displayManager.assignedScreenLabel'), screenName(current.assignedScreenID), screenName(draft.assignedScreenID))
+  const capLabel = (cap: DisplayMaxImagePx | undefined) =>
+    !cap || cap === 'auto' ? t('admin.displayManager.maxImagePxAuto') : t('admin.displayManager.maxImagePxValue', { px: String(cap) })
+  pushRow(rows, t('admin.displayManager.maxImagePxLabel'), capLabel(current.maxImagePx), capLabel(draft.maxImagePx))
   return rows
 }
 

@@ -1131,7 +1131,11 @@
           "overriddenBadge": "Overridden",
           "overriddenTo": "Showing \"{{screenName}}\" (set at display, {{date}})",
           "overriddenHint": "Reassigning this display in Display Manager clears this override.",
-          "returnToAssignedButton": "Return to assigned"
+          "returnToAssignedButton": "Return to assigned",
+          "maxImagePxLabel": "Max image resolution",
+          "maxImagePxAuto": "Automatic (match how large it is shown)",
+          "maxImagePxValue": "Up to {{px}} px wide",
+          "maxImagePxHint": "Caps how large an image this display downloads and decodes. Lower it for an older or slower unit; leave it on Automatic unless this display struggles."
         },
         "common": {
           "save": "Save",
@@ -3242,7 +3246,11 @@
           "overriddenBadge": "Overstyrt",
           "overriddenTo": "Viser \"{{screenName}}\" (satt på skjermen, {{date}})",
           "overriddenHint": "Å tildele denne skjermen på nytt i Skjermbehandling fjerner denne overstyringen.",
-          "returnToAssignedButton": "Gå tilbake til tildelt"
+          "returnToAssignedButton": "Gå tilbake til tildelt",
+          "maxImagePxLabel": "Maks bildeoppløsning",
+          "maxImagePxAuto": "Automatisk (følger hvor stort det vises)",
+          "maxImagePxValue": "Opptil {{px}} px bred",
+          "maxImagePxHint": "Begrenser hvor stort bilde denne skjermen laster ned og dekoder. Senk den for en eldre eller tregere enhet; la den stå på Automatisk med mindre skjermen sliter."
         },
         "common": {
           "save": "Lagre",

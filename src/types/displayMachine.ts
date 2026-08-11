@@ -11,6 +11,24 @@ export interface DisplayMonitor {
 /** A `mobile` (ADHDisplay Companion) machine's own reported update mechanism: `1` (OTA-only, the default until device-owner status is known), `2` (silent APK install, device-owner provisioned), `3` (prompted APK install, "install unknown apps" granted). See the Update Channel spec §5.2/§1. */
 export type DisplayUpdateTier = 1 | 2 | 3
 
+/**
+ * An admin-set ceiling on how large an image this display is allowed to request, in pixels of width.
+ * `'auto'` (the default) lets the page pick purely from how large the image actually renders.
+ *
+ * Exists because a fleet is not uniform: the same screen shown on a current mini-PC and on a cheap
+ * Android TV stick are very different workloads, and only an admin knows which units are weak. A cap
+ * is a per-*unit* property (it describes the hardware) rather than a per-screen one, which is why it
+ * lives here rather than on `ScreenConfig`.
+ *
+ * Values map onto the derivative ladder `server/uploads.ts` generates (`UPLOAD_VARIANT_SUFFIXES`) —
+ * a cap picks the largest variant at or below it, so `480` resolves to `-tiny`, `1920` to `-medium`
+ * (1600px, the largest derivative), and `3840` allows the untouched original.
+ */
+export type DisplayMaxImagePx = 'auto' | 3840 | 1920 | 800 | 480
+
+/** The `DisplayMaxImagePx` options in the order Display Manager offers them, widest first. `1920` is what the UI recommends: it matches a 1080p panel, the most common display in a fleet. */
+export const DISPLAY_MAX_IMAGE_PX_OPTIONS: DisplayMaxImagePx[] = ['auto', 3840, 1920, 800, 480]
+
 /** A machine (or browser tab) that has heartbeated itself in at least once — see `POST /display-machines/heartbeat` in `server/index.ts`. `machineID` is generated once and persisted (see `display-role.json` for Electron, `localStorage` for a `url` connection) so the same physical device/tab keeps being recognized across restarts/reloads. */
 export interface DisplayMachine {
   machineID: string
@@ -41,6 +59,15 @@ export interface DisplayMachine {
   /** `Updates.isEmbeddedLaunch` — distinguishes "no OTA applied yet" from "an OTA bundle is running." */
   isEmbeddedLaunch?: boolean
   updateTier?: DisplayUpdateTier
+  /**
+   * Admin-set image-resolution ceiling for this unit — see `DisplayMaxImagePx`. Absent means
+   * `'auto'`.
+   *
+   * Same "survives the heartbeat" semantics as `customLabel`: this is typed by an admin in Display
+   * Manager, so it must live in a field `mergeDisplayMachineHeartbeat` never overwrites, unlike
+   * `label`/`versionName`/`updateTier` which every heartbeat re-reports.
+   */
+  maxImagePx?: DisplayMaxImagePx
 }
 
 /**

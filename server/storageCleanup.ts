@@ -31,6 +31,8 @@ interface MinimalScreenConfig {
   backgroundImage?: MinimalBackgroundImage
   paneSlots: Record<string, MinimalScreenSlot>
   draft?: { backgroundImage?: MinimalBackgroundImage; paneSlots?: Record<string, MinimalScreenSlot> }
+  /** Generated screenshot(s) — see `ScreenConfig.previewImages` in `src/types/screen.ts`. Collected below so the orphan sweep doesn't flag them as unreferenced and delete them out from under `ScreenCard.tsx`. */
+  previewImages?: string[]
 }
 
 // Nothing in this module ever deletes anything on its own — it only ever
@@ -105,6 +107,11 @@ function collectReferencedImageFilenames(): Set<string> {
 
     for (const slot of Object.values(screen.paneSlots)) collectSlotImageFilenames(slot, referenced)
     for (const slot of Object.values(screen.draft?.paneSlots ?? {})) collectSlotImageFilenames(slot, referenced)
+
+    for (const previewUrl of screen.previewImages ?? []) {
+      const filename = extractUploadFilename(previewUrl)
+      if (filename) referenced.add(filename)
+    }
   }
 
   return referenced

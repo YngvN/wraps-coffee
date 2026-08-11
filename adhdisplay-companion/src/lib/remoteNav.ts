@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { sendScreenOverride, subscribeToDeviceConnectionStatus, subscribeToDeviceMessages } from './deviceSocket'
+import { requestFreshDeviceState, sendScreenOverride, subscribeToDeviceConnectionStatus, subscribeToDeviceMessages } from './deviceSocket'
 import { subscribeToRemoteKeyEvents, type RemoteKey } from './remoteKeyEvents'
 
 /** First press arms (renders a HUD hint); a second press within this window enters browse mode. Generous relative to a real double-click's own ~400ms — this is an arming *state*, not double-click detection, so it can afford to be. */
@@ -30,6 +30,18 @@ export interface UseRemoteNavResult {
   isBrowseModeActive: () => boolean
   /** Reverts and exits to `idle` — called by `App.tsx`'s own `BackHandler` when browse mode is active. */
   revertAndExit: () => void
+  /**
+   * Lets `App.tsx`'s own heartbeat loop (already polling every 20s regardless of the device
+   * socket's health) correct `effectiveScreenId` from the freshly-resolved `assignedScreenID` in
+   * every heartbeat response. Without this, a single dropped `effective-screen` push (see
+   * `requestFreshDeviceState`'s own doc comment for why that happens) leaves `renderScreenId`
+   * showing a stale screen *indefinitely* — the heartbeat's own `state.screenId` only ever wins as
+   * a fallback for a `null` `effectiveScreenId` (see `App.tsx`'s `renderScreenId ?? state.screenId`),
+   * and once any push has ever landed, it's never `null` again. Calling this every heartbeat bounds
+   * the staleness to at most one heartbeat interval instead of forever. A no-op while `previewing` —
+   * a live remote-browse session's own local selection must not be interrupted by this.
+   */
+  syncAssignedScreenId: (screenId: string | null) => void
 }
 
 /**
@@ -139,6 +151,12 @@ export function useRemoteNav(): UseRemoteNavResult {
         setMode('armed')
         clearArmTimer()
         armTimerRef.current = setTimeout(exitToIdle, ARM_WINDOW_MS)
+        // Forces a fresh `navigable-set`/`effective-screen` round trip (see
+        // `requestFreshDeviceState`'s own doc comment) before the second press needs either —
+        // ARM_WINDOW_MS (2.5s) is generally enough for a reply over a healthy LAN connection. Cheap
+        // to call unconditionally here: arming is a user-initiated, low-frequency action, not
+        // something that could turn into a request flood.
+        requestFreshDeviceState()
         return
       }
 
@@ -168,6 +186,11 @@ export function useRemoteNav(): UseRemoteNavResult {
 
   const isBrowseModeActive = useCallback(() => modeRef.current !== 'idle', [])
 
+  const syncAssignedScreenId = useCallback((screenId: string | null) => {
+    if (modeRef.current === 'previewing') return
+    setEffectiveScreenId(screenId)
+  }, [])
+
   const renderScreenId = mode === 'previewing' ? (navigableSet[selectedIndex]?.screenId ?? effectiveScreenId) : effectiveScreenId
 
   const hud: RemoteNavHudState =
@@ -179,5 +202,5 @@ export function useRemoteNav(): UseRemoteNavResult {
         }
       : { mode, currentScreenName: null, position: null }
 
-  return { hud, renderScreenId, isBrowseModeActive, revertAndExit: exitToIdle }
+  return { hud, renderScreenId, isBrowseModeActive, revertAndExit: exitToIdle, syncAssignedScreenId }
 }

@@ -1,11 +1,13 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Button, Checkbox, Input, NumberInput, SlideTransition } from '../../../components'
+import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { useScreens } from '../../../hooks/useScreens'
 import { useScreensaverSchedule } from '../../../hooks/useScreensaverSchedule'
 import { useLanguage, type LanguageCode } from '../../../i18n'
+import { captureScreenPreviews } from '../../screens/screenPreviewCapture'
 import {
   DEFAULT_SCREEN_BACKGROUND_COLOR,
   DEFAULT_TEXT_SIZES,
@@ -106,6 +108,7 @@ function nextDefaultScreenName(screens: ScreenConfig[], prefix: string): string 
  */
 export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTarget }: ScreenFormProps) {
   const { t } = useLanguage()
+  const { session } = useAdminSession()
   const [screens, setScreens] = useScreens()
   const [screensaverSchedule] = useScreensaverSchedule()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
@@ -753,7 +756,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault()
 
-      onSave({
+      const nextScreen: ScreenConfig = {
         // Carries forward fields this form has no controls of its own for
         // (right now, none — kept as a safety net for any screen-level field
         // this form doesn't explicitly track) from the freshest persisted
@@ -772,7 +775,18 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
         hideScrollbar,
         useScreensaver,
         previewAspectRatio,
-      })
+      }
+      onSave(nextScreen)
+
+      // Regenerates the Screens grid's static thumbnail(s) in the
+      // background — doesn't block Save, which stays instant; the card
+      // just keeps showing whatever it had (or falls back to a live render,
+      // see `ScreenCard.tsx`) until this resolves.
+      if (session) {
+        void captureScreenPreviews(nextScreen, session.token, defaultPaneLanguage).then((previewImages) => {
+          if (previewImages) setScreens((current) => current.map((existing) => (existing.screenID === nextScreen.screenID ? { ...existing, previewImages } : existing)))
+        })
+      }
     }
 
     viewKey = 'main'

@@ -1,14 +1,17 @@
 import { motion } from 'framer-motion'
-import type { CSSProperties } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { useCrossfadeSlot } from '../../hooks/useCrossfadeSlot'
 import { useCurrentNewsHeadline } from '../../hooks/useCurrentNewsHeadline'
 import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
 import { useLanguage } from '../../i18n'
 import { newsImageProxyUrl } from '../../lib/localServer'
-import type { NewsHeadline, NewsSource } from '../../types/news'
+import { pickNewsImageWidth, type NewsHeadline, type NewsSource } from '../../types/news'
 import { getScreenColorVars } from '../../utils/screenColors'
 import { NewsSourceMark } from './NewsSourceMark'
 import './NewsSlide.scss'
+
+/** `.news-slide__image`'s own share of the content row in landscape (`flex: 0 0 45%`, see `NewsSlide.scss`) — kept here as a named constant so the width this component *requests* from the image proxy stays tied to the width it actually *renders* at. */
+const NEWS_IMAGE_WIDTH_FRACTION = 0.45
 
 /** One slot's own frozen content — snapshotted at the moment it becomes current, so a still-fading-out slot never has its own font/text change underneath it (see `useCrossfadeSlot`'s own doc comment). */
 interface NewsContentSnapshot {
@@ -70,6 +73,37 @@ export function NewsSlide({ sourceIds, headlineCount, rotateSeconds, useBrandThe
     (item) => item.headline.link,
   )
 
+  // How wide, in device pixels, this pane's own image actually renders — used to ask the proxy for a
+  // right-sized copy instead of the upstream original (see `newsImageProxyUrl`). Measured rather than
+  // assumed because a news pane is any size an admin drags it to.
+  //
+  // Deliberately re-measured only when the headline changes (every `rotateSeconds`, or every stage
+  // advance) rather than continuously via a ResizeObserver: the URL is only rebuilt on a headline
+  // change anyway, and a per-resize observer here would reintroduce exactly the layout-read churn the
+  // earlier rounds of this investigation removed from the shrink-to-fit hooks. `clientWidth` forces a
+  // layout read, so it runs once per rotation, not once per frame.
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [imageWidth, setImageWidth] = useState<number | undefined>(undefined)
+  useLayoutEffect(() => {
+    const element = rootRef.current
+    if (!element) return
+    // `getBoundingClientRect()`, NOT `clientWidth`: this same component renders inside
+    // `ScaledScreenPreview`, which lays its canvas out at a full-size reference width and then shrinks
+    // it with `transform: scale()` (`ScaledScreenPreview.tsx:72`) — used by `ScreenCard`'s grid
+    // thumbnail and by both editors' live previews. `clientWidth` is layout-only and ignores that
+    // transform, so a 150px-wide thumbnail would report the full reference width and request the
+    // largest bucket for an image drawn at a fraction of it. `getBoundingClientRect()` is in visual
+    // coordinates and includes every ancestor transform, so each render path asks for what it
+    // actually shows.
+    //
+    // `.news-slide__image` is `flex: 0 0 45%` of the content row in landscape (`NewsSlide.scss`); in
+    // portrait it is wider, so this deliberately over-estimates rather than serving a copy too small
+    // to fill the box. The result is quantised to a bucket by `pickNewsImageWidth`, so being a little
+    // generous usually costs nothing at all.
+    const measured = element.getBoundingClientRect().width * NEWS_IMAGE_WIDTH_FRACTION * (window.devicePixelRatio || 1)
+    setImageWidth(pickNewsImageWidth(measured))
+  }, [currentHeadline?.link])
+
   if (!currentHeadline) {
     return (
       <div className="news-slide news-slide--empty">
@@ -106,7 +140,7 @@ export function NewsSlide({ sourceIds, headlineCount, rotateSeconds, useBrandThe
   const imageOnRight = stableRandomBit(currentHeadline.link)
 
   return (
-    <div className={`news-slide${branded ? ' news-slide--branded' : ''}`} style={brandStyle}>
+    <div ref={rootRef} className={`news-slide${branded ? ' news-slide--branded' : ''}`} style={brandStyle}>
       {branded && (showBrandLogo ?? true) && (
         <NewsSourceMark source={source!} className={`news-slide__brand-logo${imageOnRight ? ' news-slide__brand-logo--right' : ''}`} />
       )}
@@ -153,7 +187,7 @@ export function NewsSlide({ sourceIds, headlineCount, rotateSeconds, useBrandThe
                 // before it's ever actually revealed.
                 key={snapshot.headline.link}
                 className="news-slide__image"
-                src={newsImageProxyUrl(snapshot.headline.imageUrl)}
+                src={newsImageProxyUrl(snapshot.headline.imageUrl, imageWidth)}
                 alt=""
                 onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = snapshot.headline.imageUrl! }}
               />

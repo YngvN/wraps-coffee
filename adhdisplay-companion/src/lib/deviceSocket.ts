@@ -41,6 +41,25 @@ function sendHello() {
   socket.send(JSON.stringify({ type: 'device-hello', machineID: currentMachineID }))
 }
 
+/**
+ * Re-sends `device-hello` on an already-open socket to force a fresh `navigable-set` +
+ * `effective-screen` push (the hub re-sends both on every `device-hello`, connect or reconnect —
+ * see `server/index.ts`'s own handler). A no-op if the socket isn't open; the normal reconnect path
+ * already covers that case on its own.
+ *
+ * Exists because `pushToDevice`/`pushToAllDevices` on the hub are deliberately best-effort — not
+ * queued, not retried (see their own doc comments in `server/deviceSocket.ts`) — and a WebSocket can
+ * report `readyState === OPEN` for a while after the underlying connection has actually gone quiet
+ * (a brief Wi-Fi hiccup on the TV, packets silently dropped, no `close` event fired yet). A push that
+ * lands during that window is gone for good until *something else* happens to trigger another one —
+ * confirmed in practice: a screen assignment change made no difference to what was on screen until
+ * the whole app was restarted. `remoteNav.ts` calls this when browse mode is armed, so the navigable
+ * set has a fresh round trip to arrive before the second press needs it.
+ */
+export function requestFreshDeviceState() {
+  sendHello()
+}
+
 function scheduleReconnect() {
   socket = null
   setConnected(false)

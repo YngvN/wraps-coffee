@@ -1,4 +1,6 @@
+import { useDisplayImageCap } from '../../hooks/useDisplayImageCap'
 import { useEvents } from '../../hooks/useEvents'
+import { useRenderedImageWidth } from '../../hooks/useRenderedImageWidth'
 import { useLanguage } from '../../i18n'
 import { formatEventDate, getNthUpcomingEvent } from '../../utils/events'
 import { pickImageVariant } from '../../utils/responsiveImage'
@@ -14,12 +16,15 @@ interface EventImageSlideProps {
 export function EventImageSlide({ eventOrdinal }: EventImageSlideProps) {
   const { language } = useLanguage()
   const [events] = useEvents()
+  // Both above the `!entry` early return below — a hook can't be called conditionally.
+  const { ref: paneRef, width: renderedWidth } = useRenderedImageWidth<HTMLDivElement>()
+  const maxImagePx = useDisplayImageCap()
   const entry = getNthUpcomingEvent(events, eventOrdinal)
   if (!entry) return null
 
   return (
-    <div className="event-image-slide">
-      <img className="event-image-slide__image" src={pickImageVariant(entry.event.imageUrl)} alt="" />
+    <div ref={paneRef} className="event-image-slide">
+      <img className="event-image-slide__image" src={pickImageVariant(entry.event.imageUrl, renderedWidth, maxImagePx)} alt="" />
       {entry.status === 'cancelled' && <EventStatusBadge status="cancelled" />}
       {entry.status === 'postponed' && (
         <EventStatusBadge status="postponed" detail={formatEventDate(entry.occursAt, language, { day: 'numeric', month: 'long' })} />

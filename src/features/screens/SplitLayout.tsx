@@ -11,7 +11,7 @@ import { diffLeafSets, resolvePaneGrowthOrigin, type PaneGrowthOrigin } from '..
 import { backgroundImageTextStyle, borderColorStyle, getScreenColorVars } from '../../utils/screenColors'
 import { mediaResizeRatioPatch, mediaResizeScaleFromDrag, paneResizableAxes, pathKey, type NodePath, type PaneResizableAxes, type RatioPatch } from '../../utils/screenLayout'
 import { isNewsSlotContent, isResizeToFitContent, resizeToFitMediaUrl } from '../../utils/screenSlots'
-import { getBackgroundImageUrl } from '../../utils/responsiveImage'
+import { getBackgroundImageUrl, getSmallUrl } from '../../utils/responsiveImage'
 import { isSlotActive, resolveSlotContent, resolveStageValue, writeStageCheckpoint } from '../../utils/screenStages'
 import { ExitingPaneGhost } from './ExitingPaneGhost'
 import { LayoutTree } from './LayoutTree'
@@ -65,6 +65,8 @@ interface SplitLayoutProps {
   onToggleChecked?: (leafId: PaneId) => void
   /** Called when a video slide with `advanceStageOnEnd` finishes playing, so the caller can advance the shared stage rotation immediately instead of waiting for the normal timed interval — see `ScreenDisplay`'s own handler, which reuses the same advance logic as the toolbar's "next stage" button. Omit on the two static-preview callers (`ScreenCard.tsx`/`ScreenForm.tsx`), which have no real rotation timer to advance; `VideoSlide` simply never calls it in that case. */
   onRequestStageAdvance?: () => void
+  /** Set only by `ScreenPreviewCapture.tsx`'s own off-screen render — swaps every video pane's real `<video>` playback for its poster-frame image instead (see `SlotContent.tsx`), since a DOM screenshot can't reliably grab a live video frame. Omit everywhere else (the kiosk display, both live editors), which is also the default. */
+  captureMode?: boolean
 }
 
 /**
@@ -115,6 +117,7 @@ export function SplitLayout({
   selectedLeafIds,
   onToggleChecked,
   onRequestStageAdvance,
+  captureMode,
 }: SplitLayoutProps) {
   const { t } = useLanguage()
   const reducedMotion = useReducedMotion()
@@ -431,7 +434,18 @@ export function SplitLayout({
       }
       const img = new Image()
       img.onload = () => setMediaNaturalSizes((current) => ({ ...current, [url]: { width: img.naturalWidth, height: img.naturalHeight } }))
-      img.src = url
+      // `getSmallUrl`, not the raw stored URL, for two separate reasons:
+      //
+      // 1. It normalizes the origin. A stored upload URL carries whichever host the *uploading admin*
+      //    used — routinely `http://localhost:4000` — which resolves to the device itself on a TV and
+      //    never loads, so `resizeToFit` silently never applied there at all.
+      // 2. Aspect ratio is variant-invariant, so reading it off the 800px derivative gives the exact
+      //    same answer as the original while decoding a fraction of the pixels. The original is
+      //    already being fetched by the pane's own `<img>`; this loader existing at all meant a second
+      //    full-resolution decode purely to read two numbers.
+      //
+      // An external (non-own-upload) URL is returned unchanged by `getSmallUrl`, same as before.
+      img.src = getSmallUrl(url)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `activeResizeMediaEntries` is a new array every render; this key is its faithful (and stable) serialization.
   }, [activeResizeMediaEntries.map((entry) => entry.url).join('|')])
@@ -610,6 +624,7 @@ export function SplitLayout({
         newsSlots={newsSlots}
         stageTick={stageTick}
         onRequestStageAdvance={onRequestStageAdvance}
+        captureMode={captureMode}
       />
       {Object.entries(exitingGhosts).map(([leafId, { rect, growth }]) => {
         const slot = screen.paneSlots[leafId]

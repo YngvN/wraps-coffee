@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { DEFAULT_PREVIEW_ASPECT_RATIO, type PreviewAspectRatio } from '../../types/screen'
+import { referenceCanvasSize } from './screenPreviewGeometry'
 import './ScaledScreenPreview.scss'
-
-/** The longer of the two reference dimensions, in px — the exact number doesn't matter, only that it stays fixed across every ratio choice, so switching ratios doesn't itself change how large text/panes look in absolute terms (matching how a real 1920x1080 landscape screen and a real 1080x1920 portrait screen both read at a similar physical text size, just in a different overall shape). */
-const REFERENCE_LONG_SIDE = 1920
 
 interface ScaledScreenPreviewProps {
   children: ReactNode
@@ -44,10 +42,7 @@ export function ScaledScreenPreview({ children, aspectRatio = DEFAULT_PREVIEW_AS
   const outerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0)
 
-  const longSideUnits = Math.max(aspectRatio.width, aspectRatio.height)
-  const unitToPx = REFERENCE_LONG_SIDE / longSideUnits
-  const referenceWidth = aspectRatio.width * unitToPx
-  const referenceHeight = aspectRatio.height * unitToPx
+  const { width: referenceWidth, height: referenceHeight } = referenceCanvasSize(aspectRatio)
 
   useEffect(() => {
     const node = outerRef.current

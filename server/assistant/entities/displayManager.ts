@@ -1,4 +1,4 @@
-import type { DisplayMachine } from '../../../src/types/displayMachine'
+import { DISPLAY_MAX_IMAGE_PX_OPTIONS, type DisplayMachine, type DisplayMaxImagePx } from '../../../src/types/displayMachine'
 import type { ScreenConfig } from '../../../src/types/screen'
 import * as store from '../../store'
 import { nullable, type AssistantCandidate, type AssistantEntity, type AssistantFillContext, type AssistantJsonSchema, type AssistantValidationIssue } from '../types'
@@ -21,18 +21,28 @@ export interface DisplayManagerDraft {
   monitorLabel: string
   machineLabel: string
   assignedScreenID: string | null
+  /** Machine-level, not per-monitor — same as `machineLabel`. See `DisplayMachine.maxImagePx`. */
+  maxImagePx: DisplayMaxImagePx
 }
 
 interface DisplayManagerFields {
   machineLabel: string | null
   assignedScreenName: string | null
+  maxImagePx: string | null
 }
 
 function findMonitor(machineID: string, monitorId: string): DisplayManagerDraft | null {
   const machine = liveMachines().find((candidate) => candidate.machineID === machineID)
   const monitor = machine?.monitors.find((candidate) => candidate.id === monitorId)
   if (!machine || !monitor) return null
-  return { machineID, monitorId, monitorLabel: monitor.label, machineLabel: machine.customLabel ?? machine.label, assignedScreenID: monitor.assignedScreenID }
+  return {
+    machineID,
+    monitorId,
+    monitorLabel: monitor.label,
+    machineLabel: machine.customLabel ?? machine.label,
+    assignedScreenID: monitor.assignedScreenID,
+    maxImagePx: machine.maxImagePx ?? 'auto',
+  }
 }
 
 /**
@@ -84,8 +94,17 @@ export const displayManagerEntity: AssistantEntity<DisplayManagerDraft> = {
           enum: [...screenNames, UNASSIGN_SENTINEL],
           description: `Which screen this one monitor${knownDraft?.monitorLabel ? ` ("${knownDraft.monitorLabel}")` : ''} shows, by its exact name — or "${UNASSIGN_SENTINEL}" to unassign it (it falls back to the standby screensaver instead).`,
         }),
+        // Deliberately NOT in `confabulationRiskFields`: unlike `assignedScreenName`, whose valid
+        // values are live screen names the model has to ground in current state, this is a small
+        // fixed context-free enum — the exact case that rule carves out as safe.
+        maxImagePx: nullable({
+          type: 'string',
+          enum: DISPLAY_MAX_IMAGE_PX_OPTIONS.map((option) => String(option)),
+          description:
+            'Ceiling on how large an image this display downloads and decodes, in pixels of width. "auto" lets it choose from how large the image is actually shown; a number caps it for a slower or older unit.',
+        }),
       },
-      required: ['machineLabel', 'assignedScreenName'],
+      required: ['machineLabel', 'assignedScreenName', 'maxImagePx'],
       additionalProperties: false,
     }
   },
@@ -116,7 +135,12 @@ export const displayManagerEntity: AssistantEntity<DisplayManagerDraft> = {
     let assignedScreenID = base.assignedScreenID
     if (fields.assignedScreenName === UNASSIGN_SENTINEL) assignedScreenID = null
     else if (fields.assignedScreenName) assignedScreenID = liveScreens().find((screen) => screen.name === fields.assignedScreenName)?.screenID ?? assignedScreenID
-    return { ...base, machineLabel: fields.machineLabel ?? base.machineLabel, assignedScreenID }
+    // Round-tripped through the string form the schema uses, then validated against the real option
+    // list, so an out-of-range value falls back to what's already stored rather than being written.
+    const requestedCap = fields.maxImagePx
+    const parsedCap = requestedCap === 'auto' ? 'auto' : Number(requestedCap)
+    const maxImagePx = requestedCap !== null && (DISPLAY_MAX_IMAGE_PX_OPTIONS as readonly unknown[]).includes(parsedCap) ? (parsedCap as DisplayMaxImagePx) : base.maxImagePx
+    return { ...base, machineLabel: fields.machineLabel ?? base.machineLabel, assignedScreenID, maxImagePx }
   },
 
   validate(): AssistantValidationIssue[] {

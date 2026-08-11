@@ -37,6 +37,15 @@
 .qr-code-slide__slot {
   position: absolute;
   inset: 0;
+  // Promotes each crossfade slot to its own compositor layer so the 0.4s opacity animation between
+  // two QR codes runs on the compositor instead of repainting them. Without it, both slots' full SVG
+  // paths are re-rasterized into the parent layer every frame of every crossfade — and a `level: 'H'`
+  // code (required whenever a logo excavates the centre, see QrCodeSlide.tsx) is the densest, most
+  // path-heavy variant there is. A QR pane measured 27ms median frame time on the TV, the worst of
+  // any pane kind tested — see QA/Reports/qa-report-stutter-tv-2026-08-11.md.
+  //
+  // Only ever two slots exist, so the extra GPU memory from keeping them promoted is bounded.
+  will-change: opacity;
 }
 
 .qr-code-slide__code {

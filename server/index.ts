@@ -110,9 +110,12 @@ function reAdvertiseServerPresenceIfStoreNameChanged() {
 /**
  * Upserts one machine's heartbeat into the stored `admin.displayMachines`
  * array, preserving each existing monitor's own `assignedScreenID` (matched
- * by monitor `id`) and the machine's own admin-set `customLabel` (see
- * `DisplayMachine`'s own doc comment) rather than wiping admin-made
- * assignments/renames on every heartbeat. Deliberately synchronous
+ * by monitor `id`) and the machine's own admin-set fields — `customLabel` and
+ * `maxImagePx` (see `DisplayMachine`'s own doc comment) — rather than wiping
+ * admin-made assignments/renames/caps on every heartbeat. Any future
+ * admin-set field must be added to that carry-over list too; a field left
+ * out fails quietly, resetting itself once per heartbeat interval.
+ * Deliberately synchronous
  * end-to-end (reads current state, computes the merged array, and the
  * caller writes it back all within one `readJsonBody(req).then(...)`
  * callback with no further `await` in between) — two heartbeats arriving
@@ -146,6 +149,10 @@ function mergeDisplayMachineHeartbeat(
     machineID: heartbeat.machineID,
     label: heartbeat.label,
     customLabel: existing?.customLabel ?? null,
+    // Admin-set in Display Manager and never reported by a heartbeat, so it is carried over from
+    // `existing` for exactly the same reason `customLabel` is — without this line a heartbeat would
+    // silently reset the cap to `'auto'` every 20 seconds.
+    maxImagePx: existing?.maxImagePx,
     connectionType: heartbeat.connectionType,
     monitors,
     lastSeenAt: new Date().toISOString(),
@@ -325,7 +332,13 @@ const httpServer = createServer((req, res) => {
         // yields null here rather than pushing a blank name down (see this route's own callers for why that
         // matters — a device should never have its stored name silently blanked by this route).
         const customLabel = mine?.customLabel ? sanitizeDisplayName(mine.customLabel, 60) || null : null
-        sendJson(res, 200, { ok: true, monitors: mine?.monitors ?? [], customLabel })
+        // `maxImagePx` rides the heartbeat response for the same reason `customLabel` does: it is
+        // admin-set state the *device* needs to act on, and this response is the device's own
+        // once-per-20s source of truth. The kiosk page can't look it up itself — that page is
+        // unauthenticated while `admin.displayMachines` is gated to the `displaymanager` section
+        // (see this file's own key/section map) — so the companion passes it into the WebView URL
+        // instead (see `useDisplayImageCap`).
+        sendJson(res, 200, { ok: true, monitors: mine?.monitors ?? [], customLabel, maxImagePx: mine?.maxImagePx ?? 'auto' })
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
     return
@@ -510,7 +523,9 @@ const httpServer = createServer((req, res) => {
     const filename = url.pathname === '/uploads' ? null : url.pathname.slice('/uploads/'.length)
 
     if (req.method === 'GET' && filename) {
-      handleServeUpload(res, filename, url.searchParams.get('size'))
+      // `void`-ed rather than awaited, same as `/news/image` — this handler is async only because a
+      // missing size variant is generated on first request (see `generateMissingVariant`).
+      void handleServeUpload(res, filename, url.searchParams.get('size'))
       return
     }
 
@@ -696,7 +711,7 @@ const httpServer = createServer((req, res) => {
   // own hosting directly on every rotation — same public, unauthenticated
   // posture as `/news/headlines`.
   if (req.method === 'GET' && url.pathname === '/news/image') {
-    void handleNewsImage(res, url.searchParams.get('src'))
+    void handleNewsImage(res, url.searchParams.get('src'), url.searchParams.get('w'))
     return
   }
 

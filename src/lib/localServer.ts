@@ -398,9 +398,23 @@ export async function fetchNewsHeadlines(sourceIds: string[], count: number): Pr
   return headlines
 }
 
-/** Proxies a headline's own `imageUrl` through this server's own disk cache (`server/newsImageCache.ts`) instead of hitting the source outlet's own hosting on every view — same origin as every other local-server-served image, so `NewsSlide`'s `<img src>` just points here directly. Not a `fetch`-and-return-blob helper like the others in this file, since an `<img>` tag needs a plain URL string, not a promise. */
-export function newsImageProxyUrl(src: string): string {
-  return `${serverBaseUrl()}/news/image?src=${encodeURIComponent(src)}`
+/**
+ * Proxies a headline's own `imageUrl` through this server's own disk cache (`server/newsImageCache.ts`)
+ * instead of hitting the source outlet's own hosting on every view — same origin as every other
+ * local-server-served image, so `NewsSlide`'s `<img src>` just points here directly. Not a
+ * `fetch`-and-return-blob helper like the others in this file, since an `<img>` tag needs a plain URL
+ * string, not a promise.
+ *
+ * `renderedWidth` (CSS px, already multiplied by DPR by the caller) asks the server for a downscaled
+ * copy instead of the upstream original. Press images are routinely 2048x1152 and larger while a news
+ * pane renders a few hundred px wide, and that decode cost is the single largest contributor to
+ * measured frame jank on the TV — see `QA/Reports/qa-report-stutter-tv-2026-08-11.md`. Omitted, the
+ * server serves the original bytes exactly as it always has.
+ */
+export function newsImageProxyUrl(src: string, renderedWidth?: number): string {
+  const base = `${serverBaseUrl()}/news/image?src=${encodeURIComponent(src)}`
+  if (!renderedWidth || !Number.isFinite(renderedWidth) || renderedWidth <= 0) return base
+  return `${base}&w=${Math.round(renderedWidth)}`
 }
 
 /** The current developer API key (see "For developers" in Settings), or `null` if none has been generated yet. */

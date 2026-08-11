@@ -256,8 +256,12 @@ POST /uploads/video/<id>/retry     (Authorization: Bearer <token>)
 → 404   (staged source already gone — succeeded, deleted, or swept after 48h abandoned)
 
 GET /uploads/<filename>           (public — no token needed)
-GET /uploads/<filename>?size=small   (800px WebP, images only, if it exists)
 GET /uploads/<filename>?size=thumb   (240px WebP — an image's thumbnail, or a video's poster frame, if it exists)
+GET /uploads/<filename>?size=tiny    (480px WebP, images only, if it exists)
+GET /uploads/<filename>?size=small   (800px WebP, images only, if it exists)
+GET /uploads/<filename>?size=medium  (1600px WebP, images only, if it exists)
+GET /uploads/<filename>?size=blur    (480px WebP, pre-blurred, images only, if it exists)
+   (any missing variant falls back to the original — e.g. an upload saved before that size existed)
 
 GET /uploads                      (Authorization: Bearer <token> — lists every original, image or video)
 → 200 [{ "filename", "url", "thumbUrl", "sizeBytes", "uploadedAt", "kind": "image" | "video", "status"?: "processing" | "failed", "errorMessage"?, "displayName"? }, ...]
@@ -280,7 +284,8 @@ DELETE /uploads/<filename>        (Authorization: Bearer <token>)
 { "machineID": "...", "label": "...", "connectionType": "electron" | "url" | "mobile", "monitors": [{ "id": "...", "label": "..." }],
   "versionCode"?: number, "versionName"?: string, "runtimeVersion"?: string, "updateId"?: string | null,
   "isEmbeddedLaunch"?: boolean, "updateTier"?: 1 | 2 | 3 }
-→ 200 { "ok": true, "monitors": [{ "id", "label", "assignedScreenID" }], "customLabel": "..." | null }
+→ 200 { "ok": true, "monitors": [{ "id", "label", "assignedScreenID" }], "customLabel": "..." | null,
+        "maxImagePx": "auto" | 3840 | 1920 | 800 | 480 }
 → 400 { "error": "..." }   (malformed body)
 → 409 { "error": "not paired", "needsPairing": true }   ("mobile" only, machineID isn't an approved admin.displayMachines entry yet)
 
@@ -290,9 +295,16 @@ on every heartbeat, same as "label"; absent stays absent rather than falling bac
 a display that stops reporting these (or never did) is visibly "unknown" in Display Manager rather than
 looking current — see resolveDisplayUpdateState in src/utils/displayUpdateState.ts.
 
+"maxImagePx" is the response's only admin-set-going-down field: it caps how large an image this
+display may request, and exists because the kiosk page itself can't read it (that page is
+unauthenticated, while admin.displayMachines is gated to the "displaymanager" section). The
+Companion forwards it into the page URL as ?maxImagePx=. "auto" means "decide from how large the
+image actually renders".
+
 Upserts by machineID into admin.displayMachines (a regular synced key, see Live data above) —
 preserves each existing monitor's own assignedScreenID (matched by monitor id) and the machine's
-own customLabel (an admin's rename, set via Display Manager) rather than overwriting them — every
+own admin-set fields, customLabel (a rename) and maxImagePx (the image cap), rather than
+overwriting them — every
 heartbeat's own "label" is that machine's self-reported name (e.g. "Display 3"), always
 overwritten as-is, so an admin-typed rename has to live in this separate field to actually stick.
 Actually assigning a Screen or renaming a machine is a normal authenticated write to that same key
@@ -534,10 +546,12 @@ GET /integrations/weather?lat=<lat>&lon=<lon>&hours=<n>
 → 200 { "headlines": [{ "sourceId", "title", "link", "publishedAt"?, "description"?, "imageUrl"?, "categories"?, "author"? }] }
    ("count" is a per-source cap — each requested source contributes up to its own "count" newest headlines, merged and sorted newest-first)
 
-GET /news/image?src=<url>
+GET /news/image?src=<url>[&w=<px>]
 → 200, the image, served from this server's own disk cache (refreshed at most once per hour)
 → 400 { "error": "..." }   (missing/invalid "src")
-→ 502 { "error": "..." }   (couldn't fetch it, and no cached copy exists yet either)`}</code>
+→ 502 { "error": "..." }   (couldn't fetch it, and no cached copy exists yet either)
+   ("w" downscales to the nearest allowed width at or above it — 320, 480, 800 or 1280 — and caches
+    that size as its own file; omitted, or larger than 1280, serves the original bytes unchanged)`}</code>
         </pre>
       </Card>
 

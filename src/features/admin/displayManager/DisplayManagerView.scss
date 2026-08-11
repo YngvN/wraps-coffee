@@ -247,3 +247,23 @@
   font-size: 0.75rem;
   color: $color-text-muted;
 }
+
+// This unit's own image-resolution ceiling (`DisplayMachine.maxImagePx`). Sits below the monitor
+// list rather than inside it: the cap describes the *machine's* hardware, not any one monitor.
+.display-manager-view__image-cap {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+  margin-top: $spacing-unit;
+}
+
+.display-manager-view__image-cap-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.display-manager-view__image-cap-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: $color-text-muted;
+}

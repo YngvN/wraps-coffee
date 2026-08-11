@@ -16,6 +16,7 @@ import { SlotEditor } from '../features/screens/SlotEditor'
 import { SplitLayout } from '../features/screens/SplitLayout'
 import { StagePlaybackControls } from '../features/screens/StagePlaybackControls'
 import { TransitionSettingsEditor } from '../features/screens/TransitionSettingsEditor'
+import { captureScreenPreviews } from '../features/screens/screenPreviewCapture'
 import { useIdleVisibility } from '../features/screens/useIdleVisibility'
 import { useAdminSession } from '../hooks/useAdminSession'
 import { evictUnusedVideoCache, prewarmVideoCache } from '../hooks/useCachedVideoSrc'
@@ -510,7 +511,17 @@ export function ScreenDisplay() {
 
   /** Merges the pending draft onto the published fields and clears it — everyone else's own view (which never reads `draft` at all) starts reflecting it immediately. Only ever called while `screen.draft` is actually set (see the toolbar's own Publish button). */
   const handlePublish = () => {
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, ...existing.draft, draft: undefined } : existing)))
+    const published: ScreenConfig = { ...screen, ...screen.draft, draft: undefined }
+    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? published : existing)))
+
+    // Regenerates the Screens grid's static thumbnail(s) in the background —
+    // see `ScreenForm.tsx`'s own save handler for the same call and why it's
+    // fire-and-forget.
+    if (session) {
+      void captureScreenPreviews(published, session.token, defaultPaneLanguage).then((previewImages) => {
+        if (previewImages) setScreens((current) => current.map((existing) => (existing.screenID === published.screenID ? { ...existing, previewImages } : existing)))
+      })
+    }
   }
 
   const activeTextSizes = editingTarget === 'screen' && screenDraftSnapshot ? screenDraftSnapshot.textSizes : (viewScreen.textSizes ?? DEFAULT_TEXT_SIZES)

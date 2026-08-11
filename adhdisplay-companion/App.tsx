@@ -71,6 +71,8 @@ export default function App() {
   // whenever a *new* rename arrives, so it's state (not another one-shot
   // lazy initializer) despite starting from one.
   const [deviceLabel, setDeviceLabel] = useState(() => `ADHDisplay Companion (${Platform.OS})`)
+  /** This unit's own admin-set image-resolution ceiling, as last reported by the heartbeat — see `HeartbeatResult.maxImagePx`. Kept out of the `AppState` union deliberately; see where it's assigned in the heartbeat loop below. */
+  const [maxImagePx, setMaxImagePx] = useState<'auto' | number>('auto')
 
   // Owns its own deviceSocket subscriptions (messages, connection status) — safe to call
   // unconditionally regardless of pairing stage, see its own doc comment.
@@ -181,7 +183,19 @@ export default function App() {
           void setStoredDeviceLabel(result.customLabel)
           setDeviceLabel(result.customLabel)
         }
+        // This unit's own image-resolution ceiling, pushed down in the same response and handed to
+        // the WebView as a URL param (see `DisplayScreen`). A primitive in its own `useState` rather
+        // than a field on `state`: this effect depends on the whole `state` object, so folding it in
+        // there would re-trigger the effect on every heartbeat and collapse the interval into a tight
+        // loop — the exact hazard the comment below describes. Setting a primitive to its current
+        // value is a no-op for React, so no guard is needed here.
+        setMaxImagePx(result.maxImagePx ?? 'auto')
         const assignedScreenID = result.monitors.find((monitor) => monitor.id === DEVICE_MONITOR_ID)?.assignedScreenID ?? null
+        // Self-heals `remoteNav`'s own `effectiveScreenId` from this heartbeat's freshly-resolved
+        // assignment — see `syncAssignedScreenId`'s own doc comment for why this exists (a dropped
+        // device-socket push otherwise leaves the rendered screen stale indefinitely). Every
+        // heartbeat, not just on a change, since the whole point is not depending on a push landing.
+        remoteNav.syncAssignedScreenId(assignedScreenID)
         // Only actually transition state when the derived stage/assignment differs from what's
         // already there — `setState` with a freshly-literal object here is otherwise never
         // `Object.is`-equal to the previous state even when nothing changed, which (since this
@@ -241,7 +255,7 @@ export default function App() {
       )}
       {state.stage === 'displaying' && (
         <>
-          <DisplayScreen connection={state.connection} screenId={remoteNav.renderScreenId ?? state.screenId} />
+          <DisplayScreen connection={state.connection} screenId={remoteNav.renderScreenId ?? state.screenId} maxImagePx={maxImagePx} />
           <RemoteNavHud hud={remoteNav.hud} />
         </>
       )}

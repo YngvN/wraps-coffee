@@ -21,6 +21,16 @@
   color: var(--screen-text);
 }
 
+// The static screenshot `ScreenCard` shows instead of a live `SplitLayout`
+// render (see the component's own doc comment) — sized to fill the exact
+// same box `.split-layout` itself fills.
+.screen-card__preview-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .screen-card__stage-stepper {
   position: absolute;
   bottom: $spacing-unit;

@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useDisplayImageCap } from '../../hooks/useDisplayImageCap'
+import { useRenderedImageWidth } from '../../hooks/useRenderedImageWidth'
 import { useStoreSettings } from '../../hooks/useStoreSettings'
 import { normalizeUploadUrl } from '../../lib/localServer'
 import type { ImageFit } from '../../types/screen'
@@ -40,11 +42,19 @@ export function ImageSlide({ imageUrl, fit = 'contain', resizeToFit }: ImageSlid
   const [failedUrl, setFailedUrl] = useState<string | undefined>(undefined)
   const hasFailed = Boolean(imageUrl) && failedUrl === imageUrl
   const logoUrl = storeSettings.logos[0]
+  // Measured on the pane itself rather than the `<img>`: the image is sized by CSS *within* this box
+  // (`object-fit`, and `--cover`'s `width/height: 100%`), so the box is what determines how many
+  // pixels are actually needed — and it exists before the `<img>` does.
+  const { ref: paneRef, width: renderedWidth } = useRenderedImageWidth<HTMLDivElement>()
+  const maxImagePx = useDisplayImageCap()
 
   return (
-    <div className={`image-slide${fit === 'cover' ? ' image-slide--cover' : ''}${resizeToFit ? ' image-slide--resize-to-fit' : ''}`}>
+    <div
+      ref={paneRef}
+      className={`image-slide${fit === 'cover' ? ' image-slide--cover' : ''}${resizeToFit ? ' image-slide--resize-to-fit' : ''}`}
+    >
       {imageUrl && !hasFailed && (
-        <img className="image-slide__image" src={pickImageVariant(imageUrl)} alt="" onError={() => setFailedUrl(imageUrl)} />
+        <img className="image-slide__image" src={pickImageVariant(imageUrl, renderedWidth, maxImagePx)} alt="" onError={() => setFailedUrl(imageUrl)} />
       )}
       {/* Deliberately no `onError` of its own — a logo that also fails would
           otherwise loop this back through the same state update forever. */}

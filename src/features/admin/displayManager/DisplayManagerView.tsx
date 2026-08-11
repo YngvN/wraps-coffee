@@ -12,7 +12,7 @@ import { useScrollToAndHighlight } from '../../../hooks/useScrollToAndHighlight'
 import { useLanguage } from '../../../i18n'
 import { goBack } from '../../../lib/backStack'
 import { approveDisplayPairing, getUpdatesStatus, setUpdateRollback } from '../../../lib/localServer'
-import type { DisplayMachine, DisplayUpdateProgressStatus, DisplayUpdateTier } from '../../../types/displayMachine'
+import { DISPLAY_MAX_IMAGE_PX_OPTIONS, type DisplayMachine, type DisplayMaxImagePx, type DisplayUpdateProgressStatus, type DisplayUpdateTier } from '../../../types/displayMachine'
 import { resolveDisplayUpdateState, type DisplayUpdateState, type UpdatesHubStatus } from '../../../utils/displayUpdateState'
 import { connectionBadgeId } from './connectionBadge'
 import { PublishApkControl } from './PublishApkControl'
@@ -265,6 +265,12 @@ export function DisplayManagerView() {
     updateMachine(machineID, (machine) => ({ ...machine, customLabel }))
   }
 
+  /** Writes this unit's own image-resolution ceiling. Same "lives where the heartbeat can't reach it" reasoning as `handleLabelChange` — see `mergeDisplayMachineHeartbeat` in `server/index.ts`, which carries `maxImagePx` over explicitly. The `<select>` yields strings, so the numeric tiers are parsed back before storing; `'auto'` stays a string. */
+  const handleMaxImagePxChange = (machineID: string, value: string) => {
+    const maxImagePx = (value === 'auto' ? 'auto' : Number(value)) as DisplayMaxImagePx
+    updateMachine(machineID, (machine) => ({ ...machine, maxImagePx }))
+  }
+
   const handleAssign = (machineID: string, monitorId: string, screenId: string) => {
     updateMachine(machineID, (machine) => ({
       ...machine,
@@ -497,6 +503,25 @@ export function DisplayManagerView() {
                   </li>
                 ))}
               </ul>
+
+              <div className="display-manager-view__image-cap">
+                <label className="display-manager-view__image-cap-label" htmlFor={`machine-max-image-${machine.machineID}`}>
+                  {t('admin.displayManager.maxImagePxLabel')}
+                </label>
+                <select
+                  id={`machine-max-image-${machine.machineID}`}
+                  className="display-manager-view__monitor-select"
+                  value={String(machine.maxImagePx ?? 'auto')}
+                  onChange={(event) => handleMaxImagePxChange(machine.machineID, event.target.value)}
+                >
+                  {DISPLAY_MAX_IMAGE_PX_OPTIONS.map((option) => (
+                    <option key={String(option)} value={String(option)}>
+                      {option === 'auto' ? t('admin.displayManager.maxImagePxAuto') : t('admin.displayManager.maxImagePxValue', { px: String(option) })}
+                    </option>
+                  ))}
+                </select>
+                <p className="display-manager-view__image-cap-hint">{t('admin.displayManager.maxImagePxHint')}</p>
+              </div>
               {machine.connectionType === 'mobile' &&
                 (() => {
                   const override = screenOverrides.find((entry) => entry.machineID === machine.machineID)

@@ -55,6 +55,11 @@
 .news-slide__content {
   position: absolute;
   inset: 0;
+  // Same reasoning as `.qr-code-slide__slot`: keeps the 0.4s opacity crossfade between two headlines
+  // on the compositor instead of repainting both slots' full contents — including a large press photo
+  // — into the parent layer every frame. A news pane measured 52% janky frames and 21ms median on the
+  // TV against a 3.45%/12ms floor (QA/Reports/qa-report-stutter-tv-2026-08-11.md). Bounded to two slots.
+  will-change: opacity;
   display: flex;
   flex-direction: column;
   align-items: center;

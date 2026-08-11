@@ -70,6 +70,8 @@ interface LayoutPaneProps {
   stageTick: number | undefined
   /** Threaded straight through to `SlotContent`/`VideoSlide`. See `SplitLayout`'s own prop of the same name. */
   onRequestStageAdvance?: () => void
+  /** Threaded straight through to `SlotContent`. See `SplitLayout`'s own prop of the same name. */
+  captureMode?: boolean
 }
 
 /**
@@ -136,6 +138,7 @@ export function LayoutPane({
   newsSlots,
   stageTick,
   onRequestStageAdvance,
+  captureMode,
 }: LayoutPaneProps) {
   const { t } = useLanguage()
   const [dragDepth, setDragDepth] = useState(0)
@@ -377,7 +380,7 @@ export function LayoutPane({
             )}
             <div className="split-layout__pane-content-inner" ref={slotIndex === 0 ? contentInnerRef0 : contentInnerRef1}>
               <PaneLanguageScope language={snapshot.language}>
-                <SlotContent slot={snapshot.content} newsSlots={newsSlots} stageTick={stageTick} stage={stage} onRequestStageAdvance={onRequestStageAdvance} />
+                <SlotContent slot={snapshot.content} newsSlots={newsSlots} stageTick={stageTick} stage={stage} onRequestStageAdvance={onRequestStageAdvance} captureMode={captureMode} />
               </PaneLanguageScope>
             </div>
           </motion.div>

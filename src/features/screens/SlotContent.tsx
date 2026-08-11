@@ -1,5 +1,6 @@
 import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import type { ScreenSlotContent } from '../../types/screen'
+import { getThumbnailUrl } from '../../utils/responsiveImage'
 import { AnnouncementSlide } from './AnnouncementSlide'
 import { CatalogueSlide } from './CatalogueSlide'
 import { EventCalendarSlide } from './EventCalendarSlide'
@@ -25,10 +26,12 @@ interface SlotContentProps {
   stage: number
   /** Only consumed by the `'video'` branch, and only while its own `advanceStageOnEnd` is on — see `SplitLayout`'s own prop of the same name. */
   onRequestStageAdvance?: () => void
+  /** Only consumed by the `'video'` branch — see `SplitLayout`'s own prop of the same name for what sets this and why. */
+  captureMode?: boolean
 }
 
 /** Renders whatever a screen slot is configured to show. */
-export function SlotContent({ slot, newsSlots, stageTick, stage, onRequestStageAdvance }: SlotContentProps) {
+export function SlotContent({ slot, newsSlots, stageTick, stage, onRequestStageAdvance, captureMode }: SlotContentProps) {
   if (slot.kind === 'catalogue') return <CatalogueSlide catalogueId={slot.catalogueId} categories={slot.categories} />
   if (slot.kind === 'event') {
     const displayMode = slot.displayMode ?? 'calendar'
@@ -38,7 +41,13 @@ export function SlotContent({ slot, newsSlots, stageTick, stage, onRequestStageA
     return <EventCalendarSlide count={slot.count} />
   }
   if (slot.kind === 'image') return <ImageSlide imageUrl={slot.imageUrl} fit={slot.fit} resizeToFit={slot.resizeToFit} />
-  if (slot.kind === 'video')
+  if (slot.kind === 'video') {
+    // A DOM screenshot can't reliably grab a live video frame — swap in the
+    // same poster-frame thumbnail `VideoSlide` itself already falls back to
+    // before its own video has loaded (`server/videoUploads.ts` generates
+    // one for every uploaded video), rather than mounting real playback at
+    // all during a capture.
+    if (captureMode) return <img className="video-slide__poster" src={getThumbnailUrl(slot.videoUrl)} alt="" style={{ width: '100%', height: '100%', objectFit: slot.fit === 'cover' ? 'cover' : 'contain' }} />
     return (
       <VideoSlide
         videoUrl={slot.videoUrl}
@@ -51,6 +60,7 @@ export function SlotContent({ slot, newsSlots, stageTick, stage, onRequestStageA
         restartOnStageOne={slot.restartOnStageOne}
       />
     )
+  }
   if (slot.kind === 'qrcode')
     return (
       <QrCodeSlide

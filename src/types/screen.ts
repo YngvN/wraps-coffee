@@ -583,6 +583,20 @@ export interface ScreenConfig {
   backgroundImage?: BackgroundImage
   /** Which physical display shape this screen is meant for — purely a sanity-check/preview aid (the "Layout" tab's own live preview, and each screen's card in the admin Screens list), never affects the real kiosk display itself (`ScreenDisplay` always fills whatever the actual browser/device window's own shape is). Falls back to `DEFAULT_PREVIEW_ASPECT_RATIO` (16:9) when absent. */
   previewAspectRatio?: PreviewAspectRatio
+  /**
+   * Static screenshot(s) of this screen's own rendered appearance, one per
+   * stage (`previewImages[stage - 1]`) — regenerated wholesale on every save
+   * (`ScreenForm.tsx`) or publish (`ScreenDisplay.tsx`), replacing every
+   * previous entry regardless of which fields actually changed (see
+   * `screenPreviewCapture.ts`). What `ScreenCard.tsx`'s grid thumbnail
+   * renders instead of mounting a live `SplitLayout`, so N screens in the
+   * admin Screens grid don't each independently run their own clocks/
+   * polling/video playback at once. Own-server upload URLs (see
+   * `server/uploads.ts`) — a card falls back to live-rendering itself
+   * whenever this is absent or shorter than `stageCount` (a screen saved
+   * before this field existed, or a capture that failed).
+   */
+  previewImages?: string[]
   /** Whether this screen goes black during the shared screensaver schedule's own window (set once, for every screen, from the admin dashboard's "Screen saver" button — see `useScreensaverSchedule`). A whole-screen effect, not per-slot. Has no effect at all — and its own checkbox stays hidden — until a schedule's actually been set. Falls back to `false` (never) when absent. */
   useScreensaver?: boolean
   /** Live-toggled preview of the screensaver ("Test screensaver"), independent of the actual schedule — shows the same black overlay immediately regardless of the time of day (or whether `useScreensaver` is even on), on this screen and any other open tab of it. Manually turned back off the same way; falls back to `false` when absent. */
