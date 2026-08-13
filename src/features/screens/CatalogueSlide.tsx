@@ -99,7 +99,7 @@ interface CatalogueSlideItemProps {
   customFields: CustomFieldDefinition[]
 }
 
-/** One product's own line within a `CatalogueSlide` section — name, price (only when it has its own override or a discount), description, allergens/dietary tags, any set custom field values, and an out-of-stock stamp. Extracted since both a real category's own section and the trailing "no category" one render this identically. */
+/** One product's own line within a `CatalogueSlide` section — name, price (only when it has its own override or a discount), description, allergens/dietary tags, any set custom field values, and an out-of-stock stamp. On offer, only the current discounted price is shown (no struck-through old price) — that comparison is useful in the admin Products list where the offer is managed, but just clutter on a screen glanced at from across a room. Extracted since both a real category's own section and the trailing "no category" one render this identically. */
 function CatalogueSlideItem({ item, defaultPrice, customFields }: CatalogueSlideItemProps) {
   const { t, language } = useLanguage()
   const showPrice = item.discount !== undefined || item.price !== undefined
@@ -112,7 +112,7 @@ function CatalogueSlideItem({ item, defaultPrice, customFields }: CatalogueSlide
         <h2>{item.name[language]}</h2>
         {effective && (
           <span className="catalogue-slide__item-price">
-            <DiscountedPrice price={effective.original} discount={item.discount} t={t} />
+            <DiscountedPrice price={effective.original} discount={item.discount} t={t} hideOriginal />
           </span>
         )}
       </div>

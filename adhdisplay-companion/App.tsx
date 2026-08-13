@@ -10,6 +10,7 @@ import { runPendingMigrations } from './src/lib/migrations'
 import { useRemoteNav } from './src/lib/remoteNav'
 import { setUpdateOrigin, startUpdateListener } from './src/lib/updates'
 import { RemoteNavHud } from './src/components/RemoteNavHud'
+import { RemoteNavPreview } from './src/components/RemoteNavPreview'
 import { UpdatingWatermark } from './src/components/UpdatingWatermark'
 import { DisplayScreen } from './src/screens/DisplayScreen'
 import { PairingScreen } from './src/screens/PairingScreen'
@@ -74,9 +75,14 @@ export default function App() {
   /** This unit's own admin-set image-resolution ceiling, as last reported by the heartbeat — see `HeartbeatResult.maxImagePx`. Kept out of the `AppState` union deliberately; see where it's assigned in the heartbeat loop below. */
   const [maxImagePx, setMaxImagePx] = useState<'auto' | number>('auto')
 
+  // Derived here (rather than only further down, where the device-socket effect also needs it) so
+  // `useRemoteNav` can be handed a real connection as soon as one exists — it needs `syncOrigin` to
+  // resolve each screen's own cached preview image (see `previewCache.ts`).
+  const pairedConnection = state.stage === 'waiting' || state.stage === 'displaying' ? state.connection : null
+
   // Owns its own deviceSocket subscriptions (messages, connection status) — safe to call
   // unconditionally regardless of pairing stage, see its own doc comment.
-  const remoteNav = useRemoteNav()
+  const remoteNav = useRemoteNav(pairedConnection)
 
   // An always-on kiosk display that sleeps defeats the whole feature — active
   // from launch, for the app's entire lifetime, not just while DisplayScreen
@@ -156,7 +162,7 @@ export default function App() {
   }, [handleDisconnect, isBrowseModeActive, revertAndExit])
 
   // Heartbeat loop, active once approved (waiting or displaying) — every
-  // HEARTBEAT_INTERVAL_MS, learning this device's own assignedScreenID from
+  // HEARTBEAT_INTERVAL_MS, learning this device's own effective screen from
   // the heartbeat response itself, no separate endpoint needed. Offline/
   // unreachable failures are silently retried next interval, same
   // best-effort posture as every other heartbeat sender in this codebase
@@ -191,20 +197,26 @@ export default function App() {
         // value is a no-op for React, so no guard is needed here.
         setMaxImagePx(result.maxImagePx ?? 'auto')
         const assignedScreenID = result.monitors.find((monitor) => monitor.id === DEVICE_MONITOR_ID)?.assignedScreenID ?? null
+        // The hub's own single resolved answer to "what should this device actually be showing"
+        // (override ?? assignment — see `HeartbeatResult.effectiveScreenID`'s own doc comment),
+        // falling back to the raw assignment for a server too old to send the field at all.
+        const effectiveScreenID = result.effectiveScreenID !== undefined ? result.effectiveScreenID : assignedScreenID
         // Self-heals `remoteNav`'s own `effectiveScreenId` from this heartbeat's freshly-resolved
-        // assignment — see `syncAssignedScreenId`'s own doc comment for why this exists (a dropped
+        // value — see `syncEffectiveScreenId`'s own doc comment for why this exists (a dropped
         // device-socket push otherwise leaves the rendered screen stale indefinitely). Every
         // heartbeat, not just on a change, since the whole point is not depending on a push landing.
-        remoteNav.syncAssignedScreenId(assignedScreenID)
-        // Only actually transition state when the derived stage/assignment differs from what's
-        // already there — `setState` with a freshly-literal object here is otherwise never
-        // `Object.is`-equal to the previous state even when nothing changed, which (since this
-        // effect depends on the whole `state` object below) unconditionally re-triggers this
-        // effect on every single heartbeat response and re-invokes `beat()` immediately, turning
-        // the intended HEARTBEAT_INTERVAL_MS cadence into a tight loop.
-        const unchanged = assignedScreenID ? state.stage === 'displaying' && state.screenId === assignedScreenID : state.stage === 'waiting'
+        remoteNav.syncEffectiveScreenId(effectiveScreenID)
+        // Only actually transition state when the derived stage/screen differs from what's already
+        // there — `setState` with a freshly-literal object here is otherwise never `Object.is`-equal
+        // to the previous state even when nothing changed, which (since this effect depends on the
+        // whole `state` object below) unconditionally re-triggers this effect on every single
+        // heartbeat response and re-invokes `beat()` immediately, turning the intended
+        // HEARTBEAT_INTERVAL_MS cadence into a tight loop. Keyed off `effectiveScreenID` (not the
+        // raw assignment) so `state.screenId` — `renderScreenId`'s own fallback below — can never
+        // point at a screen a standing override has already superseded.
+        const unchanged = effectiveScreenID ? state.stage === 'displaying' && state.screenId === effectiveScreenID : state.stage === 'waiting'
         if (!unchanged) {
-          setState(assignedScreenID ? { stage: 'displaying', connection, screenId: assignedScreenID } : { stage: 'waiting', connection })
+          setState(effectiveScreenID ? { stage: 'displaying', connection, screenId: effectiveScreenID } : { stage: 'waiting', connection })
         }
       } catch {
         // Ignore — see this effect's own doc comment above.
@@ -221,12 +233,12 @@ export default function App() {
 
   // Native update-check WS connection + expo-updates wiring (see `deviceSocket.ts`/`updates.ts`),
   // active under the same "approved" condition as the heartbeat loop above. Keyed on
-  // `pairedConnection` rather than the whole `state` object (unlike the heartbeat effect above) —
-  // `beat()` carries the same `connection` reference through a waiting→displaying transition, so
-  // this stays referentially stable across that flip and doesn't need to tear down and reopen the
-  // socket just because a screen got assigned; `connectDeviceSocket`'s own dedup guard exists for
-  // this exact reason, but keying the effect this way avoids relying on it for the common case.
-  const pairedConnection = state.stage === 'waiting' || state.stage === 'displaying' ? state.connection : null
+  // `pairedConnection` (derived above, alongside `useRemoteNav`) rather than the whole `state` object
+  // (unlike the heartbeat effect above) — `beat()` carries the same `connection` reference through a
+  // waiting→displaying transition, so this stays referentially stable across that flip and doesn't
+  // need to tear down and reopen the socket just because a screen got assigned; `connectDeviceSocket`'s
+  // own dedup guard exists for this exact reason, but keying the effect this way avoids relying on it
+  // for the common case.
   const [installingApk, setInstallingApk] = useState(false)
   useEffect(() => {
     if (!pairedConnection || !machineID) return
@@ -256,6 +268,7 @@ export default function App() {
       {state.stage === 'displaying' && (
         <>
           <DisplayScreen connection={state.connection} screenId={remoteNav.renderScreenId ?? state.screenId} maxImagePx={maxImagePx} />
+          <RemoteNavPreview hud={remoteNav.hud} />
           <RemoteNavHud hud={remoteNav.hud} />
         </>
       )}

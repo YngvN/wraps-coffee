@@ -98,6 +98,17 @@ export interface HeartbeatResult {
    * about it.
    */
   maxImagePx?: 'auto' | number
+  /**
+   * The hub's own single resolved answer to "what should this device actually be showing right now" —
+   * `admin.displayScreenOverride`'s own entry for this machine if a remote-nav override is standing,
+   * else `monitors[0].assignedScreenID`, else `null` (see `resolveEffectiveScreen` server-side, the
+   * only place that precedence is decided). Distinct from `monitors[].assignedScreenID` above, which
+   * is the *assignment alone* — feeding that into `remoteNav.syncEffectiveScreenId` instead of this
+   * would drag the display back to the assignment every heartbeat even while a live override is
+   * standing. `undefined` (never explicitly `null`) when answered by a server too old to send it —
+   * `App.tsx` falls back to the plain assignment in that case, same as before this field existed.
+   */
+  effectiveScreenID?: string | null
 }
 
 /**

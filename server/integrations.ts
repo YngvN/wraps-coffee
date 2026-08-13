@@ -115,7 +115,7 @@ interface EstimatedCall {
   cancellation: boolean
   destinationDisplay: { frontText: string }
   quay: { publicCode: string | null } | null
-  serviceJourney: { line: { publicCode: string; name: string | null; transportMode: string } }
+  serviceJourney: { line: { publicCode: string; name: string | null; transportMode: string; authority: { id: string; name: string } | null } }
 }
 interface StopPlaceDeparturesResponse {
   data: { stopPlace: { name: string; estimatedCalls: EstimatedCall[] } | null }
@@ -146,7 +146,7 @@ const DEPARTURES_QUERY = `
         cancellation
         destinationDisplay { frontText }
         quay { publicCode }
-        serviceJourney { line { publicCode name transportMode } }
+        serviceJourney { line { publicCode name transportMode authority { id name } } }
       }
     }
   }
@@ -171,6 +171,8 @@ export async function handleDepartures(res: ServerResponse, stopId: string, coun
           line: call.serviceJourney.line.publicCode,
           lineName: call.serviceJourney.line.name ?? undefined,
           mode: call.serviceJourney.line.transportMode,
+          authorityId: call.serviceJourney.line.authority?.id ?? undefined,
+          authorityName: call.serviceJourney.line.authority?.name ?? undefined,
           destination: call.destinationDisplay.frontText,
           expectedDepartureTime: call.expectedDepartureTime,
           aimedDepartureTime: call.aimedDepartureTime,

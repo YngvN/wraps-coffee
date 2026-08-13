@@ -128,6 +128,10 @@ export interface DepartureInfo {
   lineName?: string
   /** Entur's transport mode string (e.g. `"bus"`, `"rail"`, `"tram"`). */
   mode: string
+  /** Entur's internal id for the authority operating this line (e.g. `"RUT:Authority:Ruter"`), when known. */
+  authorityId?: string
+  /** The authority's display name (e.g. `"Ruter"`, `"Vy"`, `"Flytoget"`), when known. */
+  authorityName?: string
   destination: string
   expectedDepartureTime: string
   /** The static-timetable departure time, before any real-time adjustment — differs from `expectedDepartureTime` when the service is running late/early. */

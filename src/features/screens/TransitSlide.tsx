@@ -30,6 +30,15 @@ interface TransitSlideProps {
   useBrandTheme?: boolean
   /** Shows `brand`'s own logo in the pane's top-left corner. Only relevant while `useBrandTheme` is on. Falls back to `true`. */
   showBrandLogo?: boolean
+  /** Per-operator line-badge color overrides, keyed by operator display name — see `ScreenSlotContent`'s `'transit'` variant. */
+  lineColors?: { id: string; authority: string; hex: string }[]
+}
+
+/** Looks up `lineColors`' entry for `authorityName`, matching case-insensitively/trimmed since Entur's own casing/whitespace isn't guaranteed to match what an admin typed. Returns `undefined` when unset, unmatched, or the departure has no known authority. */
+function findLineColorHex(lineColors: TransitSlideProps['lineColors'], authorityName: string | undefined): string | undefined {
+  if (!authorityName) return undefined
+  const normalized = authorityName.trim().toLowerCase()
+  return lineColors?.find((color) => color.authority.trim().toLowerCase() === normalized)?.hex
 }
 
 /**
@@ -329,15 +338,28 @@ function useSequencedColumns(departures: DepartureInfo[], columnCount: number, r
 }
 
 /** One departure's own icon/line/destination content (the row's left half) — split from `TransitDepartureTrailing` below so single-column mode can animate each half separately (sliding in from opposite edges); multi-column mode just renders both side by side inside one shared fade. */
-function TransitDepartureLeading({ departure, showLineName, iconPack }: { departure: DepartureInfo; showLineName?: boolean; iconPack?: TransitIconPack }) {
+function TransitDepartureLeading({
+  departure,
+  showLineName,
+  iconPack,
+  lineColors,
+}: {
+  departure: DepartureInfo
+  showLineName?: boolean
+  iconPack?: TransitIconPack
+  lineColors?: TransitSlideProps['lineColors']
+}) {
   const { t } = useLanguage()
+  const lineColorHex = findLineColorHex(lineColors, departure.authorityName)
   return (
     <>
       <span className="transit-slide__mode-icon-wrap">
         <TransitModeIcon mode={departure.mode} pack={iconPack} className="transit-slide__mode-icon" />
         {departure.realtime && <span className="transit-slide__realtime-dot" title={t('admin.screens.transitRealtimeDotTitle')} />}
       </span>
-      <span className="transit-slide__line">{departure.line}</span>
+      <span className="transit-slide__line" style={lineColorHex ? { background: lineColorHex } : undefined}>
+        {departure.line}
+      </span>
       <span className="transit-slide__destination">
         {departure.destination}
         {showLineName && departure.lineName && <span className="transit-slide__line-name">{departure.lineName}</span>}
@@ -389,7 +411,7 @@ function TransitColumnHeader({ showPlatform }: { showPlatform?: boolean }) {
 }
 
 /** Fullscreen rendering of real-time departures from one of the cafe's configured nearby stops (see the admin's Integrations tab), for a screen display's "transit" slot. */
-export function TransitSlide({ brand, stopId, departureCount, showPlatform, showLineName, realtimeOnly, modeFilter, iconPack, useBrandTheme, showBrandLogo }: TransitSlideProps) {
+export function TransitSlide({ brand, stopId, departureCount, showPlatform, showLineName, realtimeOnly, modeFilter, iconPack, useBrandTheme, showBrandLogo, lineColors }: TransitSlideProps) {
   const { t } = useLanguage()
   const [config] = useIntegrationsConfig()
   const resolvedBrand = brand ?? 'ruter'
@@ -502,7 +524,7 @@ export function TransitSlide({ brand, stopId, departureCount, showPlatform, show
                           className={itemClassName}
                         >
                           <span className="transit-slide__leading">
-                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} />
+                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} />
                           </span>
                           <span className="transit-slide__trailing">
                             <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
@@ -528,7 +550,7 @@ export function TransitSlide({ brand, stopId, departureCount, showPlatform, show
                           className={itemClassName}
                         >
                           <span className="transit-slide__leading">
-                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} />
+                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} />
                           </span>
                           <span className="transit-slide__trailing">
                             <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
@@ -539,7 +561,7 @@ export function TransitSlide({ brand, stopId, departureCount, showPlatform, show
                     return (
                       <motion.li key={departureKey(departure)} initial="hidden" animate="visible" exit="exit" className={itemClassName}>
                         <motion.span layout="position" className="transit-slide__leading" variants={transitLeadingVariants} transition={transitItemTransition}>
-                          <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} />
+                          <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} />
                         </motion.span>
                         <motion.span layout="position" className="transit-slide__trailing" variants={transitTrailingVariants} transition={transitItemTransition}>
                           <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />

@@ -220,6 +220,12 @@ $transit-trailing-tracks: minmax(0, max-content) minmax(0, max-content); // `.tr
 
 .transit-slide__line {
   flex-shrink: 0;
+  // Sizes to its own text rather than stretching to fill the shared subgrid
+  // track (whose width, per the CSS Grid spec, is auto-sized to the widest
+  // badge across *every* row) — without this, a grid item's default
+  // `justify-self: stretch` would make every badge in the column render at
+  // that shared widest-of-all-rows width instead of its own.
+  justify-self: start;
   min-width: 3ch;
   padding: 0.1em 0.3em;
   border-radius: 6px;

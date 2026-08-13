@@ -83,6 +83,34 @@
   gap: $spacing-unit * 2;
   min-height: 0;
   overflow-y: auto;
+  // Caps this box's own share of the rail's height, reserving the
+  // pin-toggle/QR-toggle band that floats `position: absolute` below it
+  // (see `.admin-sidebar-nav__icon-button`'s own `bottom` offset, further
+  // down this file) — those buttons paint on top of whatever's beneath
+  // them, and being absolutely positioned they aren't a real flex sibling
+  // competing for space the way `__footer` is, so without an explicit cap
+  // here `justify-content: space-between` has no reason to leave that band
+  // empty once this box's own content (now scrollable, see above) would
+  // otherwise fill it — a trailing `padding-bottom` doesn't work for this,
+  // since a scrolling container's own end-padding only becomes visible by
+  // scrolling *past* the real content, not as a standing reserve at rest.
+  // `100%` here is the rail's own available content height (its
+  // `height: 100%`, itself `calc(100vh - 56px)` minus its own padding —
+  // see `.admin-sidebar-nav__rail`), so this scales with viewport height
+  // rather than being a fixed pixel cap that would wrongly clamp/scroll
+  // this box even on a tall window with plenty of room to spare. `93px` is
+  // the icon-button's own top edge (its `bottom` offset, `$spacing-unit *
+  // 6 + 37px`, plus its own `32px` height) minus the rail's own bottom
+  // padding (`$spacing-unit * 3`, already excluded from `100%` above, so
+  // subtracting the icon-button's offset from `100%` directly would double
+  // count it). This same 93px figure already covers `__footer`'s own
+  // natural height too (see the icon-button's own comment for how its
+  // `bottom` offset accounts for it) — expanded and collapsed states
+  // (`__footer` shown vs. `display: none`) both need the identical cap,
+  // since the icon-button stays visible and fixed in place either way with
+  // no footer around in the collapsed case to already reserve part of this
+  // space on its own.
+  max-height: calc(100% - #{$spacing-unit * 6 + 37px + 32px - $spacing-unit * 3});
 }
 
 .admin-sidebar-nav__list {

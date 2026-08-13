@@ -6,19 +6,30 @@ interface DiscountedPriceProps {
   price: Price
   discount?: Discount
   t: (key: string, vars?: Record<string, string | number>) => string
+  /** When `discount` is set, omit the struck-through original price and show only the new discounted price (still styled as "on offer"). Used on screens, where the old price would just be clutter for someone glancing from across a room; admin views that manage the offer keep both. */
+  hideOriginal?: boolean
 }
 
 /**
  * Renders a product's price — plain, or (when `discount` is set) its
  * original price struck through beside the new discounted price, e.g.
- * "~~189 kr~~ 151 kr". Doesn't render the box-shadow "discounted" highlight
- * itself — that's the caller's own row/card wrapper, since its shape (an
- * admin list `<li>`, a kiosk menu-section `<li>`) differs by context.
+ * "~~189 kr~~ 151 kr" (or, with `hideOriginal`, just "151 kr"). Doesn't
+ * render the box-shadow "discounted" highlight itself — that's the caller's
+ * own row/card wrapper, since its shape (an admin list `<li>`, a kiosk
+ * menu-section `<li>`) differs by context.
  */
-export function DiscountedPrice({ price, discount, t }: DiscountedPriceProps) {
+export function DiscountedPrice({ price, discount, t, hideOriginal }: DiscountedPriceProps) {
   if (!discount) return <span className="discounted-price">{formatPrice(price, t)}</span>
 
   const discounted = applyDiscount(price, discount)
+  if (hideOriginal) {
+    return (
+      <span className="discounted-price discounted-price--discounted">
+        <span className="discounted-price__new">{formatPrice(discounted, t)}</span>
+      </span>
+    )
+  }
+
   return (
     <span className="discounted-price discounted-price--discounted">
       <span className="discounted-price__original">{formatPrice(price, t)}</span>

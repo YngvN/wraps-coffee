@@ -1,7 +1,7 @@
 import { useLanguage, type LanguageCode } from '../../i18n'
 import type { BackgroundImage, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
 import { resolveContentBackgroundImage } from '../../utils/screenSlots'
-import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage, resolveSlotOverflowMode, writeStageCheckpoint } from '../../utils/screenStages'
+import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage, resolveSlotOverflowMode, resolveSlotTextColor, writeStageCheckpoint } from '../../utils/screenStages'
 import { PaneEditor } from './PaneEditor'
 
 interface SlotEditorProps {
@@ -72,12 +72,14 @@ export function SlotEditor({
   const hasMultipleStages = useStages && stageCount > 1
   const content = resolveSlotContent(slot, activeStage)
   const backgroundColor = resolveSlotBackgroundColor(slot, activeStage)
+  const textColor = resolveSlotTextColor(slot, activeStage)
   const backgroundImage = resolveContentBackgroundImage(content, resolveSlotBackgroundImage(slot, activeStage))
   const language = resolveSlotLanguage(slot, activeStage)
   const overflowMode = resolveSlotOverflowMode(slot, activeStage)
 
   const setContent = (nextContent: ScreenSlotContent) => onSlotChange({ ...slot, content: writeStageCheckpoint(slot.content, activeStage, nextContent) })
   const setBackgroundColor = (nextColor: string | undefined) => onSlotChange({ ...slot, backgroundColor: writeStageCheckpoint(slot.backgroundColor, activeStage, nextColor) })
+  const setTextColor = (nextColor: string | undefined) => onSlotChange({ ...slot, textColor: writeStageCheckpoint(slot.textColor, activeStage, nextColor) })
   const setLanguage = (next: LanguageCode | undefined) => onSlotChange({ ...slot, language: writeStageCheckpoint(slot.language, activeStage, next) })
   const setOverflowMode = (mode: 'shrink' | 'scroll') => onSlotChange({ ...slot, overflowMode: writeStageCheckpoint(slot.overflowMode, activeStage, mode) })
 
@@ -92,6 +94,8 @@ export function SlotEditor({
       onContentChange={setContent}
       backgroundColor={backgroundColor}
       onBackgroundColorChange={setBackgroundColor}
+      textColor={textColor}
+      onTextColorChange={setTextColor}
       backgroundImage={backgroundImage}
       onBackgroundImageChange={setBackgroundImage}
       textSizes={hasMultipleStages ? textSizes : slotTextSizes}

@@ -165,15 +165,22 @@ gesture (see "Disconnect" above) keeps working exactly as before.
 State machine: idle → (double-press up/down within ~2.5s) → armed → previewing. While
 previewing, up/down moves the on-screen selection through the same Screens the cafe's
 Display Manager would let this device be assigned to (server-decided, never client-
-enumerated — this device can't browse to a draft or another venue's Screen), rendered
-live by swapping the `DisplayScreen` WebView's own URL; OK commits the selection as a
-persistent override (visible in Display Manager as an "Overridden" badge, with a "Return
-to assigned" action there) and exits back to idle. Back, 20 seconds of inactivity, or
-losing the server connection all revert to whatever was actually showing before browsing
-started — which may itself already be an earlier override, not necessarily the assigned
-Screen — with nothing committed. A committed override always wins over Display Manager's
-own assignment until cleared, and reassigning a Screen to this device from Display Manager
-clears it.
+enumerated — this device can't browse to a draft or another venue's Screen), rendered as
+that Screen's own cached static screenshot (`src/lib/previewCache.ts`,
+`src/components/RemoteNavPreview.tsx`) rather than by live-navigating the `DisplayScreen`
+WebView — so stepping through Screens costs no page loads, no restarted clocks/video/live
+data, and no black frame. Each device keeps its own on-disk copy of every browsable
+Screen's screenshot, synced from the hub's own `navigable-set` push (which already carries
+each Screen's stage-1 `previewImages` entry) and re-downloaded only when a Screen's own
+screenshot actually changes — see the main app's README, "Static preview thumbnails". OK
+commits the selection as a persistent override (visible in Display Manager as an
+"Overridden" badge, with a "Return to assigned" action there), at which point the WebView
+navigates to it for the first and only time, and exits back to idle. Back, 20 seconds of
+inactivity, or losing the server connection all revert to whatever was actually showing
+before browsing started — which may itself already be an earlier override, not necessarily
+the assigned Screen — with nothing committed and no WebView navigation at all. A committed
+override always wins over Display Manager's own assignment until cleared, and reassigning
+a Screen to this device from Display Manager clears it.
 
 Stage-level (left/right) navigation within a single multi-stage Screen is not built yet —
 screen-level (up/down) navigation only, for now.

@@ -17,6 +17,9 @@ interface PaneEditorProps {
   onContentChange: (content: ScreenSlotContent) => void
   backgroundColor: string | undefined
   onBackgroundColorChange: (color: string | undefined) => void
+  /** `undefined` means "use the automatic contrast-based color" (see `getScreenColorVars`) — the caller's own `onTextColorChange` decides where an explicit override is written back to. */
+  textColor: string | undefined
+  onTextColorChange: (color: string | undefined) => void
   /** Already resolved by the caller: the content's own override if it has one, else the pane's shared one (see `resolveContentBackgroundImage`) — edited here as a single field regardless of which of those two it actually lives on; the caller's own `onBackgroundImageChange` decides where a change is written back to. */
   backgroundImage: BackgroundImage | undefined
   onBackgroundImageChange: (image: BackgroundImage | undefined) => void
@@ -79,6 +82,8 @@ export function PaneEditor({
   onContentChange,
   backgroundColor,
   onBackgroundColorChange,
+  textColor,
+  onTextColorChange,
   backgroundImage,
   onBackgroundImageChange,
   textSizes,
@@ -111,6 +116,18 @@ export function PaneEditor({
       {hasOwnTextSizeFields(content) && (
         <CollapsibleSection label={t('admin.screens.editTextSize')}>
           <TextSizeEditor textSizes={textSizes} onChange={onTextSizesChange} overflowMode={overflowMode} onOverflowModeChange={onOverflowModeChange} />
+        </CollapsibleSection>
+      )}
+
+      {hasOwnTextSizeFields(content) && (
+        <CollapsibleSection label={t('admin.screens.textColorLabel')}>
+          <BackgroundColorPicker
+            backgroundColor={textColor}
+            onChange={onTextColorChange}
+            allowTransparent
+            label={t('admin.screens.textColorLabel')}
+            transparentLabel={t('screenDisplay.textSizeEditor.autoTextColorLabel')}
+          />
         </CollapsibleSection>
       )}
 

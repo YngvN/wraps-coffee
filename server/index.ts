@@ -338,7 +338,21 @@ const httpServer = createServer((req, res) => {
         // unauthenticated while `admin.displayMachines` is gated to the `displaymanager` section
         // (see this file's own key/section map) — so the companion passes it into the WebView URL
         // instead (see `useDisplayImageCap`).
-        sendJson(res, 200, { ok: true, monitors: mine?.monitors ?? [], customLabel, maxImagePx: mine?.maxImagePx ?? 'auto' })
+        // `effectiveScreenID` (override ?? assignment, see `resolveEffectiveScreen`'s own doc
+        // comment) rides the same "admin-set state the device needs to act on" reasoning as
+        // `customLabel`/`maxImagePx` just above — it is the hub's own single source of truth for
+        // what a `mobile` device should be showing, and the raw `monitors[].assignedScreenID` above
+        // is *not* it (that's the assignment alone, before any standing remote-nav override). The
+        // companion feeds this into `remoteNav.syncEffectiveScreenId` so a dropped `effective-screen`
+        // WS push self-heals toward the right value within one heartbeat interval instead of toward
+        // the assignment, which would fight a live override every 20s.
+        sendJson(res, 200, {
+          ok: true,
+          monitors: mine?.monitors ?? [],
+          customLabel,
+          maxImagePx: mine?.maxImagePx ?? 'auto',
+          effectiveScreenID: resolveEffectiveScreen(machineID),
+        })
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
     return
@@ -2219,16 +2233,49 @@ function startUpdateFailureSweep() {
 }
 
 /**
+ * Reduces one of this server's own upload URLs (stored absolute, baked to whichever origin the
+ * uploader happened to reach the server on — see `handleUpload`'s own `http://${host}/uploads/...`)
+ * to a path+query relative to that origin, so a client that reached the hub a different way (a
+ * companion device's own `syncOrigin`, a kiosk on a different LAN IP) can prefix it correctly instead
+ * of following the stale baked-in host — same problem `isOwnUploadUrl`/`normalizeUploadUrl`
+ * (`src/lib/localServer.ts`) solve client-side, needed here because this one crosses to the
+ * companion's native layer rather than another browser tab. `size` overrides any existing `?size=`
+ * query (a stored `previewImages` URL has none — see `screenPreviewCapture.ts`'s own `uploadImage`
+ * call — but this stays robust if that ever changes). Any non-`/uploads/` URL is returned unchanged.
+ */
+function toRelativeUploadUrl(url: string, size?: string): string {
+  try {
+    const parsed = new URL(url)
+    if (!parsed.pathname.startsWith('/uploads/')) return url
+    if (size) parsed.searchParams.set('size', size)
+    return `${parsed.pathname}${parsed.search}`
+  } catch {
+    return url
+  }
+}
+
+/**
  * Every screen a companion device is currently allowed to browse to (Remote
  * Screen Navigation spec) — every published screen, hub-decided (never
  * client-enumerated) so a café unit can never browse to another venue's
  * screen or an unpublished draft. A screen's own top-level `name`/`screenID`
  * only — never `.draft`, which isn't a separate browsable screen, just a
  * pending edit to an existing one.
+ *
+ * `previewImage` is that screen's own stage-1 `previewImages` entry (see `ScreenConfig`'s own doc
+ * comment), reduced to a relative `?size=medium` path via `toRelativeUploadUrl` — what the companion's
+ * remote-browse HUD shows as a still image instead of live-navigating the WebView per keypress (see
+ * `RemoteNavPreview.tsx`/`previewCache.ts`). `null` for a screen that has never been saved/published
+ * since screenshots shipped, or whose capture failed — the companion falls back to a plain dark
+ * backdrop for those, same as `ScreenCard.tsx`'s own live-render fallback does on the admin side.
  */
-function buildNavigableSet(): { screenId: string; name: string }[] {
+function buildNavigableSet(): { screenId: string; name: string; previewImage: string | null }[] {
   const screens = (store.get('admin.screens')?.value as ScreenConfig[] | undefined) ?? []
-  return screens.map((screen) => ({ screenId: screen.screenID, name: screen.name }))
+  return screens.map((screen) => ({
+    screenId: screen.screenID,
+    name: screen.name,
+    previewImage: screen.previewImages?.[0] ? toRelativeUploadUrl(screen.previewImages[0], 'medium') : null,
+  }))
 }
 
 /**
@@ -2267,52 +2314,34 @@ function pushEffectiveScreen(machineID: string) {
   pushToDevice(machineID, { type: 'effective-screen', screenId: resolveEffectiveScreen(machineID) })
 }
 
-/** Persists a synced-key write and broadcasts it to every interested LAN client — the one path both a client's own WS `write` and the Neon bridge's own pulls go through, so neither has to duplicate the other's plumbing. */
+/**
+ * Persists a synced-key write and broadcasts it to every interested LAN client — the one path both a
+ * client's own WS `write` and the Neon bridge's own pulls go through, so neither has to duplicate the
+ * other's plumbing.
+ *
+ * **Ordering invariant, load-bearing:** this function has three phases, and which one a side effect
+ * belongs in is not a style choice.
+ *
+ * 1. *Pre-write* — anything that has to compare against the state this write is about to replace
+ *    (`store.get(key)` still returns the old value here), or that rewrites `value` itself.
+ * 2. *Write* — `store.set` + `broadcastUpdate`.
+ * 3. *Post-write* — anything that **builds a push by reading the store back**
+ *    (`buildNavigableSet`, `resolveEffectiveScreen`/`pushEffectiveScreen`). These used to sit above
+ *    the `store.set` and therefore pushed every device a value computed from the *pre-write* state:
+ *    a remote-nav commit persisted the new override correctly but immediately told the device to go
+ *    back to the screen it was already on, an admin reassignment pushed the old assignment, Display
+ *    Manager's "Return to assigned" pushed the very override it was clearing, and a screen
+ *    rename/create pushed a `navigable-set` without it. Every diff those pushes need is computed in
+ *    phase 1 into a local instead, so moving them down loses nothing.
+ */
 function applyUpdate(key: SyncedKey, value: unknown) {
+  // --- Phase 1: pre-write (reads the outgoing state, or rewrites `value`) ---
+
   if (key === 'admin.orders') {
     reconcileStockForOrders((store.get('admin.orders')?.value as OrderRecord[] | undefined) ?? [], value as OrderRecord[])
   }
   if (key === 'admin.displayUpdateState') {
     pushUpdateTriggersForNewEntries((store.get('admin.displayUpdateState')?.value as DisplayUpdateProgress[] | undefined) ?? [], value as DisplayUpdateProgress[])
-  }
-  if (key === 'admin.screens') {
-    // Every connected device's own browsable set is affected, not just one — see
-    // pushToAllDevices's own doc comment.
-    pushToAllDevices({ type: 'navigable-set', screens: buildNavigableSet() })
-  }
-  if (key === 'admin.displayMachines') {
-    // Only an *admin's own* assignment write ever actually changes monitors[0].assignedScreenID —
-    // mergeDisplayMachineHeartbeat (the heartbeat route's own merge, called far more often)
-    // deliberately preserves it unconditionally, so this diff naturally never fires on a plain
-    // heartbeat write, no need to special-case which caller this is.
-    const previous = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
-    const previousAssignmentByID = new Map(previous.map((machine) => [machine.machineID, machine.monitors[0]?.assignedScreenID ?? null]))
-    for (const machine of value as DisplayMachine[]) {
-      if (machine.connectionType !== 'mobile') continue
-      const assignedScreenID = machine.monitors[0]?.assignedScreenID ?? null
-      if (previousAssignmentByID.get(machine.machineID) === assignedScreenID) continue
-      const overrides = (store.get('admin.displayScreenOverride')?.value as DisplayScreenOverride[] | undefined) ?? []
-      if (overrides.some((entry) => entry.machineID === machine.machineID)) {
-        // Deliberate/explicit (this admin assignment write) beats local/older (a standing
-        // remote-nav override) — spec §D1's writer precedence. The recursive write below hits the
-        // admin.displayScreenOverride branch just below, which pushes effective-screen for this
-        // machine on its own — no separate push needed here too.
-        applyUpdate(
-          'admin.displayScreenOverride',
-          overrides.filter((entry) => entry.machineID !== machine.machineID),
-        )
-      } else {
-        pushEffectiveScreen(machine.machineID)
-      }
-    }
-  }
-  if (key === 'admin.displayScreenOverride') {
-    const previous = (store.get('admin.displayScreenOverride')?.value as DisplayScreenOverride[] | undefined) ?? []
-    const previousByID = new Map(previous.map((entry) => [entry.machineID, entry.screenId]))
-    const incoming = value as DisplayScreenOverride[]
-    const incomingByID = new Map(incoming.map((entry) => [entry.machineID, entry.screenId]))
-    const changedMachineIDs = new Set([...previousByID.keys(), ...incomingByID.keys()].filter((machineID) => previousByID.get(machineID) !== incomingByID.get(machineID)))
-    for (const machineID of changedMachineIDs) pushEffectiveScreen(machineID)
   }
   if (key === 'admin.products') {
     // Kept current on every write (both a real client edit and a Neon-bridge
@@ -2322,8 +2351,69 @@ function applyUpdate(key: SyncedKey, value: unknown) {
     value = recomputed
     logProductNameFoldedCollisions(recomputed)
   }
+
+  // Machines whose effective screen this write changes, split by which of the two ways it changes —
+  // both consumed in phase 3. Computed here because both diffs are against the *outgoing* store.
+  const machinesToPush: string[] = []
+  const machinesToClearOverrideFor: string[] = []
+
+  if (key === 'admin.displayMachines') {
+    // Only an *admin's own* assignment write ever actually changes monitors[0].assignedScreenID —
+    // mergeDisplayMachineHeartbeat (the heartbeat route's own merge, called far more often)
+    // deliberately preserves it unconditionally, so this diff naturally never fires on a plain
+    // heartbeat write, no need to special-case which caller this is.
+    const previous = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
+    const previousAssignmentByID = new Map(previous.map((machine) => [machine.machineID, machine.monitors[0]?.assignedScreenID ?? null]))
+    const overrides = (store.get('admin.displayScreenOverride')?.value as DisplayScreenOverride[] | undefined) ?? []
+    for (const machine of value as DisplayMachine[]) {
+      if (machine.connectionType !== 'mobile') continue
+      // A monitor-less entry is never a real assignment change — it's a malformed heartbeat (the
+      // route's own body check only asserts `Array.isArray(monitors)`, so an empty array gets
+      // through). Without this guard `monitors[0]?.assignedScreenID` reads as null, which is
+      // indistinguishable from "the admin just cleared the assignment" and would silently wipe this
+      // machine's standing remote-nav override below.
+      if (machine.monitors.length === 0) continue
+      const assignedScreenID = machine.monitors[0]?.assignedScreenID ?? null
+      if (previousAssignmentByID.get(machine.machineID) === assignedScreenID) continue
+      // Deliberate/explicit (this admin assignment write) beats local/older (a standing remote-nav
+      // override) — spec §D1's writer precedence. Clearing the override is itself a synced-key
+      // write, so it's deferred to phase 3 and batched into one; that recursive call's own
+      // admin.displayScreenOverride branch pushes effective-screen for these machines, so they
+      // deliberately don't also go into `machinesToPush`.
+      if (overrides.some((entry) => entry.machineID === machine.machineID)) machinesToClearOverrideFor.push(machine.machineID)
+      else machinesToPush.push(machine.machineID)
+    }
+  }
+  if (key === 'admin.displayScreenOverride') {
+    const previous = (store.get('admin.displayScreenOverride')?.value as DisplayScreenOverride[] | undefined) ?? []
+    const previousByID = new Map(previous.map((entry) => [entry.machineID, entry.screenId]))
+    const incoming = value as DisplayScreenOverride[]
+    const incomingByID = new Map(incoming.map((entry) => [entry.machineID, entry.screenId]))
+    for (const machineID of new Set([...previousByID.keys(), ...incomingByID.keys()])) {
+      if (previousByID.get(machineID) !== incomingByID.get(machineID)) machinesToPush.push(machineID)
+    }
+  }
+
+  // --- Phase 2: the write itself ---
+
   store.set(key, value)
   broadcastUpdate(key, value)
+
+  // --- Phase 3: post-write pushes (every one of these reads the store back) ---
+
+  if (key === 'admin.screens') {
+    // Every connected device's own browsable set is affected, not just one — see
+    // pushToAllDevices's own doc comment.
+    pushToAllDevices({ type: 'navigable-set', screens: buildNavigableSet() })
+  }
+  for (const machineID of machinesToPush) pushEffectiveScreen(machineID)
+  if (machinesToClearOverrideFor.length > 0) {
+    const overrides = (store.get('admin.displayScreenOverride')?.value as DisplayScreenOverride[] | undefined) ?? []
+    applyUpdate(
+      'admin.displayScreenOverride',
+      overrides.filter((entry) => !machinesToClearOverrideFor.includes(entry.machineID)),
+    )
+  }
 }
 
 wss.on('connection', (socket) => {

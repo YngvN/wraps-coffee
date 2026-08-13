@@ -37,6 +37,7 @@ import {
   resolveSlotLanguage,
   resolveSlotLocked,
   resolveSlotOverflowMode,
+  resolveSlotTextColor,
   resolveSlotTextSizes,
   resolveStageValue,
   writeStageCheckpoint,
@@ -188,6 +189,8 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
           onContentChange={handleContentChange}
           backgroundColor={resolveSlotBackgroundColor(activeSlot, clampedActiveStage)}
           onBackgroundColorChange={handleBackgroundColorChange}
+          textColor={resolveSlotTextColor(activeSlot, clampedActiveStage)}
+          onTextColorChange={handleTextColorChange}
           backgroundImage={backgroundImage}
           onBackgroundImageChange={handleBackgroundImageChange}
           textSizes={liveTextSizes}
@@ -437,6 +440,8 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
 
   /** Changes the active pane's own background color at the currently active stage — same local-draft-only shape as `handleContentChange` (only actually persisted once "Save" is pressed), not the live-write pattern the text-size/layout handlers use. */
   const handleBackgroundColorChange = (color: string | undefined) => updateActiveSlot((slot) => ({ ...slot, backgroundColor: writeStageCheckpoint(slot.backgroundColor, clampedActiveStage, color) }))
+  /** Changes the active pane's own text color at the currently active stage — same local-draft-only shape as `handleBackgroundColorChange`. */
+  const handleTextColorChange = (color: string | undefined) => updateActiveSlot((slot) => ({ ...slot, textColor: writeStageCheckpoint(slot.textColor, clampedActiveStage, color) }))
 
   /** Changes the active pane's own single consolidated background image — to the active stage's own content checkpoint with more than one stage (so each stage's own pane can carry its own distinct image), else to the pane's own shared checkpoint, same split `handleLiveTextSizesChange` already resolves between. Same local-draft-only shape as `handleContentChange`. */
   const handleBackgroundImageChange = (image: BackgroundImage | undefined) => {

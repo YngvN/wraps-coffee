@@ -285,7 +285,7 @@ DELETE /uploads/<filename>        (Authorization: Bearer <token>)
   "versionCode"?: number, "versionName"?: string, "runtimeVersion"?: string, "updateId"?: string | null,
   "isEmbeddedLaunch"?: boolean, "updateTier"?: 1 | 2 | 3 }
 → 200 { "ok": true, "monitors": [{ "id", "label", "assignedScreenID" }], "customLabel": "..." | null,
-        "maxImagePx": "auto" | 3840 | 1920 | 800 | 480 }
+        "maxImagePx": "auto" | 3840 | 1920 | 800 | 480, "effectiveScreenID": "..." | null }
 → 400 { "error": "..." }   (malformed body)
 → 409 { "error": "not paired", "needsPairing": true }   ("mobile" only, machineID isn't an approved admin.displayMachines entry yet)
 
@@ -295,11 +295,18 @@ on every heartbeat, same as "label"; absent stays absent rather than falling bac
 a display that stops reporting these (or never did) is visibly "unknown" in Display Manager rather than
 looking current — see resolveDisplayUpdateState in src/utils/displayUpdateState.ts.
 
-"maxImagePx" is the response's only admin-set-going-down field: it caps how large an image this
-display may request, and exists because the kiosk page itself can't read it (that page is
-unauthenticated, while admin.displayMachines is gated to the "displaymanager" section). The
-Companion forwards it into the page URL as ?maxImagePx=. "auto" means "decide from how large the
-image actually renders".
+"maxImagePx" is an admin-set-going-down field: it caps how large an image this display may
+request, and exists because the kiosk page itself can't read it (that page is unauthenticated,
+while admin.displayMachines is gated to the "displaymanager" section). The Companion forwards it
+into the page URL as ?maxImagePx=. "auto" means "decide from how large the image actually renders".
+
+"effectiveScreenID" is the hub's own single resolved answer to "what should this device actually be
+showing right now" — a standing admin.displayScreenOverride entry for this machine (see Remote
+Screen Navigation below) if one exists, else "monitors[0].assignedScreenID" above, else null (shows
+the standby screensaver). Deliberately not the same value as the plain assignment: ADHDisplay
+Companion feeds this into its own remote-nav state on every heartbeat so a dropped "effective-screen"
+WS push self-heals within one heartbeat interval, rather than fighting a live override every 20s by
+healing toward the raw assignment instead.
 
 Upserts by machineID into admin.displayMachines (a regular synced key, see Live data above) —
 preserves each existing monitor's own assignedScreenID (matched by monitor id) and the machine's
@@ -459,10 +466,17 @@ Device → hub:
 Hub → device:
 { "type": "check-update" }                       (Tier 1 — see the mechanism-dispatch note above)
 { "type": "install-update", "mechanism": "apk" }  (Tier 2/3 — see the mechanism-dispatch note above)
-{ "type": "navigable-set", "screens": [{ "screenId", "name" }, ...] }
+{ "type": "navigable-set", "screens": [{ "screenId", "name", "previewImage": "..." | null }, ...] }
   Every published screen this device may browse to — hub-decided, never client-enumerated (so a
   café unit can't browse to another venue's screen or an unpublished draft). Pushed on device-hello
   and again whenever admin.screens itself changes, to every currently-connected device.
+  "previewImage" is that screen's own stage-1 previewImages entry (see the Screens section above),
+  reduced to a path+query relative to this server's own origin (e.g. "/uploads/x.webp?size=medium")
+  rather than the absolute URL stored server-side, since that URL is baked to whichever origin the
+  screenshot happened to be uploaded from — meaningless to a device reaching this server a different
+  way. null for a screen with no screenshot yet. ADHDisplay Companion downloads and caches these
+  on-device (see its own README) and shows the cached copy instead of live-loading the real kiosk
+  page while browsing with the remote — only committing (OK) ever triggers a real page load.
 { "type": "effective-screen", "screenId": "..." | null }
   What this device should actually be showing right now — admin.displayScreenOverride's own entry
   for this machine if one exists, else its normal admin.displayMachines assignment, else null (shows
@@ -531,7 +545,7 @@ GET /integrations/stops/search?query=<text>
    (searches stop places by name anywhere, not just near a given address)
 
 GET /integrations/departures?stopId=<id>&count=<n>
-→ 200 { "stopName", "departures": [{ "line", "lineName"?, "mode", "destination", "expectedDepartureTime", "aimedDepartureTime", "realtime", "platform"?, "cancelled" }] }
+→ 200 { "stopName", "departures": [{ "line", "lineName"?, "mode", "authorityId"?, "authorityName"?, "destination", "expectedDepartureTime", "aimedDepartureTime", "realtime", "platform"?, "cancelled" }] }
 
 GET /integrations/weather?lat=<lat>&lon=<lon>&hours=<n>
 → 200 { "hourly": [{ "time", "temperatureC", "precipitationMm", "symbolCode", "windSpeedMs"?, "windFromDirectionDeg"?, "humidityPercent"?, "precipitationProbabilityPercent"?, "uvIndex"?, "pressureHpa"? }] }

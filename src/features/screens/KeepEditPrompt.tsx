@@ -8,6 +8,8 @@ export interface SlotEditChanges {
   textSizes: boolean
   backgroundColor: boolean
   backgroundImage: boolean
+  /** Whether a pane's own text color override changed. */
+  textColor: boolean
   /** Whether a pane's own language override changed. */
   language: boolean
   /** Whether a pane divider was dragged to a new position — set outside of any slot editor session, since resizing happens directly on the live view (see `ScreenDisplay`'s resize fallback prompt). */
@@ -40,6 +42,7 @@ export function KeepEditPrompt({ changes, onKeepHere, onKeepForNextSteps, onRemo
     changes.textSizes && t('screenDisplay.keepEditPrompt.summaryTextSize'),
     changes.backgroundColor && t('screenDisplay.keepEditPrompt.summaryBackgroundColor'),
     changes.backgroundImage && t('screenDisplay.keepEditPrompt.summaryBackgroundImage'),
+    changes.textColor && t('screenDisplay.keepEditPrompt.summaryTextColor'),
     changes.language && t('screenDisplay.keepEditPrompt.summaryLanguage'),
     changes.layout && t('screenDisplay.keepEditPrompt.summaryLayout'),
   ].filter((item): item is string => Boolean(item))

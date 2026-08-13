@@ -9,12 +9,17 @@ const MAX_RECONNECT_DELAY_MS = 10_000
  * are the Remote Screen Navigation spec's own additions (commit 9's server
  * side, consumed here starting commit 10b) — `effective-screen`'s
  * `screenId` is nullable, matching `DisplayMonitor.assignedScreenID`
- * (no screen assigned shows the standby screensaver).
+ * (no screen assigned shows the standby screensaver). Each `navigable-set`
+ * entry's own `previewImage` is that screen's stage-1 screenshot, reduced
+ * server-side to a relative `/uploads/...?size=medium` path (see
+ * `toRelativeUploadUrl` in `server/index.ts`) — `null` for a screen with no
+ * screenshot yet. `remoteNav.ts` hands the whole set to `previewCache.ts` to
+ * resolve into local `file://` uris before browse mode ever needs them.
  */
 export type DeviceServerMessage =
   | { type: 'check-update' }
   | { type: 'install-update'; mechanism: 'apk' }
-  | { type: 'navigable-set'; screens: { screenId: string; name: string }[] }
+  | { type: 'navigable-set'; screens: { screenId: string; name: string; previewImage: string | null }[] }
   | { type: 'effective-screen'; screenId: string | null }
 
 type MessageListener = (message: DeviceServerMessage) => void

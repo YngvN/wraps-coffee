@@ -6,11 +6,11 @@ import { useShrinkToFitFontScale } from '../../hooks/useShrinkToFitFontScale'
 import { useShrinkToFitScale } from '../../hooks/useShrinkToFitScale'
 import { useLanguage, type LanguageCode } from '../../i18n'
 import type { BackgroundImage, BackgroundImageOverlay, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SlideTransitionDirection, SplitDirection, TextSizes } from '../../types/screen'
-import { backgroundImageTextStyle, getScreenColorVars, slotBackgroundColorStyle } from '../../utils/screenColors'
+import { backgroundImageTextStyle, getScreenColorVars, slotBackgroundColorStyle, slotTextColorStyle } from '../../utils/screenColors'
 import type { PaneGrowthOrigin } from '../../utils/paneGrowth'
 import { getBackgroundImageUrl } from '../../utils/responsiveImage'
 import { resolveContentBackgroundImage } from '../../utils/screenSlots'
-import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage, resolveSlotOverflowMode } from '../../utils/screenStages'
+import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage, resolveSlotOverflowMode, resolveSlotTextColor } from '../../utils/screenStages'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
 import { collapsedClipPath, FULL_REVEAL_CLIP_PATH, PANE_GROWTH_DURATION_SECONDS, paneTransitionDelaySeconds } from './paneGrowthMotion'
 import { PaneClearButton } from './PaneClearButton'
@@ -95,6 +95,7 @@ interface PaneContentSnapshot {
   backgroundColor: string | undefined
   backgroundImage: BackgroundImage | undefined
   overlay: BackgroundImageOverlay | undefined
+  textColor: string | undefined
 }
 
 /**
@@ -183,6 +184,7 @@ export function LayoutPane({
 
   const content = resolveSlotContent(slot, stage)
   const backgroundColor = resolveSlotBackgroundColor(slot, stage)
+  const textColor = resolveSlotTextColor(slot, stage)
   const slotBackgroundImage = resolveSlotBackgroundImage(slot, stage)
   /** This pane's own background image at this stage, if any. A pane with none simply paints no backdrop of its own and lets the screen's own background (color or image, painted once behind the whole tree — see `SplitLayout`'s own `.split-layout__bg`) show through it. */
   const backgroundImage = resolveContentBackgroundImage(content, slotBackgroundImage)
@@ -219,6 +221,7 @@ export function LayoutPane({
     backgroundColor,
     backgroundImage,
     overlay: backgroundImage?.overlay,
+    textColor,
   }
   // Keyed on the *resolved content itself* (a stable JSON signature), not
   // which checkpoint number it happened to resolve from — a stage advance
@@ -234,7 +237,7 @@ export function LayoutPane({
   // that's genuinely different still transitions correctly, since the
   // signature simply reflects whatever the resolved values actually are.
   const { slots: contentSlots, activeSlot: activeContentSlot } = useCrossfadeSlot<PaneContentSnapshot>(contentSnapshot, (item) =>
-    JSON.stringify({ content: item.content, backgroundColor: item.backgroundColor, backgroundImage: item.backgroundImage, overlay: item.overlay, language: item.language }),
+    JSON.stringify({ content: item.content, backgroundColor: item.backgroundColor, backgroundImage: item.backgroundImage, overlay: item.overlay, language: item.language, textColor: item.textColor }),
   )
 
   // Re-measures whenever this exact slot's own resolved content or text
@@ -351,6 +354,7 @@ export function LayoutPane({
               ...slotBackgroundColorStyle(snapshot.backgroundColor),
               ...backgroundImageTextStyle(snapshot.overlay),
               ...(snapshot.backgroundColor ? { color: 'var(--screen-text)' } : {}),
+              ...slotTextColorStyle(snapshot.textColor),
             }}
             variants={variants}
             initial="initial"

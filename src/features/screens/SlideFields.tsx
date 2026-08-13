@@ -41,6 +41,7 @@ import { formatOrdinal } from '../../utils/formatOrdinal'
 import { getSmallUrl, getThumbnailUrl } from '../../utils/responsiveImage'
 import { TRANSIT_MODES } from '../../utils/transitModes'
 import { MessagePickerModal } from './MessagePickerModal'
+import { TransitLineColorListEditor } from './TransitLineColorListEditor'
 import './SlideFields.scss'
 
 const MESSAGE_BOARD_DISPLAY_MODES: MessageBoardDisplayMode[] = ['rotating', 'list', 'single']
@@ -309,6 +310,11 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
   const setTransitShowBrandLogo = (showBrandLogo: boolean) => {
     if (content.kind !== 'transit') return
     onChange({ ...content, showBrandLogo })
+  }
+
+  const setTransitLineColors = (lineColors: NonNullable<Extract<ScreenSlotContent, { kind: 'transit' }>['lineColors']>) => {
+    if (content.kind !== 'transit') return
+    onChange({ ...content, lineColors })
   }
 
   const setWeatherLocationId = (locationId: string) => {
@@ -845,6 +851,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
               onChange={(event) => setTransitShowBrandLogo(event.target.checked)}
             />
           )}
+          <TransitLineColorListEditor colors={content.lineColors ?? []} onChange={setTransitLineColors} />
         </>
       )}
 

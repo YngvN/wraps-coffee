@@ -59,6 +59,7 @@ import {
   resolveSlotContent,
   resolveSlotLanguage,
   resolveSlotLocked,
+  resolveSlotTextColor,
   resolveSlotTextSizes,
   resolveStageValue,
   writeStageCheckpoint,
@@ -67,7 +68,7 @@ import { resolveContentTextSizes, textSizesToCssVars } from '../utils/textSizeVa
 import './ScreenDisplay.scss'
 
 /** The fixed `KeepEditPrompt` change-summary for the pane-resize fallback prompt below — a divider drag only ever touches the arrangement's own shape/ratios, never a pane's content/text size/background. */
-const RESIZE_CHANGES: SlotEditChanges = { content: false, textSizes: false, backgroundColor: false, backgroundImage: false, language: false, layout: true }
+const RESIZE_CHANGES: SlotEditChanges = { content: false, textSizes: false, backgroundColor: false, backgroundImage: false, language: false, layout: true, textColor: false }
 
 /** Folds a stage's own live text-size draft into `slot`'s content timeline, at `stage` — used both when switching away from that stage (so its edits aren't lost) and when the whole editor closes. Only meaningful with more than one stage — with just one, editing "this pane" and editing "the slot's own shared size" are the same action (see `SlotEditor`'s own single-stage fallback), so this is a no-op. */
 function flushStageTextSizeIntoSlot(slot: ScreenSlot, stage: number, textSizes: TextSizes, hasMultipleStages: boolean): ScreenSlot {
@@ -991,6 +992,7 @@ export function ScreenDisplay() {
     backgroundImage: JSON.stringify(effectiveBackgroundImage(originalSlot, activeStage)) !== JSON.stringify(effectiveBackgroundImage(draftSlot, activeStage)),
     language: resolveSlotLanguage(originalSlot, activeStage) !== resolveSlotLanguage(draftSlot, activeStage),
     layout: false,
+    textColor: resolveSlotTextColor(originalSlot, activeStage) !== resolveSlotTextColor(draftSlot, activeStage),
   })
 
   /**
@@ -1037,11 +1039,11 @@ export function ScreenDisplay() {
    * `KeepEditPrompt`'s own "keep for next step(s) too" — persists the active
    * stage's edit same as `closeEditor`, then overwrites every later stage's
    * own checkpoint for this exact pane (content, its text size, background
-   * color, language override) with that identical, just-edited result.
-   * Background image isn't propagated separately — with more than one stage
-   * (the only case this ever runs in), `PaneEditor`'s single consolidated
-   * picker always writes it onto `content` (see `SlotEditor`'s own
-   * `setBackgroundImage`), so the `content` propagation below already
+   * color, text color, language override) with that identical, just-edited
+   * result. Background image isn't propagated separately — with more than
+   * one stage (the only case this ever runs in), `PaneEditor`'s single
+   * consolidated picker always writes it onto `content` (see `SlotEditor`'s
+   * own `setBackgroundImage`), so the `content` propagation below already
    * carries it forward, same as text size needs no propagation line of its
    * own here.
    */
@@ -1051,6 +1053,7 @@ export function ScreenDisplay() {
     const finalSlot = finalizeDraftSlot()
     const contentAtStage = resolveSlotContent(finalSlot, activeStage)
     const backgroundColorAtStage = resolveSlotBackgroundColor(finalSlot, activeStage)
+    const textColorAtStage = resolveSlotTextColor(finalSlot, activeStage)
     const languageAtStage = resolveSlotLanguage(finalSlot, activeStage)
 
     let propagatedSlot = finalSlot
@@ -1059,6 +1062,7 @@ export function ScreenDisplay() {
         ...propagatedSlot,
         content: writeStageCheckpoint(propagatedSlot.content, futureStage, contentAtStage),
         backgroundColor: writeStageCheckpoint(propagatedSlot.backgroundColor, futureStage, backgroundColorAtStage),
+        textColor: writeStageCheckpoint(propagatedSlot.textColor, futureStage, textColorAtStage),
         language: writeStageCheckpoint(propagatedSlot.language, futureStage, languageAtStage),
       }
     }

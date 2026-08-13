@@ -39,6 +39,11 @@ export function resolveSlotBackgroundImage(slot: ScreenSlot, stage: number): Bac
   return resolveStageValue(slot.backgroundImage, stage)
 }
 
+/** This slot's own text color override at `stage`, if any — `undefined` means "use the automatic contrast-computed color" (see `getScreenColorVars`). */
+export function resolveSlotTextColor(slot: ScreenSlot, stage: number): string | undefined {
+  return resolveStageValue(slot.textColor, stage)
+}
+
 export function resolveSlotTextSizes(slot: ScreenSlot, stage: number): TextSizes | undefined {
   return resolveStageValue(slot.textSizes, stage)
 }

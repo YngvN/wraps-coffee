@@ -183,6 +183,8 @@ export type ScreenSlotContent =
       modeFilter?: string[]
       /** Which icon set the mode icons next to each departure are drawn from — see `TransitIconPack`. Falls back to `DEFAULT_TRANSIT_ICON_PACK`. */
       iconPack?: TransitIconPack
+      /** Per-operator line-badge color overrides, keyed by the operator's own display name as Entur reports it (e.g. `"Vy"`, `"Flytoget"`) — matched against `DepartureInfo['authorityName']` case-insensitively/trimmed. A departure whose authority has no matching entry (including Ruter itself, which normally isn't listed here) keeps the pane's default badge styling. */
+      lineColors?: { id: string; authority: string; hex: string }[]
       /** Overrides the pane's own background/font/text colors with a look-alike of whichever brand this pane is (see `brand`) instead of the screen's normal styling. Falls back to `true`. */
       useBrandTheme?: boolean
       /** Shows the pane's own brand's logo in its top-left corner. Only relevant while `useBrandTheme` is on. Falls back to `true`. */
@@ -415,6 +417,8 @@ export interface ScreenSlot {
    * mode — see `LayoutPane.tsx`/`useShrinkToFitScale`.
    */
   overflowMode?: StageTimeline<'shrink' | 'scroll' | undefined>
+  /** This slot's own text color (hex, from the store's active appearance theme) timeline, overriding the automatic contrast-computed default (see `getScreenColorVars`) at a given stage. Optional (like `language`) since it's a newer field — a slot with none set at all uses the automatic color everywhere. An entry's value may itself be `undefined` (explicitly "use the automatic color" at that stage), distinct from no entry at all (inherit from an earlier stage's own override). */
+  textColor?: StageTimeline<string | undefined>
 }
 
 /** How a screen's panes are arranged along their split axis: side by side, or stacked. */
