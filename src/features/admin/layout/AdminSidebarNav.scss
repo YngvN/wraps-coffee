@@ -67,17 +67,34 @@
   background: $color-surface;
 }
 
+// `min-height: 0` overrides the flex item default of shrinking no further
+// than its own content size — without it, `.admin-sidebar-nav__rail`'s
+// `justify-content: space-between` can't actually compress this below the
+// nav list's natural height, so on a short-enough window the list spills
+// past this box into the footer/pin-toggle/QR-toggle sitting below it
+// instead of scrolling. Paired with `.admin-sidebar-nav__link`'s own
+// `clamp()`'d height below: rows shrink first, and once they hit their
+// floor, the remainder scrolls here instead of ever overlapping — same
+// `overflow-y: auto` treatment already used on the tier-2/tier-3 flyout
+// panels (`.admin-sidebar-nav__flyout` below).
 .admin-sidebar-nav__top {
   display: flex;
   flex-direction: column;
   gap: $spacing-unit * 2;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .admin-sidebar-nav__list {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: calc($spacing-unit / 2);
+  // Shrinks smoothly as the rail's available height (`100vh`-derived, see
+  // `.admin-sidebar-nav--desktop`) drops, rather than staying fixed at 4px
+  // until the list runs out of room and starts overlapping the chrome
+  // below it — see `.admin-sidebar-nav__link`'s own `height` for the
+  // matching row-height clamp.
+  gap: clamp(2px, 0.6vh, 4px);
   list-style: none;
   margin: 0;
   padding: 0;
@@ -111,7 +128,10 @@
   justify-content: flex-start;
   gap: $spacing-unit;
   width: 100%;
-  height: 44px;
+  // Shrinks smoothly, down to a 28px floor, as the rail's available height
+  // gets short — see `.admin-sidebar-nav__top`'s own `overflow-y: auto` for
+  // what handles whatever this floor still can't fit.
+  height: clamp(28px, 6vh, 44px);
   padding: 0 0 0 calc($spacing-unit * 1.5);
   border: none;
   border-radius: 10px;

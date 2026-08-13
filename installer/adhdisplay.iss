@@ -11,6 +11,16 @@
 ; at install time instead (see CurStepChanged), since embedding it in [Files]
 ; would ship it inside ADHDisplaySetup.exe for every downloader regardless of
 ; whether the "Install Ollama" task ends up selected.
+;
+; The [Files] section below also embeds the Companion app's Android TV APK
+; (built from ../adhdisplay-companion via `npm run build:tv`, not committed to
+; the repo either — see that project's own README "Building a release APK for
+; Android TV" section) so it ships inside the {app}\android-apk folder, ready
+; to copy to a USB stick per ../docs/INSTALL-TV.md. Since Inno resolves that
+; [Files] glob at compile time, the APK must already exist in
+; ../adhdisplay-companion/dist before running ISCC — run build-with-apk.ps1
+; (next to this file) instead of invoking ISCC directly to handle both steps
+; in one command.
 
 #define AppName "ADHDisplay"
 #define AppExeName "start-adhdisplay.bat"
@@ -28,7 +38,7 @@ AppName={#AppName}
 ; Must stay in sync with the root package.json's own "version" field (see
 ; CLAUDE.md's Versioning rule) - bumped together, in the same change, on
 ; every completed change.
-AppVersion=0.2.39
+AppVersion=0.2.42
 AppPublisher=ADHDisplay
 DefaultDirName=C:\ADHDisplay
 DisableDirPage=no
@@ -79,6 +89,12 @@ Source: "node-lts-x64.msi"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: 
 ; call to actually run.
 Source: "adhdisplay-control.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "adhdisplay-control.ps1"; DestDir: "{tmp}"; Flags: dontcopy
+; Signed release build, glob-matched since the filename embeds the exact
+; version/versionCode (see adhdisplay-companion/scripts/build-tv-apk.js) - not
+; committed to the repo, must be built locally first (see the header comment
+; above and build-with-apk.ps1). Deliberately no skipifsourcedoesntexist: a
+; missing APK should fail this compile loudly, not silently ship without it.
+Source: "..\adhdisplay-companion\dist\adhdisplay-companion-*.apk"; DestDir: "{app}\android-apk"; Flags: ignoreversion
 
 ; Ensure these exist even though their gitignored contents are excluded above —
 ; the local server writes into them on first boot (see server/store.ts / uploads.ts).

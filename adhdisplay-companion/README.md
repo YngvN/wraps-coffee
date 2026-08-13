@@ -202,10 +202,7 @@ screen-level (up/down) navigation only, for now.
   ./gradlew assembleDebug` produces a debug-signed
   `android/app/build/outputs/apk/debug/app-debug.apk`, installable via
   `adb install` for local development — it depends on a Metro dev server and
-  is not meant for unattended kiosk deployment. This is also how
-  `.github/workflows/build-companion-installers.yml`'s `build-android-apk`
-  job builds it in CI, bundled alongside the Windows installer into one
-  `ADHDisplayCompanionInstallers.zip`.
+  is not meant for unattended kiosk deployment.
 - **Building a release APK for Android TV**: `npm run build:tv` produces a
   signed, self-contained, universal release APK (JS bundle embedded, no
   Metro/network dependency) at
@@ -218,8 +215,13 @@ screen-level (up/down) navigation only, for now.
   `plugins/withLeanbackManifest.js` and `plugins/withReleaseSigning.js`.
   Requires a full Android SDK (not just platform-tools) with `ANDROID_HOME`
   set, since it runs a real Gradle build — `aapt2`/`apksigner` from
-  `build-tools` are also needed to verify the output per that doc. Not built
-  in CI; local/manual only.
+  `build-tools` are also needed to verify the output per that doc. Built
+  locally only, not in CI (GitHub's Ubuntu runner hit a Kotlin/Compose-
+  compiler version mismatch in `expo-modules-core:compileReleaseKotlin` that
+  doesn't reproduce on a real dev machine) — this is also the first step
+  `../installer/build-with-apk.ps1` runs before compiling the main
+  ADHDisplay installer, which embeds the resulting APK at
+  `{app}\android-apk\`.
 
 ### iOS / iPadOS
 

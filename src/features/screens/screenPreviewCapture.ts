@@ -82,7 +82,15 @@ async function captureOneStage(screen: ScreenConfig, stage: number, defaultPaneL
     if (!canvas) return null
     return await toBlob(canvas, { pixelRatio: 1 })
   } catch (error) {
-    console.warn(`[screenPreviewCapture] failed to capture stage ${stage} of screen "${screen.screenID}" — its card will keep live-rendering until a later save succeeds.`, error)
+    // `html-to-image` sometimes rejects with a raw DOM `Event` (a failed
+    // `<img>`/`<link>` load inside the captured subtree) rather than an
+    // `Error` — surface the actual failing element/URL when that happens,
+    // since a bare `Event` object logs as opaque otherwise.
+    const eventDetail =
+      error instanceof Event
+        ? { type: error.type, target: (error.target as HTMLImageElement | HTMLLinkElement | null)?.outerHTML?.slice(0, 300) }
+        : undefined
+    console.warn(`[screenPreviewCapture] failed to capture stage ${stage} of screen "${screen.screenID}" — its card will keep live-rendering until a later save succeeds.`, error, eventDetail)
     return null
   } finally {
     root.unmount()

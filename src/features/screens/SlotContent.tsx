@@ -47,7 +47,7 @@ export function SlotContent({ slot, newsSlots, stageTick, stage, onRequestStageA
     // before its own video has loaded (`server/videoUploads.ts` generates
     // one for every uploaded video), rather than mounting real playback at
     // all during a capture.
-    if (captureMode) return <img className="video-slide__poster" src={getThumbnailUrl(slot.videoUrl)} alt="" style={{ width: '100%', height: '100%', objectFit: slot.fit === 'cover' ? 'cover' : 'contain' }} />
+    if (captureMode) return slot.videoUrl ? <img className="video-slide__poster" src={getThumbnailUrl(slot.videoUrl)} alt="" style={{ width: '100%', height: '100%', objectFit: slot.fit === 'cover' ? 'cover' : 'contain' }} /> : null
     return (
       <VideoSlide
         videoUrl={slot.videoUrl}

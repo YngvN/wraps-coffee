@@ -117,6 +117,12 @@
     top: 56px;
     left: 0;
     height: calc(100vh - 56px);
+    // The nav's own content (`AdminSidebarNav.tsx`'s `variant="mobile"`) has
+    // no height constraint of its own — this is the actual bounded box, so
+    // on a short/landscape screen with enough nav items to exceed it, this
+    // is what needs to scroll rather than let content run past the bottom
+    // edge uncontained.
+    overflow-y: auto;
     z-index: 25;
     width: min(280px, 80vw);
   }

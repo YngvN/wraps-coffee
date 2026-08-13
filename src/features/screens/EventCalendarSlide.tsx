@@ -23,7 +23,7 @@ export function EventCalendarSlide({ count }: EventCalendarSlideProps) {
       <ul className="events-slide__list">
         {upcomingEvents.map(({ event, occursAt, status }) => (
           <li key={event.eventID} className={`events-slide__item${status === 'cancelled' ? ' events-slide__item--cancelled' : ''}`}>
-            <img className="events-slide__image" src={normalizeUploadUrl(event.imageUrl)} alt="" />
+            {event.imageUrl && <img className="events-slide__image" src={normalizeUploadUrl(event.imageUrl)} alt="" />}
             <div className="events-slide__body">
               <h2>{event.title[language]}</h2>
               <p className="events-slide__date">
