@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from 'react'
-import { Badge, CopyIcon, EditDeleteButtons, FullscreenIcon } from '../../../components'
+import { Badge, CopyIcon, EditDeleteButtons, FullscreenIcon, UndoIcon } from '../../../components'
 import { useLanguage, type LanguageCode } from '../../../i18n'
 import { DEFAULT_SCREEN_BACKGROUND_COLOR, type ScreenConfig } from '../../../types/screen'
 import { getSmallUrl } from '../../../utils/responsiveImage'
@@ -25,6 +25,8 @@ interface ScreenCardProps {
   onEdit: () => void
   onDuplicate: () => void
   onDelete: () => void
+  /** Opens the per-screen "restore from a screens snapshot" picker (see `ScreenRestoreSnapshotModal`) — a separate, dedicated action from Edit/Duplicate/Delete since it's a recovery action, not an edit-adjacent one. */
+  onRestoreFromSnapshot: () => void
 }
 
 /**
@@ -54,7 +56,7 @@ interface ScreenCardProps {
  * the plain, always read-only `/screens/:screenId` URL and additionally
  * requests fullscreen/autoplay for a real kiosk deployment.
  */
-export function ScreenCard({ screen, url, editorUrl, defaultPaneLanguage, slotCountLabel, copied, onCopy, onOpen, onOpenEditor, onEdit, onDuplicate, onDelete }: ScreenCardProps) {
+export function ScreenCard({ screen, url, editorUrl, defaultPaneLanguage, slotCountLabel, copied, onCopy, onOpen, onOpenEditor, onEdit, onDuplicate, onDelete, onRestoreFromSnapshot }: ScreenCardProps) {
   const { t } = useLanguage()
   const [previewStage, setPreviewStage] = useState(1)
   const stageCount = screen.stageCount ?? 1
@@ -118,6 +120,15 @@ export function ScreenCard({ screen, url, editorUrl, defaultPaneLanguage, slotCo
           </a>
         </div>
         <div className="screen-card__actions">
+          <button
+            type="button"
+            className="screen-card__restore-button"
+            onClick={onRestoreFromSnapshot}
+            aria-label={t('admin.screens.restoreFromSnapshot')}
+            title={t('admin.screens.restoreFromSnapshot')}
+          >
+            <UndoIcon />
+          </button>
           <EditDeleteButtons
             onEdit={onEdit}
             onDuplicate={onDuplicate}

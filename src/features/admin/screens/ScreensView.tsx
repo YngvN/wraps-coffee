@@ -20,6 +20,7 @@ import { deriveMdnsName } from '../../../utils/mdnsName'
 import { DisplayManagerView } from '../displayManager/DisplayManagerView'
 import { ScreenCard } from './ScreenCard'
 import { ScreenForm, type ScreenFormTarget } from './ScreenForm'
+import { ScreenRestoreSnapshotModal } from './ScreenRestoreSnapshotModal'
 import { ScreensaverScheduleModal } from './ScreensaverScheduleModal'
 import './ScreensView.scss'
 
@@ -34,6 +35,8 @@ export function ScreensView() {
   const [editingScreen, setEditingScreen] = useState<ScreenConfig | null | undefined>(undefined)
   const [screensaverModalOpen, setScreensaverModalOpen] = useState(false)
   const [copiedID, setCopiedID] = useState<string | null>(null)
+  /** The screen currently open in the per-screen "restore from a screens snapshot" picker (`ScreenRestoreSnapshotModal`), or `null` when it's closed. */
+  const [restoringSnapshotScreen, setRestoringSnapshotScreen] = useState<ScreenConfig | null>(null)
   /** Whether the "Display Manager" sub-view (every registered machine/monitor, with its own Screen-assignment selector) is open in place of the screen list. */
   const [showDisplayManager, setShowDisplayManager] = useState(false)
   /** `1` while opening the form or Display Manager (slides in from the right, see `SlideTransition`), `-1` while closing back to the list (slides in from the left). Set right before whatever state change actually switches the view. */
@@ -304,6 +307,7 @@ export function ScreensView() {
                           onEdit={() => openForm(screen)}
                           onDuplicate={() => handleDuplicate(screen)}
                           onDelete={() => handleDelete(screen)}
+                          onRestoreFromSnapshot={() => setRestoringSnapshotScreen(screen)}
                         />
                       </motion.li>
                     )
@@ -316,6 +320,16 @@ export function ScreensView() {
       </SlideTransition>
 
       <ScreensaverScheduleModal open={screensaverModalOpen} onClose={() => setScreensaverModalOpen(false)} />
+      {restoringSnapshotScreen && (
+        <ScreenRestoreSnapshotModal
+          screen={restoringSnapshotScreen}
+          onClose={() => setRestoringSnapshotScreen(null)}
+          // The server's own applyUpdate broadcasts the restored admin.screens over the sync socket
+          // (same path any other write already goes through), so this screen's own `useScreens()`
+          // instance picks it up automatically — nothing to do here beyond closing the modal.
+          onRestored={() => {}}
+        />
+      )}
     </div>
   )
 }

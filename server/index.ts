@@ -17,6 +17,7 @@ import type { LookupQueryFilterInput } from './assistant/lookupQuery'
 import { deleteOllamaModel, ensureOllamaRunning, listOllamaModels, pullOllamaModel, testOllamaConnection } from './assistant/ollamaClient'
 import { AssistantLocalProviderError, AssistantNotConfiguredError, type AssistantActionName } from './assistant/types'
 import * as backup from './backup'
+import * as screensSnapshots from './screensSnapshots'
 import { handleDepartures, handleLookup, handleStopSearch, handleWeather } from './integrations'
 import { handleHeadlines } from './news'
 import { handleNewsImage, startNewsImageCacheSweep } from './newsImageCache'
@@ -1970,6 +1971,129 @@ const httpServer = createServer((req, res) => {
     return
   }
 
+  // Screens snapshot history (Settings → Backup → "Screens history", and
+  // each ScreenCard's own per-screen restore button) — admin/subadmin only,
+  // same posture as the backup/storage-cleanup routes above. See
+  // server/screensSnapshots.ts for the actual capture/rotation/pinning
+  // logic; this block is just auth + response plumbing, matching this
+  // file's own convention.
+  if (req.method === 'GET' && url.pathname === '/screens-snapshots') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view screens snapshot history' })
+      return
+    }
+    sendJson(res, 200, { snapshots: screensSnapshots.listSnapshots() })
+    return
+  }
+
+  if (req.method === 'GET' && url.pathname === '/screens-snapshots/for-screen') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view screens snapshot history' })
+      return
+    }
+    const screenID = url.searchParams.get('screenID')
+    if (!screenID) {
+      sendJson(res, 400, { error: 'Missing screenID' })
+      return
+    }
+    sendJson(res, 200, { snapshots: screensSnapshots.listSnapshotsForScreen(screenID) })
+    return
+  }
+
+  const snapshotDiffMatch = /^\/screens-snapshots\/(daily|weekly)\/([^/]+)\/diff$/.exec(url.pathname)
+  if (req.method === 'GET' && snapshotDiffMatch) {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view screens snapshot history' })
+      return
+    }
+    const [, tier, id] = snapshotDiffMatch
+    const diff = screensSnapshots.diffScreensAgainstLive(tier as screensSnapshots.SnapshotTier, decodeURIComponent(id))
+    if (!diff) {
+      sendJson(res, 404, { error: 'Snapshot not found' })
+      return
+    }
+    sendJson(res, 200, { diff })
+    return
+  }
+
+  const snapshotRestoreMatch = /^\/screens-snapshots\/(daily|weekly)\/([^/]+)\/restore$/.exec(url.pathname)
+  if (req.method === 'POST' && snapshotRestoreMatch) {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can restore a screens snapshot' })
+      return
+    }
+    const [, tier, id] = snapshotRestoreMatch
+    const decodedId = decodeURIComponent(id)
+    const tierValue = tier as screensSnapshots.SnapshotTier
+    const screens = screensSnapshots.screensForWholeRestore(tierValue, decodedId)
+    if (!screens) {
+      sendJson(res, 404, { error: 'Snapshot not found' })
+      return
+    }
+    screensSnapshots.copySnapshotImagesToUploads(tierValue, decodedId)
+    applyUpdate('admin.screens', screens)
+    console.log(`[screens-snapshots] ${session.username} restored the whole admin.screens array from ${tier}/${decodedId}`)
+    sendJson(res, 200, { ok: true })
+    return
+  }
+
+  const snapshotRestoreScreenMatch = /^\/screens-snapshots\/(daily|weekly)\/([^/]+)\/restore-screen\/([^/]+)$/.exec(url.pathname)
+  if (req.method === 'POST' && snapshotRestoreScreenMatch) {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can restore a screens snapshot' })
+      return
+    }
+    const [, tier, id, screenID] = snapshotRestoreScreenMatch
+    const decodedId = decodeURIComponent(id)
+    const decodedScreenID = decodeURIComponent(screenID)
+    const tierValue = tier as screensSnapshots.SnapshotTier
+    const liveScreensArray = (store.get('admin.screens')?.value as screensSnapshots.MinimalScreenConfig[] | undefined) ?? []
+    const target = liveScreensArray.find((screen) => screen.screenID === decodedScreenID)
+    // A non-empty `draft` on the target screen is either a human's own in-progress `ScreenDisplay`
+    // edit, or (once the screenPane assistant entity lands) an assistant-staged change — either way,
+    // restoring here would silently clobber unpublished work with no warning unless the caller
+    // explicitly confirms via `?force=1` after being shown what's there.
+    if (target?.draft && Object.keys(target.draft).length > 0 && url.searchParams.get('force') !== '1') {
+      sendJson(res, 409, { error: 'This screen has unpublished changes (a draft) that restoring would discard.', hasDraft: true })
+      return
+    }
+    const updatedScreens = screensSnapshots.screensForSingleScreenRestore(tierValue, decodedId, decodedScreenID, liveScreensArray)
+    if (!updatedScreens) {
+      sendJson(res, 404, { error: 'Snapshot (or this screen within it) not found' })
+      return
+    }
+    screensSnapshots.copySnapshotImagesToUploads(tierValue, decodedId, [decodedScreenID])
+    applyUpdate('admin.screens', updatedScreens)
+    console.log(`[screens-snapshots] ${session.username} restored screen ${decodedScreenID} from ${tier}/${decodedId}`)
+    sendJson(res, 200, { ok: true })
+    return
+  }
+
   // Account management (the admin dashboard's own "Users" tab) —
   // admin/subadmin only, same posture as the developer API key/Neon URL
   // routes above. Three extra rules beyond the plain role gate, enforced
@@ -2577,6 +2701,10 @@ startNewsImageCacheSweep()
 startAbandonedVideoUploadSweep()
 startUpdateFailureSweep()
 updates.sweepUpdatesDirForBackup()
+// After store.load() — snapshot capture reads store.get('admin.screens'), and this also registers
+// the lazy-pinning hook against uploads.ts's own delete path (see screensSnapshots.ts's own doc
+// comment on `startScreensSnapshotScheduler`).
+screensSnapshots.startScreensSnapshotScheduler()
 mdns.apply(store.getScreenAddressSettings(), currentStoreName())
 // Always on, regardless of the opt-in hostname mode above — see
 // advertiseServerPresence's own doc comment for why this needs to be a

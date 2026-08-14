@@ -535,6 +535,47 @@ skipped rather than deleted anyway.`}</code>
         </pre>
       </Card>
 
+      <Card title={t('admin.settings.developerDocs.screensSnapshotsTitle')}>
+        <p>{t('admin.settings.developerDocs.screensSnapshotsIntro')}</p>
+        <pre>
+          <code>{`GET /screens-snapshots                                    (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "snapshots": [{ "tier": "daily"|"weekly", "id": string, "capturedAt": string, "screenCount": number }] }
+Every retained snapshot across both tiers, newest-first by its real capture timestamp (not the
+tier id's own date/week, which can lag it — see server/screensSnapshots.ts).
+
+GET /screens-snapshots/for-screen?screenID=<id>           (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "snapshots": [...] }
+Same shape, filtered to snapshots where this one screen's own entry genuinely differs from live.
+
+GET /screens-snapshots/:tier/:id/diff                      (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "diff": [{ "screenID", "name", "status": "changed"|"onlyInSnapshot"|"onlyInLive" }] }
+→ 404 { "error": "..." }   (snapshot not found)
+Which screens actually differ between the live store and this snapshot — shown before a whole-array
+restore commits to overwriting every screen.
+
+POST /screens-snapshots/:tier/:id/restore                  (Authorization: Bearer <token>, admin/subadmin only, no body)
+→ 200 { "ok": true }
+→ 404 { "error": "..." }
+Overwrites the entire live admin.screens array with this snapshot's own version, applied
+immediately (no draft/preview staging) — copies back any of its own pinned images not already
+present in server/uploads/.
+
+POST /screens-snapshots/:tier/:id/restore-screen/:screenID[?force=1]  (Authorization: Bearer <token>, admin/subadmin only, no body)
+→ 200 { "ok": true }
+→ 404 { "error": "..." }   (snapshot, or this screen within it, not found)
+→ 409 { "error": "...", "hasDraft": true }   (this screen has an unpublished draft — retry with ?force=1 once confirmed)
+Overwrites just this one screen's own entry — every other screen is untouched.
+
+Snapshots are captured automatically (daily, keeping the last 7; weekly, keeping the last 8) by an
+in-process scheduler, calendar-boundary checked so a missed boundary (server offline) self-heals on
+the next check rather than being silently skipped. Referenced images are pinned lazily — only copied
+into a snapshot the moment the live original would otherwise be deleted, capped at 4096px on the
+longer side (best-effort, off the synchronous delete path) — never proactively copied at capture
+time. Included whole in the regular backup zip (server/data/screens-snapshots/ is just another
+subfolder under server/data, which the zip export/import already walks generically).`}</code>
+        </pre>
+      </Card>
+
       <Card title={t('admin.settings.developerDocs.integrationsTitle')}>
         <p>{t('admin.settings.developerDocs.integrationsIntro')}</p>
         <pre>

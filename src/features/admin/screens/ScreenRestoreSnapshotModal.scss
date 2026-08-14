@@ -1,0 +1,52 @@
+@use '../../../styles/variables' as *;
+
+.screen-restore-snapshot-modal {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+}
+
+.screen-restore-snapshot-modal__hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: $color-text-muted;
+}
+
+.screen-restore-snapshot-modal__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+}
+
+.screen-restore-snapshot-modal__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit;
+  flex-wrap: wrap;
+  font-size: 0.875rem;
+}
+
+.screen-restore-snapshot-modal__conflict {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  padding: $spacing-unit;
+  border: 1px solid $color-error;
+  border-radius: 6px;
+}
+
+.screen-restore-snapshot-modal__conflict-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-unit;
+}
+
+.screen-restore-snapshot-modal__error {
+  margin: 0;
+  font-size: 0.875rem;
+  color: $color-error;
+}

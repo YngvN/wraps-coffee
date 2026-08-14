@@ -1289,6 +1289,12 @@ export interface CleanupResult {
   deletedMessageBoardPosts: number
   deletedDisplayMachines: number
   deletedImages: number
+  /** Bytes actually reclaimed from disk — excludes a deleted image pinned into a retained screens snapshot instead (see `pinnedImageBytes`). */
+  freedImageBytes: number
+  /** Of `deletedImages`, how many were pinned into at least one retained screens snapshot rather than genuinely freed. */
+  pinnedImages: number
+  /** Bytes moved into snapshot storage rather than freed — see `pinnedImages`. */
+  pinnedImageBytes: number
 }
 
 /** Everything currently prunable (old orders/messages, expired message-board posts, stale display machines, orphaned uploaded images) — read-only, deletes nothing. `admin`/`subadmin` only. See `server/storageCleanup.ts`. */
@@ -1311,4 +1317,85 @@ export async function applyCleanup(token: string, selection: CleanupSelection): 
   if (response.status === 403) throw new Error('Only admin/subadmin accounts can apply storage cleanup')
   if (!response.ok) throw new Error('Could not apply storage cleanup')
   return response.json() as Promise<CleanupResult>
+}
+
+// --- Screens snapshot history (Settings → Backup → "Screens history", and each ScreenCard's own
+// per-screen restore button) --------------------------------------------------
+
+export type ScreensSnapshotTier = 'daily' | 'weekly'
+
+export interface ScreensSnapshotInfo {
+  tier: ScreensSnapshotTier
+  id: string
+  /** Real capture timestamp — restore UIs list/label by this, not by the tier id's own date/week, since a scheduler tick can land well after the calendar boundary it's actually for (see `server/screensSnapshots.ts`). */
+  capturedAt: string
+  screenCount: number
+}
+
+/** Every retained daily/weekly screens snapshot, newest-first. `admin`/`subadmin` only. */
+export async function getScreensSnapshots(token: string): Promise<ScreensSnapshotInfo[]> {
+  const response = await fetch(`${serverBaseUrl()}/screens-snapshots`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 403) throw new Error('Only admin/subadmin accounts can view screens snapshot history')
+  if (!response.ok) throw new Error('Could not load screens snapshot history')
+  const { snapshots } = (await response.json()) as { snapshots: ScreensSnapshotInfo[] }
+  return snapshots
+}
+
+/** Only the snapshots in which `screenID`'s own entry genuinely differs from its current live state — powers `ScreenCard`'s own per-screen restore picker. `admin`/`subadmin` only. */
+export async function getScreensSnapshotsForScreen(token: string, screenID: string): Promise<ScreensSnapshotInfo[]> {
+  const response = await fetch(`${serverBaseUrl()}/screens-snapshots/for-screen?screenID=${encodeURIComponent(screenID)}`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 403) throw new Error('Only admin/subadmin accounts can view screens snapshot history')
+  if (!response.ok) throw new Error('Could not load screens snapshot history for this screen')
+  const { snapshots } = (await response.json()) as { snapshots: ScreensSnapshotInfo[] }
+  return snapshots
+}
+
+export type ScreenDiffStatus = 'changed' | 'onlyInSnapshot' | 'onlyInLive'
+
+export interface ScreenDiffEntry {
+  screenID: string
+  name: string
+  status: ScreenDiffStatus
+}
+
+/** Which screens actually differ between the live store and one snapshot — shown in the whole-array restore's own confirm dialog before it overwrites every screen, not just the one the admin meant to fix. `admin`/`subadmin` only. */
+export async function getScreensSnapshotDiff(token: string, tier: ScreensSnapshotTier, id: string): Promise<ScreenDiffEntry[]> {
+  const response = await fetch(`${serverBaseUrl()}/screens-snapshots/${tier}/${encodeURIComponent(id)}/diff`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) throw new Error('Could not compare this snapshot against the live screens')
+  const { diff } = (await response.json()) as { diff: ScreenDiffEntry[] }
+  return diff
+}
+
+/** Overwrites the entire live `admin.screens` array with this snapshot's own version, applied immediately (no draft/preview staging) — copies back any of its own pinned images not already present in `server/uploads/`. `admin`/`subadmin` only. */
+export async function restoreScreensSnapshot(token: string, tier: ScreensSnapshotTier, id: string): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/screens-snapshots/${tier}/${encodeURIComponent(id)}/restore`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not restore this snapshot')
+  }
+}
+
+/** Thrown by `restoreScreensSnapshotForScreen` when the target screen currently has an unpublished draft that the caller hasn't yet confirmed discarding — re-call with `force: true` once the admin has confirmed, naming what's there. */
+export class ScreensSnapshotDraftConflictError extends Error {}
+
+/** Overwrites just one screen's own entry in the live `admin.screens` array with this snapshot's version — every other screen is untouched. `force` confirms discarding that one screen's own unpublished draft, if it has one (see `ScreensSnapshotDraftConflictError`). `admin`/`subadmin` only. */
+export async function restoreScreensSnapshotForScreen(token: string, tier: ScreensSnapshotTier, id: string, screenID: string, force?: boolean): Promise<void> {
+  const params = force ? '?force=1' : ''
+  const response = await fetch(`${serverBaseUrl()}/screens-snapshots/${tier}/${encodeURIComponent(id)}/restore-screen/${encodeURIComponent(screenID)}${params}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 409) throw new ScreensSnapshotDraftConflictError('This screen has unpublished changes that restoring would discard.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not restore this screen from the snapshot')
+  }
 }

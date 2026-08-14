@@ -156,6 +156,38 @@
   color: $color-accent;
 }
 
+// Restore-from-snapshot — a dedicated icon button, not folded into
+// `EditDeleteButtons`' own `editMenuExtra` slot (that's a shared component
+// also used by Products/Events; "restore" is a recovery action, not an
+// edit-adjacent one — see `ScreenCard`'s own prop doc comment).
+.screen-card__restore-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid $color-border;
+  border-radius: 6px;
+  background: transparent;
+  color: $color-text-muted;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+
+  @media (hover: hover) {
+    &:hover {
+      color: $color-text;
+      border-color: $color-accent;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
 .screen-card__actions {
   display: flex;
   gap: calc($spacing-unit / 2);

@@ -47,8 +47,8 @@ async function readBody(req: IncomingMessage, maxBytes: number): Promise<Buffer>
   return Buffer.concat(chunks)
 }
 
-/** The filename's stem without its extension — used to derive `<stem>-small.webp`/`<stem>-thumb.webp` companion filenames. */
-function stemOf(filename: string): string {
+/** The filename's stem without its extension — used to derive `<stem>-small.webp`/`<stem>-thumb.webp` companion filenames. Exported for `screensSnapshots.ts`'s own lazy-pinning hook, which needs to locate an original's existing variant files on disk. */
+export function stemOf(filename: string): string {
   const ext = extname(filename)
   return ext ? filename.slice(0, -ext.length) : filename
 }
@@ -201,10 +201,35 @@ export async function handleServeUpload(res: ServerResponse, requestedFilename: 
   res.end(readFileSync(filePath))
 }
 
-/** Removes the original and all of its generated size companions (see `UPLOAD_VARIANT_SUFFIXES`) and status/name markers, if present, plus (for a video whose transcode never finished) its still-staged source. Idempotent — always succeeds even if nothing existed. Shared by `handleDeleteUpload` (the Media Library's own manual delete) and `server/storageCleanup.ts` (the admin-confirmed orphaned-image sweep), so both go through the exact same on-disk + backup-mirroring behavior. */
+/**
+ * Callbacks invoked with an original upload's own filename right before
+ * `deleteUploadFiles` unlinks anything, while every one of its files (the
+ * original + every generated variant) is still intact on disk. Registered
+ * via `registerBeforeUploadDeleteHook` rather than a static import of
+ * whichever module needs this — `screensSnapshots.ts` is the one real user
+ * today (lazily pinning an image into any retained snapshot that still
+ * references it, see that file's own `pinIfSnapshotReferenced`), and it
+ * already needs to import this module's own `UPLOADS_DIR`/`stemOf`/
+ * `UPLOAD_VARIANT_SUFFIXES` for that; a static import back from here to
+ * there would be circular (this codebase deliberately avoids that pattern —
+ * see `backup.ts`'s own module doc comment for the same reasoning applied
+ * to `store.ts`/`uploads.ts`).
+ */
+type BeforeUploadDeleteHook = (originalFilename: string) => void
+const beforeUploadDeleteHooks: BeforeUploadDeleteHook[] = []
+
+export function registerBeforeUploadDeleteHook(hook: BeforeUploadDeleteHook) {
+  beforeUploadDeleteHooks.push(hook)
+}
+
+/** Removes the original and all of its generated size companions (see `UPLOAD_VARIANT_SUFFIXES`) and status/name markers, if present, plus (for a video whose transcode never finished) its still-staged source. Idempotent — always succeeds even if nothing existed. Shared by `handleDeleteUpload` (the Media Library's own manual delete) and `server/storageCleanup.ts` (the admin-confirmed orphaned-image sweep), so both go through the exact same on-disk + backup-mirroring behavior — and, via the hooks above, the same lazy-pinning check, regardless of which caller triggered the delete. */
 export function deleteUploadFiles(requestedFilename: string) {
   const safeName = basename(requestedFilename)
   const stem = stemOf(safeName)
+
+  // Run before anything is unlinked — a hook needs every file (original +
+  // variants) still present to actually pin a copy of them.
+  for (const hook of beforeUploadDeleteHooks) hook(safeName)
 
   for (const name of [
     safeName,
