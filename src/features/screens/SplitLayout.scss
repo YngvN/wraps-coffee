@@ -237,6 +237,19 @@
   transform-origin: center;
 }
 
+// A pane's own `customCss`/`customHtml` (see `src/utils/paneCustomContent.ts`) — this class carries no
+// styling of its own beyond keeping an admin-authored `img` from overflowing the pane; the allowlisted
+// properties an admin/the assistant can set are applied via the generated, scoped `<style>` tag
+// instead (see `LayoutPane.tsx`/`PaneVisual.tsx`).
+.split-layout__pane-custom-html {
+  max-width: 100%;
+
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
 // The admin editor's own click-feedback flash (see `screen.editingFocus`),
 // shown right on this pane on the actual live display — sits above the
 // background/content layers and the edit button alike (last in the DOM),

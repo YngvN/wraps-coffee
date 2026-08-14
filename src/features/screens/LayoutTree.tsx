@@ -17,6 +17,8 @@ const CORNER_ALIGN_EPSILON = 0.5
 
 interface LayoutTreeProps {
   node: LayoutNode
+  /** This screen's own id — threaded down to `LayoutPane`'s own default `data-pane-scope` (screen-qualified, since a `PaneId` is not actually globally unique across screens, e.g. "Duplicate screen" — see `LayoutPane.tsx`'s own doc comment). */
+  screenID: string
   /** This node's own path from the tree root — `[]` for the root itself. */
   path: NodePath
   /** This node's own current box, in the same 0-100 percentage space `computeLayoutGeometry` uses (`FULL_BOX` for the root) — lets this node convert `allDividers`' absolute screen-space positions into a ratio local to its own container (see `snapTargets` below), since a divider's live-drag position is always read relative to its own immediate container, not the whole screen. */
@@ -101,6 +103,7 @@ interface LayoutTreeProps {
  */
 export function LayoutTree({
   node,
+  screenID,
   path,
   box,
   root,
@@ -151,6 +154,7 @@ export function LayoutTree({
       <LayoutPane
         key={node.id}
         leafId={node.id}
+        screenID={screenID}
         slot={slot}
         stage={stage}
         transitionStyle={transitionStyle}
@@ -281,6 +285,7 @@ export function LayoutTree({
       )}
       <LayoutTree
         node={node.first}
+        screenID={screenID}
         path={[...path, 'first']}
         box={firstBox}
         root={root}
@@ -322,6 +327,7 @@ export function LayoutTree({
       />
       <LayoutTree
         node={node.second}
+        screenID={screenID}
         path={[...path, 'second']}
         box={secondBox}
         root={root}

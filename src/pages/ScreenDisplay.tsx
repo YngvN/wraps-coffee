@@ -68,7 +68,7 @@ import { resolveContentTextSizes, textSizesToCssVars } from '../utils/textSizeVa
 import './ScreenDisplay.scss'
 
 /** The fixed `KeepEditPrompt` change-summary for the pane-resize fallback prompt below — a divider drag only ever touches the arrangement's own shape/ratios, never a pane's content/text size/background. */
-const RESIZE_CHANGES: SlotEditChanges = { content: false, textSizes: false, backgroundColor: false, backgroundImage: false, language: false, layout: true, textColor: false }
+const RESIZE_CHANGES: SlotEditChanges = { content: false, textSizes: false, backgroundColor: false, backgroundImage: false, language: false, layout: true, textColor: false, customContent: false }
 
 /** Folds a stage's own live text-size draft into `slot`'s content timeline, at `stage` — used both when switching away from that stage (so its edits aren't lost) and when the whole editor closes. Only meaningful with more than one stage — with just one, editing "this pane" and editing "the slot's own shared size" are the same action (see `SlotEditor`'s own single-stage fallback), so this is a no-op. */
 function flushStageTextSizeIntoSlot(slot: ScreenSlot, stage: number, textSizes: TextSizes, hasMultipleStages: boolean): ScreenSlot {
@@ -496,7 +496,14 @@ export function ScreenDisplay() {
     setRedoStack([])
     setScreens(
       screens.map((existing) =>
-        existing.screenID === screen.screenID ? (liveEditing ? { ...existing, ...patch } : { ...existing, draft: { ...existing.draft, ...patch } }) : existing,
+        existing.screenID === screen.screenID
+          ? liveEditing
+            ? { ...existing, ...patch }
+            : // Stamped every write, not just the first, so `stagedBy.at` always reflects this session's
+              // own most recent edit — see `ScreenConfig.draft`'s own doc comment for why this matters
+              // (telling a human's own in-progress draft apart from one the assistant staged).
+              { ...existing, draft: { ...existing.draft, ...patch, stagedBy: { source: 'admin', at: new Date().toISOString() } } }
+          : existing,
       ),
     )
   }
@@ -993,6 +1000,7 @@ export function ScreenDisplay() {
     language: resolveSlotLanguage(originalSlot, activeStage) !== resolveSlotLanguage(draftSlot, activeStage),
     layout: false,
     textColor: resolveSlotTextColor(originalSlot, activeStage) !== resolveSlotTextColor(draftSlot, activeStage),
+    customContent: originalSlot.customCss !== draftSlot.customCss || originalSlot.customHtml !== draftSlot.customHtml || originalSlot.customHtmlPlacement !== draftSlot.customHtmlPlacement,
   })
 
   /**
@@ -1165,6 +1173,9 @@ export function ScreenDisplay() {
               <button type="button" className="screen-toolbar__button" onClick={handlePublish}>
                 {t('screenDisplay.publish')}
               </button>
+            )}
+            {screen.draft?.stagedBy?.source === 'assistant' && (
+              <span className="screen-toolbar__staged-note">{t('screenDisplay.stagedByAssistant', { date: new Date(screen.draft.stagedBy.at).toLocaleString() })}</span>
             )}
           </>
         )}

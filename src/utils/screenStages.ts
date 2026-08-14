@@ -136,3 +136,21 @@ export function isResizeToFitConflict(leaves: { id: PaneId; slot: ScreenSlot }[]
 export function isSlotActive(slot: ScreenSlot): boolean {
   return Object.values(slot.content).some((content) => content.kind !== 'none')
 }
+
+/**
+ * Writes `slot`'s own currently-resolved content (at `stage`) into every stage's own `content`
+ * checkpoint (1 through `stageCount`) — "pin this pane so it stops varying by stage," e.g. keeping a
+ * transit pane showing the same stop no matter what the rest of the screen rotates through. Shared by
+ * both `PaneEditor.tsx`'s own "Apply to every stage" control (the human-editor half of this capability)
+ * and the assistant's own `applyToAllStages` field (`server/assistant/entities/screenPane.ts`), so a
+ * human dragging this button and the assistant doing the same thing via chat can never produce subtly
+ * different results. Only `content` is propagated — `backgroundColor`/`backgroundImage`/`textSizes`/etc
+ * are untouched, matching this feature's own "the pane's content stays the same" framing, not "every
+ * one of the pane's own fields becomes stage-invariant."
+ */
+export function propagateSlotContentToAllStages(slot: ScreenSlot, stage: number, stageCount: number): ScreenSlot {
+  const resolvedContent = resolveSlotContent(slot, stage)
+  const content: StageTimeline<ScreenSlotContent> = {}
+  for (let s = 1; s <= stageCount; s++) content[s] = resolvedContent
+  return { ...slot, content }
+}

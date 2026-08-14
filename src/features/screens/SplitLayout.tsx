@@ -587,6 +587,7 @@ export function SplitLayout({
       {screenBackgroundLayer}
       <LayoutTree
         node={layoutTree}
+        screenID={screen.screenID}
         path={[]}
         box={FULL_BOX}
         root={tree}
@@ -634,6 +635,7 @@ export function SplitLayout({
           <ExitingPaneGhost
             key={leafId}
             leafId={leafId}
+            screenID={screen.screenID}
             rect={rect}
             growth={growth}
             slot={slot}

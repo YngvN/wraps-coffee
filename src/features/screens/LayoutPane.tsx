@@ -2,13 +2,13 @@ import { motion } from 'framer-motion'
 import { useRef, useState, type CSSProperties, type DragEvent } from 'react'
 import { useCrossfadeSlot } from '../../hooks/useCrossfadeSlot'
 import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
+import { usePaneCustomContent } from '../../hooks/usePaneCustomContent'
 import { useShrinkToFitFontScale } from '../../hooks/useShrinkToFitFontScale'
 import { useShrinkToFitScale } from '../../hooks/useShrinkToFitScale'
 import { useLanguage, type LanguageCode } from '../../i18n'
 import type { BackgroundImage, BackgroundImageOverlay, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SlideTransitionDirection, SplitDirection, TextSizes } from '../../types/screen'
 import { backgroundImageTextStyle, getScreenColorVars, slotBackgroundColorStyle, slotTextColorStyle } from '../../utils/screenColors'
 import type { PaneGrowthOrigin } from '../../utils/paneGrowth'
-import { getBackgroundImageUrl } from '../../utils/responsiveImage'
 import { resolveContentBackgroundImage } from '../../utils/screenSlots'
 import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage, resolveSlotOverflowMode, resolveSlotTextColor } from '../../utils/screenStages'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
@@ -16,15 +16,16 @@ import { collapsedClipPath, FULL_REVEAL_CLIP_PATH, PANE_GROWTH_DURATION_SECONDS,
 import { PaneClearButton } from './PaneClearButton'
 import { PaneDeleteButton } from './PaneDeleteButton'
 import { PaneEditButton } from './PaneEditButton'
-import { PaneLanguageScope } from './PaneLanguageScope'
 import { PaneLockButton } from './PaneLockButton'
 import { PaneSelectCheckbox } from './PaneSelectCheckbox'
 import { PaneSplitZones } from './PaneSplitZones'
-import { SlotContent } from './SlotContent'
+import { PaneVisual } from './PaneVisual'
 import { resolveTransitionVariants } from './transitions'
 
 interface LayoutPaneProps {
   leafId: PaneId
+  /** This screen's own id — see `LayoutTree.tsx`'s own prop of the same name for why this is threaded all the way down here. */
+  screenID: string
   slot: ScreenSlot
   stage: number
   transitionStyle: ScreenConfig['transitionStyle']
@@ -111,6 +112,7 @@ interface PaneContentSnapshot {
  */
 export function LayoutPane({
   leafId,
+  screenID,
   slot,
   stage,
   transitionStyle,
@@ -143,6 +145,19 @@ export function LayoutPane({
 }: LayoutPaneProps) {
   const { t } = useLanguage()
   const [dragDepth, setDragDepth] = useState(0)
+  /**
+   * Screen-qualified by default (not the bare `leafId`) — confirmed a `PaneId` is not actually
+   * globally unique in this app: "Duplicate screen" deep-clones a whole screen's `layout`/`paneSlots`,
+   * deliberately preserving the exact same `PaneId`s across the original and the copy, and
+   * `ScreenCard.tsx`'s own grid can live-render more than one screen's panes at once (any screen
+   * without a captured preview yet) — a bare `paneId` scope would leak `customCss` across two
+   * duplicated screens' identically-numbered panes shown together. This is LayoutPane's own single
+   * real-pane render, so it always uses this default; only a caller mounting more than one instance of
+   * the *same* real pane at once (the assistant's own before/after preview, a multi-stage candidate
+   * list) ever needs to pass something else into `PaneVisual` directly.
+   */
+  const scopeId = `${screenID}:${leafId}`
+  const scopedCss = usePaneCustomContent(scopeId, slot.customCss)
   /** True for both of `contentPhase`'s non-idle values — this pane's own content/background stays forced into its hidden/exit state for the whole "old content exiting, then borders moving" stretch of the stage-transition sequence, only actually revealing once the caller settles back to `'idle'`. */
   const suppressEnter = contentPhase !== 'idle'
 
@@ -326,7 +341,16 @@ export function LayoutPane({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      data-pane-id={leafId}
     >
+      {/*
+        Exactly one `<style>` for this pane's own `customCss`, here at the outer level — not one per
+        crossfade slot below, since both slots (when two are simultaneously mounted mid-transition)
+        always share the same `scopeId` and the same `customCss` (a single value across every stage,
+        see `ScreenSlot.customCss`'s own doc comment) — a second identical `<style>` tag would be pure
+        waste. See `PaneVisual.tsx`'s own doc comment for the fuller reasoning.
+      */}
+      {scopedCss && <style>{scopedCss}</style>}
       {dragDepth > 0 && (
         <div className="split-layout__pane-drop-overlay">
           <p>{t('screenDisplay.dropImageHint')}</p>
@@ -334,11 +358,12 @@ export function LayoutPane({
       )}
       {contentSlots.map((snapshot, slotIndex) => {
         if (!snapshot) return null
-        const slotBlur = snapshot.backgroundImage?.blur ?? true
         return (
-          <motion.div
+          <PaneVisual
             key={slotIndex}
-            ref={slotIndex === 0 ? contentOuterRef0 : contentOuterRef1}
+            scopeId={scopeId}
+            outerRef={slotIndex === 0 ? contentOuterRef0 : contentOuterRef1}
+            contentInnerRef={slotIndex === 0 ? contentInnerRef0 : contentInnerRef1}
             className={`split-layout__pane-content${overflowMode === 'scroll' ? ' split-layout__pane-content--scroll' : ''}`}
             // This slot's own frozen backdrop, painted here rather than on the
             // pane so it travels with the content it belongs to. `color` has to
@@ -356,42 +381,25 @@ export function LayoutPane({
               ...(snapshot.backgroundColor ? { color: 'var(--screen-text)' } : {}),
               ...slotTextColorStyle(snapshot.textColor),
             }}
-            variants={variants}
-            initial="initial"
-            animate={!suppressEnter && activeContentSlot === slotIndex ? 'animate' : 'exit'}
-            transition={!suppressEnter && activeContentSlot === slotIndex ? enterTransition : exitTransition}
-          >
-            {/*
-              Inside the slot, and before the content, so it both travels with
-              this checkpoint and keeps painting *over* this slot's own
-              background color — the same order the pane-level version had.
-              (Everything here is `z-index: auto`, so paint order is DOM
-              order; a background color painted on the slot with the image
-              still outside it would have covered the image entirely.)
-              No `AnimatePresence` any more: the slot's own enter/exit is what
-              animates this now, which is what that wrapper was emulating.
-            */}
-            {snapshot.backgroundImage && (
-              <div className="split-layout__pane-bg">
-                <div
-                  className="split-layout__pane-bg-image"
-                  style={{ backgroundImage: `url(${getBackgroundImageUrl(snapshot.backgroundImage.imageUrl, slotBlur)})`, filter: slotBlur ? 'blur(4px)' : 'none' }}
-                />
-                {snapshot.backgroundImage.overlay !== 'none' && (
-                  <div className={`split-layout__pane-bg-overlay split-layout__pane-bg-overlay--${snapshot.backgroundImage.overlay}`} />
-                )}
-              </div>
-            )}
-            <div
-              className="split-layout__pane-content-inner"
-              ref={slotIndex === 0 ? contentInnerRef0 : contentInnerRef1}
-              style={snapshot.content.padding !== undefined ? ({ '--pane-padding': `${snapshot.content.padding}cqmin` } as CSSProperties) : undefined}
-            >
-              <PaneLanguageScope language={snapshot.language}>
-                <SlotContent slot={snapshot.content} newsSlots={newsSlots} stageTick={stageTick} stage={stage} onRequestStageAdvance={onRequestStageAdvance} captureMode={captureMode} />
-              </PaneLanguageScope>
-            </div>
-          </motion.div>
+            motionProps={{
+              variants,
+              initial: 'initial',
+              animate: !suppressEnter && activeContentSlot === slotIndex ? 'animate' : 'exit',
+              transition: !suppressEnter && activeContentSlot === slotIndex ? enterTransition : exitTransition,
+            }}
+            content={snapshot.content}
+            backgroundImage={snapshot.backgroundImage}
+            overlay={snapshot.overlay}
+            language={snapshot.language}
+            paddingCqmin={snapshot.content.padding}
+            customHtml={slot.customHtml}
+            customHtmlPlacement={slot.customHtmlPlacement}
+            newsSlots={newsSlots}
+            stageTick={stageTick}
+            stage={stage}
+            onRequestStageAdvance={onRequestStageAdvance}
+            captureMode={captureMode}
+          />
         )
       })}
       {/*

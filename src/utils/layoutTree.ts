@@ -50,6 +50,13 @@ export function cloneSlot(slot: ScreenSlot): ScreenSlot {
     ...(slot.language ? { language: { ...slot.language } } : {}),
     ...(slot.overflowMode ? { overflowMode: { ...slot.overflowMode } } : {}),
     ...(slot.textColor ? { textColor: { ...slot.textColor } } : {}),
+    // Plain strings, not StageTimelines (see ScreenSlot's own doc comment) — carried over as-is,
+    // no per-stage spreading needed.
+    ...(slot.customCss !== undefined ? { customCss: slot.customCss } : {}),
+    ...(slot.customHtml !== undefined ? { customHtml: slot.customHtml } : {}),
+    ...(slot.customHtmlPlacement !== undefined ? { customHtmlPlacement: slot.customHtmlPlacement } : {}),
+    ...(slot.customCssPolicyVersion !== undefined ? { customCssPolicyVersion: slot.customCssPolicyVersion } : {}),
+    ...(slot.customHtmlPolicyVersion !== undefined ? { customHtmlPolicyVersion: slot.customHtmlPolicyVersion } : {}),
   }
 }
 

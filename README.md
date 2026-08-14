@@ -72,6 +72,8 @@ Runs alongside an optional local server (`server/`) — a small Node/WebSocket p
 - **[bonjour-service](https://github.com/onlxltd/bonjour-service)** — advertises a friendly `<name>.local` mDNS hostname for this machine (Settings → Advanced's "Auto .local name" screen-address mode, the default screen-address mode).
 - **[simple-icons](https://simpleicons.org/)** — CC0-licensed official brand SVG marks, used for the real logos shown in the Integrations page's "Coming soon" integrations directory.
 - **[html-to-image](https://github.com/bubkoo/html-to-image)** — captures a static screenshot of a screen's own off-screen-rendered layout (`src/features/screens/screenPreviewCapture.ts`) for the admin Screens grid's card thumbnails, instead of every card independently live-rendering its own clocks/polling/video playback at once (`src/features/admin/screens/ScreenCard.tsx`).
+- **[stylis](https://stylis.js.org/)** — DOM-free CSS parsing/scoping for a pane's own custom CSS (`src/utils/paneCustomCss.ts`): validates declarations against an allowlist and scopes the result to that one pane, safe to run in the kiosk display's own render path.
+- **[sanitize-html](https://github.com/apostrophecms/sanitize-html)** — HTML sanitization for a pane's own custom HTML (`src/utils/paneCustomHtml.ts`): strips anything outside a small allowed-tag/attribute list before it's ever rendered, admin- and assistant-facing postures both going through the same allowlist.
 
 ## Getting started
 

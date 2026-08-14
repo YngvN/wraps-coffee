@@ -5,6 +5,7 @@ import { hasOwnTextSizeFields } from '../../utils/screenSlots'
 import { BackgroundColorPicker } from './BackgroundColorPicker'
 import { BackgroundImagePicker } from './BackgroundImagePicker'
 import './PaneEditor.scss'
+import { PaneCustomContentFields } from './PaneCustomContentFields'
 import { PaneLanguagePicker } from './PaneLanguagePicker'
 import { SlideFields } from './SlideFields'
 import { StageTabs } from './StageTabs'
@@ -37,6 +38,14 @@ interface PaneEditorProps {
   stageCount: number
   activeStage: number
   onActiveStageChange: (stage: number) => void
+  customCss: string | undefined
+  onCustomCssChange: (css: string | undefined) => void
+  customHtml: string | undefined
+  onCustomHtmlChange: (html: string | undefined) => void
+  customHtmlPlacement: 'before' | 'after' | undefined
+  onCustomHtmlPlacementChange: (placement: 'before' | 'after') => void
+  /** Writes this pane's own currently-resolved content into every stage's own checkpoint — see `propagateSlotContentToAllStages`'s own doc comment. Only shown (alongside `StageTabs`) while `useStages && stageCount > 1`. */
+  onApplyContentToEveryStage: () => void
   /** Accessible label for the content-kind selector. */
   label: string
   resizeToFitBlocked?: boolean
@@ -97,6 +106,13 @@ export function PaneEditor({
   stageCount,
   activeStage,
   onActiveStageChange,
+  customCss,
+  onCustomCssChange,
+  customHtml,
+  onCustomHtmlChange,
+  customHtmlPlacement,
+  onCustomHtmlPlacementChange,
+  onApplyContentToEveryStage,
   label,
   resizeToFitBlocked,
   suggestedEventOrdinal,
@@ -109,7 +125,14 @@ export function PaneEditor({
 
   return (
     <div className="pane-editor">
-      {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={activeStage} onActiveStageChange={onActiveStageChange} />}
+      {hasMultipleStages && (
+        <div className="pane-editor__stage-row">
+          <StageTabs stageCount={stageCount} activeStage={activeStage} onActiveStageChange={onActiveStageChange} />
+          <Button type="button" variant="secondary" onClick={onApplyContentToEveryStage}>
+            {t('admin.screens.applyToEveryStageButton')}
+          </Button>
+        </div>
+      )}
 
       <SlideFields id={id} content={content} onChange={onContentChange} label={label} resizeToFitBlocked={resizeToFitBlocked} suggestedEventOrdinal={suggestedEventOrdinal} />
 
@@ -156,6 +179,15 @@ export function PaneEditor({
       <CollapsibleSection label={t('admin.screens.languageLabel')}>
         <PaneLanguagePicker language={language} onChange={onLanguageChange} defaultLanguage={defaultLanguage} />
       </CollapsibleSection>
+
+      <PaneCustomContentFields
+        customCss={customCss}
+        onCustomCssChange={onCustomCssChange}
+        customHtml={customHtml}
+        onCustomHtmlChange={onCustomHtmlChange}
+        customHtmlPlacement={customHtmlPlacement}
+        onCustomHtmlPlacementChange={onCustomHtmlPlacementChange}
+      />
 
       {(onClearPane || onDeletePane) && (
         <div className="pane-editor__pane-section">

@@ -9,6 +9,8 @@ import { LayoutPane } from './LayoutPane'
 
 interface ExitingPaneGhostProps {
   leafId: PaneId
+  /** Threaded straight through to the wrapped `LayoutPane`. See `LayoutTree`'s own prop of the same name. */
+  screenID: string
   /** This leaf's own last-known rect (0-100 space, relative to `.split-layout`'s own outer box) — captured from the tree it was last part of, since its own grid cell (and possibly that cell's whole ancestor chain) may no longer exist in the current tree at all. */
   rect: Rect
   growth: PaneGrowthOrigin
@@ -46,6 +48,7 @@ interface ExitingPaneGhostProps {
  */
 export function ExitingPaneGhost({
   leafId,
+  screenID,
   rect,
   growth,
   slot,
@@ -76,6 +79,7 @@ export function ExitingPaneGhost({
     >
       <LayoutPane
         leafId={leafId}
+        screenID={screenID}
         slot={slot}
         stage={stage}
         transitionStyle={transitionStyle}

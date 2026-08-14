@@ -397,6 +397,12 @@ export const DEFAULT_PANE_PADDING = 10
 /** Largest value the Padding slider can be dragged up to. */
 export const MAX_PANE_PADDING = 25
 
+/** Hard cap on a pane's own `customCss`, enforced client-side (live counter, blocks Save past it) and server-side (the real gate — see `src/utils/paneCustomContent.ts`). Generous enough for real styling, small enough to keep a screen's own JSON payload bounded across several panes at once. */
+export const MAX_PANE_CUSTOM_CSS_LENGTH = 4000
+
+/** Same purpose as `MAX_PANE_CUSTOM_CSS_LENGTH`, for a pane's own `customHtml`. */
+export const MAX_PANE_CUSTOM_HTML_LENGTH = 4000
+
 /**
  * A sparse per-stage "checkpoint" map for one field's value — only stages
  * where an explicit value was set have an entry. A field's effective value
@@ -451,6 +457,47 @@ export interface ScreenSlot {
   overflowMode?: StageTimeline<'shrink' | 'scroll' | undefined>
   /** This slot's own text color (hex, from the store's active appearance theme) timeline, overriding the automatic contrast-computed default (see `getScreenColorVars`) at a given stage. Optional (like `language`) since it's a newer field — a slot with none set at all uses the automatic color everywhere. An entry's value may itself be `undefined` (explicitly "use the automatic color" at that stage), distinct from no entry at all (inherit from an earlier stage's own override). */
   textColor?: StageTimeline<string | undefined>
+  /**
+   * Admin/AI-authored CSS applied to this pane's own content box (see
+   * `src/utils/paneCustomContent.ts`'s `scopePaneCustomCss`) — a single
+   * value across every stage, deliberately **not** a `StageTimeline` like
+   * every other field here (see `src/utils/paneCustomContent.ts`'s own
+   * module doc comment for why). Validated/sanitized once at write time
+   * against an explicit property allowlist (stricter for the assistant than
+   * the admin) — the render path trusts this string as already clean and
+   * never re-validates it. Optional — a slot with none set renders no
+   * `<style>` at all.
+   */
+  customCss?: string
+  /**
+   * Admin/AI-authored HTML, sanitized to a small rich-text tag subset (see
+   * `src/utils/paneCustomContent.ts`) — same "single value across every
+   * stage" posture as `customCss`. Rendered as a sibling of this pane's
+   * normal content (`SlotContent`), positioned by `customHtmlPlacement`,
+   * never merged into it — see `LayoutPane.tsx`/`PaneVisual.tsx`. Unlike
+   * every other admin-authored text field in this app, this is **not**
+   * translated per-language — same posture as the `'announcement'` content
+   * kind's own `title`/`description`, see that kind's own doc comment.
+   */
+  customHtml?: string
+  /** Whether `customHtml` renders before or after this pane's normal content, inside the same content box. Falls back to `'after'` when unset. Irrelevant while `customHtml` itself is unset. */
+  customHtmlPlacement?: 'before' | 'after'
+  /**
+   * Which version of the CSS property allowlist `customCss` was validated
+   * against at write time — bumped (see `PANE_CUSTOM_CSS_POLICY_VERSION` in
+   * `src/utils/paneCustomContent.ts`) whenever that allowlist changes.
+   * `customCss` itself is never blocked from rendering just because this is
+   * older than the current version (that would break existing screens on a
+   * routine app update) — a stale version is instead surfaced as a
+   * "written under an older ruleset" warning in the editor, and gets a real
+   * revalidation pass (stripping the field on failure, never aborting the
+   * whole operation) during backup/snapshot restore and zip import. Absent
+   * entirely on a pane saved before this versioning existed — treated the
+   * same as "version 0", always older than current.
+   */
+  customCssPolicyVersion?: number
+  /** Same purpose as `customCssPolicyVersion`, for `customHtml`'s own tag/attribute allowlist. */
+  customHtmlPolicyVersion?: number
 }
 
 /** How a screen's panes are arranged along their split axis: side by side, or stacked. */
@@ -658,9 +705,27 @@ export interface ScreenConfig {
    * `DraftableScreenFields`, invisible to every other viewer (including a
    * *different* editable viewer who still has Live editing on) until
    * "Publish" merges it onto this screen's own top-level fields and clears
-   * it back to `undefined`. Absent means no pending draft.
+   * it back to `undefined`. Absent means no pending draft. Also the
+   * destination for a confirmed assistant `screenPane` content-kind change
+   * (see `server/assistant/entities/screenPane.ts`) — `draft` is one single
+   * field, not per-author, so `stagedBy` (below) is what lets the UI tell a
+   * human's own in-progress edit apart from one the assistant just staged.
    */
-  draft?: Partial<DraftableScreenFields>
+  draft?: Partial<DraftableScreenFields> & {
+    /**
+     * Who most recently staged the content currently sitting in `draft` — `'admin'` for a human's own
+     * `ScreenDisplay` "Live editing" off session, `'assistant'` for a confirmed `screenPane` chat
+     * commit. `ScreenDisplay.tsx`'s own draft UI surfaces "staged by the assistant on [date]" when this
+     * isn't the viewing admin's own session-local draft; `AssistantPanel.tsx`'s own `saveScreenPane`
+     * only hard-blocks a second staged commit when this is `'admin'` (a human's real in-progress work)
+     * — a second assistant-staged change merges into the existing assistant-authored draft instead of
+     * being refused. Absent on a draft written before this field existed — treated as `'admin'` (the
+     * more conservative assumption, since blocking a same-source merge is a false-negative annoyance,
+     * while silently overwriting a human's real unpublished work is the outcome actually worth
+     * avoiding).
+     */
+    stagedBy?: { source: 'admin' | 'assistant'; at: string }
+  }
 }
 
 /** A named, reusable set of text sizes, saved from one screen's editor and applicable to any screen. */

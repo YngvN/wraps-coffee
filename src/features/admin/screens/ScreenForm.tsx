@@ -31,6 +31,7 @@ import { cloneSlot, createLeaf, deleteLeaf, emptySlot, listLeaves, splitLeaf } f
 import { hasOwnTextSizeFields, resolveContentBackgroundImage } from '../../../utils/screenSlots'
 import {
   isResizeToFitConflict,
+  propagateSlotContentToAllStages,
   resolveSlotBackgroundColor,
   resolveSlotBackgroundImage,
   resolveSlotContent,
@@ -204,6 +205,13 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
           stageCount={stageCount}
           activeStage={clampedActiveStage}
           onActiveStageChange={handleActiveStageChange}
+          customCss={activeSlot.customCss}
+          onCustomCssChange={handleCustomCssChange}
+          customHtml={activeSlot.customHtml}
+          onCustomHtmlChange={handleCustomHtmlChange}
+          customHtmlPlacement={activeSlot.customHtmlPlacement}
+          onCustomHtmlPlacementChange={handleCustomHtmlPlacementChange}
+          onApplyContentToEveryStage={handleApplyContentToEveryStage}
           label={hasMultipleStages ? t('screenDisplay.textSizeEditor.stageTabLabel', { number: clampedActiveStage }) : t('admin.screens.paneLabel', { number: paneIndex + 1 })}
           resizeToFitBlocked={isResizeToFitConflict(
             leaves.map((leaf) => ({ id: leaf.id, slot: draft.paneSlots[leaf.id] })),
@@ -455,6 +463,15 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
 
   /** Changes the active pane's own language override at the currently active stage — `undefined` resets it back to the cafe's own Standard pane language. Same local-draft-only shape as `handleContentChange`. */
   const handleLanguageChange = (language: LanguageCode | undefined) => updateActiveSlot((slot) => ({ ...slot, language: writeStageCheckpoint(slot.language, clampedActiveStage, language) }))
+
+  // `customCss`/`customHtml`/`customHtmlPlacement` are single values across every stage (not
+  // `StageTimeline`s, see `ScreenSlot`'s own doc comment) — no `writeStageCheckpoint` needed, unlike
+  // every handler above.
+  const handleCustomCssChange = (css: string | undefined) => updateActiveSlot((slot) => ({ ...slot, customCss: css }))
+  const handleCustomHtmlChange = (html: string | undefined) => updateActiveSlot((slot) => ({ ...slot, customHtml: html }))
+  const handleCustomHtmlPlacementChange = (placement: 'before' | 'after') => updateActiveSlot((slot) => ({ ...slot, customHtmlPlacement: placement }))
+  /** "Apply to every stage" — pins the active pane's own currently-resolved content into every stage's own checkpoint, see `propagateSlotContentToAllStages`'s own doc comment. */
+  const handleApplyContentToEveryStage = () => updateActiveSlot((slot) => propagateSlotContentToAllStages(slot, clampedActiveStage, stageCount))
 
   /**
    * Writes the active tab's text-size change into this form's own local

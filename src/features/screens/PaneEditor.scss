@@ -11,6 +11,14 @@
   min-width: 0;
 }
 
+.pane-editor__stage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit;
+  flex-wrap: wrap;
+}
+
 // Matches `.background-color-picker`'s own label styling immediately above
 // it, so the two read as a matched pair of field labels.
 .pane-editor__label {

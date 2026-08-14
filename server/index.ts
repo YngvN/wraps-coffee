@@ -5,12 +5,14 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import type { DisplayMachine, DisplayMonitor, DisplayPairingRequest, DisplayScreenOverride, DisplayUpdateProgress } from '../src/types/displayMachine'
 import type { OrderRecord, OrderStatus } from '../src/types/order'
 import type { Product } from '../src/types/product'
-import type { ScreenConfig } from '../src/types/screen'
+import type { PaneId, ScreenConfig, ScreenSlot } from '../src/types/screen'
 import type { ScreenAddressSettings } from '../src/types/screenAddress'
 import type { WindowLaunchSettings } from '../src/types/windowLaunch'
 import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
 import { logProductNameFoldedCollisions, withRecomputedNameFolded } from '../src/lib/productNameFold'
+import { PANE_CUSTOM_CSS_POLICY_VERSION, validatePaneCustomCss } from '../src/utils/paneCustomCss'
+import { PANE_CUSTOM_HTML_POLICY_VERSION, sanitizePaneCustomHtml, validatePaneCustomHtml } from '../src/utils/paneCustomHtml'
 import { sanitizeDisplayName } from '../src/utils/sanitizeDisplayName'
 import * as assistantSteps from './assistant/steps'
 import type { LookupQueryFilterInput } from './assistant/lookupQuery'
@@ -1409,7 +1411,26 @@ const httpServer = createServer((req, res) => {
     res.on('close', () => { if (!res.writableEnded) abortController.abort() })
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields, model, history, historyContext, provider, localModel, localVisionModel, posture, conversationId, turnVersion } = body as {
+        const {
+          entity,
+          action,
+          itemID,
+          message,
+          uiLanguage,
+          priorDraft,
+          image,
+          resolvedFields,
+          model,
+          history,
+          historyContext,
+          provider,
+          localModel,
+          localVisionModel,
+          posture,
+          conversationId,
+          turnVersion,
+          allowPaneContentEditing,
+        } = body as {
           entity?: string
           action?: AssistantActionName
           itemID?: string
@@ -1427,6 +1448,7 @@ const httpServer = createServer((req, res) => {
           posture?: assistantSteps.AssistantIngestionPosture
           conversationId?: string
           turnVersion?: number
+          allowPaneContentEditing?: boolean
         }
         if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, action, message, or uiLanguage' })
@@ -1451,6 +1473,7 @@ const httpServer = createServer((req, res) => {
                 historyContext: typeof historyContext === 'string' ? historyContext : undefined,
                 conversationId: typeof conversationId === 'string' ? conversationId : undefined,
                 signal: abortController.signal,
+                allowPaneContentEditing: typeof allowPaneContentEditing === 'boolean' ? allowPaneContentEditing : undefined,
               }),
               typeof turnVersion === 'number' ? turnVersion : undefined,
             ),
@@ -2439,6 +2462,64 @@ function pushEffectiveScreen(machineID: string) {
   pushToDevice(machineID, { type: 'effective-screen', screenId: resolveEffectiveScreen(machineID) })
 }
 
+/** Validates/sanitizes one pane's own `customCss`/`customHtml` (against the *admin* posture — see `applyUpdate`'s own `admin.screens` branch for why) in place, returning a new slot only if something needed stripping, else the exact same object reference (so an unaffected pane never gets a needless new identity). */
+function sanitizeIncomingSlotCustomContent(slot: ScreenSlot, screenID: string, paneId: PaneId): ScreenSlot {
+  let next = slot
+  if (slot.customCss !== undefined) {
+    if (validatePaneCustomCss(slot.customCss, 'admin').length > 0) {
+      console.warn(`[screens] stripped invalid customCss on screen ${screenID} pane ${paneId}`)
+      next = { ...next, customCss: undefined, customCssPolicyVersion: undefined }
+    } else if (slot.customCssPolicyVersion !== PANE_CUSTOM_CSS_POLICY_VERSION) {
+      next = { ...next, customCssPolicyVersion: PANE_CUSTOM_CSS_POLICY_VERSION }
+    }
+  }
+  if (slot.customHtml !== undefined) {
+    if (validatePaneCustomHtml(slot.customHtml, 'admin').length > 0) {
+      console.warn(`[screens] stripped invalid customHtml on screen ${screenID} pane ${paneId}`)
+      next = { ...next, customHtml: undefined, customHtmlPolicyVersion: undefined }
+    } else {
+      // Re-sanitized (not just validated) so whatever's actually persisted is always the canonical
+      // normalized form (forced `rel`, host-stripped own-upload `img.src` — see
+      // `sanitizePaneCustomHtml`'s own doc comment) regardless of what a given write path sent,
+      // rather than only ever trusting the client to have already done this itself.
+      const sanitized = sanitizePaneCustomHtml(slot.customHtml, 'admin')
+      if (sanitized !== next.customHtml || next.customHtmlPolicyVersion !== PANE_CUSTOM_HTML_POLICY_VERSION) {
+        next = { ...next, customHtml: sanitized, customHtmlPolicyVersion: PANE_CUSTOM_HTML_POLICY_VERSION }
+      }
+    }
+  }
+  return next
+}
+
+function sanitizePaneSlotsRecord(paneSlots: Record<PaneId, ScreenSlot> | undefined, screenID: string): Record<PaneId, ScreenSlot> | undefined {
+  if (!paneSlots) return paneSlots
+  let changed = false
+  const next: Record<PaneId, ScreenSlot> = {}
+  for (const [paneId, slot] of Object.entries(paneSlots)) {
+    const sanitized = sanitizeIncomingSlotCustomContent(slot, screenID, paneId)
+    if (sanitized !== slot) changed = true
+    next[paneId] = sanitized
+  }
+  return changed ? next : paneSlots
+}
+
+/** The real server-side gate for `ScreenSlot.customCss`/`customHtml` — see `applyUpdate`'s own `admin.screens` branch. Covers both a screen's live `paneSlots` and its own unpublished `draft.paneSlots` (a staged edit still eventually gets published, so it needs the same gate). */
+function sanitizeIncomingScreensCustomContent(screens: ScreenConfig[]): ScreenConfig[] {
+  let anyChanged = false
+  const result = screens.map((screen) => {
+    const sanitizedPaneSlots = sanitizePaneSlotsRecord(screen.paneSlots, screen.screenID)
+    const sanitizedDraftPaneSlots = screen.draft ? sanitizePaneSlotsRecord(screen.draft.paneSlots, screen.screenID) : undefined
+    if (sanitizedPaneSlots === screen.paneSlots && sanitizedDraftPaneSlots === screen.draft?.paneSlots) return screen
+    anyChanged = true
+    return {
+      ...screen,
+      paneSlots: sanitizedPaneSlots ?? screen.paneSlots,
+      ...(screen.draft ? { draft: { ...screen.draft, paneSlots: sanitizedDraftPaneSlots } } : {}),
+    }
+  })
+  return anyChanged ? result : screens
+}
+
 /**
  * Persists a synced-key write and broadcasts it to every interested LAN client — the one path both a
  * client's own WS `write` and the Neon bridge's own pulls go through, so neither has to duplicate the
@@ -2475,6 +2556,21 @@ function applyUpdate(key: SyncedKey, value: unknown) {
     const recomputed = withRecomputedNameFolded(value as Product[])
     value = recomputed
     logProductNameFoldedCollisions(recomputed)
+  }
+  if (key === 'admin.screens') {
+    // The real server-side gate for `customCss`/`customHtml` (see `src/utils/paneCustomContent.ts`)
+    // — the live editors already validate client-side before allowing Save, but nothing enforces
+    // those constants server-side otherwise, so a direct WS write bypassing the UI must still be
+    // caught here. Always validated against the *admin* posture regardless of whether this write
+    // actually originated from a human or from a confirmed assistant draft (the assistant's own,
+    // narrower posture is already enforced earlier, in `screenPane.validate()`, before the admin ever
+    // sees a draft to confirm — by the time any write reaches this generic path there's no reliable
+    // way to tell the two apart, and admin-authored content must never be rejected by its own gate).
+    // Never aborts the whole write over one bad field — strips just that field (matching this
+    // module's own restore-time posture) and logs a warning, since dropping the *entire* incoming
+    // `admin.screens` write here (as the `limited`-role section check above does) would also silently
+    // discard every *other*, unrelated, perfectly valid edit bundled into the same write.
+    value = sanitizeIncomingScreensCustomContent(value as ScreenConfig[])
   }
 
   // Machines whose effective screen this write changes, split by which of the two ways it changes —
