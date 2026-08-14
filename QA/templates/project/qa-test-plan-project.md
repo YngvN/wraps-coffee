@@ -67,7 +67,7 @@ The standing fixture is **`AutoDeler`** (a car-parts catalogue: Dekk/Bremser/Mot
 | `orders` | `server/assistant/entities/orders.qa-scenarios.md` | Order status changes (website/Wolt/Foodora) |
 | `screenPane` | `server/assistant/entities/screenPane.qa-scenarios.md` | Per-pane custom CSS/HTML (both postures) + full-parity pane content editing (gated by the kebab-menu toggle + posture) |
 
-**As of 2026-08-04, none of the first six files have ever been exercised in an actual QA cycle** — all six entities (and the `contactInfo` flag) shipped the same day their scenario banks were written. Don't read their presence here as "already verified." `screenPane` (added 2026-08-14) has had a partial pass already — see that file's own header for which scenario IDs and which findings.
+**As of 2026-08-04, none of the first six files have ever been exercised in an actual QA cycle** — all six entities (and the `contactInfo` flag) shipped the same day their scenario banks were written. Don't read their presence here as "already verified." `screenPane` (added 2026-08-14) has had a full pass (all 19 scenarios) as of the same day — see that file's own header for findings, including one shared-hook fix (`useScreens.ts`'s `normalizeSlot`) that affects the human admin editors too, not just this entity.
 
 ## Section E: Concurrent-turn safety (standing scenario bank)
 

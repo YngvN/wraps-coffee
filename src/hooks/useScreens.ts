@@ -161,6 +161,18 @@ function normalizeSlot(value: unknown, legacyTextSizes: TextSizes | undefined, c
         ) as ScreenSlot['textSizes'])
       : {}
     return {
+      // Spread first, then override only the fields this branch actually processes — every other
+      // field on a current-shape slot (`groupId`, `textColor`, `customCss`, `customHtml`,
+      // `customHtmlPlacement`, `customCssPolicyVersion`, `customHtmlPolicyVersion`, and whatever gets
+      // added next) passes through unchanged instead of needing its own explicit line here. This used
+      // to reconstruct the return value from an explicit field list that predated several of those
+      // fields, which silently dropped every one of them on every normalization pass (this hook's own
+      // `useMemo` re-runs it on every `screens` array change, client-wide) — confirmed via real testing:
+      // an assistant-confirmed `customCss`/`customHtml` write would vanish from the client's own
+      // in-memory state the moment *anything* else touched `admin.screens`, and a subsequent save from
+      // that stale state (e.g. `AssistantPanel.tsx`'s own `saveScreenPane`) would then persist the loss
+      // back to the server, permanently erasing a still-valid, already-confirmed custom CSS/HTML value.
+      ...value,
       content,
       backgroundColor: value.backgroundColor ?? {},
       backgroundImage: value.backgroundImage ?? {},

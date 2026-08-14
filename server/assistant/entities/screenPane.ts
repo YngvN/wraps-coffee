@@ -323,30 +323,44 @@ function normalizeForMatch(text: string): string {
 }
 
 /**
- * Contiguous substring match on normalized text, not a single literal substring and not independent
- * per-word presence — unlike `product.ts`/`category.ts`'s own `listCandidates` (proper-noun labels a
- * message is expected to quote near-verbatim), a pane has no real name; the model's own `searchText`
- * for one is a paraphrase of this file's own generated label format ("Screen 2 — Pane 1 (catalogue)"),
- * and real testing against qwen3:4b confirmed it reliably writes something like "Screen 2, Pane 1" — a
- * reasonable phrasing that a strict `.includes(needle)` substring check rejects outright (comma vs. em
- * dash), returning zero candidates before `selectItem` (`steps.ts`) ever gets a chance to semantically
- * disambiguate.
+ * Chunk-wise contiguous substring match, not a single whole-needle contiguous match and not
+ * independent per-word presence — unlike `product.ts`/`category.ts`'s own `listCandidates`
+ * (proper-noun labels a message is expected to quote near-verbatim), a pane has no real name; the
+ * model's own `searchText` for one is a paraphrase of this file's own generated label format
+ * ("Screen 2 — Pane 1 (catalogue)"), and real testing against qwen3:4b confirmed it reliably writes
+ * something like "Screen 2, Pane 1" — a reasonable phrasing that a strict `.includes(needle)` substring
+ * check rejects outright (comma vs. em dash), returning zero candidates before `selectItem`
+ * (`steps.ts`) ever gets a chance to semantically disambiguate.
  *
- * An earlier version of this function matched each word independently (`words.every(w =>
- * label.includes(w))`), which over-corrected: for needle "screen 2, pane 1" it also matched labels like
- * "Screen 3 (verify) — Pane 1 (none), Stage 2" purely because "screen"/"pane"/"1"/"2" each appear
- * *somewhere* in that unrelated label (the "2" coming from its own "Stage 2" suffix) — confirmed via a
- * direct `listCandidates` call against real seed data, which returned 4 candidates across 3 different
- * screens for a search text naming one specific screen. Normalizing punctuation to spaces and then
- * requiring the *whole normalized needle* to appear as one contiguous run preserves word order/adjacency
- * ("screen 2 pane 1" only matches a label that has "screen", "2", "pane", "1" consecutively, not
- * scattered across unrelated suffixes) while still tolerating the punctuation drift that motivated this
- * function in the first place.
+ * Two earlier versions of this function each failed differently, both confirmed via real testing
+ * against actual seed data (not just theorized):
+ * - Per-word matching (`words.every(w => label.includes(w))`) over-corrected: for needle "screen 2,
+ *   pane 1" it also matched labels like "Screen 3 (verify) — Pane 1 (none), Stage 2" purely because
+ *   "screen"/"pane"/"1"/"2" each appear *somewhere* in that unrelated label (the "2" coming from its
+ *   own "Stage 2" suffix).
+ * - Whole-needle contiguous matching (normalize both sides, require the *entire* needle as one
+ *   contiguous run) fixed that, but then failed the opposite way: needle "Screen 3, Pane 2" against the
+ *   real label "Screen 3 (verify) — Pane 2 (image), Stage 1" normalizes to needing "screen 3 pane 2" as
+ *   one unbroken run, but the screen's own real name ("Screen 3 (verify)") inserts "verify" between "3"
+ *   and "pane" — breaking contiguity across a boundary the model's own searchText never claimed to
+ *   span, and returning zero candidates for a perfectly well-formed reference.
+ *
+ * The fix that survived both: split the needle on its own comma boundaries (the model's own
+ * established convention — "Screen X, Pane Y[, Stage Z]", one concept per segment) and require each
+ * segment to independently appear as its own contiguous run *somewhere* in the label — segments don't
+ * need to be adjacent to each other, but each segment's own words still do (so "pane 2" can't match a
+ * label that only has "pane 1" and, unrelatedly, "stage 2"). This is what actually distinguishes it
+ * from the per-word version: "pane" and "2" alone could still drift apart onto unrelated label
+ * fragments, but "pane 2" as one segment cannot.
  */
 function labelMatchesSearch(label: string, needle: string): boolean {
-  const normalizedNeedle = normalizeForMatch(needle)
-  if (!normalizedNeedle) return true
-  return normalizeForMatch(label).includes(normalizedNeedle)
+  const normalizedLabel = normalizeForMatch(label)
+  const segments = needle
+    .split(',')
+    .map((segment) => normalizeForMatch(segment))
+    .filter(Boolean)
+  if (segments.length === 0) return true
+  return segments.every((segment) => normalizedLabel.includes(segment))
 }
 
 /**
