@@ -5,7 +5,7 @@
   display: flex;
   align-items: center;
   height: 100%;
-  padding: $spacing-unit * 6;
+  padding: var(--pane-padding, $spacing-unit * 6);
   overflow-x: auto;
   overflow-y: hidden;
   // Known bug, quick-fixed for now: the hourly-forecast strip's own

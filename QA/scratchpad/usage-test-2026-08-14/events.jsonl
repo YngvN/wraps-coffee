@@ -1,0 +1,131 @@
+{"ts":"2026-08-14T07:01:31.773Z","type":"preflight-disk","output":"Filesystem        Size    Used   Avail Capacity iused ifree %iused  Mounted on\n/dev/disk3s1s1   460Gi    17Gi    72Gi    20%    427k  753M    0%   /"}
+{"ts":"2026-08-14T07:02:56.933Z","type":"showcase-screen-created","screenID":"usage-test-panes-1","replaced":false}
+{"ts":"2026-08-14T07:02:56.936Z","type":"tv-connection-change","connected":true,"lastSeenAt":"2026-08-14T07:02:41.092Z"}
+{"ts":"2026-08-14T07:02:57.079Z","type":"nav-visit","to":"overview"}
+{"ts":"2026-08-14T07:02:57.191Z","type":"display-switch","display":"display1","screenId":"1783431536720","forced":false}
+{"ts":"2026-08-14T07:02:57.252Z","type":"ws-connection-change","display":"display1","connected":true}
+{"ts":"2026-08-14T07:03:27.211Z","type":"display-switch","display":"display2","screenId":"usage-test-panes-1","forced":true}
+{"ts":"2026-08-14T07:03:27.255Z","type":"ws-connection-change","display":"display2","connected":true}
+{"ts":"2026-08-14T07:03:27.303Z","type":"console-error","page":"display2","text":"Failed to load resource: net::ERR_CACHE_WRITE_FAILURE"}
+{"ts":"2026-08-14T07:03:37.206Z","type":"nav-visit","to":"messages"}
+{"ts":"2026-08-14T07:03:57.413Z","type":"display-switch","display":"display1","screenId":"1783715372380","forced":false}
+{"ts":"2026-08-14T07:04:17.327Z","type":"nav-visit","to":"products?allProducts=1"}
+{"ts":"2026-08-14T07:04:27.459Z","type":"display-switch","display":"display2","screenId":"1783431536720","forced":false}
+{"ts":"2026-08-14T07:04:57.527Z","type":"display-switch","display":"display1","screenId":"screen-e202503b-c6d6-494e-a4a4-82c81f5e9991","forced":false}
+{"ts":"2026-08-14T07:05:27.595Z","type":"display-switch","display":"display2","screenId":"1783715372380","forced":false}
+{"ts":"2026-08-14T07:05:47.443Z","type":"nav-visit","to":"events"}
+{"ts":"2026-08-14T07:05:57.683Z","type":"display-switch","display":"display1","screenId":"screen-8ec76ce7-2a6d-4677-ae66-f5eb5a74e91a","forced":false}
+{"ts":"2026-08-14T07:06:27.564Z","type":"nav-visit","to":"orders"}
+{"ts":"2026-08-14T07:06:27.706Z","type":"display-switch","display":"display2","screenId":"screen-e202503b-c6d6-494e-a4a4-82c81f5e9991","forced":false}
+{"ts":"2026-08-14T07:06:57.852Z","type":"display-switch","display":"display1","screenId":"usage-test-panes-1","forced":false}
+{"ts":"2026-08-14T07:06:57.903Z","type":"console-error","page":"display1","text":"Failed to load resource: net::ERR_CACHE_WRITE_FAILURE"}
+{"ts":"2026-08-14T07:07:26.988Z","type":"ai-turn","mode":"read-only","question":"Hvor mange skjermer har vi registrert nå?","latencyMs":19363,"replySnippet":"Vi har registrert fem skjermer nå.","hadReply":true}
+{"ts":"2026-08-14T07:07:27.461Z","type":"nav-visit","to":"screens"}
+{"ts":"2026-08-14T07:07:27.861Z","type":"display-switch","display":"display2","screenId":"screen-8ec76ce7-2a6d-4677-ae66-f5eb5a74e91a","forced":false}
+{"ts":"2026-08-14T07:07:58.011Z","type":"display-switch","display":"display1","screenId":"1783431536720","forced":false}
+{"ts":"2026-08-14T07:08:28.033Z","type":"display-switch","display":"display2","screenId":"usage-test-panes-1","forced":false}
+{"ts":"2026-08-14T07:08:28.091Z","type":"console-error","page":"display2","text":"Failed to load resource: net::ERR_CACHE_WRITE_FAILURE"}
+{"ts":"2026-08-14T07:08:48.617Z","type":"display-manager-check","lastSeenLines":["Sist sett 31.7.2026, 10:42:15","Sist sett 1.8.2026, 12:47:41","Sist sett 1.8.2026, 12:46:37","Sist sett 14.8.2026, 09:08:41","Sist sett 11.8.2026, 13:48:42","Sist sett 13.8.2026, 12:29:26"]}
+{"ts":"2026-08-14T07:08:51.400Z","type":"price-change","priceValue":10,"ok":true}
+{"ts":"2026-08-14T07:08:51.523Z","type":"nav-visit","to":"messageboard"}
+{"ts":"2026-08-14T07:08:58.166Z","type":"display-switch","display":"display1","screenId":"1783715372380","forced":false}
+{"ts":"2026-08-14T07:09:28.207Z","type":"display-switch","display":"display2","screenId":"1783431536720","forced":false}
+{"ts":"2026-08-14T07:09:41.672Z","type":"nav-visit","to":"media"}
+{"ts":"2026-08-14T07:09:58.314Z","type":"display-switch","display":"display1","screenId":"screen-e202503b-c6d6-494e-a4a4-82c81f5e9991","forced":false}
+{"ts":"2026-08-14T07:10:21.848Z","type":"nav-visit","to":"users"}
+{"ts":"2026-08-14T07:10:28.389Z","type":"display-switch","display":"display2","screenId":"1783715372380","forced":false}
+{"ts":"2026-08-14T07:10:58.497Z","type":"display-switch","display":"display1","screenId":"screen-8ec76ce7-2a6d-4677-ae66-f5eb5a74e91a","forced":false}
+{"ts":"2026-08-14T07:11:01.991Z","type":"nav-visit","to":"settings?view=integrations"}
+{"ts":"2026-08-14T07:11:28.549Z","type":"display-switch","display":"display2","screenId":"screen-e202503b-c6d6-494e-a4a4-82c81f5e9991","forced":false}
+{"ts":"2026-08-14T07:11:58.665Z","type":"display-switch","display":"display1","screenId":"usage-test-panes-1","forced":false}
+{"ts":"2026-08-14T07:11:58.743Z","type":"console-error","page":"display1","text":"Failed to load resource: net::ERR_CACHE_WRITE_FAILURE"}
+{"ts":"2026-08-14T07:12:28.698Z","type":"display-switch","display":"display2","screenId":"screen-8ec76ce7-2a6d-4677-ae66-f5eb5a74e91a","forced":false}
+{"ts":"2026-08-14T07:12:38.685Z","type":"showcase-screen-created","screenID":"usage-test-panes-2","replaced":true}
+{"ts":"2026-08-14T07:12:51.245Z","type":"ai-turn","mode":"read-only","question":"List opp kategoriene i katalogen 'Diagnostikk (as-is)'.","latencyMs":39148,"replySnippet":"Kategoriene i katalogen 'Diagnostikk (as-is)' er Kategori A og Kategori B.","hadReply":true}
+{"ts":"2026-08-14T07:12:51.726Z","type":"nav-visit","to":"overview"}
+{"ts":"2026-08-14T07:12:58.831Z","type":"display-switch","display":"display1","screenId":"1783431536720","forced":false}
+{"ts":"2026-08-14T07:13:28.868Z","type":"display-switch","display":"display2","screenId":"usage-test-panes-2","forced":true}
+{"ts":"2026-08-14T07:13:28.940Z","type":"console-error","page":"display2","text":"Failed to load resource: net::ERR_CACHE_WRITE_FAILURE"}
+{"ts":"2026-08-14T07:13:31.872Z","type":"nav-visit","to":"messages"}
+{"ts":"2026-08-14T07:13:59.038Z","type":"display-switch","display":"display1","screenId":"1783715372380","forced":false}
+{"ts":"2026-08-14T07:14:12.023Z","type":"nav-visit","to":"products?allProducts=1"}
+{"ts":"2026-08-14T07:14:28.995Z","type":"display-switch","display":"display2","screenId":"usage-test-panes-2","forced":false}
+{"ts":"2026-08-14T07:14:59.193Z","type":"display-switch","display":"display1","screenId":"screen-e202503b-c6d6-494e-a4a4-82c81f5e9991","forced":false}
+{"ts":"2026-08-14T07:15:29.178Z","type":"display-switch","display":"display2","screenId":"1783431536720","forced":false}
+{"ts":"2026-08-14T07:15:42.196Z","type":"nav-visit","to":"events"}
+{"ts":"2026-08-14T07:15:59.351Z","type":"display-switch","display":"display1","screenId":"screen-8ec76ce7-2a6d-4677-ae66-f5eb5a74e91a","forced":false}
+{"ts":"2026-08-14T07:16:22.351Z","type":"nav-visit","to":"orders"}
+{"ts":"2026-08-14T07:16:29.341Z","type":"display-switch","display":"display2","screenId":"1783715372380","forced":false}
+{"ts":"2026-08-14T07:16:59.505Z","type":"display-switch","display":"display1","screenId":"usage-test-panes-2","forced":false}
+{"ts":"2026-08-14T07:16:59.567Z","type":"console-error","page":"display1","text":"Failed to load resource: net::ERR_CACHE_WRITE_FAILURE"}
+{"ts":"2026-08-14T07:17:09.202Z","type":"ai-turn","mode":"read-only","question":"Hva er værmeldingen for i dag?","latencyMs":6783,"replySnippet":"Her er 4 integrasjoner:\nWeather\nTransit (Ruter)\nEntur\nNews","hadReply":true}
+{"ts":"2026-08-14T07:17:09.654Z","type":"nav-visit","to":"screens"}
+{"ts":"2026-08-14T07:17:29.490Z","type":"display-switch","display":"display2","screenId":"screen-e202503b-c6d6-494e-a4a4-82c81f5e9991","forced":false}
+{"ts":"2026-08-14T07:17:59.660Z","type":"display-switch","display":"display1","screenId":"1783431536720","forced":false}
+{"ts":"2026-08-14T07:18:29.651Z","type":"display-switch","display":"display2","screenId":"screen-8ec76ce7-2a6d-4677-ae66-f5eb5a74e91a","forced":false}
+{"ts":"2026-08-14T07:18:30.793Z","type":"display-manager-check","lastSeenLines":["Sist sett 31.7.2026, 10:42:15","Sist sett 1.8.2026, 12:47:41","Sist sett 1.8.2026, 12:46:37","Sist sett 14.8.2026, 09:18:21","Sist sett 11.8.2026, 13:48:42","Sist sett 13.8.2026, 12:29:26"]}
+{"ts":"2026-08-14T07:18:30.903Z","type":"nav-visit","to":"messageboard"}
+{"ts":"2026-08-14T07:18:59.835Z","type":"display-switch","display":"display1","screenId":"1783715372380","forced":false}
+{"ts":"2026-08-14T07:19:23.686Z","type":"price-change","priceValue":15,"ok":true}
+{"ts":"2026-08-14T07:19:23.810Z","type":"nav-visit","to":"media"}
+{"ts":"2026-08-14T07:19:29.801Z","type":"display-switch","display":"display2","screenId":"usage-test-panes-2","forced":false}
+{"ts":"2026-08-14T07:19:29.857Z","type":"console-error","page":"display2","text":"Failed to load resource: net::ERR_CACHE_WRITE_FAILURE"}
+{"ts":"2026-08-14T07:19:59.960Z","type":"display-switch","display":"display1","screenId":"screen-e202503b-c6d6-494e-a4a4-82c81f5e9991","forced":false}
+{"ts":"2026-08-14T07:20:03.931Z","type":"nav-visit","to":"users"}
+{"ts":"2026-08-14T07:20:29.950Z","type":"display-switch","display":"display2","screenId":"1783431536720","forced":false}
+{"ts":"2026-08-14T07:20:44.057Z","type":"nav-visit","to":"settings?view=integrations"}
+{"ts":"2026-08-14T07:21:00.089Z","type":"display-switch","display":"display1","screenId":"screen-8ec76ce7-2a6d-4677-ae66-f5eb5a74e91a","forced":false}
+{"ts":"2026-08-14T07:21:30.117Z","type":"display-switch","display":"display2","screenId":"1783715372380","forced":false}
+{"ts":"2026-08-14T07:22:00.233Z","type":"display-switch","display":"display1","screenId":"usage-test-panes-2","forced":false}
+{"ts":"2026-08-14T07:22:00.298Z","type":"console-error","page":"display1","text":"Failed to load resource: net::ERR_CACHE_WRITE_FAILURE"}
+{"ts":"2026-08-14T07:22:06.458Z","type":"ai-turn","mode":"read-only","question":"Når er neste avgang fra Ulven torg?","latencyMs":12341,"replySnippet":"Det er ingen avganger fra Ulven torg i dag eller fremtidig.","hadReply":true}
+{"ts":"2026-08-14T07:22:06.903Z","type":"nav-visit","to":"overview"}
+{"ts":"2026-08-14T07:22:30.236Z","type":"display-switch","display":"display2","screenId":"screen-e202503b-c6d6-494e-a4a4-82c81f5e9991","forced":false}
+{"ts":"2026-08-14T07:22:38.842Z","type":"showcase-screen-created","screenID":"usage-test-panes-3","replaced":true}
+{"ts":"2026-08-14T07:22:47.031Z","type":"nav-visit","to":"messages"}
+{"ts":"2026-08-14T07:23:00.378Z","type":"display-switch","display":"display1","screenId":"1783431536720","forced":false}
+{"ts":"2026-08-14T07:23:27.156Z","type":"nav-visit","to":"products?allProducts=1"}
+{"ts":"2026-08-14T07:23:30.380Z","type":"display-switch","display":"display2","screenId":"usage-test-panes-3","forced":true}
+{"ts":"2026-08-14T07:23:30.440Z","type":"console-error","page":"display2","text":"Failed to load resource: net::ERR_CACHE_WRITE_FAILURE"}
+{"ts":"2026-08-14T07:24:00.544Z","type":"display-switch","display":"display1","screenId":"1783715372380","forced":false}
+{"ts":"2026-08-14T07:24:30.544Z","type":"display-switch","display":"display2","screenId":"screen-8ec76ce7-2a6d-4677-ae66-f5eb5a74e91a","forced":false}
+{"ts":"2026-08-14T07:24:57.296Z","type":"nav-visit","to":"events"}
+{"ts":"2026-08-14T07:25:00.670Z","type":"display-switch","display":"display1","screenId":"screen-e202503b-c6d6-494e-a4a4-82c81f5e9991","forced":false}
+{"ts":"2026-08-14T07:25:30.686Z","type":"display-switch","display":"display2","screenId":"usage-test-panes-3","forced":false}
+{"ts":"2026-08-14T07:25:30.738Z","type":"console-error","page":"display2","text":"Failed to load resource: net::ERR_CACHE_WRITE_FAILURE"}
+{"ts":"2026-08-14T07:25:37.417Z","type":"nav-visit","to":"orders"}
+{"ts":"2026-08-14T07:26:00.808Z","type":"display-switch","display":"display1","screenId":"screen-8ec76ce7-2a6d-4677-ae66-f5eb5a74e91a","forced":false}
+{"ts":"2026-08-14T07:26:17.541Z","type":"nav-visit","to":"screens"}
+{"ts":"2026-08-14T07:26:30.843Z","type":"display-switch","display":"display2","screenId":"1783431536720","forced":false}
+{"ts":"2026-08-14T07:27:00.970Z","type":"display-switch","display":"display1","screenId":"usage-test-panes-3","forced":false}
+{"ts":"2026-08-14T07:27:01.030Z","type":"console-error","page":"display1","text":"Failed to load resource: net::ERR_CACHE_WRITE_FAILURE"}
+{"ts":"2026-08-14T07:27:31.012Z","type":"display-switch","display":"display2","screenId":"1783715372380","forced":false}
+{"ts":"2026-08-14T07:27:56.535Z","type":"ai-turn","mode":"read-only","question":"Oppsummer hva som skjer på meldingstavlen 'General'.","latencyMs":18939,"replySnippet":"Det skjer ingenting på meldingstavlen 'General'.","hadReply":true}
+{"ts":"2026-08-14T07:27:58.011Z","type":"display-manager-check","lastSeenLines":["Sist sett 31.7.2026, 10:42:15","Sist sett 1.8.2026, 12:47:41","Sist sett 1.8.2026, 12:46:37","Sist sett 14.8.2026, 09:27:41","Sist sett 11.8.2026, 13:48:42","Sist sett 13.8.2026, 12:29:26"]}
+{"ts":"2026-08-14T07:27:58.127Z","type":"nav-visit","to":"messageboard"}
+{"ts":"2026-08-14T07:28:01.116Z","type":"display-switch","display":"display1","screenId":"1783431536720","forced":false}
+{"ts":"2026-08-14T07:28:31.136Z","type":"display-switch","display":"display2","screenId":"screen-e202503b-c6d6-494e-a4a4-82c81f5e9991","forced":false}
+{"ts":"2026-08-14T07:28:50.920Z","type":"price-change","priceValue":20,"ok":true}
+{"ts":"2026-08-14T07:28:51.057Z","type":"nav-visit","to":"media"}
+{"ts":"2026-08-14T07:29:01.270Z","type":"display-switch","display":"display1","screenId":"1783715372380","forced":false}
+{"ts":"2026-08-14T07:29:31.180Z","type":"nav-visit","to":"users"}
+{"ts":"2026-08-14T07:29:31.245Z","type":"display-switch","display":"display2","screenId":"screen-8ec76ce7-2a6d-4677-ae66-f5eb5a74e91a","forced":false}
+{"ts":"2026-08-14T07:30:01.389Z","type":"display-switch","display":"display1","screenId":"screen-e202503b-c6d6-494e-a4a4-82c81f5e9991","forced":false}
+{"ts":"2026-08-14T07:30:11.326Z","type":"nav-visit","to":"settings?view=integrations"}
+{"ts":"2026-08-14T07:30:31.381Z","type":"display-switch","display":"display2","screenId":"usage-test-panes-3","forced":false}
+{"ts":"2026-08-14T07:30:31.432Z","type":"console-error","page":"display2","text":"Failed to load resource: net::ERR_CACHE_WRITE_FAILURE"}
+{"ts":"2026-08-14T07:31:01.511Z","type":"display-switch","display":"display1","screenId":"screen-8ec76ce7-2a6d-4677-ae66-f5eb5a74e91a","forced":false}
+{"ts":"2026-08-14T07:31:31.520Z","type":"display-switch","display":"display2","screenId":"1783431536720","forced":false}
+{"ts":"2026-08-14T07:31:37.797Z","type":"ai-turn","mode":"write-flow","question":"Legg til et nytt produkt kalt 'Diagnostikk Ekstra' i kategorien 'Kategori A' i katalogen 'Diagnostikk (as-is)'.","latencyMs":16401,"replySnippet":"","outcome":"gate-cancelled"}
+{"ts":"2026-08-14T07:31:38.255Z","type":"nav-visit","to":"overview"}
+{"ts":"2026-08-14T07:32:01.653Z","type":"display-switch","display":"display1","screenId":"usage-test-panes-3","forced":false}
+{"ts":"2026-08-14T07:32:01.701Z","type":"console-error","page":"display1","text":"Failed to load resource: net::ERR_CACHE_WRITE_FAILURE"}
+{"ts":"2026-08-14T07:32:18.378Z","type":"nav-visit","to":"messages"}
+{"ts":"2026-08-14T07:32:31.682Z","type":"display-switch","display":"display2","screenId":"1783715372380","forced":false}
+{"ts":"2026-08-14T07:33:31.763Z","type":"cleanup","step":"price-revert","ok":true}
+{"ts":"2026-08-14T07:33:31.763Z","type":"cleanup","step":"showcase-screen-3-kept","screenID":"usage-test-panes-3"}
+{"ts":"2026-08-14T07:33:31.763Z","type":"cleanup","step":"message-board-post-kept","postId":"usage-test-post-1786690897895"}
+{"ts":"2026-08-14T07:33:31.763Z","type":"cleanup","step":"video-upload-kept","url":"http://localhost:4000/uploads/bef929db-9989-4630-aa2f-fb86594a5a37.mp4"}
+{"ts":"2026-08-14T07:33:33.049Z","type":"cleanup","step":"browser-closed","browser":"display1","ok":true}
+{"ts":"2026-08-14T07:33:33.233Z","type":"cleanup","step":"browser-closed","browser":"display2","ok":true}
+{"ts":"2026-08-14T07:33:33.378Z","type":"cleanup","step":"browser-closed","browser":"admin","ok":true}

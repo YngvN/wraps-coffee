@@ -21,7 +21,7 @@ $transit-trailing-tracks: minmax(0, max-content) minmax(0, max-content); // `.tr
   font-size: var(--slide-item-title-size, 5.5cqmin);
   gap: 0.75em;
   height: 100%;
-  padding: 1.5em;
+  padding: var(--pane-padding, 1.5em);
   overflow-y: hidden;
   overflow-x: hidden;
 

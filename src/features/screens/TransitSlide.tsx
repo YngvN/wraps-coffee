@@ -4,8 +4,9 @@ import { FetchedLogo } from '../../components'
 import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
 import { useTransitDepartures } from '../../hooks/useTransitDepartures'
 import { useLanguage } from '../../i18n'
-import { DEFAULT_TRANSIT_DEPARTURE_COUNT, type TransitIconPack } from '../../types/screen'
+import { DEFAULT_TRANSIT_DEPARTURE_COUNT, DEFAULT_TRANSIT_DEPARTURE_MODE, type TransitDepartureMode, type TransitIconPack } from '../../types/screen'
 import type { DepartureInfo } from '../../types/integrations'
+import { getAutoLineColor } from '../../utils/transitLineColors'
 import { TransitModeIcon } from './TransitModeIcon'
 import './TransitSlide.scss'
 
@@ -20,8 +21,8 @@ interface TransitSlideProps {
   showPlatform?: boolean
   /** Show the line's full name instead of just its public code. Falls back to `false`. */
   showLineName?: boolean
-  /** Hide schedule-only departures, keeping only `realtime: true` ones. Falls back to `false`. */
-  realtimeOnly?: boolean
+  /** Which departures to show — see `ScreenSlotContent`'s `'transit'` variant. Falls back to `DEFAULT_TRANSIT_DEPARTURE_MODE`. */
+  departureMode?: TransitDepartureMode
   /** Transport modes to include — empty/unset means every mode at the stop is shown. */
   modeFilter?: string[]
   /** Which icon set the mode icons next to each departure are drawn from — see `TransitIconPack`. Falls back to `DEFAULT_TRANSIT_ICON_PACK`. */
@@ -30,8 +31,10 @@ interface TransitSlideProps {
   useBrandTheme?: boolean
   /** Shows `brand`'s own logo in the pane's top-left corner. Only relevant while `useBrandTheme` is on. Falls back to `true`. */
   showBrandLogo?: boolean
-  /** Per-operator line-badge color overrides, keyed by operator display name — see `ScreenSlotContent`'s `'transit'` variant. */
+  /** Per-operator line-badge color overrides, keyed by operator display name — see `ScreenSlotContent`'s `'transit'` variant. Ignored while `autoLineColors` is on. */
   lineColors?: { id: string; authority: string; hex: string }[]
+  /** Assigns each operator a distinct, automatically generated color instead of `lineColors`. Falls back to `false`. */
+  autoLineColors?: boolean
 }
 
 /** Looks up `lineColors`' entry for `authorityName`, matching case-insensitively/trimmed since Entur's own casing/whitespace isn't guaranteed to match what an admin typed. Returns `undefined` when unset, unmatched, or the departure has no known authority. */
@@ -343,21 +346,25 @@ function TransitDepartureLeading({
   showLineName,
   iconPack,
   lineColors,
+  autoLineColors,
 }: {
   departure: DepartureInfo
   showLineName?: boolean
   iconPack?: TransitIconPack
   lineColors?: TransitSlideProps['lineColors']
+  autoLineColors?: boolean
 }) {
   const { t } = useLanguage()
-  const lineColorHex = findLineColorHex(lineColors, departure.authorityName)
+  const autoLineColor = autoLineColors && departure.authorityName ? getAutoLineColor(departure.authorityName) : undefined
+  const lineColorHex = autoLineColor ? undefined : findLineColorHex(lineColors, departure.authorityName)
+  const lineColorStyle = autoLineColor ? { background: autoLineColor.background, color: autoLineColor.text } : lineColorHex ? { background: lineColorHex } : undefined
   return (
     <>
       <span className="transit-slide__mode-icon-wrap">
         <TransitModeIcon mode={departure.mode} pack={iconPack} className="transit-slide__mode-icon" />
         {departure.realtime && <span className="transit-slide__realtime-dot" title={t('admin.screens.transitRealtimeDotTitle')} />}
       </span>
-      <span className="transit-slide__line" style={lineColorHex ? { background: lineColorHex } : undefined}>
+      <span className="transit-slide__line" style={lineColorStyle}>
         {departure.line}
       </span>
       <span className="transit-slide__destination">
@@ -411,21 +418,47 @@ function TransitColumnHeader({ showPlatform }: { showPlatform?: boolean }) {
 }
 
 /** Fullscreen rendering of real-time departures from one of the cafe's configured nearby stops (see the admin's Integrations tab), for a screen display's "transit" slot. */
-export function TransitSlide({ brand, stopId, departureCount, showPlatform, showLineName, realtimeOnly, modeFilter, iconPack, useBrandTheme, showBrandLogo, lineColors }: TransitSlideProps) {
+export function TransitSlide({
+  brand,
+  stopId,
+  departureCount,
+  showPlatform,
+  showLineName,
+  departureMode,
+  modeFilter,
+  iconPack,
+  useBrandTheme,
+  showBrandLogo,
+  lineColors,
+  autoLineColors,
+}: TransitSlideProps) {
   const { t } = useLanguage()
   const [config] = useIntegrationsConfig()
   const resolvedBrand = brand ?? 'ruter'
   const selectedStops = resolvedBrand === 'entur' ? config.entur.selectedStops : config.transit.selectedStops
   const effectiveStopId = stopId && selectedStops.some((stop) => stop.id === stopId) ? stopId : selectedStops[0]?.id
   const { stopName, departures: fetchedDepartures, loading, stale } = useTransitDepartures(effectiveStopId, departureCount ?? DEFAULT_TRANSIT_DEPARTURE_COUNT)
+  const resolvedDepartureMode = departureMode ?? DEFAULT_TRANSIT_DEPARTURE_MODE
   // Memoized so its reference only actually changes when the underlying
   // data or filters do — `useSequencedDepartures`'s own effect depends on
   // this array, and a fresh `.filter()` result every render (e.g. from the
   // unrelated 30s `now` tick below) would otherwise reset its staging timer
   // before it ever gets to fire.
   const targetDepartures = useMemo(
-    () => fetchedDepartures.filter((departure) => (!realtimeOnly || departure.realtime) && (!modeFilter?.length || modeFilter.includes(departure.mode))),
-    [fetchedDepartures, realtimeOnly, modeFilter],
+    () =>
+      fetchedDepartures.filter((departure) => {
+        // While stale, every departure is already a scheduled fallback (see
+        // `useTransitDepartures`'s own `asScheduled`) — there's no live/vs/
+        // schedule distinction left to honor, and applying `resolvedDepartureMode`
+        // here would otherwise hide everything the moment 'realtime' mode
+        // meets a stale feed (every departure's `realtime` gets forced `false`).
+        const matchesMode =
+          stale ||
+          resolvedDepartureMode === 'both' ||
+          (resolvedDepartureMode === 'realtime' ? departure.realtime : !departure.realtime)
+        return matchesMode && (!modeFilter?.length || modeFilter.includes(departure.mode))
+      }),
+    [fetchedDepartures, stale, resolvedDepartureMode, modeFilter],
   )
   const departures = useSequencedDepartures(targetDepartures, effectiveStopId ?? '')
   const branded = useBrandTheme ?? true
@@ -524,7 +557,7 @@ export function TransitSlide({ brand, stopId, departureCount, showPlatform, show
                           className={itemClassName}
                         >
                           <span className="transit-slide__leading">
-                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} />
+                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoLineColors} />
                           </span>
                           <span className="transit-slide__trailing">
                             <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
@@ -550,7 +583,7 @@ export function TransitSlide({ brand, stopId, departureCount, showPlatform, show
                           className={itemClassName}
                         >
                           <span className="transit-slide__leading">
-                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} />
+                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoLineColors} />
                           </span>
                           <span className="transit-slide__trailing">
                             <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
@@ -561,7 +594,7 @@ export function TransitSlide({ brand, stopId, departureCount, showPlatform, show
                     return (
                       <motion.li key={departureKey(departure)} initial="hidden" animate="visible" exit="exit" className={itemClassName}>
                         <motion.span layout="position" className="transit-slide__leading" variants={transitLeadingVariants} transition={transitItemTransition}>
-                          <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} />
+                          <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoLineColors} />
                         </motion.span>
                         <motion.span layout="position" className="transit-slide__trailing" variants={transitTrailingVariants} transition={transitItemTransition}>
                           <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />

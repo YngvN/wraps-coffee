@@ -33,6 +33,7 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.displayUpdateState', descKey: 'admin.settings.developerDocs.keyDisplayUpdateState' },
   { key: 'admin.displayScreenOverride', descKey: 'admin.settings.developerDocs.keyDisplayScreenOverride' },
   { key: 'admin.integrations', descKey: 'admin.settings.developerDocs.keyIntegrations' },
+  { key: 'admin.transitDepartures', descKey: 'admin.settings.developerDocs.keyTransitDepartures' },
   { key: 'admin.sidebarSettings', descKey: 'admin.settings.developerDocs.keySidebarSettings' },
   { key: 'admin.orders', descKey: 'admin.settings.developerDocs.keyOrders' },
   { key: 'admin.messageBoards', descKey: 'admin.settings.developerDocs.keyMessageBoards' },
@@ -546,6 +547,7 @@ GET /integrations/stops/search?query=<text>
 
 GET /integrations/departures?stopId=<id>&count=<n>
 → 200 { "stopName", "departures": [{ "line", "lineName"?, "mode", "authorityId"?, "authorityName"?, "destination", "expectedDepartureTime", "aimedDepartureTime", "realtime", "platform"?, "cancelled" }] }
+   (on-demand only — the transit pane itself reads the "admin.transitDepartures" synced key instead, kept fresh by the local server's own background poller; see Live data below)
 
 GET /integrations/weather?lat=<lat>&lon=<lon>&hours=<n>
 → 200 { "hourly": [{ "time", "temperatureC", "precipitationMm", "symbolCode", "windSpeedMs"?, "windFromDirectionDeg"?, "humidityPercent"?, "precipitationProbabilityPercent"?, "uvIndex"?, "pressureHpa"? }] }

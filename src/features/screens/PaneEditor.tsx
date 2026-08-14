@@ -1,6 +1,6 @@
 import { Button, CollapsibleSection } from '../../components'
 import { useLanguage, type LanguageCode } from '../../i18n'
-import type { BackgroundImage, ScreenSlotContent, TextSizes } from '../../types/screen'
+import { DEFAULT_PANE_PADDING, MAX_PANE_PADDING, type BackgroundImage, type ScreenSlotContent, type TextSizes } from '../../types/screen'
 import { hasOwnTextSizeFields } from '../../utils/screenSlots'
 import { BackgroundColorPicker } from './BackgroundColorPicker'
 import { BackgroundImagePicker } from './BackgroundImagePicker'
@@ -130,6 +130,22 @@ export function PaneEditor({
           />
         </CollapsibleSection>
       )}
+
+      <CollapsibleSection label={t('admin.screens.paddingLabel')}>
+        <label className="pane-editor__slider">
+          <span>
+            {t('admin.screens.paddingLabel')} — {(content.padding ?? DEFAULT_PANE_PADDING).toFixed(1)}%
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={MAX_PANE_PADDING}
+            step={0.5}
+            value={content.padding ?? DEFAULT_PANE_PADDING}
+            onChange={(event) => onContentChange({ ...content, padding: Number(event.target.value) })}
+          />
+        </label>
+      </CollapsibleSection>
 
       <CollapsibleSection label={t('admin.screens.backgroundLabel')}>
         <BackgroundColorPicker backgroundColor={backgroundColor} onChange={onBackgroundColorChange} allowTransparent />

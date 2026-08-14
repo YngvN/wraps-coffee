@@ -15,6 +15,12 @@ function relativeLuminance([r, g, b]: [number, number, number]): number {
   return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
 }
 
+/** Picks a readable black or white text color for a given hex background, by the same WCAG-luminance threshold `getScreenColorVars` uses. */
+export function getContrastTextColor(backgroundHex: string): string {
+  const isLight = relativeLuminance(hexToRgb(backgroundHex)) > 0.4
+  return isLight ? '#111111' : '#f5f5f5'
+}
+
 /**
  * CSS custom properties for a screen display's chosen background color: the
  * background itself, plus a readable text color (and muted/border variants

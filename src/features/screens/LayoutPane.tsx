@@ -382,7 +382,11 @@ export function LayoutPane({
                 )}
               </div>
             )}
-            <div className="split-layout__pane-content-inner" ref={slotIndex === 0 ? contentInnerRef0 : contentInnerRef1}>
+            <div
+              className="split-layout__pane-content-inner"
+              ref={slotIndex === 0 ? contentInnerRef0 : contentInnerRef1}
+              style={snapshot.content.padding !== undefined ? ({ '--pane-padding': `${snapshot.content.padding}cqmin` } as CSSProperties) : undefined}
+            >
               <PaneLanguageScope language={snapshot.language}>
                 <SlotContent slot={snapshot.content} newsSlots={newsSlots} stageTick={stageTick} stage={stage} onRequestStageAdvance={onRequestStageAdvance} captureMode={captureMode} />
               </PaneLanguageScope>

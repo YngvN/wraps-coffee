@@ -1,13 +1,7 @@
 import type { CSSProperties } from 'react'
+import { hueFromLabel } from '../utils/colorHash'
 import { getLogoSrc } from '../utils/logoAssets'
 import './FetchedLogo.scss'
-
-/** Deterministic, evenly-spread hue from a brand name, so fallback monogram badges get a stable but varied color without needing a hand-picked brand color per entry. */
-function hueFromLabel(label: string): number {
-  let hash = 0
-  for (let i = 0; i < label.length; i++) hash = (hash * 31 + label.charCodeAt(i)) >>> 0
-  return hash % 360
-}
 
 /**
  * One integration's brand mark — used both by the admin's "Coming soon"

@@ -14,9 +14,19 @@ export interface BackgroundImage {
   blur?: boolean
 }
 
-/** Shared by every `ScreenSlotContent` variant: lets one slide opt out of its slot's own `backgroundImage` and use its own instead — set, simply by providing one, no separate opt-in flag needed. */
+/** Shared by every `ScreenSlotContent` variant: lets one slide opt out of its slot's own `backgroundImage` and use its own instead — set, simply by providing one, no separate opt-in flag needed. Also carries `padding` (see its own doc comment below) — both fields deliberately live here, on the content itself, rather than on `ScreenSlot`, so a content-kind switch (see `optionValueToContent` in `SlideFields.tsx`) drops them the same way it drops every other kind-specific field, instead of one kind's styling bleeding into the next kind shown in the same pane. */
 interface OwnBackgroundImageFields {
   backgroundImage?: BackgroundImage
+  /**
+   * This content's own inner padding, in `cqmin` units (same convention as
+   * `TextSizes` — 1cqmin = 1% of the pane's own smaller dimension, see its
+   * doc comment) — falls back to whichever fixed value that slide kind's own
+   * `.scss` hardcodes (via `padding: var(--pane-padding, <original value>)`)
+   * when unset, so existing screens keep their current look until an admin
+   * actually drags the slider. Set as an inline `--pane-padding` custom
+   * property in `LayoutPane.tsx`.
+   */
+  padding?: number
 }
 
 /**
@@ -177,14 +187,16 @@ export type ScreenSlotContent =
       showPlatform?: boolean
       /** Show the line's full name (e.g. "Ekebergbanen") instead of just its public code (e.g. "18"). Falls back to `false`. */
       showLineName?: boolean
-      /** Hide schedule-only departures Entur hasn't started tracking live yet, keeping only `realtime: true` ones. Falls back to `false`. */
-      realtimeOnly?: boolean
+      /** Which departures to show: `'realtime'` keeps only live-tracked ones (`realtime: true`), `'schedule'` keeps only ones Entur hasn't started live-tracking yet (`realtime: false`), `'both'` shows everything unfiltered. Ignored while the pane's own data has gone stale (see `useTransitDepartures`'s own `stale`) — there's no live/vs/schedule distinction left to make once every departure shown is already a scheduled fallback. Falls back to `DEFAULT_TRANSIT_DEPARTURE_MODE`. */
+      departureMode?: TransitDepartureMode
       /** Transport modes (matching `NearbyStop['modes']`, e.g. `"bus"`, `"rail"`) to include — empty/unset means every mode at the stop is shown, unfiltered. */
       modeFilter?: string[]
       /** Which icon set the mode icons next to each departure are drawn from — see `TransitIconPack`. Falls back to `DEFAULT_TRANSIT_ICON_PACK`. */
       iconPack?: TransitIconPack
-      /** Per-operator line-badge color overrides, keyed by the operator's own display name as Entur reports it (e.g. `"Vy"`, `"Flytoget"`) — matched against `DepartureInfo['authorityName']` case-insensitively/trimmed. A departure whose authority has no matching entry (including Ruter itself, which normally isn't listed here) keeps the pane's default badge styling. */
+      /** Per-operator line-badge color overrides, keyed by the operator's own display name as Entur reports it (e.g. `"Vy"`, `"Flytoget"`) — matched against `DepartureInfo['authorityName']` case-insensitively/trimmed. A departure whose authority has no matching entry (including Ruter itself, which normally isn't listed here) keeps the pane's default badge styling. Ignored while `autoLineColors` is on. */
       lineColors?: { id: string; authority: string; hex: string }[]
+      /** Assigns each operator a distinct color automatically, generated deterministically from its own name — no manual setup needed. Takes precedence over `lineColors` (unused while this is on). Falls back to `false`. */
+      autoLineColors?: boolean
       /** Overrides the pane's own background/font/text colors with a look-alike of whichever brand this pane is (see `brand`) instead of the screen's normal styling. Falls back to `true`. */
       useBrandTheme?: boolean
       /** Shows the pane's own brand's logo in its top-left corner. Only relevant while `useBrandTheme` is on. Falls back to `true`. */
@@ -334,6 +346,12 @@ export const DEFAULT_WEATHER_FORECAST_HOURS = 6
 /** Used when a `'transit'` slide's own `departureCount` is unset. */
 export const DEFAULT_TRANSIT_DEPARTURE_COUNT = 5
 
+/** Which departures a `'transit'` slide shows — see its own `departureMode` doc comment. */
+export type TransitDepartureMode = 'realtime' | 'schedule' | 'both'
+
+/** Used when a `'transit'` slide's own `departureMode` is unset. */
+export const DEFAULT_TRANSIT_DEPARTURE_MODE: TransitDepartureMode = 'realtime'
+
 /**
  * Which built-in icon set a `'transit'` slide's mode icons are drawn from
  * (see `TransitModeIcon`). `'standard'` is a familiar, widely-recognized
@@ -364,6 +382,20 @@ export const DEFAULT_QR_CODE_SIZE = 100
 
 /** Smallest percentage a `'qrcode'` slide's own `size` can be dragged down to. */
 export const MIN_QR_CODE_SIZE = 10
+
+/**
+ * The Padding slider's own initial displayed position while a content's own
+ * `padding` is unset — purely cosmetic (it never gets written until the
+ * admin actually moves the slider, see `OwnBackgroundImageFields.padding`),
+ * chosen close to the majority of slide kinds' own hardcoded default
+ * (`$spacing-unit * 6`, 3rem ≈ 9.6cqmin at this rework's reference pane
+ * size — see `TextSizes`' own doc comment for that calibration) so the
+ * slider doesn't visually jump when first touched.
+ */
+export const DEFAULT_PANE_PADDING = 10
+
+/** Largest value the Padding slider can be dragged up to. */
+export const MAX_PANE_PADDING = 25
 
 /**
  * A sparse per-stage "checkpoint" map for one field's value — only stages

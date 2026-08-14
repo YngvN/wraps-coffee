@@ -122,7 +122,7 @@
   // between the text and the pane's own outer edge.
   @container news-slide (min-aspect-ratio: 1/1) {
     flex: 1;
-    padding: $spacing-unit * 4 $spacing-unit * 5;
+    padding: var(--pane-padding, $spacing-unit * 4) var(--pane-padding, $spacing-unit * 5);
   }
 }
 

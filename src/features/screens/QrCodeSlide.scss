@@ -8,7 +8,7 @@
   // A small gap so the code doesn't touch its pane's own borders — much
   // slimmer than a normal slide's own padding (e.g. `ImageSlide`'s), since
   // the code should still fill as much of the pane as it reasonably can.
-  padding: $spacing-unit * 2;
+  padding: var(--pane-padding, $spacing-unit * 2);
   color: var(--screen-text);
   overflow: hidden;
 }

@@ -21,6 +21,7 @@ export const SYNCED_KEYS = [
   'admin.displayUpdateState',
   'admin.displayScreenOverride',
   'admin.integrations',
+  'admin.transitDepartures',
   'admin.sidebarSettings',
   'admin.orders',
   'admin.messageBoards',

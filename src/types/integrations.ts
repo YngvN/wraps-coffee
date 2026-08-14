@@ -144,6 +144,24 @@ export interface DepartureInfo {
   cancelled: boolean
 }
 
+/**
+ * The local server's own `admin.transitDepartures` synced key — one entry
+ * per Entur stop id currently configured under Ruter's or Entur's own
+ * `selectedStops` (see `IntegrationsConfig`), kept fresh by `transitPoller.ts`
+ * on the server and pushed to every connected display/companion app, rather
+ * than each client fetching independently. Read via `useTransitDepartures`;
+ * never written by a client directly — the poller is the sole writer.
+ */
+export type TransitDeparturesSnapshot = Record<
+  string,
+  {
+    stopName: string
+    departures: DepartureInfo[]
+    /** ISO timestamp of the last successful poll for this stop — used client-side to derive staleness once it's old enough that the poller has plausibly stopped succeeding. */
+    fetchedAt: string
+  }
+>
+
 /** One hour of `GET /integrations/weather`'s forecast, as rendered by `WeatherSlide`. Only `time`/`temperatureC`/`precipitationMm`/`symbolCode` are guaranteed — the rest come from MET's "complete" dataset and are missing where MET itself doesn't report them for that hour (e.g. `uvIndex` outside daylight). */
 export interface WeatherHour {
   time: string

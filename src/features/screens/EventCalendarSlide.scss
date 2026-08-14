@@ -6,7 +6,7 @@
   flex-direction: column;
   gap: $spacing-unit * 4;
   height: 100%;
-  padding: $spacing-unit * 6;
+  padding: var(--pane-padding, $spacing-unit * 6);
   overflow-y: hidden;
   overflow-x: hidden;
 

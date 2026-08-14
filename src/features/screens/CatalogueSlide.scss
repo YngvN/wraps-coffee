@@ -13,7 +13,7 @@
   font-size: var(--slide-item-title-size, 5.5cqmin);
   gap: 1.5em;
   height: 100%;
-  padding: 2em;
+  padding: var(--pane-padding, 2em);
   overflow-y: hidden;
   overflow-x: hidden;
 

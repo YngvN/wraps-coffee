@@ -95,12 +95,13 @@ export function SlotContent({ slot, newsSlots, stageTick, stage, onRequestStageA
         departureCount={slot.departureCount}
         showPlatform={slot.showPlatform}
         showLineName={slot.showLineName}
-        realtimeOnly={slot.realtimeOnly}
+        departureMode={slot.departureMode}
         modeFilter={slot.modeFilter}
         iconPack={slot.iconPack}
         useBrandTheme={slot.useBrandTheme}
         showBrandLogo={slot.showBrandLogo}
         lineColors={slot.lineColors}
+        autoLineColors={slot.autoLineColors}
       />
     )
   if (slot.kind === 'weather')

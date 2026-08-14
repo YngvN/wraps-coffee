@@ -1,0 +1,279 @@
+{"ts":"2026-08-14T07:01:37.943Z","kind":"resource","tSec":0,"vite":{"pcpu":0,"rssKb":124560,"count":3},"server":{"pcpu":5.5,"rssKb":304960,"count":6},"chrome":{"pcpu":0,"rssKb":0,"count":0},"phase":"idle-baseline"}
+{"ts":"2026-08-14T07:01:37.984Z","kind":"thermal","tSec":0,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded","phase":"idle-baseline"}
+{"ts":"2026-08-14T07:01:58.049Z","kind":"resource","tSec":20.091,"vite":{"pcpu":0,"rssKb":124688,"count":3},"server":{"pcpu":0,"rssKb":305424,"count":6},"chrome":{"pcpu":0,"rssKb":0,"count":0},"phase":"idle-baseline"}
+{"ts":"2026-08-14T07:01:58.065Z","kind":"thermal","tSec":20.091,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded","phase":"idle-baseline"}
+{"ts":"2026-08-14T07:02:18.141Z","kind":"resource","tSec":40.171,"vite":{"pcpu":0,"rssKb":120160,"count":3},"server":{"pcpu":0,"rssKb":299104,"count":6},"chrome":{"pcpu":0,"rssKb":0,"count":0},"phase":"idle-baseline"}
+{"ts":"2026-08-14T07:02:18.156Z","kind":"thermal","tSec":40.171,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded","phase":"idle-baseline"}
+{"ts":"2026-08-14T07:02:56.937Z","kind":"tv","tSec":18.779,"connected":true}
+{"ts":"2026-08-14T07:02:56.996Z","kind":"resource","tSec":18.776,"vite":{"pcpu":0,"rssKb":137504,"count":3},"server":{"pcpu":0.2,"rssKb":301792,"count":6},"chrome":{"pcpu":35.6,"rssKb":2170592,"count":24}}
+{"ts":"2026-08-14T07:02:57.010Z","kind":"thermal","tSec":18.776,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:03:16.938Z","kind":"tv","tSec":38.78,"connected":true}
+{"ts":"2026-08-14T07:03:17.068Z","kind":"resource","tSec":38.853,"vite":{"pcpu":0,"rssKb":141088,"count":3},"server":{"pcpu":0.2,"rssKb":302784,"count":6},"chrome":{"pcpu":0,"rssKb":2498928,"count":24}}
+{"ts":"2026-08-14T07:03:17.080Z","kind":"thermal","tSec":38.853,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:03:36.941Z","kind":"tv","tSec":58.783,"connected":true}
+{"ts":"2026-08-14T07:03:37.159Z","kind":"resource","tSec":58.924,"vite":{"pcpu":0,"rssKb":149184,"count":3},"server":{"pcpu":0.7,"rssKb":329312,"count":6},"chrome":{"pcpu":14,"rssKb":2958528,"count":25}}
+{"ts":"2026-08-14T07:03:37.178Z","kind":"thermal","tSec":58.924,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:03:56.942Z","kind":"tv","tSec":78.784,"connected":true}
+{"ts":"2026-08-14T07:03:57.238Z","kind":"resource","tSec":79.022,"vite":{"pcpu":0,"rssKb":149216,"count":3},"server":{"pcpu":0.3,"rssKb":333632,"count":6},"chrome":{"pcpu":12.399999999999999,"rssKb":2996512,"count":25}}
+{"ts":"2026-08-14T07:03:57.251Z","kind":"thermal","tSec":79.022,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:04:16.944Z","kind":"tv","tSec":98.786,"connected":true}
+{"ts":"2026-08-14T07:04:17.301Z","kind":"resource","tSec":99.095,"vite":{"pcpu":0.1,"rssKb":149248,"count":3},"server":{"pcpu":0,"rssKb":335856,"count":6},"chrome":{"pcpu":24.6,"rssKb":3061120,"count":25}}
+{"ts":"2026-08-14T07:04:17.317Z","kind":"thermal","tSec":99.095,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:04:36.946Z","kind":"tv","tSec":118.788,"connected":true}
+{"ts":"2026-08-14T07:04:37.370Z","kind":"resource","tSec":119.16,"vite":{"pcpu":0.6,"rssKb":152576,"count":3},"server":{"pcpu":1.1,"rssKb":343536,"count":6},"chrome":{"pcpu":33.400000000000006,"rssKb":3098864,"count":25}}
+{"ts":"2026-08-14T07:04:37.381Z","kind":"thermal","tSec":119.16,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:04:56.947Z","kind":"tv","tSec":138.789,"connected":true}
+{"ts":"2026-08-14T07:04:57.445Z","kind":"resource","tSec":139.224,"vite":{"pcpu":0,"rssKb":152576,"count":3},"server":{"pcpu":0.1,"rssKb":347104,"count":6},"chrome":{"pcpu":16.1,"rssKb":3065872,"count":25}}
+{"ts":"2026-08-14T07:04:57.459Z","kind":"thermal","tSec":139.224,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:05:16.950Z","kind":"tv","tSec":158.792,"connected":true}
+{"ts":"2026-08-14T07:05:17.511Z","kind":"resource","tSec":159.301,"vite":{"pcpu":0,"rssKb":149552,"count":3},"server":{"pcpu":0,"rssKb":351776,"count":6},"chrome":{"pcpu":0.3,"rssKb":2928192,"count":25}}
+{"ts":"2026-08-14T07:05:17.525Z","kind":"thermal","tSec":159.301,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:05:36.951Z","kind":"tv","tSec":178.793,"connected":true}
+{"ts":"2026-08-14T07:05:37.560Z","kind":"resource","tSec":179.369,"vite":{"pcpu":0,"rssKb":149584,"count":3},"server":{"pcpu":0,"rssKb":354576,"count":6},"chrome":{"pcpu":23.8,"rssKb":3058256,"count":25}}
+{"ts":"2026-08-14T07:05:37.571Z","kind":"thermal","tSec":179.369,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:05:56.952Z","kind":"tv","tSec":198.794,"connected":true}
+{"ts":"2026-08-14T07:05:57.639Z","kind":"resource","tSec":199.415,"vite":{"pcpu":0,"rssKb":149680,"count":3},"server":{"pcpu":0.1,"rssKb":360224,"count":6},"chrome":{"pcpu":54.6,"rssKb":3126080,"count":25}}
+{"ts":"2026-08-14T07:05:57.660Z","kind":"thermal","tSec":199.415,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:06:16.953Z","kind":"tv","tSec":218.795,"connected":true}
+{"ts":"2026-08-14T07:06:17.717Z","kind":"resource","tSec":219.502,"vite":{"pcpu":0,"rssKb":149696,"count":3},"server":{"pcpu":0,"rssKb":374896,"count":6},"chrome":{"pcpu":12.4,"rssKb":3103776,"count":25}}
+{"ts":"2026-08-14T07:06:17.727Z","kind":"thermal","tSec":219.502,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:06:36.955Z","kind":"tv","tSec":238.797,"connected":true}
+{"ts":"2026-08-14T07:06:37.775Z","kind":"resource","tSec":239.57,"vite":{"pcpu":0,"rssKb":150032,"count":3},"server":{"pcpu":0,"rssKb":402368,"count":6},"chrome":{"pcpu":23.1,"rssKb":2948896,"count":25}}
+{"ts":"2026-08-14T07:06:37.786Z","kind":"thermal","tSec":239.57,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:06:56.957Z","kind":"tv","tSec":258.799,"connected":true}
+{"ts":"2026-08-14T07:06:57.836Z","kind":"resource","tSec":259.628,"vite":{"pcpu":0,"rssKb":150032,"count":3},"server":{"pcpu":0.1,"rssKb":410944,"count":6},"chrome":{"pcpu":63.699999999999996,"rssKb":2963584,"count":25}}
+{"ts":"2026-08-14T07:06:57.859Z","kind":"thermal","tSec":259.628,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:07:16.959Z","kind":"tv","tSec":278.801,"connected":true}
+{"ts":"2026-08-14T07:07:17.912Z","kind":"resource","tSec":279.701,"vite":{"pcpu":0,"rssKb":97072,"count":3},"server":{"pcpu":0,"rssKb":208320,"count":6},"chrome":{"pcpu":32.1,"rssKb":1320624,"count":26}}
+{"ts":"2026-08-14T07:07:17.926Z","kind":"thermal","tSec":279.701,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:07:36.960Z","kind":"tv","tSec":298.802,"connected":true}
+{"ts":"2026-08-14T07:07:37.986Z","kind":"resource","tSec":299.77,"vite":{"pcpu":0,"rssKb":112144,"count":3},"server":{"pcpu":0,"rssKb":261696,"count":6},"chrome":{"pcpu":33.2,"rssKb":1825472,"count":27}}
+{"ts":"2026-08-14T07:07:38.001Z","kind":"thermal","tSec":299.77,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:07:56.962Z","kind":"tv","tSec":318.804,"connected":true}
+{"ts":"2026-08-14T07:07:58.047Z","kind":"resource","tSec":319.844,"vite":{"pcpu":0.2,"rssKb":112288,"count":3},"server":{"pcpu":0.2,"rssKb":274000,"count":6},"chrome":{"pcpu":112.09999999999998,"rssKb":1857600,"count":27}}
+{"ts":"2026-08-14T07:07:58.062Z","kind":"thermal","tSec":319.844,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:07:58.084Z","kind":"disk","tSec":319.905,"du":"700K\t/Users/yngve/Desktop/GitHub/wraps-coffee/server/data\n 46M\t/Users/yngve/Desktop/GitHub/wraps-coffee/server/uploads\n1.8M\t/Users/yngve/Desktop/GitHub/wraps-coffee/server/news-image-cache","df":"Filesystem        Size    Used   Avail Capacity iused ifree %iused  Mounted on\n/dev/disk3s1s1   460Gi    17Gi    72Gi    20%    427k  752M    0%   /"}
+{"ts":"2026-08-14T07:08:16.965Z","kind":"tv","tSec":338.807,"connected":true}
+{"ts":"2026-08-14T07:08:18.130Z","kind":"resource","tSec":339.927,"vite":{"pcpu":0,"rssKb":105760,"count":3},"server":{"pcpu":0,"rssKb":226320,"count":6},"chrome":{"pcpu":34.5,"rssKb":1900064,"count":27}}
+{"ts":"2026-08-14T07:08:18.146Z","kind":"thermal","tSec":339.927,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:08:36.967Z","kind":"tv","tSec":358.809,"connected":true}
+{"ts":"2026-08-14T07:08:38.202Z","kind":"resource","tSec":359.99,"vite":{"pcpu":0,"rssKb":111472,"count":3},"server":{"pcpu":0,"rssKb":256192,"count":6},"chrome":{"pcpu":45.7,"rssKb":2120336,"count":27}}
+{"ts":"2026-08-14T07:08:38.217Z","kind":"thermal","tSec":359.99,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:08:56.969Z","kind":"tv","tSec":378.811,"connected":true}
+{"ts":"2026-08-14T07:08:58.264Z","kind":"resource","tSec":380.06,"vite":{"pcpu":0,"rssKb":113616,"count":3},"server":{"pcpu":0.6,"rssKb":257088,"count":6},"chrome":{"pcpu":84,"rssKb":2344736,"count":27}}
+{"ts":"2026-08-14T07:08:58.277Z","kind":"thermal","tSec":380.06,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:09:16.971Z","kind":"tv","tSec":398.813,"connected":true}
+{"ts":"2026-08-14T07:09:18.350Z","kind":"resource","tSec":400.12,"vite":{"pcpu":0,"rssKb":100672,"count":3},"server":{"pcpu":0,"rssKb":212128,"count":6},"chrome":{"pcpu":25.9,"rssKb":1912672,"count":27}}
+{"ts":"2026-08-14T07:09:18.367Z","kind":"thermal","tSec":400.12,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:09:36.974Z","kind":"tv","tSec":418.816,"connected":true}
+{"ts":"2026-08-14T07:09:38.434Z","kind":"resource","tSec":420.21,"vite":{"pcpu":0,"rssKb":71328,"count":3},"server":{"pcpu":0,"rssKb":172832,"count":6},"chrome":{"pcpu":55.1,"rssKb":1818048,"count":27}}
+{"ts":"2026-08-14T07:09:38.452Z","kind":"thermal","tSec":420.21,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:09:56.977Z","kind":"tv","tSec":438.819,"connected":true}
+{"ts":"2026-08-14T07:09:58.506Z","kind":"resource","tSec":440.296,"vite":{"pcpu":0.4,"rssKb":69776,"count":3},"server":{"pcpu":2.1,"rssKb":181152,"count":6},"chrome":{"pcpu":84.7,"rssKb":1878624,"count":27}}
+{"ts":"2026-08-14T07:09:58.521Z","kind":"thermal","tSec":440.296,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:10:16.982Z","kind":"tv","tSec":458.824,"connected":true}
+{"ts":"2026-08-14T07:10:18.582Z","kind":"resource","tSec":460.365,"vite":{"pcpu":0,"rssKb":54288,"count":3},"server":{"pcpu":0.1,"rssKb":123824,"count":6},"chrome":{"pcpu":25.700000000000003,"rssKb":1422144,"count":27}}
+{"ts":"2026-08-14T07:10:18.608Z","kind":"thermal","tSec":460.365,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:10:36.988Z","kind":"tv","tSec":478.83,"connected":true}
+{"ts":"2026-08-14T07:10:38.677Z","kind":"resource","tSec":480.453,"vite":{"pcpu":0,"rssKb":54224,"count":3},"server":{"pcpu":0,"rssKb":118368,"count":6},"chrome":{"pcpu":54.300000000000004,"rssKb":1663072,"count":27}}
+{"ts":"2026-08-14T07:10:38.694Z","kind":"thermal","tSec":480.453,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:10:56.990Z","kind":"tv","tSec":498.832,"connected":true}
+{"ts":"2026-08-14T07:10:58.741Z","kind":"resource","tSec":500.538,"vite":{"pcpu":1.4,"rssKb":57872,"count":3},"server":{"pcpu":1.7,"rssKb":143344,"count":6},"chrome":{"pcpu":90,"rssKb":1519424,"count":27}}
+{"ts":"2026-08-14T07:10:58.756Z","kind":"thermal","tSec":500.538,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:11:16.994Z","kind":"tv","tSec":518.836,"connected":true}
+{"ts":"2026-08-14T07:11:18.822Z","kind":"resource","tSec":520.598,"vite":{"pcpu":0,"rssKb":47792,"count":3},"server":{"pcpu":0.1,"rssKb":115280,"count":6},"chrome":{"pcpu":28.200000000000003,"rssKb":1355024,"count":27}}
+{"ts":"2026-08-14T07:11:18.839Z","kind":"thermal","tSec":520.598,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:11:37.000Z","kind":"tv","tSec":538.842,"connected":true}
+{"ts":"2026-08-14T07:11:38.895Z","kind":"resource","tSec":540.682,"vite":{"pcpu":0,"rssKb":58176,"count":3},"server":{"pcpu":0,"rssKb":171920,"count":6},"chrome":{"pcpu":55.6,"rssKb":1464320,"count":27}}
+{"ts":"2026-08-14T07:11:38.913Z","kind":"thermal","tSec":540.682,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:11:57.003Z","kind":"tv","tSec":558.845,"connected":true}
+{"ts":"2026-08-14T07:11:58.953Z","kind":"resource","tSec":560.757,"vite":{"pcpu":0.6,"rssKb":58032,"count":3},"server":{"pcpu":10.3,"rssKb":168064,"count":6},"chrome":{"pcpu":98.1,"rssKb":1552912,"count":27}}
+{"ts":"2026-08-14T07:11:58.966Z","kind":"thermal","tSec":560.757,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:12:17.006Z","kind":"tv","tSec":578.848,"connected":true}
+{"ts":"2026-08-14T07:12:19.020Z","kind":"resource","tSec":580.81,"vite":{"pcpu":0,"rssKb":49120,"count":3},"server":{"pcpu":0.3,"rssKb":134256,"count":6},"chrome":{"pcpu":45.99999999999999,"rssKb":1375008,"count":27}}
+{"ts":"2026-08-14T07:12:19.036Z","kind":"thermal","tSec":580.81,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:12:37.009Z","kind":"tv","tSec":598.851,"connected":true}
+{"ts":"2026-08-14T07:12:39.084Z","kind":"resource","tSec":600.88,"vite":{"pcpu":0.1,"rssKb":60928,"count":3},"server":{"pcpu":0.7,"rssKb":142752,"count":6},"chrome":{"pcpu":45.900000000000006,"rssKb":1394896,"count":27}}
+{"ts":"2026-08-14T07:12:39.099Z","kind":"thermal","tSec":600.88,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:12:57.012Z","kind":"tv","tSec":618.854,"connected":true}
+{"ts":"2026-08-14T07:12:59.146Z","kind":"resource","tSec":620.943,"vite":{"pcpu":0.4,"rssKb":58464,"count":3},"server":{"pcpu":0.7999999999999999,"rssKb":167536,"count":6},"chrome":{"pcpu":84.49999999999999,"rssKb":1472416,"count":27}}
+{"ts":"2026-08-14T07:12:59.161Z","kind":"thermal","tSec":620.943,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:12:59.178Z","kind":"disk","tSec":621.004,"du":"700K\t/Users/yngve/Desktop/GitHub/wraps-coffee/server/data\n 46M\t/Users/yngve/Desktop/GitHub/wraps-coffee/server/uploads\n2.4M\t/Users/yngve/Desktop/GitHub/wraps-coffee/server/news-image-cache","df":"Filesystem        Size    Used   Avail Capacity iused ifree %iused  Mounted on\n/dev/disk3s1s1   460Gi    17Gi    72Gi    20%    427k  752M    0%   /"}
+{"ts":"2026-08-14T07:13:17.018Z","kind":"tv","tSec":638.86,"connected":true}
+{"ts":"2026-08-14T07:13:19.245Z","kind":"resource","tSec":641.022,"vite":{"pcpu":0,"rssKb":44640,"count":3},"server":{"pcpu":0,"rssKb":127360,"count":6},"chrome":{"pcpu":35.4,"rssKb":1327088,"count":27}}
+{"ts":"2026-08-14T07:13:19.323Z","kind":"thermal","tSec":641.022,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:13:37.022Z","kind":"tv","tSec":658.864,"connected":true}
+{"ts":"2026-08-14T07:13:39.388Z","kind":"resource","tSec":661.167,"vite":{"pcpu":0,"rssKb":54144,"count":3},"server":{"pcpu":0,"rssKb":137392,"count":6},"chrome":{"pcpu":20.9,"rssKb":1632016,"count":27}}
+{"ts":"2026-08-14T07:13:39.408Z","kind":"thermal","tSec":661.167,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:13:57.025Z","kind":"tv","tSec":678.867,"connected":true}
+{"ts":"2026-08-14T07:13:59.461Z","kind":"resource","tSec":681.252,"vite":{"pcpu":0.30000000000000004,"rssKb":56992,"count":3},"server":{"pcpu":0.6000000000000001,"rssKb":149520,"count":6},"chrome":{"pcpu":68.4,"rssKb":1546224,"count":27}}
+{"ts":"2026-08-14T07:13:59.476Z","kind":"thermal","tSec":681.252,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:14:17.029Z","kind":"tv","tSec":698.871,"connected":true}
+{"ts":"2026-08-14T07:14:19.562Z","kind":"resource","tSec":701.322,"vite":{"pcpu":0,"rssKb":54784,"count":3},"server":{"pcpu":0.8,"rssKb":120080,"count":6},"chrome":{"pcpu":20.3,"rssKb":1451024,"count":27}}
+{"ts":"2026-08-14T07:14:19.584Z","kind":"thermal","tSec":701.322,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:14:37.033Z","kind":"tv","tSec":718.875,"connected":true}
+{"ts":"2026-08-14T07:14:39.658Z","kind":"resource","tSec":721.429,"vite":{"pcpu":0,"rssKb":57616,"count":3},"server":{"pcpu":0,"rssKb":124288,"count":6},"chrome":{"pcpu":24.5,"rssKb":1564064,"count":27}}
+{"ts":"2026-08-14T07:14:39.672Z","kind":"thermal","tSec":721.429,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:14:57.035Z","kind":"tv","tSec":738.877,"connected":true}
+{"ts":"2026-08-14T07:14:59.748Z","kind":"resource","tSec":741.517,"vite":{"pcpu":0.1,"rssKb":60080,"count":3},"server":{"pcpu":0.9,"rssKb":140352,"count":6},"chrome":{"pcpu":52.4,"rssKb":1406464,"count":27}}
+{"ts":"2026-08-14T07:14:59.764Z","kind":"thermal","tSec":741.517,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:15:17.039Z","kind":"tv","tSec":758.881,"connected":true}
+{"ts":"2026-08-14T07:15:19.821Z","kind":"resource","tSec":761.608,"vite":{"pcpu":0,"rssKb":52432,"count":3},"server":{"pcpu":1,"rssKb":147504,"count":6},"chrome":{"pcpu":50.1,"rssKb":1410192,"count":27}}
+{"ts":"2026-08-14T07:15:19.838Z","kind":"thermal","tSec":761.608,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:15:37.042Z","kind":"tv","tSec":778.884,"connected":true}
+{"ts":"2026-08-14T07:15:39.907Z","kind":"resource","tSec":781.682,"vite":{"pcpu":0,"rssKb":58336,"count":3},"server":{"pcpu":0.3,"rssKb":153376,"count":6},"chrome":{"pcpu":32.1,"rssKb":1440416,"count":27}}
+{"ts":"2026-08-14T07:15:39.923Z","kind":"thermal","tSec":781.682,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:15:57.045Z","kind":"tv","tSec":798.887,"connected":true}
+{"ts":"2026-08-14T07:15:59.998Z","kind":"resource","tSec":801.769,"vite":{"pcpu":0,"rssKb":61440,"count":3},"server":{"pcpu":0.5,"rssKb":154528,"count":6},"chrome":{"pcpu":44.400000000000006,"rssKb":1622640,"count":27}}
+{"ts":"2026-08-14T07:16:00.020Z","kind":"thermal","tSec":801.769,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:16:17.050Z","kind":"tv","tSec":818.892,"connected":true}
+{"ts":"2026-08-14T07:16:20.075Z","kind":"resource","tSec":821.864,"vite":{"pcpu":0,"rssKb":55808,"count":3},"server":{"pcpu":1.9,"rssKb":145568,"count":6},"chrome":{"pcpu":73.79999999999998,"rssKb":1510352,"count":27}}
+{"ts":"2026-08-14T07:16:20.094Z","kind":"thermal","tSec":821.864,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:16:37.054Z","kind":"tv","tSec":838.896,"connected":true}
+{"ts":"2026-08-14T07:16:40.148Z","kind":"resource","tSec":841.938,"vite":{"pcpu":0,"rssKb":60352,"count":3},"server":{"pcpu":1.2,"rssKb":128736,"count":6},"chrome":{"pcpu":52.7,"rssKb":1665328,"count":27}}
+{"ts":"2026-08-14T07:16:40.162Z","kind":"thermal","tSec":841.938,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:16:57.058Z","kind":"tv","tSec":858.9,"connected":true}
+{"ts":"2026-08-14T07:17:00.225Z","kind":"resource","tSec":862.006,"vite":{"pcpu":0,"rssKb":58144,"count":3},"server":{"pcpu":2.2,"rssKb":158960,"count":6},"chrome":{"pcpu":51.199999999999996,"rssKb":1707264,"count":27}}
+{"ts":"2026-08-14T07:17:00.240Z","kind":"thermal","tSec":862.006,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:17:17.062Z","kind":"tv","tSec":878.904,"connected":true}
+{"ts":"2026-08-14T07:17:20.311Z","kind":"resource","tSec":882.086,"vite":{"pcpu":0,"rssKb":53648,"count":3},"server":{"pcpu":0.3,"rssKb":136304,"count":6},"chrome":{"pcpu":36,"rssKb":1620144,"count":27}}
+{"ts":"2026-08-14T07:17:20.326Z","kind":"thermal","tSec":882.086,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:17:37.067Z","kind":"tv","tSec":898.909,"connected":true}
+{"ts":"2026-08-14T07:17:40.386Z","kind":"resource","tSec":902.171,"vite":{"pcpu":0,"rssKb":58672,"count":3},"server":{"pcpu":0.7,"rssKb":145600,"count":6},"chrome":{"pcpu":63.900000000000006,"rssKb":1569840,"count":27}}
+{"ts":"2026-08-14T07:17:40.402Z","kind":"thermal","tSec":902.171,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:17:57.072Z","kind":"tv","tSec":918.914,"connected":true}
+{"ts":"2026-08-14T07:18:00.462Z","kind":"resource","tSec":922.247,"vite":{"pcpu":0,"rssKb":59184,"count":3},"server":{"pcpu":0.2,"rssKb":149456,"count":6},"chrome":{"pcpu":57.10000000000001,"rssKb":1589536,"count":27}}
+{"ts":"2026-08-14T07:18:00.477Z","kind":"thermal","tSec":922.247,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:18:00.491Z","kind":"disk","tSec":922.319,"du":"700K\t/Users/yngve/Desktop/GitHub/wraps-coffee/server/data\n 46M\t/Users/yngve/Desktop/GitHub/wraps-coffee/server/uploads\n2.6M\t/Users/yngve/Desktop/GitHub/wraps-coffee/server/news-image-cache","df":"Filesystem        Size    Used   Avail Capacity iused ifree %iused  Mounted on\n/dev/disk3s1s1   460Gi    17Gi    72Gi    20%    427k  752M    0%   /"}
+{"ts":"2026-08-14T07:18:17.075Z","kind":"tv","tSec":938.917,"connected":true}
+{"ts":"2026-08-14T07:18:20.590Z","kind":"resource","tSec":942.335,"vite":{"pcpu":0,"rssKb":60176,"count":3},"server":{"pcpu":0.1,"rssKb":147312,"count":6},"chrome":{"pcpu":53,"rssKb":1544160,"count":27}}
+{"ts":"2026-08-14T07:18:20.602Z","kind":"thermal","tSec":942.335,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:18:37.078Z","kind":"tv","tSec":958.92,"connected":true}
+{"ts":"2026-08-14T07:18:40.677Z","kind":"resource","tSec":962.447,"vite":{"pcpu":0,"rssKb":51952,"count":3},"server":{"pcpu":0.4,"rssKb":136656,"count":6},"chrome":{"pcpu":47.300000000000004,"rssKb":1519136,"count":27}}
+{"ts":"2026-08-14T07:18:40.691Z","kind":"thermal","tSec":962.447,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:18:57.082Z","kind":"tv","tSec":978.924,"connected":true}
+{"ts":"2026-08-14T07:19:00.765Z","kind":"resource","tSec":982.536,"vite":{"pcpu":0,"rssKb":59040,"count":3},"server":{"pcpu":0.1,"rssKb":165680,"count":6},"chrome":{"pcpu":59.8,"rssKb":1843088,"count":27}}
+{"ts":"2026-08-14T07:19:00.781Z","kind":"thermal","tSec":982.536,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:19:17.085Z","kind":"tv","tSec":998.927,"connected":true}
+{"ts":"2026-08-14T07:19:20.850Z","kind":"resource","tSec":1002.626,"vite":{"pcpu":0,"rssKb":59344,"count":3},"server":{"pcpu":0.1,"rssKb":143264,"count":6},"chrome":{"pcpu":39,"rssKb":1649216,"count":27}}
+{"ts":"2026-08-14T07:19:20.873Z","kind":"thermal","tSec":1002.626,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:19:37.088Z","kind":"tv","tSec":1018.93,"connected":true}
+{"ts":"2026-08-14T07:19:40.922Z","kind":"resource","tSec":1022.717,"vite":{"pcpu":0,"rssKb":63856,"count":3},"server":{"pcpu":0,"rssKb":171104,"count":6},"chrome":{"pcpu":14.8,"rssKb":1923776,"count":27}}
+{"ts":"2026-08-14T07:19:40.933Z","kind":"thermal","tSec":1022.717,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:19:57.092Z","kind":"tv","tSec":1038.934,"connected":true}
+{"ts":"2026-08-14T07:20:00.988Z","kind":"resource","tSec":1042.776,"vite":{"pcpu":0,"rssKb":64032,"count":3},"server":{"pcpu":0,"rssKb":172064,"count":6},"chrome":{"pcpu":23.7,"rssKb":1839008,"count":27}}
+{"ts":"2026-08-14T07:20:01.002Z","kind":"thermal","tSec":1042.776,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:20:17.096Z","kind":"tv","tSec":1058.938,"connected":true}
+{"ts":"2026-08-14T07:20:21.044Z","kind":"resource","tSec":1062.844,"vite":{"pcpu":0,"rssKb":64816,"count":3},"server":{"pcpu":0,"rssKb":172864,"count":6},"chrome":{"pcpu":43.199999999999996,"rssKb":1793872,"count":27}}
+{"ts":"2026-08-14T07:20:21.057Z","kind":"thermal","tSec":1062.844,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:20:37.098Z","kind":"tv","tSec":1078.94,"connected":true}
+{"ts":"2026-08-14T07:20:41.111Z","kind":"resource","tSec":1082.9,"vite":{"pcpu":0,"rssKb":66000,"count":3},"server":{"pcpu":0,"rssKb":188464,"count":6},"chrome":{"pcpu":37.60000000000001,"rssKb":1887520,"count":27}}
+{"ts":"2026-08-14T07:20:41.122Z","kind":"thermal","tSec":1082.9,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:20:57.100Z","kind":"tv","tSec":1098.942,"connected":true}
+{"ts":"2026-08-14T07:21:01.181Z","kind":"resource","tSec":1102.965,"vite":{"pcpu":0.1,"rssKb":65680,"count":3},"server":{"pcpu":0,"rssKb":186416,"count":6},"chrome":{"pcpu":10.3,"rssKb":1946976,"count":27}}
+{"ts":"2026-08-14T07:21:01.200Z","kind":"thermal","tSec":1102.965,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:21:17.102Z","kind":"tv","tSec":1118.944,"connected":true}
+{"ts":"2026-08-14T07:21:21.266Z","kind":"resource","tSec":1123.044,"vite":{"pcpu":0,"rssKb":65888,"count":3},"server":{"pcpu":0.3,"rssKb":186480,"count":6},"chrome":{"pcpu":42.1,"rssKb":1915344,"count":27}}
+{"ts":"2026-08-14T07:21:21.281Z","kind":"thermal","tSec":1123.044,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:21:37.107Z","kind":"tv","tSec":1138.949,"connected":true}
+{"ts":"2026-08-14T07:21:41.349Z","kind":"resource","tSec":1143.125,"vite":{"pcpu":0,"rssKb":66272,"count":3},"server":{"pcpu":2.5,"rssKb":204752,"count":6},"chrome":{"pcpu":35.2,"rssKb":2040544,"count":27}}
+{"ts":"2026-08-14T07:21:41.364Z","kind":"thermal","tSec":1143.125,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:21:57.110Z","kind":"tv","tSec":1158.952,"connected":true}
+{"ts":"2026-08-14T07:22:01.410Z","kind":"resource","tSec":1163.208,"vite":{"pcpu":0,"rssKb":62176,"count":3},"server":{"pcpu":8.4,"rssKb":180304,"count":6},"chrome":{"pcpu":47.300000000000004,"rssKb":1796112,"count":27}}
+{"ts":"2026-08-14T07:22:01.428Z","kind":"thermal","tSec":1163.208,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:22:17.115Z","kind":"tv","tSec":1178.957,"connected":true}
+{"ts":"2026-08-14T07:22:21.481Z","kind":"resource","tSec":1183.272,"vite":{"pcpu":0,"rssKb":61712,"count":3},"server":{"pcpu":0.6,"rssKb":182384,"count":6},"chrome":{"pcpu":40.6,"rssKb":1739456,"count":27}}
+{"ts":"2026-08-14T07:22:21.493Z","kind":"thermal","tSec":1183.272,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:22:37.121Z","kind":"tv","tSec":1198.963,"connected":true}
+{"ts":"2026-08-14T07:22:41.561Z","kind":"resource","tSec":1203.337,"vite":{"pcpu":0,"rssKb":61616,"count":3},"server":{"pcpu":0.4,"rssKb":187744,"count":6},"chrome":{"pcpu":36.5,"rssKb":1658032,"count":27}}
+{"ts":"2026-08-14T07:22:41.573Z","kind":"thermal","tSec":1203.337,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:22:57.124Z","kind":"tv","tSec":1218.966,"connected":true}
+{"ts":"2026-08-14T07:23:01.622Z","kind":"resource","tSec":1223.419,"vite":{"pcpu":0,"rssKb":63248,"count":3},"server":{"pcpu":1.6,"rssKb":187920,"count":6},"chrome":{"pcpu":23.4,"rssKb":1663424,"count":27}}
+{"ts":"2026-08-14T07:23:01.637Z","kind":"thermal","tSec":1223.419,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:23:01.650Z","kind":"disk","tSec":1223.479,"du":"700K\t/Users/yngve/Desktop/GitHub/wraps-coffee/server/data\n 46M\t/Users/yngve/Desktop/GitHub/wraps-coffee/server/uploads\n2.8M\t/Users/yngve/Desktop/GitHub/wraps-coffee/server/news-image-cache","df":"Filesystem        Size    Used   Avail Capacity iused ifree %iused  Mounted on\n/dev/disk3s1s1   460Gi    17Gi    72Gi    20%    427k  751M    0%   /"}
+{"ts":"2026-08-14T07:23:17.126Z","kind":"tv","tSec":1238.968,"connected":true}
+{"ts":"2026-08-14T07:23:21.715Z","kind":"resource","tSec":1243.495,"vite":{"pcpu":0,"rssKb":62592,"count":3},"server":{"pcpu":0.5,"rssKb":185360,"count":6},"chrome":{"pcpu":20.8,"rssKb":1729488,"count":27}}
+{"ts":"2026-08-14T07:23:21.727Z","kind":"thermal","tSec":1243.495,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:23:37.131Z","kind":"tv","tSec":1258.973,"connected":true}
+{"ts":"2026-08-14T07:23:41.795Z","kind":"resource","tSec":1263.573,"vite":{"pcpu":0,"rssKb":61488,"count":3},"server":{"pcpu":0.1,"rssKb":176448,"count":6},"chrome":{"pcpu":15.899999999999999,"rssKb":1781568,"count":27}}
+{"ts":"2026-08-14T07:23:41.811Z","kind":"thermal","tSec":1263.573,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:23:57.134Z","kind":"tv","tSec":1278.976,"connected":true}
+{"ts":"2026-08-14T07:24:01.885Z","kind":"resource","tSec":1283.655,"vite":{"pcpu":0,"rssKb":59840,"count":3},"server":{"pcpu":0.1,"rssKb":166032,"count":6},"chrome":{"pcpu":32.4,"rssKb":1861888,"count":27}}
+{"ts":"2026-08-14T07:24:01.908Z","kind":"thermal","tSec":1283.655,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:24:17.137Z","kind":"tv","tSec":1298.979,"connected":true}
+{"ts":"2026-08-14T07:24:21.963Z","kind":"resource","tSec":1303.752,"vite":{"pcpu":0,"rssKb":55520,"count":3},"server":{"pcpu":0.1,"rssKb":141760,"count":6},"chrome":{"pcpu":43.1,"rssKb":1602304,"count":27}}
+{"ts":"2026-08-14T07:24:21.980Z","kind":"thermal","tSec":1303.752,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:24:37.141Z","kind":"tv","tSec":1318.983,"connected":true}
+{"ts":"2026-08-14T07:24:42.032Z","kind":"resource","tSec":1323.824,"vite":{"pcpu":0,"rssKb":58960,"count":3},"server":{"pcpu":0.8,"rssKb":168752,"count":6},"chrome":{"pcpu":21.4,"rssKb":1620944,"count":27}}
+{"ts":"2026-08-14T07:24:42.047Z","kind":"thermal","tSec":1323.824,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:24:57.143Z","kind":"tv","tSec":1338.985,"connected":true}
+{"ts":"2026-08-14T07:25:02.106Z","kind":"resource","tSec":1343.892,"vite":{"pcpu":0,"rssKb":62352,"count":3},"server":{"pcpu":0.1,"rssKb":166160,"count":6},"chrome":{"pcpu":20.2,"rssKb":1688992,"count":27}}
+{"ts":"2026-08-14T07:25:02.120Z","kind":"thermal","tSec":1343.892,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:25:17.146Z","kind":"tv","tSec":1358.988,"connected":true}
+{"ts":"2026-08-14T07:25:22.175Z","kind":"resource","tSec":1363.965,"vite":{"pcpu":0,"rssKb":62448,"count":3},"server":{"pcpu":0.1,"rssKb":200240,"count":6},"chrome":{"pcpu":20.500000000000004,"rssKb":1659312,"count":27}}
+{"ts":"2026-08-14T07:25:22.199Z","kind":"thermal","tSec":1363.965,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:25:37.151Z","kind":"tv","tSec":1378.993,"connected":true}
+{"ts":"2026-08-14T07:25:42.268Z","kind":"resource","tSec":1384.043,"vite":{"pcpu":0,"rssKb":63024,"count":3},"server":{"pcpu":0.7,"rssKb":195248,"count":6},"chrome":{"pcpu":27.5,"rssKb":1778848,"count":27}}
+{"ts":"2026-08-14T07:25:42.282Z","kind":"thermal","tSec":1384.043,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:25:57.154Z","kind":"tv","tSec":1398.996,"connected":true}
+{"ts":"2026-08-14T07:26:02.338Z","kind":"resource","tSec":1404.125,"vite":{"pcpu":0,"rssKb":63488,"count":3},"server":{"pcpu":0.3,"rssKb":185712,"count":6},"chrome":{"pcpu":18.5,"rssKb":1716656,"count":27}}
+{"ts":"2026-08-14T07:26:02.354Z","kind":"thermal","tSec":1404.125,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:26:17.156Z","kind":"tv","tSec":1418.998,"connected":true}
+{"ts":"2026-08-14T07:26:22.426Z","kind":"resource","tSec":1424.199,"vite":{"pcpu":0,"rssKb":63712,"count":3},"server":{"pcpu":0.3,"rssKb":183984,"count":6},"chrome":{"pcpu":37.6,"rssKb":1797216,"count":27}}
+{"ts":"2026-08-14T07:26:22.445Z","kind":"thermal","tSec":1424.199,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:26:37.160Z","kind":"tv","tSec":1439.002,"connected":true}
+{"ts":"2026-08-14T07:26:42.507Z","kind":"resource","tSec":1444.287,"vite":{"pcpu":0,"rssKb":63440,"count":3},"server":{"pcpu":0.2,"rssKb":179760,"count":6},"chrome":{"pcpu":40.900000000000006,"rssKb":1843344,"count":27}}
+{"ts":"2026-08-14T07:26:42.523Z","kind":"thermal","tSec":1444.287,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:26:57.164Z","kind":"tv","tSec":1459.006,"connected":true}
+{"ts":"2026-08-14T07:27:02.591Z","kind":"resource","tSec":1464.368,"vite":{"pcpu":0,"rssKb":61808,"count":3},"server":{"pcpu":0.6,"rssKb":173696,"count":6},"chrome":{"pcpu":48.39999999999999,"rssKb":1883904,"count":27}}
+{"ts":"2026-08-14T07:27:02.610Z","kind":"thermal","tSec":1464.368,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:27:17.168Z","kind":"tv","tSec":1479.01,"connected":true}
+{"ts":"2026-08-14T07:27:22.674Z","kind":"resource","tSec":1484.453,"vite":{"pcpu":0,"rssKb":62288,"count":3},"server":{"pcpu":0.1,"rssKb":173904,"count":6},"chrome":{"pcpu":48.7,"rssKb":1941056,"count":27}}
+{"ts":"2026-08-14T07:27:22.689Z","kind":"thermal","tSec":1484.453,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:27:37.172Z","kind":"tv","tSec":1499.014,"connected":true}
+{"ts":"2026-08-14T07:27:42.731Z","kind":"resource","tSec":1504.532,"vite":{"pcpu":0,"rssKb":62560,"count":3},"server":{"pcpu":0,"rssKb":182464,"count":6},"chrome":{"pcpu":54.599999999999994,"rssKb":2091280,"count":27}}
+{"ts":"2026-08-14T07:27:42.745Z","kind":"thermal","tSec":1504.532,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:27:57.174Z","kind":"tv","tSec":1519.016,"connected":true}
+{"ts":"2026-08-14T07:28:02.811Z","kind":"resource","tSec":1524.589,"vite":{"pcpu":0,"rssKb":62128,"count":3},"server":{"pcpu":0.1,"rssKb":176848,"count":6},"chrome":{"pcpu":10.2,"rssKb":2114384,"count":27}}
+{"ts":"2026-08-14T07:28:02.829Z","kind":"thermal","tSec":1524.589,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:28:02.841Z","kind":"disk","tSec":1524.671,"du":"700K\t/Users/yngve/Desktop/GitHub/wraps-coffee/server/data\n 46M\t/Users/yngve/Desktop/GitHub/wraps-coffee/server/uploads\n3.2M\t/Users/yngve/Desktop/GitHub/wraps-coffee/server/news-image-cache","df":"Filesystem        Size    Used   Avail Capacity iused ifree %iused  Mounted on\n/dev/disk3s1s1   460Gi    17Gi    72Gi    20%    427k  750M    0%   /"}
+{"ts":"2026-08-14T07:28:17.176Z","kind":"tv","tSec":1539.018,"connected":true}
+{"ts":"2026-08-14T07:28:22.895Z","kind":"resource","tSec":1544.685,"vite":{"pcpu":0,"rssKb":62352,"count":3},"server":{"pcpu":0.8,"rssKb":178016,"count":6},"chrome":{"pcpu":35.900000000000006,"rssKb":2183488,"count":27}}
+{"ts":"2026-08-14T07:28:22.909Z","kind":"thermal","tSec":1544.685,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:28:37.177Z","kind":"tv","tSec":1559.019,"connected":true}
+{"ts":"2026-08-14T07:28:42.977Z","kind":"resource","tSec":1564.753,"vite":{"pcpu":0,"rssKb":62880,"count":3},"server":{"pcpu":0.4,"rssKb":179392,"count":6},"chrome":{"pcpu":7.8,"rssKb":2010144,"count":27}}
+{"ts":"2026-08-14T07:28:42.991Z","kind":"thermal","tSec":1564.753,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:28:57.179Z","kind":"tv","tSec":1579.021,"connected":true}
+{"ts":"2026-08-14T07:29:03.055Z","kind":"resource","tSec":1584.835,"vite":{"pcpu":0.4,"rssKb":63680,"count":3},"server":{"pcpu":0.4,"rssKb":190672,"count":6},"chrome":{"pcpu":40.20000000000001,"rssKb":2164624,"count":27}}
+{"ts":"2026-08-14T07:29:03.069Z","kind":"thermal","tSec":1584.835,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:29:17.181Z","kind":"tv","tSec":1599.023,"connected":true}
+{"ts":"2026-08-14T07:29:23.131Z","kind":"resource","tSec":1604.913,"vite":{"pcpu":0,"rssKb":63760,"count":3},"server":{"pcpu":0.9,"rssKb":191552,"count":6},"chrome":{"pcpu":29.6,"rssKb":2108384,"count":27}}
+{"ts":"2026-08-14T07:29:23.142Z","kind":"thermal","tSec":1604.913,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:29:37.185Z","kind":"tv","tSec":1619.027,"connected":true}
+{"ts":"2026-08-14T07:29:43.203Z","kind":"resource","tSec":1624.986,"vite":{"pcpu":0,"rssKb":65296,"count":3},"server":{"pcpu":0.1,"rssKb":191936,"count":6},"chrome":{"pcpu":3.6999999999999997,"rssKb":2137360,"count":27}}
+{"ts":"2026-08-14T07:29:43.221Z","kind":"thermal","tSec":1624.986,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:29:57.187Z","kind":"tv","tSec":1639.029,"connected":true}
+{"ts":"2026-08-14T07:30:03.278Z","kind":"resource","tSec":1645.066,"vite":{"pcpu":0.3,"rssKb":65904,"count":3},"server":{"pcpu":0.1,"rssKb":194320,"count":6},"chrome":{"pcpu":42.8,"rssKb":2055376,"count":27}}
+{"ts":"2026-08-14T07:30:03.292Z","kind":"thermal","tSec":1645.066,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:30:17.191Z","kind":"tv","tSec":1659.033,"connected":true}
+{"ts":"2026-08-14T07:30:23.363Z","kind":"resource","tSec":1665.134,"vite":{"pcpu":0.2,"rssKb":67216,"count":3},"server":{"pcpu":0.5,"rssKb":195168,"count":6},"chrome":{"pcpu":4.9,"rssKb":1849248,"count":27}}
+{"ts":"2026-08-14T07:30:23.379Z","kind":"thermal","tSec":1665.134,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:30:37.195Z","kind":"tv","tSec":1679.037,"connected":true}
+{"ts":"2026-08-14T07:30:43.449Z","kind":"resource","tSec":1685.224,"vite":{"pcpu":0,"rssKb":66576,"count":3},"server":{"pcpu":0.1,"rssKb":188240,"count":6},"chrome":{"pcpu":16.200000000000003,"rssKb":1891280,"count":27}}
+{"ts":"2026-08-14T07:30:43.464Z","kind":"thermal","tSec":1685.224,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:30:57.199Z","kind":"tv","tSec":1699.041,"connected":true}
+{"ts":"2026-08-14T07:31:03.527Z","kind":"resource","tSec":1705.308,"vite":{"pcpu":0,"rssKb":66320,"count":3},"server":{"pcpu":0.1,"rssKb":192608,"count":6},"chrome":{"pcpu":16.3,"rssKb":1820320,"count":27}}
+{"ts":"2026-08-14T07:31:03.543Z","kind":"thermal","tSec":1705.308,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:31:17.203Z","kind":"tv","tSec":1719.045,"connected":true}
+{"ts":"2026-08-14T07:31:23.600Z","kind":"resource","tSec":1725.385,"vite":{"pcpu":0,"rssKb":64624,"count":3},"server":{"pcpu":1.6,"rssKb":188544,"count":6},"chrome":{"pcpu":26.700000000000003,"rssKb":1738336,"count":27}}
+{"ts":"2026-08-14T07:31:23.611Z","kind":"thermal","tSec":1725.385,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:31:37.205Z","kind":"tv","tSec":1739.047,"connected":true}
+{"ts":"2026-08-14T07:31:43.661Z","kind":"resource","tSec":1745.455,"vite":{"pcpu":0,"rssKb":63968,"count":3},"server":{"pcpu":0.1,"rssKb":161936,"count":6},"chrome":{"pcpu":14,"rssKb":1813664,"count":27}}
+{"ts":"2026-08-14T07:31:43.672Z","kind":"thermal","tSec":1745.455,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:31:57.209Z","kind":"tv","tSec":1759.051,"connected":true}
+{"ts":"2026-08-14T07:32:03.727Z","kind":"resource","tSec":1765.517,"vite":{"pcpu":0.1,"rssKb":63536,"count":3},"server":{"pcpu":0,"rssKb":184768,"count":6},"chrome":{"pcpu":62,"rssKb":1983360,"count":27}}
+{"ts":"2026-08-14T07:32:03.741Z","kind":"thermal","tSec":1765.517,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:32:17.211Z","kind":"tv","tSec":1779.053,"connected":true}
+{"ts":"2026-08-14T07:32:23.800Z","kind":"resource","tSec":1785.585,"vite":{"pcpu":0,"rssKb":62960,"count":3},"server":{"pcpu":0,"rssKb":183728,"count":6},"chrome":{"pcpu":31.7,"rssKb":2004816,"count":27}}
+{"ts":"2026-08-14T07:32:23.815Z","kind":"thermal","tSec":1785.585,"output":"Note: No thermal warning level has been recorded\nNote: No performance warning level has been recorded\nNote: No CPU power status has been recorded"}
+{"ts":"2026-08-14T07:32:37.216Z","kind":"tv","tSec":1799.058,"connected":true}

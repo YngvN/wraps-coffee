@@ -18,6 +18,20 @@
   font-weight: 600;
 }
 
+// Matches `.text-size-editor__slider`'s own look (`TextSizeEditor.scss`) so
+// this slider reads as part of the same family of controls.
+.pane-editor__slider {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  font-size: 0.875rem;
+  font-weight: 600;
+
+  input[type='range'] {
+    width: 100%;
+  }
+}
+
 // Always visible (not a `CollapsibleSection`, unlike every other group in
 // this editor) — Clear/Delete apply regardless of content kind, so they
 // stay in view rather than needing to be expanded first.

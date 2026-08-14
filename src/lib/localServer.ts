@@ -1,6 +1,6 @@
 import type { DisplayConnectionType } from '../types/displayMachine'
 import type { FoodoraCredentials, WoltCredentials } from '../types/delivery'
-import type { DepartureInfo, NearbyStop, WeatherHour } from '../types/integrations'
+import type { NearbyStop, WeatherHour } from '../types/integrations'
 import type { NewsHeadline } from '../types/news'
 import type { OrderStatus } from '../types/order'
 import type { ScreenAddressSettings } from '../types/screenAddress'
@@ -373,13 +373,6 @@ export async function searchStops(query: string): Promise<NearbyStop[]> {
   if (!response.ok) throw new Error('Could not search for stops')
   const { stops } = (await response.json()) as { stops: NearbyStop[] }
   return stops
-}
-
-/** Fetches Entur's own much-larger buffer of upcoming departures for `stopId` (`count` only hints a floor — see `handleDepartures`'s `TRANSIT_FETCH_BUFFER` doc comment in `server/integrations.ts`; the response isn't trimmed to `count`), used by `TransitSlide`'s polling hook, which is what actually slices it down to `count` for display. No auth needed — public proxy, same posture as image reads. */
-export async function fetchDepartures(stopId: string, count: number): Promise<{ stopName: string; departures: DepartureInfo[] }> {
-  const response = await fetch(`${serverBaseUrl()}/integrations/departures?stopId=${encodeURIComponent(stopId)}&count=${count}`)
-  if (!response.ok) throw new Error('Could not fetch departures')
-  return response.json() as Promise<{ stopName: string; departures: DepartureInfo[] }>
 }
 
 /** Fetches MET's entire multi-day hourly forecast for `(lat, lon)` (the response isn't trimmed to `hours` — see `handleWeather`'s own doc comment in `server/integrations.ts`), plus today's overall low/high (computed server-side from that same full timeseries) — used by `WeatherSlide`'s polling hook, which is what actually slices `hourly` down to `hours` for display. */

@@ -39,6 +39,7 @@ import { handleDeleteUpload, handleRenameUpload, handleServeUpload, handleStorag
 import { handleVideoRetry, handleVideoUpload, startAbandonedVideoUploadSweep } from './videoUploads'
 import * as foodoraAdapter from './foodoraAdapter'
 import * as foodoraPoller from './foodoraPoller'
+import * as transitPoller from './transitPoller'
 import * as woltAdapter from './woltAdapter'
 import * as woltPoller from './woltPoller'
 
@@ -2497,6 +2498,9 @@ wss.on('connection', (socket) => {
       // the card's status dot to reflect the change.
       if (key === 'admin.woltConfig') woltPoller.restart()
       if (key === 'admin.foodoraConfig') foodoraPoller.restart()
+      // Adding/removing a stop in Integrations should populate/clear its
+      // departures promptly, rather than waiting up to `POLL_INTERVAL_MS`.
+      if (key === 'admin.integrations') transitPoller.restart()
       console.log(`[ws] ${session.username} wrote ${key}`)
       return
     }
@@ -2551,6 +2555,7 @@ function shutdown(signal: NodeJS.Signals) {
   console.log(`[server] received ${signal}, shutting down...`)
   woltPoller.stop()
   foodoraPoller.stop()
+  transitPoller.stop()
   neonBridge.stop()
   mdns.stop()
   wss.close()
@@ -2567,6 +2572,7 @@ void ensureOllamaRunning()
 neonBridge.start(applyUpdate, broadcastError)
 woltPoller.start(applyUpdate)
 foodoraPoller.start(applyUpdate)
+transitPoller.start(applyUpdate)
 startNewsImageCacheSweep()
 startAbandonedVideoUploadSweep()
 startUpdateFailureSweep()
