@@ -42,6 +42,7 @@ export type AssistantEntityKey =
   | 'settings'
   | 'mediaLibrary'
   | 'screen'
+  | 'screenPane'
   | 'displayManager'
   | 'orders'
 export type AssistantActionName = 'create' | 'update' | 'delete' | 'resetPassword' | 'trigger'
@@ -140,6 +141,9 @@ const ENTITY_SECTIONS: Record<AssistantEntityKey, DashboardSection | null> = {
   // No DashboardSection covers Media Library today — same `section: null` convention as `user`/`settings`.
   mediaLibrary: null,
   screen: 'screens',
+  // Same section as `screen` — a pane is a sub-resource of a screen, same posture as
+  // `categoryCustomField`/`appearanceThemeColor` being sub-resources of `category`/`theme`.
+  screenPane: 'screens',
   displayManager: 'displaymanager',
   orders: 'orders',
 }
@@ -328,6 +332,8 @@ export function useAssistantFlow(
   providerOverride?: AssistantProvider,
   localModelOverride?: string,
   localVisionModelOverride?: string,
+  /** The kebab menu's own "Allow pane editing" toggle — see `screenPane.ts`'s own doc comment for why this reaches the server via the exact same per-request-override plumbing as `ingestionPostureOverride` above, just landing in `AssistantFillContext` instead of a post-hoc schema strip. Ignored by every entity except `screenPane`. */
+  allowPaneContentEditingOverride?: boolean,
 ) {
   const { session } = useAdminSession()
   const { language, t } = useLanguage()
@@ -535,6 +541,7 @@ export function useAssistantFlow(
             historyContext: options.historyContext,
             conversationId: conversationIdRef.current,
             turnVersion: requestVersion,
+            allowPaneContentEditing: allowPaneContentEditingOverride,
           },
           abortRef.current?.signal,
         )
@@ -575,7 +582,23 @@ export function useAssistantFlow(
         reportError(error instanceof Error ? error.message : 'Something went wrong')
       }
     },
-    [session, language, beginBusy, beginTurn, isStaleTurn, discardStaleTurn, recordTrace, finalizeThought, reportError, modelOverride, providerOverride, localModelOverride, localVisionModelOverride, ingestionPostureOverride],
+    [
+      session,
+      language,
+      beginBusy,
+      beginTurn,
+      isStaleTurn,
+      discardStaleTurn,
+      recordTrace,
+      finalizeThought,
+      reportError,
+      modelOverride,
+      providerOverride,
+      localModelOverride,
+      localVisionModelOverride,
+      ingestionPostureOverride,
+      allowPaneContentEditingOverride,
+    ],
   )
 
   /** Delete still runs `fillFields` (an empty schema for every destructible entity — see each adapter's own `fillFieldsSchema`) purely to get a real `validate()` pass: that's the only path that surfaces a delete-time soft warning (e.g. "N products would be orphaned") or hard guard (e.g. "can't delete the active theme") before the typed-confirmation screen, rather than skipping straight to an empty-issues review. */

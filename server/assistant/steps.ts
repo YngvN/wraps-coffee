@@ -56,6 +56,7 @@ const ENTITY_DESCRIPTIONS: Record<string, string> = {
   settings: "the admin's own device/store preferences — clock format, date format, kiosk pane default language, which sidebar items are hidden",
   mediaLibrary: 'a single uploaded image/video file in the Media Library — renaming its display label, or deleting it',
   screen: 'a kiosk display screen\'s own global settings — name, borders, whole-screen background, stages/rotation timing, transitions, screensaver — never its pane layout/content, which only the in-place screen editor changes',
+  screenPane: 'one specific pane on one specific kiosk screen — its own custom CSS/HTML styling, and (only when the admin has explicitly opted in) which content kind it shows and that kind\'s own fields — never the screen\'s own global settings above, and never splitting/creating/deleting a pane',
   displayManager: 'a physical monitor on a registered kiosk machine — renaming the machine, or assigning which screen that monitor shows',
   orders: "an order's own status (received/accepted/preparing/ready/completed/cancelled) — never any other field, and never a new or deleted order",
 }
@@ -1012,11 +1013,13 @@ export async function fillFields(
     conversationId?: string
     /** See `ToolCallInput.signal`. */
     signal?: AbortSignal
+    /** The kebab menu's own "Allow pane editing" toggle (off by default, see `AssistantPanel.tsx`) — same per-request-override plumbing as `postureOverride` above, but landing inside `AssistantFillContext` itself rather than a post-hoc schema strip, since only one entity (`screenPane`) ever consults it, to decide whether its own `fillFieldsSchema` even offers the content-editing fields at all (never merely told not to use them — see that entity's own doc comment). Every other entity ignores this field entirely. */
+    allowPaneContentEditing?: boolean
   } = {},
 ): Promise<FillFieldsResult> {
   const entity = requireAccessibleEntity(entityKey, session)
 
-  const context: AssistantFillContext = { uiLanguage, session }
+  const context: AssistantFillContext = { uiLanguage, session, allowPaneContentEditing: options.allowPaneContentEditing }
   const current = options.itemID && entity.getCurrent ? await entity.getCurrent(options.itemID, context) : null
   const knownDraft = current ?? options.priorDraft
   const schema = entity.fillFieldsSchema(action, context, knownDraft ?? undefined)

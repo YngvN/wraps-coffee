@@ -774,6 +774,8 @@ export async function assistantFillFields(
     posture?: AssistantIngestionPosture
     conversationId?: string
     turnVersion?: number
+    /** The kebab menu's own "Allow pane editing" toggle — see `AssistantPanel`'s kebab menu and `server/assistant/entities/screenPane.ts`'s own doc comment. Ignored by every entity except `screenPane`. */
+    allowPaneContentEditing?: boolean
   },
   signal?: AbortSignal,
 ): Promise<AssistantFillFieldsResult> {

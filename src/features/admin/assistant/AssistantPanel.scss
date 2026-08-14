@@ -473,3 +473,22 @@
     opacity: 0.7;
   }
 }
+
+// The `screenPane` entity's own before/after visual preview (see `ScreenPanePreview.tsx`) and its
+// surrounding review-branch chrome in `AssistantPanel.tsx`.
+.assistant-panel__pane-preview-row {
+  display: flex;
+  gap: $spacing-unit;
+}
+
+.assistant-panel__pane-preview-note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: $color-text-muted;
+}
+
+.assistant-panel__pane-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: $spacing-unit;
+}

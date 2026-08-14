@@ -500,6 +500,47 @@ export function buildScreenChangeRows(t: Translate, current: ScreenConfig | null
   return rows
 }
 
+/** Client-side mirror of `server/assistant/entities/screenPane.ts`'s own `ScreenPaneDraft` — deliberately duplicated rather than imported (client code never imports from `server/`, same "structurally identical, separately declared" posture this file's own `DisplayManagerDraft` below already uses for the same reason). */
+export interface ScreenPaneDraft {
+  screen: ScreenConfig
+  paneId: string
+  stage: number
+}
+
+/** Maps a content kind to its own closest existing label key (`SlideFields.tsx`'s own content-kind dropdown) — `event`/`transit` fall back to their own base variant since a review row doesn't need the sub-mode split that dropdown offers. */
+const CONTENT_KIND_LABEL_KEYS: Record<string, string> = {
+  none: 'admin.screens.slotNoneLabel',
+  catalogue: 'admin.screens.slotCatalogueLabel',
+  event: 'admin.screens.slotEventCalendarLabel',
+  image: 'admin.screens.slotImageLabel',
+  video: 'admin.screens.slotVideoLabel',
+  qrcode: 'admin.screens.slotQrCodeLabel',
+  transit: 'admin.screens.slotTransitRuterLabel',
+  weather: 'admin.screens.slotWeatherLabel',
+  news: 'admin.screens.slotNewsLabel',
+  time: 'admin.screens.slotTimeLabel',
+  messageboard: 'admin.screens.slotMessageBoardLabel',
+  announcement: 'admin.screens.slotAnnouncementLabel',
+}
+
+function contentKindLabel(t: Translate, kind: string): string {
+  const key = CONTENT_KIND_LABEL_KEYS[kind]
+  return key ? t(key) : kind
+}
+
+/** Plain text rows alongside the visual before/after preview (`AssistantPanel.tsx`'s own `screenPane` branch) — `customCss`/`customHtml` are always in scope; the content-kind row only appears when it actually differs (the assistant may not have touched it at all, e.g. a pure styling request). */
+export function buildScreenPaneChangeRows(t: Translate, current: ScreenPaneDraft, draft: ScreenPaneDraft): ReviewChangeRow[] {
+  const rows: ReviewChangeRow[] = []
+  const currentSlot = current.screen.paneSlots[current.paneId]
+  const draftSlot = draft.screen.paneSlots[draft.paneId]
+  pushRow(rows, t('admin.screens.paneCustomContent.cssLabel'), currentSlot?.customCss ?? '', draftSlot.customCss ?? '')
+  pushRow(rows, t('admin.screens.paneCustomContent.htmlLabel'), currentSlot?.customHtml ?? '', draftSlot.customHtml ?? '')
+  const currentContent = currentSlot?.content[current.stage]
+  const draftContent = draftSlot.content[draft.stage]
+  if (draftContent) pushRow(rows, t('admin.screens.paneContentKindLabel'), currentContent ? contentKindLabel(t, currentContent.kind) : null, contentKindLabel(t, draftContent.kind))
+  return rows
+}
+
 export interface MediaLibraryDraft {
   filename: string
   displayName?: string
