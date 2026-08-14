@@ -3,28 +3,26 @@ version: 1.0.0
 schema: v1
 
 models:
-  - name: DeepSeek Chat
+  - name: DeepSeek V4 Flash
     provider: deepseek
-    model: deepseek-chat
+    model: deepseek-v4-flash
     apiKey: sk-01884aacf18a419d934e33c625336987
-    contextLength: 128000
     roles:
       - chat
       - edit
       - apply
-    defaultCompletionOptions:
-      temperature: 0.0
-      maxTokens: 8192
     capabilities:
       - tool_use
 
-  - name: DeepSeek Reasoner
+  - name: DeepSeek V4 Pro
     provider: deepseek
-    model: deepseek-reasoner
-    apiKey: sk-01884aacf18a419d934e33c625336987}
-    contextLength: 128000
+    model: deepseek-v4-pro
+    apiKey: sk-01884aacf18a419d934e33c625336987
     roles:
       - chat
+      - edit
+    capabilities:
+      - tool_use
 
   - name: qwen2.5-coder 7b
     provider: ollama

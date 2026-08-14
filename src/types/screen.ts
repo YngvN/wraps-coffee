@@ -195,7 +195,7 @@ export type ScreenSlotContent =
       iconPack?: TransitIconPack
       /** Per-operator line-badge color overrides, keyed by the operator's own display name as Entur reports it (e.g. `"Vy"`, `"Flytoget"`) — matched against `DepartureInfo['authorityName']` case-insensitively/trimmed. A departure whose authority has no matching entry (including Ruter itself, which normally isn't listed here) keeps the pane's default badge styling. Ignored while `autoLineColors` is on. */
       lineColors?: { id: string; authority: string; hex: string }[]
-      /** Assigns each operator a distinct color automatically, generated deterministically from its own name — no manual setup needed. Takes precedence over `lineColors` (unused while this is on). Falls back to `false`. */
+      /** Assigns each operator a distinct color automatically, generated deterministically from its own name — no manual setup needed. `brand`'s own native operator (e.g. Ruter on a Ruter# pane) is excluded and keeps its real brand-theme color instead. Takes precedence over `lineColors` (unused while this is on). Falls back to `true`. */
       autoLineColors?: boolean
       /** Overrides the pane's own background/font/text colors with a look-alike of whichever brand this pane is (see `brand`) instead of the screen's normal styling. Falls back to `true`. */
       useBrandTheme?: boolean

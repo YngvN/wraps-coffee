@@ -875,10 +875,10 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
           <Checkbox
             id={`${id}-transit-auto-line-colors`}
             label={t('admin.screens.transitAutoLineColorsLabel')}
-            checked={content.autoLineColors ?? false}
+            checked={content.autoLineColors ?? true}
             onChange={(event) => setTransitAutoLineColors(event.target.checked)}
           />
-          {!(content.autoLineColors ?? false) && <TransitLineColorListEditor colors={content.lineColors ?? []} onChange={setTransitLineColors} />}
+          {!(content.autoLineColors ?? true) && <TransitLineColorListEditor colors={content.lineColors ?? []} onChange={setTransitLineColors} />}
         </>
       )}
 

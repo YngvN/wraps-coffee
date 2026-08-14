@@ -33,7 +33,7 @@ interface TransitSlideProps {
   showBrandLogo?: boolean
   /** Per-operator line-badge color overrides, keyed by operator display name — see `ScreenSlotContent`'s `'transit'` variant. Ignored while `autoLineColors` is on. */
   lineColors?: { id: string; authority: string; hex: string }[]
-  /** Assigns each operator a distinct, automatically generated color instead of `lineColors`. Falls back to `false`. */
+  /** Assigns each operator a distinct, automatically generated color instead of `lineColors` — except `brand`'s own native operator (e.g. Ruter on a Ruter# pane), which keeps its real brand-theme color, same as today. Falls back to `true`. */
   autoLineColors?: boolean
 }
 
@@ -42,6 +42,16 @@ function findLineColorHex(lineColors: TransitSlideProps['lineColors'], authority
   if (!authorityName) return undefined
   const normalized = authorityName.trim().toLowerCase()
   return lineColors?.find((color) => color.authority.trim().toLowerCase() === normalized)?.hex
+}
+
+/** Entur's own authority display name for a brand's native network, so that brand's own departures keep their brand-theme color even with `autoLineColors` on — real Ruter buses are red, so a Ruter pane's own Ruter departures shouldn't get a random hash color instead. `'entur'` has no single native operator (it's a multi-operator journey planner, not a bus company of its own), so nothing is excluded there. */
+const BRAND_HOME_AUTHORITY: Partial<Record<NonNullable<TransitSlideProps['brand']>, string>> = { ruter: 'Ruter' }
+
+/** Whether `authorityName` is `brand`'s own native operator — see `BRAND_HOME_AUTHORITY`. */
+function isBrandHomeAuthority(brand: TransitSlideProps['brand'], authorityName: string | undefined): boolean {
+  const home = brand ? BRAND_HOME_AUTHORITY[brand] : undefined
+  if (!home || !authorityName) return false
+  return authorityName.trim().toLowerCase() === home.toLowerCase()
 }
 
 /**
@@ -347,15 +357,18 @@ function TransitDepartureLeading({
   iconPack,
   lineColors,
   autoLineColors,
+  brand,
 }: {
   departure: DepartureInfo
   showLineName?: boolean
   iconPack?: TransitIconPack
   lineColors?: TransitSlideProps['lineColors']
   autoLineColors?: boolean
+  brand?: TransitSlideProps['brand']
 }) {
   const { t } = useLanguage()
-  const autoLineColor = autoLineColors && departure.authorityName ? getAutoLineColor(departure.authorityName) : undefined
+  const autoLineColor =
+    autoLineColors && departure.authorityName && !isBrandHomeAuthority(brand, departure.authorityName) ? getAutoLineColor(departure.authorityName) : undefined
   const lineColorHex = autoLineColor ? undefined : findLineColorHex(lineColors, departure.authorityName)
   const lineColorStyle = autoLineColor ? { background: autoLineColor.background, color: autoLineColor.text } : lineColorHex ? { background: lineColorHex } : undefined
   return (
@@ -462,6 +475,7 @@ export function TransitSlide({
   )
   const departures = useSequencedDepartures(targetDepartures, effectiveStopId ?? '')
   const branded = useBrandTheme ?? true
+  const autoColorsEnabled = autoLineColors ?? true
 
   /** `Date.now()` can't be called directly during render (an impure call) — ticking this every 30s keeps each departure's "in X min" reasonably fresh between refetches without reading the clock at render time. */
   const [now, setNow] = useState(() => Date.now())
@@ -557,7 +571,7 @@ export function TransitSlide({
                           className={itemClassName}
                         >
                           <span className="transit-slide__leading">
-                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoLineColors} />
+                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} brand={resolvedBrand} />
                           </span>
                           <span className="transit-slide__trailing">
                             <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
@@ -583,7 +597,7 @@ export function TransitSlide({
                           className={itemClassName}
                         >
                           <span className="transit-slide__leading">
-                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoLineColors} />
+                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} brand={resolvedBrand} />
                           </span>
                           <span className="transit-slide__trailing">
                             <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
@@ -594,7 +608,7 @@ export function TransitSlide({
                     return (
                       <motion.li key={departureKey(departure)} initial="hidden" animate="visible" exit="exit" className={itemClassName}>
                         <motion.span layout="position" className="transit-slide__leading" variants={transitLeadingVariants} transition={transitItemTransition}>
-                          <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoLineColors} />
+                          <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} brand={resolvedBrand} />
                         </motion.span>
                         <motion.span layout="position" className="transit-slide__trailing" variants={transitTrailingVariants} transition={transitItemTransition}>
                           <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />

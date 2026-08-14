@@ -208,6 +208,7 @@ $transit-trailing-tracks: minmax(0, max-content) minmax(0, max-content); // `.tr
 // of the screen's own background/text contrast setup, same posture as the
 // admin Integrations page's own status dots.
 .transit-slide__realtime-dot {
+  display: none;
   position: absolute;
   top: -0.1em;
   right: -0.1em;
