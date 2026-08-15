@@ -46,7 +46,7 @@ export const OLLAMA_VISION_TIERS: OllamaModelTier[] = [
 ]
 
 export const OLLAMA_THINKING_TIERS: OllamaModelTier[] = [
-  { labelKey: 'admin.integrations.ollamaTierSmall', models: [{ tag: 'qwen2.5:3b-instruct', name: 'Qwen2.5 3B Instruct' }] },
+  { labelKey: 'admin.integrations.ollamaTierSmall', models: [{ tag: 'qwen3:4b', name: 'Qwen3 4B' }] },
   { labelKey: 'admin.integrations.ollamaTierMedium', models: [{ tag: 'qwen2.5:7b-instruct', name: 'Qwen2.5 7B Instruct' }] },
   { labelKey: 'admin.integrations.ollamaTierLarge', models: [{ tag: 'deepseek-r1:32b', name: 'DeepSeek R1 32B' }] },
 ]

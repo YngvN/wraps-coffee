@@ -29,6 +29,16 @@ jobs:
           Write-Host "Downloading Node.js $($lts.version) ($($lts.lts)) from $url"
           Invoke-WebRequest -Uri $url -OutFile 'installer/node-lts-x64.msi'
 
+      - name: Download latest Ollama installer
+        shell: pwsh
+        run: |
+          # ollama.com/download/OllamaSetup.exe always serves the current
+          # release (no versioned URL to resolve first, unlike Node above),
+          # so this keeps the bundled copy fresh on every CI-built installer -
+          # see adhdisplay.iss's own header comment for why it's bundled
+          # in [Files] rather than downloaded again at install time.
+          Invoke-WebRequest -Uri 'https://ollama.com/download/OllamaSetup.exe' -OutFile 'installer/OllamaSetup.exe'
+
       - name: Compile installer
         shell: cmd
         run: '"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\adhdisplay.iss'

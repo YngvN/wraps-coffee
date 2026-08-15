@@ -7,10 +7,17 @@
 ; Before compiling, download the Node.js LTS Windows x64 installer from
 ; https://nodejs.org/en/download and place it next to this file renamed to
 ; node-lts-x64.msi (not committed to the repo — it's a large third-party binary).
-; Ollama's own installer is NOT bundled the same way — it's downloaded to {tmp}
-; at install time instead (see CurStepChanged), since embedding it in [Files]
-; would ship it inside ADHDisplaySetup.exe for every downloader regardless of
-; whether the "Install Ollama" task ends up selected.
+; Same for Ollama's own Windows installer: download it from
+; https://ollama.com/download/OllamaSetup.exe and place it next to this file
+; as OllamaSetup.exe (also not committed — see .gitignore). Bundling it this
+; way (rather than downloading it at install time, as this used to do) means
+; a machine with a slow connection isn't stuck waiting on it mid-install; the
+; [Files] entry below is still gated on the "Install Ollama" task so it's
+; only extracted onto machines that actually selected it. build-installer.yml
+; downloads a fresh copy of both installers right before every CI build, so
+; a CI-built ADHDisplaySetup.exe always bundles the current Ollama release;
+; a local build via build-with-apk.ps1 uses whatever copy was manually placed
+; here, same as node-lts-x64.msi today.
 ;
 ; The [Files] section below also embeds the Companion app's Android TV APK
 ; (built from ../adhdisplay-companion via `npm run build:tv`, not committed to
@@ -38,7 +45,7 @@ AppName={#AppName}
 ; Must stay in sync with the root package.json's own "version" field (see
 ; CLAUDE.md's Versioning rule) - bumped together, in the same change, on
 ; every completed change.
-AppVersion=0.2.55
+AppVersion=0.2.56
 AppPublisher=ADHDisplay
 DefaultDirName=C:\ADHDisplay
 DisableDirPage=no
@@ -80,6 +87,12 @@ Source: "pull-ollama-models.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "tray-helper.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "adhdisplay.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "node-lts-x64.msi"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: not NodeIsInstalled
+; Gated on the task rather than on "not already installed" (unlike the msi
+; line above) - CurStepChanged below always runs this installer when the
+; task is selected, even over an existing Ollama, so an outdated install
+; gets updated rather than silently left alone. See the header comment for
+; where this file comes from.
+Source: "OllamaSetup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: WizardIsTaskSelected('installOllama')
 ; Two entries for the same source: the {app} copy is what the batch watchdog
 ; and tray helper call at runtime once installed; the {tmp}/dontcopy one is
 ; pulled on demand via ExtractTemporaryFile from [Code] at CurStepChanged's
@@ -245,8 +258,9 @@ begin
   end;
 
   if Result and not HasInternetConnection() and not WizardSilent() then
-    MsgBox('No internet connection was detected. ADHDisplay needs internet access during installation to download Node.js and its dependencies' + #13#10 + #13#10 +
-      '(and, if selected, Ollama and its AI models). Setup will continue, but may fail partway through if the connection isn''t restored.',
+    MsgBox('No internet connection was detected. ADHDisplay needs internet access during installation to download Node.js and its dependencies. ' +
+      'Ollama itself is bundled in this installer and doesn''t need a connection, though its AI models are still downloaded separately later, on demand, from Settings -> Integrations -> Ollama.' + #13#10 + #13#10 +
+      'Setup will continue, but may fail partway through if the connection isn''t restored.',
       mbInformation, MB_OK);
 end;
 
@@ -306,7 +320,6 @@ var
   ResultCode: Integer;
   NpmCmd: String;
   ControlScriptTemp: String;
-  OllamaSetupPath: String;
   OllamaWasInstalled: Boolean;
 begin
   if CurStep = ssInstall then
@@ -327,12 +340,6 @@ begin
   end
   else if CurStep = ssPostInstall then
   begin
-    if WizardIsTaskSelected('installOllama') and WizardIsTaskSelected('restart') then
-      MsgBox('Both "Install Ollama and its models" and "Restart Windows when finished" are selected.' + #13#10 + #13#10 +
-        'Model downloads continue in the background after Setup finishes and can take a while - restarting Windows now will interrupt them. ' +
-        'You can re-download them later from Settings -> Integrations -> Ollama if that happens.',
-        mbInformation, MB_OK);
-
     if not NodeIsInstalled then
     begin
       WizardForm.StatusLabel.Caption := 'Installing Node.js...';
@@ -385,51 +392,43 @@ begin
       Abort;
     end;
 
-    // Opt-in (see [Tasks] below), checked by default. Ollama itself is
-    // downloaded to {tmp} at install time rather than bundled in [Files] -
-    // see the header comment - so a machine that never selects this task
-    // never downloads it at all. Model pulls run in the background (via
-    // pull-ollama-models.bat, hidden through run-hidden.vbs) rather than
-    // blocking here, since two ~3B models is a multi-GB download that would
-    // otherwise freeze the wizard for a long, unpredictable time with no
-    // progress or cancel.
+    // Opt-in (see [Tasks] below), checked by default. Ollama's own installer
+    // is bundled in [Files] (OllamaSetup.exe, only extracted to {tmp} when
+    // this task is selected - see the header comment for where it comes
+    // from) rather than downloaded here, so this step has no network
+    // dependency and takes only as long as running the installer itself.
+    // Run unconditionally (even over an already-installed Ollama) rather
+    // than only "if not installed" - Ollama's own installer is, per its
+    // public behaviour, also Inno-Setup-based, and silently re-running an
+    // Inno installer over an existing install is how those normally update
+    // in place (same as this app's own installer does on re-run), so this
+    // is what keeps an outdated existing install current rather than
+    // leaving it alone. Deliberately does NOT also pull any models - that
+    // used to happen automatically here (a multi-GB background download),
+    // but now happens on demand instead, from Settings -> Integrations ->
+    // Ollama, so a plain "Install Ollama" no longer implies a large
+    // additional download.
     if WizardIsTaskSelected('installOllama') then
     begin
       OllamaWasInstalled := OllamaIsInstalled;
-      if not OllamaWasInstalled then
-      begin
-        WizardForm.StatusLabel.Caption := 'Downloading Ollama...';
-        OllamaSetupPath := ExpandConstant('{tmp}\OllamaSetup.exe');
-        Exec('powershell.exe',
-          '-NoProfile -Command "try { Invoke-WebRequest -Uri ''https://ollama.com/download/OllamaSetup.exe'' -OutFile ''' + OllamaSetupPath + ''' -UseBasicParsing; exit 0 } catch { exit 1 }"',
-          '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-        if (ResultCode = 0) and FileExists(OllamaSetupPath) then
-        begin
-          WizardForm.StatusLabel.Caption := 'Installing Ollama...';
-          // INFERRED silent-install flags (Ollama's Windows installer is,
-          // per its own public behaviour, also Inno-Setup-based) - confirm
-          // against a real download during implementation/testing.
-          if not Exec(OllamaSetupPath, '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-            MsgBox('Installing Ollama failed (exit code ' + IntToStr(ResultCode) + '). ADHDisplay will still work, just without local AI models. You can install Ollama manually later from ollama.com.',
-              mbInformation, MB_OK);
-        end
-        else
-          MsgBox('Downloading Ollama failed. ADHDisplay will still work, just without local AI models. You can install Ollama manually later from ollama.com.',
-            mbInformation, MB_OK);
+      WizardForm.StatusLabel.Caption := 'Installing Ollama...';
+      // INFERRED silent-install flags (confirm against a real download
+      // during implementation/testing) and INFERRED that re-running this
+      // silently over an existing install is safe/updates in place rather
+      // than erroring or reinstalling from scratch - confirm during
+      // implementation/testing and fall back to only running when
+      // "not OllamaWasInstalled" here if it turns out not to be.
+      if not Exec(ExpandConstant('{tmp}\OllamaSetup.exe'), '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+        MsgBox('Installing Ollama failed (exit code ' + IntToStr(ResultCode) + '). ADHDisplay will still work, just without local AI models. You can install Ollama manually later from ollama.com.',
+          mbInformation, MB_OK);
 
-        // Only written when we're the one who installed it - uninstall reads
-        // this back to decide whether it's safe to offer removing Ollama too
-        // (never touching a copy that was already there independently).
-        if OllamaIsInstalled then
-          SaveStringToFile(ExpandConstant('{app}\.ollama-installed-by-adhdisplay'), 'installed by ADHDisplay setup', False);
-      end;
-
-      if OllamaIsInstalled then
-      begin
-        WizardForm.StatusLabel.Caption := 'Starting the AI model download in the background (check Settings -> Integrations -> Ollama for progress)...';
-        Exec('wscript.exe', '//B "' + ExpandConstant('{app}\run-hidden.vbs') + '" "' + ExpandConstant('{app}\pull-ollama-models.bat') + '"',
-          ExpandConstant('{app}'), SW_HIDE, ewNoWait, ResultCode);
-      end;
+      // Only written when we're the one who newly installed it (wasn't
+      // present before, is present now) - uninstall reads this back to
+      // decide whether it's safe to offer removing Ollama too (never
+      // touching a copy that was already there independently, including one
+      // this step merely updated rather than installed from scratch).
+      if not OllamaWasInstalled and OllamaIsInstalled then
+        SaveStringToFile(ExpandConstant('{app}\.ollama-installed-by-adhdisplay'), 'installed by ADHDisplay setup', False);
     end;
 
     // See [Tasks] below - "autostart" is checked by default (it's the whole
@@ -468,7 +467,10 @@ begin
     // that was already on this machine independently.
     if OllamaWasInstalledByADHDisplay then
     begin
-      if MsgBox('Also remove Ollama and its downloaded models (roughly 4 GB)?', mbConfirmation, MB_YESNO) = IDYES then
+      // No fixed size claim here anymore - Ollama itself is small, but models
+      // are now only ever pulled on demand from Settings, so how much this
+      // actually frees up varies by what the admin has pulled since install.
+      if MsgBox('Also remove Ollama and any AI models you''ve downloaded for it?', mbConfirmation, MB_YESNO) = IDYES then
       begin
         // INFERRED uninstall path for Ollama's own Windows installer -
         // confirm the exact location during implementation/testing.
@@ -545,7 +547,7 @@ Type: files; Name: "{app}\.ollama-installed-by-adhdisplay"
 Name: "autostart"; Description: "Launch automatically when Windows starts (recommended)"; GroupDescription: "Additional shortcuts:"
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 Name: "restart"; Description: "Restart Windows when finished"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
-Name: "installOllama"; Description: "Install Ollama and the AI assistant's local models (recommended)"; GroupDescription: "AI features:"
+Name: "installOllama"; Description: "Install Ollama, for the AI assistant's local/offline models (recommended - models themselves are downloaded later, on demand, from Settings)"; GroupDescription: "AI features:"
 Name: "defenderexclusion"; Description: "Add a Windows Defender exclusion for the install folder (helps avoid install failures caused by antivirus interference, e.g. ""corrupted tarball"" errors during npm install)"; GroupDescription: "Troubleshooting:"; Flags: unchecked
 ; No longer shown on this page interactively - the new "Existing Installation
 ; Found" wizard page above covers the same Update-vs-Clean-reinstall decision

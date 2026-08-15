@@ -649,7 +649,7 @@ export interface OllamaConfig {
 const DEFAULT_OLLAMA_CONFIG: OllamaConfig = {
   baseUrl: 'http://localhost:11434',
   visionModel: 'qwen2.5vl:3b',
-  thinkingModel: 'qwen2.5:3b-instruct',
+  thinkingModel: 'qwen3:4b',
 }
 
 export function getOllamaConfig(): OllamaConfig {

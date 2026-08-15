@@ -1360,7 +1360,7 @@ export function IntegrationsView() {
             </select>
           )}
           {ollamaThinkingSelectValue === OLLAMA_CUSTOM_TIER_VALUE && (
-            <Input id="integrations-ollama-thinking-custom" value={ollamaThinkingModelDraft} onChange={(event) => setOllamaThinkingModelDraft(event.target.value)} placeholder="qwen2.5:3b-instruct" />
+            <Input id="integrations-ollama-thinking-custom" value={ollamaThinkingModelDraft} onChange={(event) => setOllamaThinkingModelDraft(event.target.value)} placeholder="qwen3:4b" />
           )}
           <p className="integrations-view__hint">{t('admin.integrations.ollamaThinkingModelHint')}</p>
           {ollamaTestResult?.ok && ollamaTestResult.thinkingModelInstalled === false && (

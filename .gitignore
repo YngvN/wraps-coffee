@@ -37,10 +37,13 @@ server/news-image-cache/*
 *.sln
 *.sw?
 
-# Inno Setup installer build: compiled output and the third-party Node.js
-# installer the developer downloads and drops in installer/ before compiling.
+# Inno Setup installer build: compiled output and the third-party Node.js/
+# Ollama installers the developer downloads and drops in installer/ before
+# compiling (see adhdisplay.iss's own header comment) - both are fetched
+# fresh by build-installer.yml when building via CI instead.
 installer/Output
 installer/node-lts-x64.msi
+installer/OllamaSetup.exe
 
 # Expo CLI's own cache directory (adhdisplay-companion/), created by
 # `expo start`/`expo export`.
