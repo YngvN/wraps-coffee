@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { YrLogo } from '../../components'
 import { useClockFormatPreference } from '../../hooks/useClockFormatPreference'
@@ -9,6 +9,7 @@ import type { IntegrationsConfig, WeatherHour, WeatherLocationStatus } from '../
 import { DEFAULT_WEATHER_FORECAST_HOURS, type WeatherIconPack } from '../../types/screen'
 import { formatClockTime } from '../../utils/clockFormat'
 import { weatherLocationKey } from '../../utils/weatherLocationKey'
+import { SLIDE_LAYOUT_FADE_VARIANTS, slideLayoutFadeTransition } from './slideLayoutFade'
 import { WeatherSymbolIcon } from './WeatherSymbolIcon'
 import './WeatherSlide.scss'
 
@@ -203,6 +204,7 @@ export function WeatherSlide({
   // `useColumnCount`.
   const paneRef = useRef<HTMLDivElement>(null)
   const isVertical = useIsVerticalPane(paneRef)
+  const reducedMotion = useReducedMotion()
 
   if (!coordinates) {
     return (
@@ -275,59 +277,80 @@ export function WeatherSlide({
       {/* White, not `YrLogo`'s own default blue fill — the branded theme's background is now Yr's own blue (see `WeatherSlide.scss`), so the logo needs to be the light-on-dark variant to stay visible against it. */}
       {branded && (showBrandLogo ?? true) && <YrLogo fill="#ffffff" className="weather-slide__brand-logo" />}
       <div className="weather-slide__content">
-        {isVertical ? (
-          // Vertical mode: one row per hour, sharing column tracks via
-          // `subgrid` — the exact same shape `TransitSlide`'s own
-          // `.transit-slide__column` uses (a header row up top, one row per
-          // item below it), not a coincidence: a narrow/portrait pane and a
-          // departures board both read best as a plain top-to-bottom list.
-          <ul className="weather-slide__list weather-slide__list--vertical" style={trackCountStyle}>
-            <li className="weather-slide__column-header" aria-hidden="true">
-              {renderDetailLabels('weather-slide__column-header-label')}
-            </li>
-            <AnimatePresence initial={false} mode="popLayout">
-              {displayedHours.map((hour, index) => (
-                <motion.li
-                  key={hour.time}
-                  layout="position"
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  variants={weatherRowVariants}
-                  transition={weatherItemTransition}
-                  className="weather-slide__row"
-                >
-                  {renderHourFields(hour, index)}
-                </motion.li>
-              ))}
-            </AnimatePresence>
-          </ul>
-        ) : (
-          // Horizontal mode (the default): one column per hour, sharing row
-          // tracks via `subgrid` — the transpose of the vertical shape above
-          // (there, one row per hour sharing column tracks; here, one column
-          // per hour sharing row tracks), with a shared row-label legend at
-          // the *start* taking the header row's own place.
-          <ul className="weather-slide__list weather-slide__list--horizontal" style={trackCountStyle}>
-            <li className="weather-slide__row-labels" aria-hidden="true">{renderDetailLabels('weather-slide__row-label')}</li>
-            <AnimatePresence initial={false} mode="popLayout">
-              {displayedHours.map((hour, index) => (
-                <motion.li
-                  key={hour.time}
-                  layout="position"
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  variants={weatherItemVariants}
-                  transition={weatherItemTransition}
-                  className="weather-slide__item"
-                >
-                  {renderHourFields(hour, index)}
-                </motion.li>
-              ))}
-            </AnimatePresence>
-          </ul>
-        )}
+        {/* Fades the whole list container out/in whenever `isVertical` itself flips — a resize that stays within the same orientation never re-triggers this (see `slideLayoutFade.ts`), only an actual shape change does. Nested inside `.weather-slide__content`, not wrapping it, so the brand logo and low/high summary (siblings/outside this block) never fade with it. */}
+        <AnimatePresence mode="wait" initial={false}>
+          {isVertical ? (
+            // Vertical mode: one row per hour, sharing column tracks via
+            // `subgrid` — the exact same shape `TransitSlide`'s own
+            // `.transit-slide__column` uses (a header row up top, one row per
+            // item below it), not a coincidence: a narrow/portrait pane and a
+            // departures board both read best as a plain top-to-bottom list.
+            <motion.ul
+              key="vertical"
+              className="weather-slide__list weather-slide__list--vertical"
+              style={trackCountStyle}
+              variants={SLIDE_LAYOUT_FADE_VARIANTS}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={slideLayoutFadeTransition(reducedMotion)}
+            >
+              <li className="weather-slide__column-header" aria-hidden="true">
+                {renderDetailLabels('weather-slide__column-header-label')}
+              </li>
+              <AnimatePresence initial={false} mode="popLayout">
+                {displayedHours.map((hour, index) => (
+                  <motion.li
+                    key={hour.time}
+                    layout="position"
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    variants={weatherRowVariants}
+                    transition={weatherItemTransition}
+                    className="weather-slide__row"
+                  >
+                    {renderHourFields(hour, index)}
+                  </motion.li>
+                ))}
+              </AnimatePresence>
+            </motion.ul>
+          ) : (
+            // Horizontal mode (the default): one column per hour, sharing row
+            // tracks via `subgrid` — the transpose of the vertical shape above
+            // (there, one row per hour sharing column tracks; here, one column
+            // per hour sharing row tracks), with a shared row-label legend at
+            // the *start* taking the header row's own place.
+            <motion.ul
+              key="horizontal"
+              className="weather-slide__list weather-slide__list--horizontal"
+              style={trackCountStyle}
+              variants={SLIDE_LAYOUT_FADE_VARIANTS}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={slideLayoutFadeTransition(reducedMotion)}
+            >
+              <li className="weather-slide__row-labels" aria-hidden="true">{renderDetailLabels('weather-slide__row-label')}</li>
+              <AnimatePresence initial={false} mode="popLayout">
+                {displayedHours.map((hour, index) => (
+                  <motion.li
+                    key={hour.time}
+                    layout="position"
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    variants={weatherItemVariants}
+                    transition={weatherItemTransition}
+                    className="weather-slide__item"
+                  >
+                    {renderHourFields(hour, index)}
+                  </motion.li>
+                ))}
+              </AnimatePresence>
+            </motion.ul>
+          )}
+        </AnimatePresence>
         {/* Today's overall low/high (see `useWeatherForecast`), not any one hour's own reading — numbers only, no "L"/"H" labels, a vertical line between them. */}
         {todayLowC !== undefined && todayHighC !== undefined && (
           <p className="weather-slide__low-high">

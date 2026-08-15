@@ -1,7 +1,83 @@
 import type { PaneEdge } from '../../utils/layoutGeometry'
 
-/** Matches the existing CSS grid-ratio transition's own duration (`SplitLayout.tsx`'s `gridTransition`), so a simultaneous shape change and ratio change read as one animated system rather than two out-of-sync ones. Only applies to *editor*-driven changes now (dragging a divider, splitting a pane) — a stage transition no longer animates its geometry at all (see `BORDER_TRANSITION_DURATION_SECONDS`). */
-export const PANE_GROWTH_DURATION_SECONDS = 0.5
+/**
+ * Sole on/off switch for animating a *stage-driven* pane **creation** (a leaf appearing between two
+ * stage checkpoints — see `SplitLayout.tsx`'s own `growingSplitPaths`) instead of the default
+ * snap-behind-a-blank-screen treatment described in `BORDER_TRANSITION_DURATION_SECONDS`'s own doc
+ * comment below: the brand-new divider paints once at a synthetic ratio matching wherever the origin
+ * pane's edge already was, then glides open to its real ratio, so the origin pane visibly makes room
+ * rather than both panes jumping to their final sizes in one frame.
+ *
+ * Flip to `false` to instantly revert to that snap treatment — e.g. to isolate whether this is
+ * responsible for a real-hardware performance regression (it reintroduces some of the exact
+ * `grid-template` animation cost snap-behind-a-blank-screen was built to avoid, though scoped to just
+ * the one divider actually opening rather than the whole tree).
+ *
+ * Deletion is deliberately **not** covered — see `SplitLayout.tsx`'s own `exitingGhosts` block for what
+ * was measured when the existing ghost machinery was pointed at stage-driven deletions, and what the
+ * deletion side would actually need instead.
+ */
+export const ENABLE_STAGE_STRUCTURAL_GROWTH = true
+
+/**
+ * Sole on/off switch for the **geometry-driven flat pane layer** (`FlatPaneLayer.tsx`) — rendering
+ * every leaf as one absolutely-positioned pane at its own `computeLayoutGeometry` rect, keyed by
+ * `PaneId`, instead of `LayoutTree.tsx`'s recursive nested CSS grids.
+ *
+ * Two things depend on it, and they're the same thing seen from two sides:
+ *
+ *  - **DOM identity.** `LayoutTree`'s output element type flips between `<LayoutPane>` and a split
+ *    `<div>` at a given tree position, and the recursion carries no keys across depths, so React
+ *    unmounts and rebuilds whole subtrees on any restructure — panes fully remount, losing `<video>`
+ *    playback, scroll offsets, `useCrossfadeSlot` state and their applied shrink-to-fit transform.
+ *    Flattened, a pane's identity is its `PaneId` and nothing else, so it survives.
+ *  - **Animating a restructure.** A transition becomes "interpolate each pane's rect between two
+ *    known endpoints", which is well-defined for creation, deletion and arbitrary restructures alike
+ *    — as opposed to interpolating nested grid templates, which only has anything to interpolate when
+ *    the tree's *shape* is preserved.
+ *
+ * `false` (the default) leaves the nested-grid path completely untouched — it is the fallback, not
+ * dead code, and is what still runs whenever the flat path can't be used (every editing surface
+ * always does, since the draggable dividers and corner handles have not been re-homed onto the flat
+ * layer; only the read-only kiosk/thumbnail render takes it).
+ *
+ * **It ships off**, despite the flat path measuring well on the desktop harness, because its cost on
+ * the real kiosk is unverified: the Android TV numbers behind the go-ahead were taken against an
+ * earlier build whose resize animation turned out to be partly inert, and the device became
+ * unavailable before they could be retaken against the corrected one. Turn it on once a kiosk
+ * measurement replaces those — see `QA/Reports/geometry-pane-model-2026-08-15.md`.
+ */
+export const ENABLE_FLAT_PANE_LAYOUT = false
+
+/**
+ * Matches the existing CSS grid-ratio transition's own duration (`SplitLayout.tsx`'s
+ * `gridTransition`), so a simultaneous shape change and ratio change read as one animated system
+ * rather than two out-of-sync ones. Only applies to *editor*-driven changes now (dragging a divider,
+ * splitting a pane) — a stage transition no longer animates its geometry at all (see
+ * `BORDER_TRANSITION_DURATION_SECONDS`).
+ *
+ * Shortened from 0.5s: every frame of this is a real layout pass (a grid track resize re-lays out
+ * everything inside both cells), so its cost is directly proportional to its length — 0.3s is ~18
+ * frames at 60Hz instead of ~30, i.e. 40% less layout work. That is a cost argument, not a measured
+ * perceptual one: no side-by-side comparison of the two durations was run, only the frame cost. If a
+ * transition ever reads as too abrupt, this is the first number to put back. Anything that needs to
+ * *outlast* this animation derives its own timing from this constant rather than hardcoding a
+ * matching number, so changing it stays a one-line change.
+ */
+export const PANE_GROWTH_DURATION_SECONDS = 0.3
+
+/**
+ * How far a divider has to actually move (in percentage points of the whole arrangement, along its
+ * own axis) before a stage transition bothers animating it at all — see `SplitLayout.tsx`'s own
+ * `negligibleMoveSplitPaths`.
+ *
+ * Paying `PANE_GROWTH_DURATION_SECONDS` worth of per-frame layout to glide a border a distance the
+ * eye can't resolve is pure waste: at 2% of a 1920px-wide screen that's ~38px of travel spread over
+ * the whole animation, i.e. ~2px per frame. Below this, the border simply takes its new position on
+ * the commit the geometry changes — which is exactly what every *non*-stable divider on the screen is
+ * already doing at that same moment, so nothing about it reads as inconsistent.
+ */
+export const NEGLIGIBLE_DIVIDER_MOVE_PERCENT = 2
 
 /**
  * How long a slot border takes to shrink away, and later to grow back in, in

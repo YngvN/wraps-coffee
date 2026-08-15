@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FetchedLogo } from '../../components'
 import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
@@ -7,6 +7,7 @@ import { useLanguage } from '../../i18n'
 import { DEFAULT_TRANSIT_DEPARTURE_COUNT, DEFAULT_TRANSIT_DEPARTURE_MODE, type TransitDepartureMode, type TransitIconPack } from '../../types/screen'
 import type { DepartureInfo } from '../../types/integrations'
 import { getAutoLineColor } from '../../utils/transitLineColors'
+import { SLIDE_LAYOUT_FADE_VARIANTS, slideLayoutFadeTransition } from './slideLayoutFade'
 import { TransitModeIcon } from './TransitModeIcon'
 import './TransitSlide.scss'
 
@@ -491,6 +492,7 @@ export function TransitSlide({
   // over after the heading.
   const paneRef = useRef<HTMLDivElement>(null)
   const columnCount = useColumnCount(paneRef)
+  const reducedMotion = useReducedMotion()
   // Never more columns than there are departures to fill them with.
   const effectiveColumnCount = Math.max(1, Math.min(columnCount, departures.length || 1))
   // Called unconditionally (rules of hooks) even in single-column mode,
@@ -528,99 +530,114 @@ export function TransitSlide({
       {departures.length === 0 && !loading ? (
         <p className="transit-slide__empty">{t('admin.screens.transitNoDeparturesLabel')}</p>
       ) : (
-        <div className={`transit-slide__list${isMultiColumn ? ' transit-slide__list--multi-column' : ''}`}>
-          {columns.map((columnDepartures, columnIndex) => {
-            // Only meaningful in 2-column slide-in/out mode (see
-            // `transitLeadingVariants`'s own doc comment) — the left
-            // column's own rows slide to/from the left, the right
-            // column's own to/from the right.
-            const columnSlideVariants = columnIndex === 0 ? transitLeadingVariants : transitTrailingVariants
-            return (
-              <ul key={columnIndex} className="transit-slide__column">
-                <TransitColumnHeader showPlatform={showPlatform} />
-                {
-                  // `popLayout` (the slide-in/out animation's own posture,
-                  // used for 1 *and* 2 columns — see `transitLeadingVariants`'s
-                  // own doc comment) removes an exiting element from normal
-                  // document flow by setting `position: absolute` on it —
-                  // which breaks `.transit-slide__item`'s own
-                  // `grid-template-columns: subgrid` (subgrid has no parent
-                  // grid to inherit tracks from once it's no longer a real
-                  // grid item), so the exiting row's own grid recomputes
-                  // from scratch and its line badge visibly stretches to
-                  // whatever width it lands with, right as it's animating
-                  // out. The fade + max-height animation's own rows (3+
-                  // columns) need to stay in normal flow through their own
-                  // exit instead (see `transitRowVariants`'s own doc
-                  // comment for why) — the default (`sync`) mode does that.
-                }
-                <AnimatePresence initial={false} mode={usesMaxHeightAnimation ? undefined : 'popLayout'}>
-                  {columnDepartures.map((departure) => {
-                    const minutesUntil = Math.max(0, Math.round((new Date(departure.expectedDepartureTime).getTime() - now) / 60_000))
-                    const itemClassName = `transit-slide__item${departure.cancelled ? ' transit-slide__item--cancelled' : ''}`
-                    if (usesMaxHeightAnimation) {
+        // Fades the whole column list out/in whenever `effectiveColumnCount` itself changes — a resize
+        // that doesn't actually change how many columns render (including one blocked by
+        // `effectiveColumnCount`'s own departure-count cap) never re-triggers this (see
+        // `slideLayoutFade.ts`). Keyed on the count, not `isMultiColumn`, so 2→3 (both "multi") still
+        // fades too. The brand logo/heading above are outside this block, so they never fade with it.
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={effectiveColumnCount}
+            className={`transit-slide__list${isMultiColumn ? ' transit-slide__list--multi-column' : ''}`}
+            variants={SLIDE_LAYOUT_FADE_VARIANTS}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={slideLayoutFadeTransition(reducedMotion)}
+          >
+            {columns.map((columnDepartures, columnIndex) => {
+              // Only meaningful in 2-column slide-in/out mode (see
+              // `transitLeadingVariants`'s own doc comment) — the left
+              // column's own rows slide to/from the left, the right
+              // column's own to/from the right.
+              const columnSlideVariants = columnIndex === 0 ? transitLeadingVariants : transitTrailingVariants
+              return (
+                <ul key={columnIndex} className="transit-slide__column">
+                  <TransitColumnHeader showPlatform={showPlatform} />
+                  {
+                    // `popLayout` (the slide-in/out animation's own posture,
+                    // used for 1 *and* 2 columns — see `transitLeadingVariants`'s
+                    // own doc comment) removes an exiting element from normal
+                    // document flow by setting `position: absolute` on it —
+                    // which breaks `.transit-slide__item`'s own
+                    // `grid-template-columns: subgrid` (subgrid has no parent
+                    // grid to inherit tracks from once it's no longer a real
+                    // grid item), so the exiting row's own grid recomputes
+                    // from scratch and its line badge visibly stretches to
+                    // whatever width it lands with, right as it's animating
+                    // out. The fade + max-height animation's own rows (3+
+                    // columns) need to stay in normal flow through their own
+                    // exit instead (see `transitRowVariants`'s own doc
+                    // comment for why) — the default (`sync`) mode does that.
+                  }
+                  <AnimatePresence initial={false} mode={usesMaxHeightAnimation ? undefined : 'popLayout'}>
+                    {columnDepartures.map((departure) => {
+                      const minutesUntil = Math.max(0, Math.round((new Date(departure.expectedDepartureTime).getTime() - now) / 60_000))
+                      const itemClassName = `transit-slide__item${departure.cancelled ? ' transit-slide__item--cancelled' : ''}`
+                      if (usesMaxHeightAnimation) {
+                        return (
+                          <motion.li
+                            key={departureKey(departure)}
+                            layout="position"
+                            initial="hidden"
+                            animate="visible"
+                            exit="exit"
+                            variants={transitRowVariants}
+                            transition={transitRowTransition}
+                            className={itemClassName}
+                          >
+                            <span className="transit-slide__leading">
+                              <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} brand={resolvedBrand} />
+                            </span>
+                            <span className="transit-slide__trailing">
+                              <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
+                            </span>
+                          </motion.li>
+                        )
+                      }
+                      if (isMultiColumn) {
+                        // 2 columns: the whole row slides as one unit, toward
+                        // this column's own edge (`columnSlideVariants`) —
+                        // not split into independently-sliding halves like
+                        // single-column mode below, since there's no longer a
+                        // full pane's width for each half to travel across.
+                        return (
+                          <motion.li
+                            key={departureKey(departure)}
+                            layout="position"
+                            initial="hidden"
+                            animate="visible"
+                            exit="exit"
+                            variants={columnSlideVariants}
+                            transition={transitItemTransition}
+                            className={itemClassName}
+                          >
+                            <span className="transit-slide__leading">
+                              <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} brand={resolvedBrand} />
+                            </span>
+                            <span className="transit-slide__trailing">
+                              <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
+                            </span>
+                          </motion.li>
+                        )
+                      }
                       return (
-                        <motion.li
-                          key={departureKey(departure)}
-                          layout="position"
-                          initial="hidden"
-                          animate="visible"
-                          exit="exit"
-                          variants={transitRowVariants}
-                          transition={transitRowTransition}
-                          className={itemClassName}
-                        >
-                          <span className="transit-slide__leading">
+                        <motion.li key={departureKey(departure)} initial="hidden" animate="visible" exit="exit" className={itemClassName}>
+                          <motion.span layout="position" className="transit-slide__leading" variants={transitLeadingVariants} transition={transitItemTransition}>
                             <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} brand={resolvedBrand} />
-                          </span>
-                          <span className="transit-slide__trailing">
+                          </motion.span>
+                          <motion.span layout="position" className="transit-slide__trailing" variants={transitTrailingVariants} transition={transitItemTransition}>
                             <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
-                          </span>
+                          </motion.span>
                         </motion.li>
                       )
-                    }
-                    if (isMultiColumn) {
-                      // 2 columns: the whole row slides as one unit, toward
-                      // this column's own edge (`columnSlideVariants`) —
-                      // not split into independently-sliding halves like
-                      // single-column mode below, since there's no longer a
-                      // full pane's width for each half to travel across.
-                      return (
-                        <motion.li
-                          key={departureKey(departure)}
-                          layout="position"
-                          initial="hidden"
-                          animate="visible"
-                          exit="exit"
-                          variants={columnSlideVariants}
-                          transition={transitItemTransition}
-                          className={itemClassName}
-                        >
-                          <span className="transit-slide__leading">
-                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} brand={resolvedBrand} />
-                          </span>
-                          <span className="transit-slide__trailing">
-                            <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
-                          </span>
-                        </motion.li>
-                      )
-                    }
-                    return (
-                      <motion.li key={departureKey(departure)} initial="hidden" animate="visible" exit="exit" className={itemClassName}>
-                        <motion.span layout="position" className="transit-slide__leading" variants={transitLeadingVariants} transition={transitItemTransition}>
-                          <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} brand={resolvedBrand} />
-                        </motion.span>
-                        <motion.span layout="position" className="transit-slide__trailing" variants={transitTrailingVariants} transition={transitItemTransition}>
-                          <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
-                        </motion.span>
-                      </motion.li>
-                    )
-                  })}
-                </AnimatePresence>
-              </ul>
-            )
-          })}
-        </div>
+                    })}
+                  </AnimatePresence>
+                </ul>
+              )
+            })}
+          </motion.div>
+        </AnimatePresence>
       )}
       {stale && <p className="transit-slide__stale-notice">{t('admin.screens.transitStaleNotice')}</p>}
     </div>

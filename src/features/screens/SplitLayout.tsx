@@ -14,8 +14,18 @@ import { isNewsSlotContent, isResizeToFitContent, resizeToFitMediaUrl } from '..
 import { getBackgroundImageUrl, getSmallUrl } from '../../utils/responsiveImage'
 import { isSlotActive, resolvePaneIdentitySignature, resolveSlotContent, resolveStageValue, writeStageCheckpoint } from '../../utils/screenStages'
 import { ExitingPaneGhost } from './ExitingPaneGhost'
+import { FlatBorderLayer } from './FlatBorderLayer'
+import { FlatPaneLayer } from './FlatPaneLayer'
 import { LayoutTree } from './LayoutTree'
-import { BORDER_TRANSITION_DURATION_SECONDS, CONTENT_TRANSITION_DURATION_SECONDS, EXIT_PHASE_DURATION_SECONDS, PANE_GROWTH_DURATION_SECONDS } from './paneGrowthMotion'
+import {
+  BORDER_TRANSITION_DURATION_SECONDS,
+  CONTENT_TRANSITION_DURATION_SECONDS,
+  ENABLE_FLAT_PANE_LAYOUT,
+  ENABLE_STAGE_STRUCTURAL_GROWTH,
+  EXIT_PHASE_DURATION_SECONDS,
+  NEGLIGIBLE_DIVIDER_MOVE_PERCENT,
+  PANE_GROWTH_DURATION_SECONDS,
+} from './paneGrowthMotion'
 import './SplitLayout.scss'
 
 /** The stage-transition sequence's own three phases — see `SplitLayout`'s own `contentPhase` state and doc comment for what each drives. */
@@ -61,6 +71,14 @@ function sameLeafIds(a: Set<PaneId>, b: Set<PaneId>): boolean {
  * disqualified its border entirely, even directly alongside a pane that never itself gained or lost a
  * neighbor. The churning side's own interior still gets the ordinary blank-behind-a-snap treatment,
  * recursively, at whichever of *its own* nested split paths that applies to.
+ *
+ * `growingSplitPaths` (gated by `ENABLE_STAGE_STRUCTURAL_GROWTH` — always empty when that's off) is the
+ * creation-side counterpart: a split node that's *genuinely new* (not a `'split'` at that path in the old
+ * tree at all — a brand-new divider, unlike `stableSplitPaths`' own already-existing ones) whose two
+ * direct children include a lineage-matched appeared leaf (already in `staticLeafIds`, and therefore not
+ * in `oldLeafIds`). `LayoutTree.tsx` uses this to animate that one specific divider's own grid track from
+ * a synthetic starting ratio (matching wherever the origin pane's old edge was) to its real target ratio,
+ * instead of the ordinary instant-snap every other genuinely-new divider still gets.
  */
 function computeStageStaticSets(
   oldTree: LayoutNode,
@@ -69,7 +87,7 @@ function computeStageStaticSets(
   oldStage: number,
   newStage: number,
   defaultPaneLanguage: LanguageCode,
-): { staticLeafIds: Set<PaneId>; stableSplitPaths: Set<string> } {
+): { staticLeafIds: Set<PaneId>; stableSplitPaths: Set<string>; negligibleMoveSplitPaths: Set<string>; growingSplitPaths: Map<string, 'first' | 'second'> } {
   const oldLeafIds = new Set(listLeaves(oldTree).map((leaf) => leaf.id))
   const staticLeafIds = new Set<PaneId>()
   for (const leaf of listLeaves(newTree)) {
@@ -102,7 +120,58 @@ function computeStageStaticSets(
   }
   walk(newTree, [])
 
-  return { staticLeafIds, stableSplitPaths }
+  /**
+   * The subset of `stableSplitPaths` whose divider barely moves at all between the two stages (see
+   * `NEGLIGIBLE_DIVIDER_MOVE_PERCENT`) — such a divider keeps everything else `stableSplitPaths` buys
+   * it (it stays visible through `'exiting'` rather than shrinking away), but skips the grid-template
+   * transition, since animating a couple of pixels of travel costs a full animation's worth of layout
+   * passes for motion nobody can see. Compared in *absolute* screen-space (each divider's own
+   * `computeLayoutGeometry` position, not its local `ratio`), because a nested divider's stored ratio
+   * can be identical across both stages while the divider itself still travels a long way on screen —
+   * a ratio is always a share of its own immediate parent's box, and that box moves when an ancestor's
+   * ratio changes.
+   */
+  const negligibleMoveSplitPaths = new Set<string>()
+  const oldDividerPositions = new Map(computeLayoutGeometry(oldTree).dividers.map((divider) => [pathKey(divider.path), divider.position]))
+  const newDividerPositions = new Map(computeLayoutGeometry(newTree).dividers.map((divider) => [pathKey(divider.path), divider.position]))
+  for (const key of stableSplitPaths) {
+    const oldPosition = oldDividerPositions.get(key)
+    const newPosition = newDividerPositions.get(key)
+    if (oldPosition === undefined || newPosition === undefined) continue
+    if (Math.abs(newPosition - oldPosition) < NEGLIGIBLE_DIVIDER_MOVE_PERCENT) negligibleMoveSplitPaths.add(key)
+  }
+
+  const growingSplitPaths = new Map<string, 'first' | 'second'>()
+  if (ENABLE_STAGE_STRUCTURAL_GROWTH) {
+    /**
+     * Deliberately keyed on *lineage alone* (`splitFromPaneId` naming a pane that was present in the old
+     * tree), not on `staticLeafIds` membership — that stricter set also demands a full content match, which
+     * is the right bar for suppressing a pane's own content animation but the wrong one for deciding
+     * whether this divider should glide. A new pane very often carries genuinely different content than
+     * the pane it was split from (its content then correctly still animates in on its own); the *boundary*
+     * between them should still slide open from the origin pane's old edge either way, since that's a fact
+     * about the geometry, not about the content. Confirmed live on "Testing some more": requiring a content
+     * match there meant a `'weather'`-origin pane whose new sibling shows `'time'` never qualified, and the
+     * whole divider silently fell back to an instant snap.
+     */
+    const isGrownFromOldPane = (child: LayoutNode) =>
+      child.type === 'leaf' && !oldLeafIds.has(child.id) && Boolean(paneSlots[child.id]?.splitFromPaneId && oldLeafIds.has(paneSlots[child.id].splitFromPaneId!))
+    const walkGrowing = (node: LayoutNode, path: NodePath) => {
+      if (node.type !== 'split') return
+      const oldNode = nodeAtPath(oldTree, path)
+      if (oldNode.type !== 'split') {
+        const firstIsNewMatch = isGrownFromOldPane(node.first)
+        const secondIsNewMatch = isGrownFromOldPane(node.second)
+        if (firstIsNewMatch && !secondIsNewMatch) growingSplitPaths.set(pathKey(path), 'first')
+        else if (secondIsNewMatch && !firstIsNewMatch) growingSplitPaths.set(pathKey(path), 'second')
+      }
+      walkGrowing(node.first, [...path, 'first'])
+      walkGrowing(node.second, [...path, 'second'])
+    }
+    walkGrowing(newTree, [])
+  }
+
+  return { staticLeafIds, stableSplitPaths, negligibleMoveSplitPaths, growingSplitPaths }
 }
 
 interface SplitLayoutProps {
@@ -297,6 +366,8 @@ export function SplitLayout({
    */
   const [stageStaticLeafIds, setStageStaticLeafIds] = useState<Set<PaneId>>(() => new Set())
   const [stableSplitPaths, setStableSplitPaths] = useState<Set<string>>(() => new Set())
+  const [negligibleMoveSplitPaths, setNegligibleMoveSplitPaths] = useState<Set<string>>(() => new Set())
+  const [growingSplitPaths, setGrowingSplitPaths] = useState<Map<string, 'first' | 'second'>>(() => new Map())
   if (prevEffectiveStage !== effectiveStage) {
     setPrevEffectiveStage(effectiveStage)
     if (reducedMotion || forcedStage !== undefined) {
@@ -308,6 +379,8 @@ export function SplitLayout({
       const stageStaticSets = computeStageStaticSets(tree, newTree, screen.paneSlots, displayStage, effectiveStage, defaultPaneLanguage)
       setStageStaticLeafIds(stageStaticSets.staticLeafIds)
       setStableSplitPaths(stageStaticSets.stableSplitPaths)
+      setNegligibleMoveSplitPaths(stageStaticSets.negligibleMoveSplitPaths)
+      setGrowingSplitPaths(stageStaticSets.growingSplitPaths)
       setContentPhase('exiting')
     }
   }
@@ -425,11 +498,17 @@ export function SplitLayout({
    * stage advance (the timer below moving `displayStage` on, which lands on
    * the same commit as `contentPhase: 'holding'`) and an ordinary layout edit
    * (splitting or deleting a pane in the editor, with the phase still
-   * `'idle'`). A stage advance no longer wants the grow-in/collapse
+   * `'idle'`). By default a stage advance doesn't want the grow-in/collapse
    * animations at all — its geometry snaps behind a blanked screen, so
    * animating panes there would put movement back into the exact window this
-   * rework empties out, at the cost of a full extra `LayoutPane` mount per
-   * disappearing pane. An editor edit still wants them.
+   * rework empties out. `ENABLE_STAGE_STRUCTURAL_GROWTH` (`paneGrowthMotion.ts`)
+   * selectively re-admits a stage advance into `exitingGhosts` (any
+   * disappearance) despite `diffFromStageAdvance` being true — `enteringGrowth`
+   * itself stays `{}` for every stage-driven appearance regardless (never both
+   * the clip-path wipe *and* the grid-track glide at once); a lineage-matched
+   * appearance instead gets `growingSplitPaths`' own grid-track glide in
+   * `LayoutTree.tsx`, an entirely separate mechanism — see its own doc comment
+   * on `computeStageStaticSets`. An editor edit always wants `enteringGrowth`.
    */
   const [diffFromStageAdvance, setDiffFromStageAdvance] = useState(false)
   if (prevTree !== tree) {
@@ -447,6 +526,21 @@ export function SplitLayout({
   }, [diffWithBase, reducedMotion, diffFromStageAdvance, tree, paneGrowthFallback])
 
   const [exitingGhosts, setExitingGhosts] = useState<Record<PaneId, { rect: Rect; growth: PaneGrowthOrigin }>>({})
+  // Deliberately still editor-only (`!diffFromStageAdvance`), unlike the creation side's own
+  // `growingSplitPaths`. Briefly enabling ghosts for stage-driven deletions too was measured to look
+  // clearly worse, for reasons specific to a stage transition rather than anything wrong with the ghost
+  // itself: the ghost mounts on the same commit the grid reflows, i.e. right in the middle of the
+  // blank-behind-a-snap window, and renders a *fully opaque* pane (its wrapped `LayoutPane` defaults to
+  // `contentPhase: 'idle'`, so nothing suppresses its content) painted over everything else — while every
+  // real pane on screen is deliberately blank at that exact moment. It also resolves its content against
+  // `displayStage`, which has already advanced, so it shows whatever that pane displays at the *new*
+  // stage rather than the one it's leaving. Net effect on a real screen: a fully-rendered pane of the
+  // wrong content flashing in on top of an otherwise-empty canvas, then wiping away.
+  //
+  // Making a stage-driven deletion animate well needs the mirror of the creation mechanism instead — the
+  // vacated split staying rendered one beat longer while its own ratio animates to 0/100, so the
+  // surviving sibling grows into the freed space rather than inheriting the whole track in one frame —
+  // not a ghost floating over the top of it.
   if (diffWithBase && !reducedMotion && !diffFromStageAdvance) {
     const { diffBase: baseForExit, diff } = diffWithBase
     const newlyDisappeared = diff.disappeared.filter((id) => !(id in exitingGhosts))
@@ -697,9 +791,67 @@ export function SplitLayout({
   }
   const handleCommit = (path: NodePath, ratio: number) => handleCommitPatch({ [pathKey(path)]: ratio })
 
+  /**
+   * Whether to render the geometry-driven flat pane layer instead of the nested-grid recursion — see
+   * `ENABLE_FLAT_PANE_LAYOUT`.
+   *
+   * Deliberately also requires the *read-only* surface (no `onResizeDivider`): the flat layer renders
+   * panes and borders, but the editor's own draggable dividers and corner handles still live in
+   * `LayoutTree`'s recursion, where each one is measured against its own immediate grid container.
+   * Re-homing those onto the flat layer is a separate piece of work; until it lands, an editing
+   * surface falls back to the nested-grid path, which is exactly what the fallback is for. The kiosk
+   * display — the surface this whole model exists for — is read-only, so it takes the flat path.
+   */
+  const useFlatLayer = ENABLE_FLAT_PANE_LAYOUT && !onResizeDivider
+
   return (
-    <div ref={containerRef} className={`split-layout${borderModifier}`} style={screenColorStyle}>
+    <div
+      ref={containerRef}
+      className={`split-layout${borderModifier}`}
+      style={screenColorStyle}
+      // Purely observational, for the QA harnesses (`QA/scratchpad/qa/`) — the same role
+      // `[data-pane-id]` already plays on each pane. A stage transition is otherwise invisible from
+      // outside React, so a frame-cost sampler has no way to tell which frames belong to a transition
+      // and which to an idle kiosk; these two attributes are that signal, and they cost one string
+      // write per phase/stage change.
+      data-content-phase={contentPhase}
+      data-stage={displayStage}
+    >
       {screenBackgroundLayer}
+      {useFlatLayer ? (
+        <>
+          <FlatPaneLayer
+            node={layoutTree}
+            containerSize={containerSize}
+            screenID={screen.screenID}
+            paneSlots={screen.paneSlots}
+            stage={displayStage}
+            transitionStyle={screen.transitionStyle}
+            resolveTextSizes={resolveTextSizes}
+            defaultPaneLanguage={defaultPaneLanguage}
+            editingFocus={screen.editingFocus}
+            transitionDuration={CONTENT_TRANSITION_DURATION_SECONDS}
+            contentPhase={contentPhase}
+            stageStaticLeafIds={stageStaticLeafIds}
+            reducedMotion={reducedMotion}
+            selectedLeafId={selectedLeafId}
+            dimUnselectedPanes={dimUnselectedPanes}
+            paneGrowthFallback={paneGrowthFallback}
+            newsSlots={newsSlots}
+            stageTick={stageTick}
+            onRequestStageAdvance={onRequestStageAdvance}
+            captureMode={captureMode}
+          />
+          {/*
+            Rendered after every pane, deliberately: flattening merges what used to be one stacking
+            context per nesting level into a single one, so DOM order is what decides whether a border
+            paints over its two neighbouring panes or under them. Panes first, then borders.
+          */}
+          {screen.showSlotBorders && (
+            <FlatBorderLayer node={layoutTree} paneSlots={screen.paneSlots} stage={displayStage} contentPhase={contentPhase} reducedMotion={reducedMotion} />
+          )}
+        </>
+      ) : (
       <LayoutTree
         node={layoutTree}
         screenID={screen.screenID}
@@ -718,6 +870,8 @@ export function SplitLayout({
         contentPhase={contentPhase}
         stageStaticLeafIds={stageStaticLeafIds}
         stableSplitPaths={stableSplitPaths}
+        negligibleMoveSplitPaths={negligibleMoveSplitPaths}
+        growingSplitPaths={growingSplitPaths}
         reducedMotion={reducedMotion}
         selectedLeafId={selectedLeafId}
         dimUnselectedPanes={dimUnselectedPanes}
@@ -745,6 +899,7 @@ export function SplitLayout({
         onRequestStageAdvance={onRequestStageAdvance}
         captureMode={captureMode}
       />
+      )}
       {Object.entries(exitingGhosts).map(([leafId, { rect, growth }]) => {
         const slot = screen.paneSlots[leafId]
         // `ExitingPaneGhost` assumes `screen.paneSlots[leafId]` is still there (true whenever a leaf disappears via `deleteLeaf`, which deliberately never touches `paneSlots`) — but undo/redo instead swaps in a whole prior `ScreenConfig` snapshot wholesale, which can genuinely have no entry at all for a pane that only ever existed *after* the snapshot it's reverting to (e.g. undoing straight back across the split that created it). No slot means nothing valid to animate out, so skip mounting it here rather than pass `LayoutPane` an undefined slot — `leafId` still stays in `exitingGhosts` either way (see the block above for why that matters), it just never actually renders anything.

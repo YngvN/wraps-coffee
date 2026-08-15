@@ -8,6 +8,7 @@ import { useShrinkToFitScale } from '../../hooks/useShrinkToFitScale'
 import { useLanguage, type LanguageCode } from '../../i18n'
 import type { BackgroundImage, BackgroundImageOverlay, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SlideTransitionDirection, SplitDirection, TextSizes } from '../../types/screen'
 import { backgroundImageTextStyle, getScreenColorVars, slotBackgroundColorStyle, slotTextColorStyle } from '../../utils/screenColors'
+import type { Rect } from '../../utils/layoutGeometry'
 import type { PaneGrowthOrigin } from '../../utils/paneGrowth'
 import { resolveContentBackgroundImage } from '../../utils/screenSlots'
 import {
@@ -83,6 +84,28 @@ interface LayoutPaneProps {
   onRequestStageAdvance?: () => void
   /** Threaded straight through to `SlotContent`. See `SplitLayout`'s own prop of the same name. */
   captureMode?: boolean
+  /**
+   * Where to place this pane, in the 0-100 percentage space `computeLayoutGeometry` uses — set only
+   * by `FlatPaneLayer` (see `ENABLE_FLAT_PANE_LAYOUT`), which positions every pane absolutely against
+   * the whole arrangement instead of letting a nested grid stretch it into a cell. Omit (the default,
+   * and what `LayoutTree` does) to keep the grid-item behavior.
+   *
+   * Note `.split-layout__pane` sets `height: 100%` and *no* width, relying on being a stretched grid
+   * item — so this can't be a class, it has to be inline, which also wins over the class's own height.
+   * The explicit background is needed for the same reason `ExitingPaneGhost` sets one: panes paint no
+   * backdrop of their own, and absolutely-positioned boxes can overlap mid-interpolation in a way grid
+   * items never can.
+   */
+  rect?: Rect
+  /**
+   * A one-frame "start pose" for this pane's own rect transition — a `transform`/`clip-path` pair
+   * placing it visually where it *was*, while its layout box is already at its destination (see
+   * `FlatPaneLayer`'s own `paneRectMotion`). Applied with no transition on the frame it arrives, then
+   * dropped on the next, which is what the browser animates away from. `undefined` means "at rest".
+   */
+  rectMotion?: CSSProperties
+  /** The CSS `transition` to carry `rectMotion` back to rest with — `undefined` while the start pose is being painted (there must be no transition on that frame) or when nothing is animating. */
+  rectTransition?: string
 }
 
 /**
@@ -153,6 +176,9 @@ export function LayoutPane({
   stageTick,
   onRequestStageAdvance,
   captureMode,
+  rect,
+  rectMotion,
+  rectTransition,
 }: LayoutPaneProps) {
   const { t } = useLanguage()
   const [dragDepth, setDragDepth] = useState(0)
@@ -233,10 +259,28 @@ export function LayoutPane({
   // `PaneCornerHandle`, which deliberately want this pane's own
   // contrast-matched `--screen-bg`/`--screen-text` (see `PaneSplitZones.scss`'s
   // own doc comment).
-  const paneStyle = {
+  const paneStyle: CSSProperties = {
     ...(backgroundColor ? getScreenColorVars(backgroundColor) : {}),
     ...backgroundImageTextStyle(backgroundImage?.overlay),
     ...(!reducedMotion ? { transition: 'background-color 0.4s ease, color 0.4s ease' } : {}),
+    // The flat layer's own positioning (see the `rect` prop) — inline rather than a class, both
+    // because the values are per-pane and because `.split-layout__pane`'s own `height: 100%` would
+    // otherwise win. Appended last so its own `transition` (which has to also carry the rect motion)
+    // replaces the background/color one above rather than being dropped by it.
+    ...(rect
+      ? {
+          position: 'absolute' as const,
+          left: `${rect.x}%`,
+          top: `${rect.y}%`,
+          width: `${rect.width}%`,
+          height: `${rect.height}%`,
+          background: 'var(--screen-bg)',
+          ...rectMotion,
+          ...(reducedMotion
+            ? {}
+            : { transition: [rectTransition, 'background-color 0.4s ease, color 0.4s ease'].filter(Boolean).join(', ') }),
+        }
+      : {}),
   }
   const variants = resolveTransitionVariants(transitionStyle, slideDirection)
 
@@ -314,10 +358,22 @@ export function LayoutPane({
   // isn't actually frozen the way its `content` prop is: the slide component
   // stays mounted and keeps polling its own live data (a `WeatherSlide`'s
   // forecast, a `TransitSlide`'s departures) regardless of activeness.
-  useShrinkToFitScale(contentOuterRef0, contentInnerRef0, overflowMode === 'shrink' && !usesFontScale0, [shrinkDep0], activeContentSlot === 0)
-  useShrinkToFitScale(contentOuterRef1, contentInnerRef1, overflowMode === 'shrink' && !usesFontScale1, [shrinkDep1], activeContentSlot === 1)
-  useShrinkToFitFontScale(contentOuterRef0, contentInnerRef0, overflowMode === 'shrink' && usesFontScale0, [shrinkDep0], checkWidth0, activeContentSlot === 0)
-  useShrinkToFitFontScale(contentOuterRef1, contentInnerRef1, overflowMode === 'shrink' && usesFontScale1, [shrinkDep1], checkWidth1, activeContentSlot === 1)
+  //
+  // `contentPhase === 'idle'` gates all four for the same reason `activeContentSlot` does, just for a
+  // different window: a stage transition resizes every pane whose geometry changes, and each of those
+  // resizes fires this pane's own `ResizeObserver`, whose callback is a *forced synchronous layout*
+  // (it writes `transform: none`, reads `scrollHeight`/`scrollWidth`, then writes a scale). Doing that
+  // per pane while the geometry is still moving measures a size that is already stale by the time it
+  // is applied, and pays for the privilege in the single most contended window there is. Flipping
+  // this back to `true` on the return to `'idle'` re-runs the hook's own effect, which measures once,
+  // synchronously, against the settled geometry — which is exactly the one measurement that was ever
+  // worth taking. See `trackResize`'s own doc comment for why this freezes the last-good scale rather
+  // than stripping it (`enabled: false`), i.e. why nothing visibly pops mid-transition.
+  const trackShrink = contentPhase === 'idle'
+  useShrinkToFitScale(contentOuterRef0, contentInnerRef0, overflowMode === 'shrink' && !usesFontScale0, [shrinkDep0], activeContentSlot === 0 && trackShrink)
+  useShrinkToFitScale(contentOuterRef1, contentInnerRef1, overflowMode === 'shrink' && !usesFontScale1, [shrinkDep1], activeContentSlot === 1 && trackShrink)
+  useShrinkToFitFontScale(contentOuterRef0, contentInnerRef0, overflowMode === 'shrink' && usesFontScale0, [shrinkDep0], checkWidth0, activeContentSlot === 0 && trackShrink)
+  useShrinkToFitFontScale(contentOuterRef1, contentInnerRef1, overflowMode === 'shrink' && usesFontScale1, [shrinkDep1], checkWidth1, activeContentSlot === 1 && trackShrink)
 
   const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
     if (!onDropImage) return
@@ -345,9 +401,14 @@ export function LayoutPane({
     <motion.div
       className={`split-layout__pane${selected ? ' split-layout__pane--selected' : ''}`}
       style={paneStyle}
-      initial={growthInitial}
-      animate={{ clipPath: FULL_REVEAL_CLIP_PATH, opacity: 1 }}
-      transition={growthTransition}
+      // The flat layer owns this pane's whole entrance/movement itself, as a plain CSS transition on
+      // `rectMotion` — so Framer Motion is given nothing at all to animate there rather than left to
+      // fight it over the same `clip-path`/`opacity` properties. An `animate` value always wins over
+      // `style`, so even a constant one (`{ opacity: 1 }`) would silently erase a start pose that
+      // needed to begin at `opacity: 0`.
+      {...(rect
+        ? { initial: false as const, animate: {}, transition: { duration: 0 } }
+        : { initial: growthInitial, animate: { clipPath: FULL_REVEAL_CLIP_PATH, opacity: 1 }, transition: growthTransition })}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
