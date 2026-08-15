@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import type { SplitDirection } from '../../types/screen'
-import { BORDER_EXIT_DELAY_SECONDS, BORDER_TRANSITION_DURATION_SECONDS } from './paneGrowthMotion'
+import { BORDER_EXIT_DELAY_SECONDS, BORDER_TRANSITION_DURATION_SECONDS, PANE_GROWTH_DURATION_SECONDS } from './paneGrowthMotion'
 import './SplitBorderLine.scss'
 
 /** The visible thickness of a slot border, in px — must match `.layout-tree__split`'s own `gap` in `SplitLayout.scss`, which is the space this line is drawn into. */
@@ -17,6 +17,8 @@ interface SplitBorderLineProps {
   visible: boolean
   /** Skips the animation entirely, matching the rest of the layout's own reduced-motion handling. */
   reducedMotion: boolean
+  /** Pass whenever the sibling `.layout-tree__split`'s own grid-template is itself getting a CSS transition (`LayoutTree.tsx`'s `effectiveGridTransition`, truthy for a live-drag release, a structural editor edit, or a `stableSplitPaths` stage-transition resize) — this line's own `left`/`top` then gets a matching plain CSS transition, so its position glides in lockstep with the actual track boundary instead of jumping to `share`'s new value the instant it changes while the grid track it sits on is still mid-glide. Omit (the default) whenever the grid template itself isn't transitioning either — a live drag in progress, or the ordinary stage-transition case where the line is fully hidden while the geometry snaps in one reflow with nothing on screen to see it jump. */
+  glide?: boolean
 }
 
 /**
@@ -41,7 +43,7 @@ interface SplitBorderLineProps {
  * Scales on its own *thickness* axis rather than its length, so it thins to
  * nothing in place instead of retracting toward one end.
  */
-export function SplitBorderLine({ direction, share, thickness, visible, reducedMotion }: SplitBorderLineProps) {
+export function SplitBorderLine({ direction, share, thickness, visible, reducedMotion, glide }: SplitBorderLineProps) {
   const isVertical = direction === 'row'
   const position = isVertical
     ? { left: `${share}%`, top: 0, bottom: 0, width: thickness }
@@ -51,11 +53,17 @@ export function SplitBorderLine({ direction, share, thickness, visible, reducedM
   // while this animates — the entire point of drawing the border as its own
   // element rather than animating the grid's own `gap`.
   const scaleAxis = isVertical ? 'scaleX' : 'scaleY'
+  // `left`/`top` above are plain style values, not part of framer-motion's own `animate` — without this,
+  // a `share` change lands on-screen the instant it's set, while the sibling `.layout-tree__split`'s own
+  // `grid-template-columns`/`-rows` (see `stableResizeGridTransition`) glides toward the same boundary over
+  // `PANE_GROWTH_DURATION_SECONDS` — the line reaching its new position immediately while the actual track
+  // edge is still catching up is exactly what reads as the line "overflowing"/lagging behind the container.
+  const positionTransition = glide && !reducedMotion ? `${isVertical ? 'left' : 'top'} ${PANE_GROWTH_DURATION_SECONDS}s ease` : undefined
 
   return (
     <motion.div
       className="split-border-line"
-      style={{ ...position, transformOrigin: 'center' }}
+      style={{ ...position, transformOrigin: 'center', ...(positionTransition ? { transition: positionTransition } : {}) }}
       initial={false}
       animate={{ transform: `${scaleAxis}(${visible ? 1 : 0})` }}
       // Hiding waits (`BORDER_EXIT_DELAY_SECONDS`) so the line outlives the

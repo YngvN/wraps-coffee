@@ -304,7 +304,14 @@ export function LayoutTree({
         for something that will never be seen.
       */}
       {borderThickness > 0 && (
-        <SplitBorderLine direction={node.direction} share={resolveRatio(node)} thickness={borderThickness} visible={bordersVisible} reducedMotion={Boolean(reducedMotion)} />
+        <SplitBorderLine
+          direction={node.direction}
+          share={resolveRatio(node)}
+          thickness={borderThickness}
+          visible={bordersVisible}
+          reducedMotion={Boolean(reducedMotion)}
+          glide={Boolean(effectiveGridTransition)}
+        />
       )}
       <LayoutTree
         node={node.first}
