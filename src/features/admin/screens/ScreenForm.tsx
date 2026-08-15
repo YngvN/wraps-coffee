@@ -834,7 +834,11 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
           )}
 
           {/* The live layout editor itself — a pane's own fields (below) are just one click away on whichever pane is clicked here, so the separate per-pane tab-button row (and the "Layout" sub-view that used to hold this) isn't needed anymore. */}
-          <div className="screen-form__layout-picker" role="group" aria-label={t('admin.screens.previewRatioLabel')}>
+          {/* The label was previously `aria-label`-only, so a sighted admin got five bare ratio chips with nothing saying what they set. Rendered visibly now and pointed at by `aria-labelledby`, so both audiences read the same text. */}
+          <p className="screen-form__layout-picker-label" id="screen-form-ratio-label">
+            {t('admin.screens.previewRatioLabel')}
+          </p>
+          <div className="screen-form__layout-picker" role="group" aria-labelledby="screen-form-ratio-label">
             {PREVIEW_ASPECT_RATIOS.map(({ ratio, label }) => (
               <button
                 key={label}

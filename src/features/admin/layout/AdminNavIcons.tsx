@@ -72,6 +72,18 @@ export function ScreensIcon(props: IconProps) {
   )
 }
 
+/** Physical display hardware (see the `displays` nav item) — two stacked devices, deliberately distinct from `ScreensIcon`'s single monitor, since a Screen is the content configuration and a Display is a machine showing one. */
+export function DisplaysIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="2" y="3" width="13" height="9" rx="1.5" />
+      <line x1="6" y1="15" x2="11" y2="15" />
+      <line x1="8.5" y1="12" x2="8.5" y2="15" />
+      <rect x="16" y="10" width="6" height="11" rx="1.5" />
+    </Icon>
+  )
+}
+
 export function ImagesIcon(props: IconProps) {
   return (
     <Icon {...props}>

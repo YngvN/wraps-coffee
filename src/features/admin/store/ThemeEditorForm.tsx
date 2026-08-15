@@ -3,6 +3,7 @@ import { Button, FontPicker, Input } from '../../../components'
 import { useGoogleFontLoader } from '../../../hooks/useGoogleFontLoader'
 import { useLanguage } from '../../../i18n'
 import { LOCKED_APPEARANCE_COLORS, type AppearanceTheme, type AppearanceThemeFonts } from '../../../types/appearanceTheme'
+import { generateId } from '../../../utils/id'
 import { ThemeColorListEditor } from './ThemeColorListEditor'
 import './ThemeEditorForm.scss'
 
@@ -33,7 +34,7 @@ export function ThemeEditorForm({ theme, onSave, onCancel }: ThemeEditorFormProp
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    onSave({ id: theme?.id ?? crypto.randomUUID(), name, fonts, colors })
+    onSave({ id: theme?.id ?? generateId(), name, fonts, colors })
   }
 
   return (

@@ -55,8 +55,8 @@ const ENTITY_DESCRIPTIONS: Record<string, string> = {
   integrationToggle: 'turning an integration (weather/transit/entur/news) on or off',
   settings: "the admin's own device/store preferences — clock format, date format, kiosk pane default language, which sidebar items are hidden",
   mediaLibrary: 'a single uploaded image/video file in the Media Library — renaming its display label, or deleting it',
-  screen: 'a kiosk display screen\'s own global settings — name, borders, whole-screen background, stages/rotation timing, transitions, screensaver — never its pane layout/content, which only the in-place screen editor changes',
-  screenPane: 'one specific pane on one specific kiosk screen — its own custom CSS/HTML styling, and (only when the admin has explicitly opted in) which content kind it shows and that kind\'s own fields — never the screen\'s own global settings above, and never splitting/creating/deleting a pane',
+  screen: 'a screen\'s own global settings — name, borders, whole-screen background, stages/rotation timing, transitions, screensaver — never its pane layout/content, which only the in-place screen editor changes',
+  screenPane: 'one specific pane on one specific screen — its own custom CSS/HTML styling, and (only when the admin has explicitly opted in) which content kind it shows and that kind\'s own fields — never the screen\'s own global settings above, and never splitting/creating/deleting a pane',
   displayManager: 'a physical monitor on a registered kiosk machine — renaming the machine, or assigning which screen that monitor shows',
   orders: "an order's own status (received/accepted/preparing/ready/completed/cancelled) — never any other field, and never a new or deleted order",
 }

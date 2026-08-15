@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BackButton, ChevronRightIcon, PlusIcon, SlideTransition, TranslatedText } from '../../../components'
+import { BackButton, PlusIcon, SlideTransition, TranslatedText } from '../../../components'
 import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { useRecentlyOpened } from '../../../hooks/useRecentlyOpened'
@@ -17,7 +17,6 @@ import { copyToClipboard } from '../../../utils/clipboard'
 import { generateId } from '../../../utils/id'
 import { countLeaves } from '../../../utils/layoutTree'
 import { deriveMdnsName } from '../../../utils/mdnsName'
-import { DisplayManagerView } from '../displayManager/DisplayManagerView'
 import { ScreenCard } from './ScreenCard'
 import { ScreenForm, type ScreenFormTarget } from './ScreenForm'
 import { ScreenRestoreSnapshotModal } from './ScreenRestoreSnapshotModal'
@@ -26,7 +25,7 @@ import './ScreensView.scss'
 
 const SCREEN_FORM_TARGETS: ScreenFormTarget[] = ['global', 'borders', 'background', 'stages', 'transitions', 'screensaver', 'other']
 
-/** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link (addressed per Settings → Advanced's `ScreenAddressSettings`), plus the "Screen saver" button that sets the one shared daily window every screen's own "Use screensaver" checkbox opts into. "Open" treats launching a screen as deploying it, not previewing it — see `handleOpenScreen`; it always opens the plain, read-only `/screens/:screenId` URL. "Editor" instead opens the screen's own `/screens/editor/:screenId` URL — see `handleOpenEditor` — the only one that ever offers `ScreenDisplay`'s in-place editing toolbar. A "Display Manager" row above the screen list opens `DisplayManagerView` — every machine/monitor that's ever registered, with a Screen-assignment selector per monitor. */
+/** Admin view for creating, editing and deleting fullscreen display screens, each reachable at its own `/screens/:screenId` link (addressed per Settings → Advanced's `ScreenAddressSettings`), plus the "Screen saver" button that sets the one shared daily window every screen's own "Use screensaver" checkbox opts into. "Open" treats launching a screen as deploying it, not previewing it — see `handleOpenScreen`; it always opens the plain, read-only `/screens/:screenId` URL. "Editor" instead opens the screen's own `/screens/editor/:screenId` URL — see `handleOpenEditor` — the only one that ever offers `ScreenDisplay`'s in-place editing toolbar. The physical machines that show these screens live in their own top-level Displays section (`DisplayManagerView`), not here. */
 export function ScreensView() {
   const { t } = useLanguage()
   const [screens, setScreens] = useScreens()
@@ -37,9 +36,7 @@ export function ScreensView() {
   const [copiedID, setCopiedID] = useState<string | null>(null)
   /** The screen currently open in the per-screen "restore from a screens snapshot" picker (`ScreenRestoreSnapshotModal`), or `null` when it's closed. */
   const [restoringSnapshotScreen, setRestoringSnapshotScreen] = useState<ScreenConfig | null>(null)
-  /** Whether the "Display Manager" sub-view (every registered machine/monitor, with its own Screen-assignment selector) is open in place of the screen list. */
-  const [showDisplayManager, setShowDisplayManager] = useState(false)
-  /** `1` while opening the form or Display Manager (slides in from the right, see `SlideTransition`), `-1` while closing back to the list (slides in from the left). Set right before whatever state change actually switches the view. */
+  /** `1` while opening the form (slides in from the right, see `SlideTransition`), `-1` while closing back to the list (slides in from the left). Set right before whatever state change actually switches the view. */
   const [direction, setDirection] = useState<1 | -1>(1)
   /** The screen form's own currently open sub-view (e.g. "Resize slots"), shown next to the form view's own title — see `ScreenForm`'s `onRouteChange`. Reset on close so a stale route doesn't flash before the next open's fresh form reports its own. */
   const [formRoute, setFormRoute] = useState<string | undefined>(undefined)
@@ -191,46 +188,22 @@ export function ScreensView() {
     window.open(editorUrl, '_blank')
   }
 
-  const openDisplayManager = () => {
-    setDirection(1)
-    setShowDisplayManager(true)
-  }
-  const closeDisplayManager = () => {
-    setDirection(-1)
-    setShowDisplayManager(false)
-  }
-
-  /** Registers the open Display Manager sub-view as its own level of the shared browser-back stack (see `useBackLevel`), so the mouse's back button closes it exactly the way its own Back button does. */
-  useBackLevel(showDisplayManager, closeDisplayManager)
-
   /**
-   * Deep-link support for the sidebar's tier-2 Screens flyout's own
-   * "Display Manager"/"+ Add screen" rows — `?displayManager=1` opens
-   * `DisplayManagerView` the same as clicking that row would,
-   * `?new=1` opens a blank `ScreenForm` the same as clicking "+ Add
-   * screen" would. Neither depends on any remotely-synced list (unlike the
-   * `?screenId=` deep link above), so there's no `consumedDeepLinkRef`-style
-   * guard needed — this only ever runs meaningfully once anyway, since it
-   * strips its own param immediately.
+   * Deep-link support for the sidebar flyout's own "+ Create screen" row — `?new=1` opens a
+   * blank `ScreenForm` the same as clicking it would. (Display Manager used to be handled
+   * here too, via `?displayManager=1`; it's a real top-level route now — see `main.tsx`.)
    */
   useEffect(() => {
-    if (searchParams.get('displayManager')) {
-      queueMicrotask(openDisplayManager)
-      setSearchParams((current) => {
-        current.delete('displayManager')
-        return current
-      })
-    } else if (searchParams.get('new')) {
-      queueMicrotask(() => openForm(null))
-      setSearchParams((current) => {
-        current.delete('new')
-        return current
-      })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only meant to run once, right on mount, consuming whichever (if any) of these two deep-link params this page happened to be opened with.
+    if (!searchParams.get('new')) return
+    queueMicrotask(() => openForm(null))
+    setSearchParams((current) => {
+      current.delete('new')
+      return current
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only meant to run once, right on mount, consuming whichever deep-link param this page happened to be opened with.
   }, [])
 
-  const view = isFormOpen ? 'form' : showDisplayManager ? 'displayManager' : 'list'
+  const view = isFormOpen ? 'form' : 'list'
 
   return (
     <div className="screens-view">
@@ -246,8 +219,6 @@ export function ScreensView() {
             </div>
             <ScreenForm screen={editingScreen ?? null} onSave={handleSave} onCancel={closeForm} onRouteChange={setFormRoute} initialTarget={initialFormTarget} />
           </div>
-        ) : view === 'displayManager' ? (
-          <DisplayManagerView />
         ) : (
           <div className="screens-view__list-view">
             <div className="screens-view__header">
@@ -262,12 +233,6 @@ export function ScreensView() {
                 {t('admin.screens.addScreen')}
               </button>
 
-              <div className="screens-view__display-manager-row">
-                <button type="button" className="screens-view__display-manager-open" onClick={openDisplayManager}>
-                  <span className="screens-view__display-manager-name">{t('admin.displayManager.title')}</span>
-                  <ChevronRightIcon />
-                </button>
-              </div>
 
               <button type="button" className="screens-view__toolbar-action" onClick={() => setScreensaverModalOpen(true)}>
                 {screensaverSchedule ? t('admin.screens.changeScreensaverButton') : t('admin.screens.screensaverButton')}

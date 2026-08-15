@@ -6,6 +6,17 @@
   gap: $spacing-unit * 3;
 }
 
+// Page title plus this page's own primary create action, matching the
+// `__header` row every other list view uses (Products, Users, Events).
+.message-board-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit * 2;
+  flex-wrap: wrap;
+  max-width: var(--admin-list-max-width);
+}
+
 .message-board-view__tabs-header {
   display: flex;
   justify-content: flex-start;

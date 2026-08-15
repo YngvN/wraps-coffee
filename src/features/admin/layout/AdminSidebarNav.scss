@@ -219,6 +219,15 @@
 // Marks a rail item as having a tier-2 flyout (Products/Screens/Settings)
 // — same fade-in treatment as the label next to it, pushed to the row's
 // far right via `margin-left: auto`.
+// The panel-opening tools (Assistant, Search), divided from the navigation
+// destinations below — see `AdminSidebarNav.tsx`'s own note on why they're a
+// separate group rather than interleaved.
+.admin-sidebar-nav__list--tools {
+  margin-bottom: calc($spacing-unit / 2);
+  padding-bottom: calc($spacing-unit / 2);
+  border-bottom: 1px solid $color-border;
+}
+
 .admin-sidebar-nav__link-chevron {
   display: inline-flex;
   flex-shrink: 0;
@@ -480,6 +489,16 @@
   color: $color-text-muted;
 }
 
+// Separates the flyout's *actions and destinations* from the record list above
+// them. Without this the two read as the same kind of row, so "Add screen"
+// looked like one more screen and "Display Manager" like one more destination
+// inside Screens rather than a section of its own.
+.admin-sidebar-nav__flyout-footer {
+  margin-top: calc($spacing-unit / 2);
+  padding-top: calc($spacing-unit / 2);
+  border-top: 1px solid $color-border;
+}
+
 .admin-sidebar-nav__flyout-row {
   display: flex;
   align-items: center;
@@ -507,6 +526,21 @@
     width: 14px;
     height: 14px;
     opacity: 0.6;
+  }
+
+  // A create action, not a destination: leading "+" and left-packed, so it
+  // can't be mistaken for one more record in the list above.
+  &--create {
+    justify-content: flex-start;
+    gap: calc($spacing-unit / 2);
+    color: $color-text-muted;
+    font-weight: 600;
+
+    svg {
+      flex-shrink: 0;
+      width: 14px;
+      height: 14px;
+    }
   }
 }
 

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { generateId } from '../utils/id'
 import { listUploads, retryVideoUpload, uploadImage, uploadVideo, type UploadedMedia } from './localServer'
 
 export interface TrackedUpload {
@@ -80,7 +81,7 @@ async function pollUntilReady(id: string, filename: string, token: string) {
  * loses its progress. Returns the tracked upload's own id.
  */
 export function startUpload(file: File, kind: 'image' | 'video', token: string): string {
-  const id = crypto.randomUUID()
+  const id = generateId()
   uploads.set(id, { id, fileName: file.name, kind, progress: 0, status: 'uploading' })
   snapshot = Array.from(uploads.values())
   notify()

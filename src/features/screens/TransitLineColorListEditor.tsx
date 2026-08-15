@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { Input, PlusIcon, TrashIcon } from '../../components'
 import { useLanguage } from '../../i18n'
+import { generateId } from '../../utils/id'
 import './TransitLineColorListEditor.scss'
 
 interface TransitLineColor {
@@ -33,7 +34,7 @@ export function TransitLineColorListEditor({ colors, onChange }: TransitLineColo
 
   const removeColor = (id: string) => onChange(colors.filter((color) => color.id !== id))
 
-  const addColor = () => onChange([...colors, { id: crypto.randomUUID(), authority: '', hex: NEW_LINE_COLOR_HEX }])
+  const addColor = () => onChange([...colors, { id: generateId(), authority: '', hex: NEW_LINE_COLOR_HEX }])
 
   return (
     <div className="transit-line-color-list-editor">

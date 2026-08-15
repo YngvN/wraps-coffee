@@ -143,7 +143,16 @@ export function MessageBoardView() {
 
   return (
     <div className="message-board-view">
-      <TranslatedText as="h1" id="admin.messageBoard.title" />
+      {/* Primary create sits in the page header as a filled button, same as Products/Users/Events/Media — this page used to be the one exception, offering a ghost "New board" and a filled "New post" side by side, which made the weight of a create action look arbitrary rather than meaningful. Creating a *board* stays a ghost action next to the tabs it adds to. */}
+      <div className="message-board-view__header">
+        <TranslatedText as="h1" id="admin.messageBoard.title" />
+        {selectedBoard && (
+          <Button className="message-board-view__add-post" onClick={() => setEditingPost(null)}>
+            <PlusIcon />
+            {t('admin.messageBoard.addPost')}
+          </Button>
+        )}
+      </div>
       <TranslatedText as="p" id="admin.messageBoard.description" className="admin-page-description" />
 
       {isModerator && (
@@ -198,10 +207,6 @@ export function MessageBoardView() {
       {selectedBoard ? (
         <>
           <div className="message-board-view__toolbar">
-            <Button className="message-board-view__add-post" onClick={() => setEditingPost(null)}>
-              <PlusIcon />
-              {t('admin.messageBoard.addPost')}
-            </Button>
             {isModerator && (
               <Checkbox
                 id="message-board-publish"

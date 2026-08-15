@@ -245,7 +245,7 @@ POST /users/<id>/password         (Authorization: Bearer <token>, admin/subadmin
       <Card title={t('admin.settings.developerDocs.uploadsTitle')}>
         <p>{t('admin.settings.developerDocs.uploadsIntro')}</p>
         <pre>
-          <code>{`POST /uploads                     (Authorization: Bearer <token>, Content-Type: image/*, body = raw file bytes, max 10MB)
+          <code>{`POST /uploads                     (Authorization: Bearer <token>, body = raw file bytes, max 25MB — format is sniffed from the bytes, not the Content-Type header; HEIC/HEIF/TIFF/AVIF are accepted and converted to JPEG)
 → 201 { "url": "http://.../uploads/<uuid>.<ext>" }
 POST /uploads?purpose=screen-preview   (same, but stored as "screen-preview-<uuid>.<ext>" and hidden from GET /uploads below)
 

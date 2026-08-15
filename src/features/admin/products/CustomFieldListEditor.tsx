@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Input, PlusIcon, TrashIcon } from '../../../components'
 import { useLanguage, type LanguageCode } from '../../../i18n'
 import type { CustomFieldDefinition, CustomFieldType } from '../../../types/customFields'
+import { generateId } from '../../../utils/id'
 import './CustomFieldListEditor.scss'
 
 interface CustomFieldListEditorProps {
@@ -30,7 +31,7 @@ export function CustomFieldListEditor({ fields, selectedLanguage, onChange }: Cu
 
   const removeField = (id: string) => onChange(fields.filter((field) => field.id !== id))
 
-  const addField = () => onChange([...fields, { id: crypto.randomUUID(), label: { ...BLANK_LABEL }, type: 'text' }])
+  const addField = () => onChange([...fields, { id: generateId(), label: { ...BLANK_LABEL }, type: 'text' }])
 
   const updateFieldLabel = (id: string, value: string) => {
     const field = fields.find((candidate) => candidate.id === id)
@@ -44,7 +45,7 @@ export function CustomFieldListEditor({ fields, selectedLanguage, onChange }: Cu
 
   const addOption = (fieldId: string) => {
     const field = fields.find((candidate) => candidate.id === fieldId)
-    if (field) updateField(fieldId, { options: [...(field.options ?? []), { id: crypto.randomUUID(), label: { ...BLANK_LABEL } }] })
+    if (field) updateField(fieldId, { options: [...(field.options ?? []), { id: generateId(), label: { ...BLANK_LABEL } }] })
   }
 
   const removeOption = (fieldId: string, optionId: string) => {

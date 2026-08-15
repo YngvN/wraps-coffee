@@ -483,10 +483,10 @@
           "store": "Store settings",
           "orders": "Orders",
           "screens": "Screens",
-          "displayManager": "Display Manager",
+          "displayManager": "Displays",
           "integrations": "Integrations",
           "logout": "Log out",
-          "media": "Media",
+          "media": "Media library",
           "users": "Users",
           "settings": "Settings",
           "messageBoard": "Message board",
@@ -718,7 +718,7 @@
         },
         "products": {
           "title": "Products",
-          "addProduct": "Add product",
+          "addProduct": "Create product",
           "editProduct": "Edit product",
           "categoryLabel": "Category",
           "categoryPriceLabel": "Category default price",
@@ -732,11 +732,11 @@
           "allergensLabel": "Allergens",
           "dietaryTagsLabel": "Dietary tags",
           "noProducts": "No products in this category yet.",
-          "addCatalogue": "Add catalogue",
+          "addCatalogue": "Create catalogue",
           "editCatalogue": "Edit catalogue",
           "noCatalogues": "No catalogues yet.",
           "confirmDeleteCatalogue": "Deleting this catalogue also deletes every category and product inside it. Are you sure?",
-          "addCategory": "Add category",
+          "addCategory": "Create category",
           "editCategory": "Edit category",
           "noCategories": "No categories in this catalogue yet.",
           "categoryImageLabel": "Category image",
@@ -783,7 +783,7 @@
         },
         "events": {
           "title": "Events",
-          "addEvent": "Add event",
+          "addEvent": "Create event",
           "editEvent": "Edit event",
           "titleLabel": "Title",
           "descriptionLabel": "Description",
@@ -809,7 +809,7 @@
         },
         "store": {
           "title": "Store settings",
-          "description": "Company name, slogan, logos and favicon — shown in the sidebar, login page and browser tab, and used for the kiosk screens’ own network address.",
+          "description": "Company name, slogan, logos and favicon — shown in the sidebar, login page and browser tab, and used for the screens’ own network address.",
           "nameCardTitle": "Company",
           "nameLabel": "Store name",
           "sloganLabel": "Slogan",
@@ -821,7 +821,7 @@
           "faviconHint": "Shown in the browser tab. Falls back to the default icon if unset.",
           "contactHint": "Phone, email, address and opening hours.",
           "contactButton": "Edit contact info",
-          "appearanceHint": "Screen-display color themes and fonts.",
+          "appearanceHint": "Color themes and fonts for your screens.",
           "appearanceButton": "Edit appearance"
         },
         "contact": {
@@ -840,8 +840,8 @@
         },
         "appearance": {
           "title": "Appearance",
-          "description": "Create and manage color themes and fonts for the screen displays. Every theme starts with 3 locked colors (white, black, grey) — add as many custom colors as you like on top.",
-          "addTheme": "Add theme",
+          "description": "Create and manage color themes and fonts for your screens. Every theme starts with 3 locked colors (white, black, grey) — add as many custom colors as you like on top.",
+          "addTheme": "Create theme",
           "editTheme": "Edit theme",
           "activeBadge": "Active",
           "setActive": "Set active",
@@ -882,7 +882,7 @@
         },
         "screens": {
           "title": "Screens",
-          "addScreen": "Add screen",
+          "addScreen": "Create screen",
           "screensaverButton": "Screen saver",
           "changeScreensaverButton": "Edit screen saver",
           "screensaverTitle": "Screen saver",
@@ -1031,7 +1031,7 @@
           "splitPaneFourButton": "Split into 4",
           "splitPaneLabel": "Split",
           "clearPaneButton": "Clear pane",
-          "applyToEveryStageButton": "Apply to every stage",
+          "applyToEveryStageButton": "Apply to every step",
           "paneContentKindLabel": "Pane content",
           "deletePaneButton": "Delete pane",
           "selectPaneButton": "Select pane",
@@ -1064,7 +1064,7 @@
           "paneCustomContent": {
             "cssLabel": "Custom CSS",
             "cssHint": "Applies to this pane only, on top of everything else. Allowed properties: {{properties}}.",
-            "cssScopeHint": "Applies automatically, the same regardless of which stage is showing — no selector needed for a plain rule. A more specific selector you write yourself has real, fixed CSS specificity, so an existing rule of equal or higher specificity can silently win with no error shown.",
+            "cssScopeHint": "Applies automatically, the same regardless of which step is showing — no selector needed for a plain rule. A more specific selector you write yourself has real, fixed CSS specificity, so an existing rule of equal or higher specificity can silently win with no error shown.",
             "htmlLabel": "Custom HTML",
             "htmlHint": "Rendered alongside this pane's normal content. Allowed tags: {{tags}}.",
             "htmlNotTranslatedHint": "Unlike other admin-authored text, this isn't translated per language — it's shown exactly as typed, in whichever single language you write it in (same as an Announcement pane's own text).",
@@ -1118,7 +1118,7 @@
           "catalogueCategoriesLabel": "Categories to include",
           "catalogueSelectLabel": "Which catalogue",
           "catalogueNoCataloguesLabel": "No catalogues created yet.",
-          "description": "Configure the fullscreen kiosk displays around the store — what each one shows, its layout, and its timing.",
+          "description": "Configure the screens shown on the displays around the store — what each one shows, its layout, and its timing.",
           "weatherWindLabel": "Wind",
           "weatherWindShortValue": "{{value}} m/s",
           "weatherHumidityLabel": "Humidity",
@@ -1139,19 +1139,19 @@
           "slotVideoLabel": "Video",
           "videoRemoveAudioLabel": "Remove audio",
           "videoVolumeLabel": "Volume",
-          "videoAdvanceStageOnEndLabel": "Advance to next stage when this video ends",
-          "videoAdvanceStageOnEndHint": "This screen's stage rotation is shared by every pane — enabling this advances the whole screen early, not just this one.",
+          "videoAdvanceStageOnEndLabel": "Advance to next step when this video ends",
+          "videoAdvanceStageOnEndHint": "This screen's step rotation is shared by every pane — enabling this advances the whole screen early, not just this one.",
           "videoPreviewLabel": "Video preview",
-          "videoRestartOnStageOneLabel": "Restart when back at stage 1",
-          "videoRestartOnStageOneHint": "Resets this video back to its own beginning every time the screen's shared stage rotation comes back around to stage 1, instead of it staying wherever it naturally got to.",
+          "videoRestartOnStageOneLabel": "Restart when back at step 1",
+          "videoRestartOnStageOneHint": "Resets this video back to its own beginning every time the screen's shared step rotation comes back around to step 1, instead of it staying wherever it naturally got to.",
           "resizeToFitVideoLabel": "Resize pane to fit video"
         },
         "displayManager": {
-          "title": "Display Manager",
-          "description": "Every machine or browser tab that's registered itself as a display, and which Screen (if any) each of its monitors currently shows. A Companion app appears below for approval a few seconds after it's opened on the TV.",
-          "empty": "No displays have connected yet. A kiosk machine registers itself automatically; a plain browser tab can too, at /display-connect.",
+          "title": "Displays",
+          "description": "Every machine or browser tab that has registered itself as a display, and which screen (if any) each of its monitors is currently showing. A Companion app appears below for approval a few seconds after it is opened on the display.",
+          "empty": "No displays have connected yet. A display registers itself automatically; a plain browser tab can too, at /display-connect.",
           "viaUrlBadge": "Via URL",
-          "electronBadge": "Kiosk machine",
+          "electronBadge": "Display",
           "mobileBadge": "ADHDisplay Companion",
           "lastSeen": "Last seen {{date}}",
           "unassignedOption": "— Unassigned (shows the screensaver) —",
@@ -1246,7 +1246,7 @@
         },
         "users": {
           "title": "Users",
-          "addUser": "Add user",
+          "addUser": "Create user",
           "usernameLabel": "Username",
           "passwordLabel": "Password",
           "roleLabel": "Role",
@@ -1274,7 +1274,7 @@
           "title": "Settings",
           "languageLabel": "Language",
           "paneLanguageLabel": "Standard pane language",
-          "paneLanguageHint": "The default language kiosk panes show their content in (menu items, event descriptions, and so on) — separate from the interface language above. Each pane can override this individually from its own \"Language\" menu.",
+          "paneLanguageHint": "The default language screen panes show their content in (menu items, event descriptions, and so on) — separate from the interface language above. Each pane can override this individually from its own \"Language\" menu.",
           "clockFormatLabel": "Clock format",
           "clockFormat24hLabel": "24-hour",
           "clockFormat12hLabel": "12-hour (AM/PM)",
@@ -1287,7 +1287,7 @@
           "storeButton": "Edit store settings",
           "dashboardScreensaver": {
             "title": "Dashboard screensaver",
-            "hint": "After a period of inactivity, shows a solid black screen with the store's name drifting around — for the admin dashboard and login screen only, independent of the kiosk screens' own scheduled screensaver. Disappears on the next mouse movement, touch, or key press.",
+            "hint": "After a period of inactivity, shows a solid black screen with the store's name drifting around — for the admin dashboard and login screen only, independent of your screens' own scheduled screensaver. Disappears on the next mouse movement, touch, or key press.",
             "enableLabel": "Show a screensaver after inactivity",
             "idleMinutesLabel": "Minutes of inactivity before it appears"
           },
@@ -1319,14 +1319,14 @@
             "keyEvents": "Store events — recurring, postponed, cancelled occurrences.",
             "keyContactInfo": "Phone, email, address, opening hours.",
             "keyStoreSettings": "Company branding — name, slogan, logos, favicon.",
-            "keyAppearanceThemes": "Screen-display appearance themes (color palettes and fonts) and which one is active.",
+            "keyAppearanceThemes": "Screen appearance themes (color palettes and fonts) and which one is active.",
             "keyTextSizePresets": "Saved named text-size presets for screens.",
             "keyClockFormat": "12-hour or 24-hour clock format, used everywhere a wall-clock time is shown (weather, timestamps, the screensaver schedule's own time pickers).",
             "keyDateFormat": "Day-month-year or month-day-year date order, used everywhere a plain numeric date is shown (timestamps, uploaded-image dates, message board post dates, a time pane's own shorthand date).",
-            "keyPaneLanguage": "The store's own default language for kiosk pane content — each pane can override it individually.",
+            "keyPaneLanguage": "The store's own default language for screen pane content — each pane can override it individually.",
             "keyScreensaverSchedule": "The shared daily screensaver start/end window.",
             "keyDashboardScreensaver": "The admin dashboard/login screensaver's own on/off and idle-timeout-minutes settings.",
-            "keyScreens": "Every configured kiosk screen — layout, panes, content.",
+            "keyScreens": "Every configured screen — layout, panes, content.",
             "keyDisplayMachines": "Every machine/browser tab that's registered as a display, its monitors, and which Screen (if any) each shows.",
             "keyDisplayMachineCloseRequests": "machineIDs an admin has asked Display Manager to close remotely — pruned by each window once it acts on its own request.",
             "keyDisplayPairingRequests": "ADHDisplay Companion devices that have heartbeated in but aren't approved yet — see Display Manager below.",
@@ -1359,7 +1359,7 @@
             "integrationsTitle": "Integrations proxy (transit + weather)",
             "integrationsIntro": "Thin proxies over Entur's and MET Norway's own public APIs, with a short server-side cache — no token needed.",
             "newsTitle": "News (RSS)",
-            "newsIntro": "Fetches and normalizes headlines from a fixed set of Norwegian outlets, cached server-side, plus a disk-cached image proxy so a kiosk display doesn't hit each outlet's own hosting on every rotation — no token needed.",
+            "newsIntro": "Fetches and normalizes headlines from a fixed set of Norwegian outlets, cached server-side, plus a disk-cached image proxy so a display doesn't hit each outlet's own hosting on every rotation — no token needed.",
             "woltTitle": "Wolt delivery orders",
             "woltIntro": "Credentials and a background sync loop for Wolt's own POS Integration API (see the Integrations page's Wolt card) — admin/subadmin only, since the credentials are a real secret.",
             "foodoraTitle": "Foodora delivery orders",
@@ -1389,7 +1389,7 @@
             "developerKeyRoutesTitle": "Developer key routes",
             "keyCatalogues": "Catalogues, categories and their default prices/images — the admin Products feature's own hierarchy.",
             "screenAddressText": "How a screen's own display link is addressed (see Settings → Advanced):",
-            "windowLaunchMethodText": "Which window a Windows machine opens the kiosk display in at boot (see Settings → Advanced) — read by installer/start-adhdisplay.bat, not applied live:"
+            "windowLaunchMethodText": "Which window a Windows machine opens the display in at boot (see Settings → Advanced) — read by installer/start-adhdisplay.bat, not applied live:"
           },
           "description": "Interface language, the store's default pane language, clock format, and which sidebar sections this dashboard shows.",
           "developersDescription": "Reference documentation for the local server's own HTTP and WebSocket API, for building a custom client against this store's data.",
@@ -1414,7 +1414,7 @@
             "mdnsPreview": "Screens will be reachable at {{name}}.local",
             "mdnsCaveat": "Works automatically on Apple devices, Linux, and Windows machines set up with this app's own installer (it opens the port this needs). If a screen still can't reach it, check that it's on the same network as this machine, not a separate guest Wi-Fi — and some bare Android devices or smart-TV boxes may not support it at all.",
             "mdnsNoStoreName": "Set a store name in Store settings first.",
-            "launchMethodLegend": "Which window should the kiosk display open in?",
+            "launchMethodLegend": "Which window should the display open in?",
             "launchMethodLoadError": "Could not load the window launch method.",
             "launchMethodSaveError": "Could not save the window launch method.",
             "launchMethodAutoLabel": "Automatic (recommended)",
@@ -1445,7 +1445,7 @@
             "creatingLabel": "Creating…",
             "createError": "Could not create a backup.",
             "restoreTitle": "Restore",
-            "restoreHint": "Overwrites all current data with a previous backup. Everyone should reload the dashboard (and any open kiosk screens) afterward.",
+            "restoreHint": "Overwrites all current data with a previous backup. Everyone should reload the dashboard (and any open screens) afterward.",
             "restoreConfirm": "This will overwrite all current data with the backup. This can't be undone. Continue?",
             "restoreSuccess": "Restored. Reload this page — and any other open tab or device — to see the restored data.",
             "restoreError": "Could not restore this backup.",
@@ -1580,7 +1580,7 @@
                   },
                   "vippsMobilepay": {
                     "name": "Vipps MobilePay",
-                    "description": "Let customers pay by phone right at the kiosk screen, with a dynamic QR code for fast checkout."
+                    "description": "Let customers pay by phone right at the screen, with a dynamic QR code for fast checkout."
                   },
                   "stripe": {
                     "name": "Stripe",
@@ -1643,7 +1643,7 @@
                   },
                   "instagramFeed": {
                     "name": "Instagram Feed Widget",
-                    "description": "Show the cafe's latest Instagram photos on a kiosk screen."
+                    "description": "Show the cafe's latest Instagram photos on a screen."
                   },
                   "untappdMenu": {
                     "name": "Untappd",
@@ -1656,7 +1656,7 @@
                 }
               },
               "localData": {
-                "title": "Local Real-Time Data (Kiosk Screens)",
+                "title": "Local Real-Time Data (Screens)",
                 "items": {
                   "airthingsAir": {
                     "name": "Airthings",
@@ -1711,7 +1711,7 @@
                   },
                   "sentry": {
                     "name": "Sentry",
-                    "description": "Monitor the system for errors in real time; if a kiosk screen crashes or loses connection, the developer is notified immediately."
+                    "description": "Monitor the system for errors in real time; if a display crashes or loses connection, the developer is notified immediately."
                   },
                   "twilioSms": {
                     "name": "Twilio SMS",
@@ -1917,8 +1917,8 @@
           "weatherSymbolSnowandthunder": "Snow and thunder",
           "weatherSymbolSleetshowersandthunder": "Sleet showers and thunder",
           "weatherSymbolSnowshowersandthunder": "Snow showers and thunder",
-          "weatherSearchDescription": "Live hourly weather forecast on the kiosk screens, powered by Yr / MET Norway.",
-          "transitSearchDescription": "Live real-time bus, tram and train departures on the kiosk screens, powered by Entur.",
+          "weatherSearchDescription": "Live hourly weather forecast on your screens, powered by Yr / MET Norway.",
+          "transitSearchDescription": "Live real-time bus, tram and train departures on your screens, powered by Entur.",
           "searchPlaceholder": "Search...",
           "searchClearLabel": "Clear search",
           "searchNoResultsLabel": "No integrations match \"{{query}}\".",
@@ -2056,11 +2056,11 @@
         },
         "messageBoard": {
           "title": "Message board",
-          "addBoard": "New board",
+          "addBoard": "Create board",
           "renameBoard": "Rename board",
           "boardNameLabel": "Board name",
           "publishToWebsiteLabel": "Publish to website",
-          "addPost": "New post",
+          "addPost": "Create post",
           "editPost": "Edit post",
           "titleLabel": "Title",
           "bodyLabel": "Message",
@@ -2072,7 +2072,7 @@
           "noPosts": "No posts yet.",
           "noBoards": "No boards yet.",
           "boardMissingError": "This board no longer exists.",
-          "description": "Create boards of short posts to show on kiosk screens, optionally published to the public website too."
+          "description": "Create boards of short posts to show on your screens, optionally published to the public website too."
         },
         "search": {
           "title": "Search",
@@ -2111,8 +2111,8 @@
         "noConnection": "No connection to the server — showing stored content",
         "stageIndicator": "Step {{current}} of {{total}}",
         "playStages": "Play",
-        "previousStage": "Previous stage",
-        "nextStage": "Next stage",
+        "previousStage": "Previous step",
+        "nextStage": "Next step",
         "pauseStages": "Pause",
         "fastForwardStages": "Fast forward (every 2s)",
         "stageScrubberLabel": "Jump to step",
@@ -2205,7 +2205,7 @@
         "dropHintMedia": "Drop image or video to upload",
         "processingVideo": "Processing video…",
         "retryButton": "Retry",
-        "sizeLimitMedia": "Images up to 10MB, videos up to 500MB",
+        "sizeLimitMedia": "Images up to 25MB, videos up to 500MB",
         "uploadButtonMedia": "Upload image/video",
         "uploadingPercent": "Uploading... {{percent}}%",
         "videoFailedFallback": "Video processing failed."
@@ -2704,10 +2704,10 @@
           "store": "Butikkinnstillinger",
           "orders": "Bestillinger",
           "screens": "Skjermer",
-          "displayManager": "Skjermbehandling",
+          "displayManager": "Skjermenheter",
           "integrations": "Integrasjoner",
           "logout": "Logg ut",
-          "media": "Media",
+          "media": "Mediebibliotek",
           "users": "Brukere",
           "settings": "Innstillinger",
           "messageBoard": "Oppslagstavle",
@@ -2939,7 +2939,7 @@
         },
         "products": {
           "title": "Produkter",
-          "addProduct": "Legg til produkt",
+          "addProduct": "Opprett produkt",
           "editProduct": "Rediger produkt",
           "categoryLabel": "Kategori",
           "categoryPriceLabel": "Standardpris for kategori",
@@ -2953,11 +2953,11 @@
           "allergensLabel": "Allergener",
           "dietaryTagsLabel": "Kosthold-tagger",
           "noProducts": "Ingen produkter i denne kategorien ennå.",
-          "addCatalogue": "Legg til katalog",
+          "addCatalogue": "Opprett katalog",
           "editCatalogue": "Rediger katalog",
           "noCatalogues": "Ingen kataloger ennå.",
           "confirmDeleteCatalogue": "Sletting av denne katalogen sletter også alle kategorier og produkter i den. Er du sikker?",
-          "addCategory": "Legg til kategori",
+          "addCategory": "Opprett kategori",
           "editCategory": "Rediger kategori",
           "noCategories": "Ingen kategorier i denne katalogen ennå.",
           "categoryImageLabel": "Kategoribilde",
@@ -3004,7 +3004,7 @@
         },
         "events": {
           "title": "Arrangementer",
-          "addEvent": "Legg til arrangement",
+          "addEvent": "Opprett arrangement",
           "editEvent": "Rediger arrangement",
           "titleLabel": "Tittel",
           "descriptionLabel": "Beskrivelse",
@@ -3030,7 +3030,7 @@
         },
         "store": {
           "title": "Butikkinnstillinger",
-          "description": "Firmanavn, slagord, logoer og favicon — vises i sidemenyen, innloggingssiden og nettleserfanen, og brukes for kioskskjermenes egen nettverksadresse.",
+          "description": "Firmanavn, slagord, logoer og favicon — vises i sidemenyen, innloggingssiden og nettleserfanen, og brukes for skjermenes egen nettverksadresse.",
           "nameCardTitle": "Firma",
           "nameLabel": "Butikknavn",
           "sloganLabel": "Slagord",
@@ -3042,7 +3042,7 @@
           "faviconHint": "Vises i nettleserfanen. Faller tilbake til standardikonet hvis ikke satt.",
           "contactHint": "Telefon, e-post, adresse og åpningstider.",
           "contactButton": "Rediger kontaktinfo",
-          "appearanceHint": "Fargetemaer og skrifttyper for skjermvisningene.",
+          "appearanceHint": "Fargetemaer og skrifttyper for skjermene.",
           "appearanceButton": "Rediger utseende"
         },
         "contact": {
@@ -3061,8 +3061,8 @@
         },
         "appearance": {
           "title": "Utseende",
-          "description": "Opprett og administrer fargetemaer og skrifttyper for skjermvisningene. Hvert tema starter med 3 låste farger (hvit, svart, grå) — legg til så mange egne farger du vil i tillegg.",
-          "addTheme": "Legg til tema",
+          "description": "Opprett og administrer fargetemaer og skrifttyper for skjermene. Hvert tema starter med 3 låste farger (hvit, svart, grå) — legg til så mange egne farger du vil i tillegg.",
+          "addTheme": "Opprett tema",
           "editTheme": "Rediger tema",
           "activeBadge": "Aktiv",
           "setActive": "Sett som aktiv",
@@ -3103,7 +3103,7 @@
         },
         "screens": {
           "title": "Skjermer",
-          "addScreen": "Legg til skjerm",
+          "addScreen": "Opprett skjerm",
           "screensaverButton": "Skjermsparer",
           "changeScreensaverButton": "Endre skjermsparer",
           "screensaverTitle": "Skjermsparer",
@@ -3339,7 +3339,7 @@
           "catalogueCategoriesLabel": "Kategorier som skal vises",
           "catalogueSelectLabel": "Hvilken katalog",
           "catalogueNoCataloguesLabel": "Ingen kataloger opprettet ennå.",
-          "description": "Sett opp fullskjerms kiosk-skjermene rundt i butikken — hva hver av dem viser, oppsettet og tidsbruken.",
+          "description": "Sett opp skjermene som vises på skjermenhetene rundt i butikken — hva hver av dem viser, oppsettet og tidsbruken.",
           "weatherWindLabel": "Vind",
           "weatherWindShortValue": "{{value}} m/s",
           "weatherHumidityLabel": "Luftfuktighet",
@@ -3368,16 +3368,16 @@
           "resizeToFitVideoLabel": "Tilpass felt til video"
         },
         "displayManager": {
-          "title": "Skjermbehandling",
-          "description": "Hver maskin eller nettleserfane som har registrert seg selv som en skjerm, og hvilken Skjerm (hvis noen) hver av dens monitorer viser nå. En Companion-app dukker opp nedenfor for godkjenning noen sekunder etter at den åpnes på TV-en.",
-          "empty": "Ingen skjermer har koblet til ennå. En kioskmaskin registrerer seg selv automatisk; en vanlig nettleserfane kan også, på /display-connect.",
+          "title": "Skjermenheter",
+          "description": "Hver maskin eller nettleserfane som har registrert seg selv som en skjermenhet, og hvilken skjerm (hvis noen) hver av monitorene dens viser nå. En Companion-app dukker opp nedenfor for godkjenning noen sekunder etter at den åpnes på skjermenheten.",
+          "empty": "Ingen skjermenheter har koblet til ennå. En skjermenhet registrerer seg selv automatisk; en vanlig nettleserfane kan også, på /display-connect.",
           "viaUrlBadge": "Via URL",
-          "electronBadge": "Kioskmaskin",
+          "electronBadge": "Skjermenhet",
           "mobileBadge": "ADHDisplay Companion",
           "lastSeen": "Sist sett {{date}}",
           "unassignedOption": "— Ikke tildelt (viser skjermspareren) —",
-          "addDisplayButton": "Legg til skjerm",
-          "machineLabelLabel": "Visningsnavn",
+          "addDisplayButton": "Legg til skjermenhet",
+          "machineLabelLabel": "Navn på skjermenhet",
           "assignedScreenLabel": "Tildelt skjerm",
           "pendingSectionTitle": "Venter på godkjenning",
           "pendingBadge": "Venter",
@@ -3467,7 +3467,7 @@
         },
         "users": {
           "title": "Brukere",
-          "addUser": "Legg til bruker",
+          "addUser": "Opprett bruker",
           "usernameLabel": "Brukernavn",
           "passwordLabel": "Passord",
           "roleLabel": "Rolle",
@@ -3495,7 +3495,7 @@
           "title": "Innstillinger",
           "languageLabel": "Språk",
           "paneLanguageLabel": "Standard panespråk",
-          "paneLanguageHint": "Standardspråket kioskskjermenes egne paneler viser innholdet sitt i (menyvarer, arrangementbeskrivelser og lignende) — uavhengig av grensesnittspråket over. Hvert panel kan overstyre dette individuelt fra sin egen «Språk»-meny.",
+          "paneLanguageHint": "Standardspråket skjermenes egne paneler viser innholdet sitt i (menyvarer, arrangementbeskrivelser og lignende) — uavhengig av grensesnittspråket over. Hvert panel kan overstyre dette individuelt fra sin egen «Språk»-meny.",
           "clockFormatLabel": "Klokkeformat",
           "clockFormat24hLabel": "24-timers",
           "clockFormat12hLabel": "12-timers (AM/PM)",
@@ -3508,7 +3508,7 @@
           "storeButton": "Rediger butikkinnstillinger",
           "dashboardScreensaver": {
             "title": "Skjermsparer for dashbordet",
-            "hint": "Etter en periode uten aktivitet vises en helsvart skjerm med butikkens navn som glir rundt — kun for admin-dashbordet og innloggingsskjermen, uavhengig av kioskskjermenes egen planlagte skjermsparer. Forsvinner ved neste musbevegelse, berøring, eller tastetrykk.",
+            "hint": "Etter en periode uten aktivitet vises en helsvart skjerm med butikkens navn som glir rundt — kun for admin-dashbordet og innloggingsskjermen, uavhengig av skjermenes egen planlagte skjermsparer. Forsvinner ved neste musbevegelse, berøring, eller tastetrykk.",
             "enableLabel": "Vis skjermsparer etter inaktivitet",
             "idleMinutesLabel": "Minutter uten aktivitet før den vises"
           },
@@ -3540,14 +3540,14 @@
             "keyEvents": "Butikkens arrangementer — gjentakende, utsatte, avlyste forekomster.",
             "keyContactInfo": "Telefon, e-post, adresse, åpningstider.",
             "keyStoreSettings": "Merkevarebygging — navn, slagord, logoer, favicon.",
-            "keyAppearanceThemes": "Utseendetemaer for skjermvisninger (fargepaletter og skrifttyper) og hvilket som er aktivt.",
+            "keyAppearanceThemes": "Utseendetemaer for skjermer (fargepaletter og skrifttyper) og hvilket som er aktivt.",
             "keyTextSizePresets": "Lagrede, navngitte tekststørrelse-forhåndsinnstillinger for skjermer.",
             "keyClockFormat": "Klokkeformat (12- eller 24-timers), brukt overalt et klokkeslett vises (vær, tidsstempler, skjermsparerens egne tidsvelgere).",
             "keyDateFormat": "Datorekkefølge (dag-måned-år eller måned-dag-år), brukt overalt en ren tallmessig dato vises (tidsstempler, opplastede bildedatoer, oppslagstavleinnleggenes datoer, klokke-panelets egen forkortede dato).",
-            "keyPaneLanguage": "Butikkens eget standardspråk for kioskskjermenes panelinnhold — hvert panel kan overstyre det individuelt.",
+            "keyPaneLanguage": "Butikkens eget standardspråk for skjermenes panelinnhold — hvert panel kan overstyre det individuelt.",
             "keyScreensaverSchedule": "Det delte daglige start-/sluttvinduet for skjermspareren.",
             "keyDashboardScreensaver": "Admin-dashbordets/innloggingens egen skjermsparer — på/av og minutter uten aktivitet.",
-            "keyScreens": "Hver konfigurerte kioskskjerm — oppsett, paneler, innhold.",
+            "keyScreens": "Hver konfigurerte skjerm — oppsett, paneler, innhold.",
             "keyDisplayMachines": "Hver maskin/nettleserfane som er registrert som en skjerm, dens monitorer, og hvilken Skjerm (hvis noen) hver av dem viser.",
             "keyDisplayMachineCloseRequests": "MachineID-er en admin har bedt Skjermbehandling om å lukke eksternt — fjernes av hvert vindu selv når det handler på sin egen forespørsel.",
             "keyDisplayPairingRequests": "ADHDisplay Companion-enheter som har sendt inn puls, men som ikke er godkjent ennå — se Skjermbehandling under.",
@@ -3610,7 +3610,7 @@
             "developerKeyRoutesTitle": "Ruter for utviklernøkkel",
             "keyCatalogues": "Kataloger, kategorier og deres standardpriser/bilder — admin-produktfunksjonens egen hierarki.",
             "screenAddressText": "Hvordan en skjerms egen visningslenke adresseres (se Innstillinger → Avansert):",
-            "windowLaunchMethodText": "Hvilket vindu en Windows-maskin åpner kioskskjermen i ved oppstart (se Innstillinger → Avansert) — leses av installer/start-adhdisplay.bat, trer ikke i kraft umiddelbart:"
+            "windowLaunchMethodText": "Hvilket vindu en Windows-maskin åpner skjermenheten i ved oppstart (se Innstillinger → Avansert) — leses av installer/start-adhdisplay.bat, trer ikke i kraft umiddelbart:"
           },
           "description": "Grensesnittspråk, butikkens standardspråk for paneler, klokkeformat, og hvilke sidemeny-seksjoner dette dashbordet viser.",
           "developersDescription": "Referansedokumentasjon for den lokale serverens eget HTTP- og WebSocket-API, for å bygge en egen klient mot butikkens data.",
@@ -3635,7 +3635,7 @@
             "mdnsPreview": "Skjermer vil være tilgjengelige på {{name}}.local",
             "mdnsCaveat": "Fungerer automatisk på Apple-enheter, Linux, og Windows-maskiner satt opp med denne appens eget installasjonsprogram (det åpner porten dette trenger). Hvis en skjerm fortsatt ikke får kontakt, sjekk at den er på samme nettverk som denne maskinen og ikke et eget gjeste-WiFi — og enkelte rene Android-enheter eller smart-TV-bokser støtter det kanskje ikke i det hele tatt.",
             "mdnsNoStoreName": "Angi et butikknavn i Butikkinnstillinger først.",
-            "launchMethodLegend": "Hvilket vindu skal kioskskjermen åpnes i?",
+            "launchMethodLegend": "Hvilket vindu skal skjermenheten åpnes i?",
             "launchMethodLoadError": "Kunne ikke laste inn vindusmetoden.",
             "launchMethodSaveError": "Kunne ikke lagre vindusmetoden.",
             "launchMethodAutoLabel": "Automatisk (anbefalt)",
@@ -3666,7 +3666,7 @@
             "creatingLabel": "Lager…",
             "createError": "Kunne ikke lage en sikkerhetskopi.",
             "restoreTitle": "Gjenopprett",
-            "restoreHint": "Overskriver alle gjeldende data med en tidligere sikkerhetskopi. Alle bør laste inn dashbordet på nytt (og eventuelle åpne kioskskjermer) etterpå.",
+            "restoreHint": "Overskriver alle gjeldende data med en tidligere sikkerhetskopi. Alle bør laste inn dashbordet på nytt (og eventuelle åpne skjermer) etterpå.",
             "restoreConfirm": "Dette vil overskrive alle gjeldende data med sikkerhetskopien. Dette kan ikke angres. Fortsette?",
             "restoreSuccess": "Gjenopprettet. Last inn denne siden på nytt — og eventuelle andre åpne faner eller enheter — for å se de gjenopprettede dataene.",
             "restoreError": "Kunne ikke gjenopprette denne sikkerhetskopien.",
@@ -3801,7 +3801,7 @@
                   },
                   "vippsMobilepay": {
                     "name": "Vipps MobilePay",
-                    "description": "Lar kundene betale med mobilen direkte på kioskskjermene, med dynamiske QR-koder for rask betaling."
+                    "description": "Lar kundene betale med mobilen direkte på skjermene, med dynamiske QR-koder for rask betaling."
                   },
                   "stripe": {
                     "name": "Stripe",
@@ -3864,7 +3864,7 @@
                   },
                   "instagramFeed": {
                     "name": "Instagram Feed Widget",
-                    "description": "Vis de nyeste bildene fra kafeens Instagram-konto direkte på en av kioskskjermene."
+                    "description": "Vis de nyeste bildene fra kafeens Instagram-konto direkte på en av skjermene."
                   },
                   "untappdMenu": {
                     "name": "Untappd",
@@ -3877,7 +3877,7 @@
                 }
               },
               "localData": {
-                "title": "Lokale sanntidsdata (kiosk-skjermer)",
+                "title": "Lokale sanntidsdata (skjermer)",
                 "items": {
                   "airthingsAir": {
                     "name": "Airthings",
@@ -3932,7 +3932,7 @@
                   },
                   "sentry": {
                     "name": "Sentry",
-                    "description": "Overvåker systemet for feil i sanntid. Hvis en kioskskjerm mister koblingen eller krasjer, får utvikleren beskjed umiddelbart."
+                    "description": "Overvåker systemet for feil i sanntid. Hvis en skjermenhet mister koblingen eller krasjer, får utvikleren beskjed umiddelbart."
                   },
                   "twilioSms": {
                     "name": "Twilio SMS",
@@ -4138,8 +4138,8 @@
           "weatherSymbolSnowandthunder": "Snø og torden",
           "weatherSymbolSleetshowersandthunder": "Sluddbyger og torden",
           "weatherSymbolSnowshowersandthunder": "Snøbyger og torden",
-          "weatherSearchDescription": "Levende værmelding time for time på kioskskjermene, drevet av Yr / Meteorologisk institutt.",
-          "transitSearchDescription": "Levende sanntidsavganger for buss, trikk og tog på kioskskjermene, drevet av Entur.",
+          "weatherSearchDescription": "Levende værmelding time for time på skjermene, drevet av Yr / Meteorologisk institutt.",
+          "transitSearchDescription": "Levende sanntidsavganger for buss, trikk og tog på skjermene, drevet av Entur.",
           "searchPlaceholder": "Søk...",
           "searchClearLabel": "Tøm søket",
           "searchNoResultsLabel": "Ingen integrasjoner samsvarer med «{{query}}».",
@@ -4277,11 +4277,11 @@
         },
         "messageBoard": {
           "title": "Oppslagstavle",
-          "addBoard": "Ny tavle",
+          "addBoard": "Opprett tavle",
           "renameBoard": "Gi tavle nytt navn",
           "boardNameLabel": "Tavlenavn",
           "publishToWebsiteLabel": "Publiser på nettsiden",
-          "addPost": "Nytt innlegg",
+          "addPost": "Opprett innlegg",
           "editPost": "Rediger innlegg",
           "titleLabel": "Tittel",
           "bodyLabel": "Melding",
@@ -4293,7 +4293,7 @@
           "noPosts": "Ingen innlegg ennå.",
           "noBoards": "Ingen tavler ennå.",
           "boardMissingError": "Denne tavlen finnes ikke lenger.",
-          "description": "Lag oppslagstavler med korte innlegg som vises på kiosk-skjermer, eventuelt også publisert til nettsiden."
+          "description": "Lag oppslagstavler med korte innlegg som vises på skjermene, eventuelt også publisert til nettsiden."
         },
         "search": {
           "title": "Søk",
@@ -4426,7 +4426,7 @@
         "dropHintMedia": "Slipp bilde eller video for å laste opp",
         "processingVideo": "Behandler video …",
         "retryButton": "Prøv igjen",
-        "sizeLimitMedia": "Bilder opptil 10MB, videoer opptil 500MB",
+        "sizeLimitMedia": "Bilder opptil 25MB, videoer opptil 500MB",
         "uploadButtonMedia": "Last opp bilde/video",
         "uploadingPercent": "Laster opp... {{percent}}%",
         "videoFailedFallback": "Videobehandling feilet."

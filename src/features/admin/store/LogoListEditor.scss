@@ -1,3 +1,4 @@
+@use '../../../styles/mixins' as *;
 @use '../../../styles/variables' as *;
 
 .logo-list-editor__list {
@@ -14,7 +15,7 @@
   flex-direction: column;
   gap: calc($spacing-unit / 2);
   padding: $spacing-unit;
-  border: 1px solid $color-border;
+  @include surface('sunken');
   border-radius: 8px;
 }
 

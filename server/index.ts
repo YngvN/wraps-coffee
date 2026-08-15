@@ -543,7 +543,7 @@ const httpServer = createServer((req, res) => {
     if (req.method === 'GET' && filename) {
       // `void`-ed rather than awaited, same as `/news/image` — this handler is async only because a
       // missing size variant is generated on first request (see `generateMissingVariant`).
-      void handleServeUpload(res, filename, url.searchParams.get('size'))
+      void handleServeUpload(req, res, filename, url.searchParams.get('size'))
       return
     }
 

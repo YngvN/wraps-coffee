@@ -1,3 +1,4 @@
+@use '../../../styles/mixins' as *;
 @use '../../../styles/variables' as *;
 
 .theme-editor-form {
@@ -21,8 +22,7 @@
 .theme-editor-form__font-preview {
   margin: 0;
   padding: $spacing-unit calc($spacing-unit * 1.5);
-  border: 1px solid $color-border;
-  border-radius: 8px;
+  @include surface('sunken');
   font-size: 1.5rem;
 }
 

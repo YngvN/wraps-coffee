@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
-import { ChevronRightIcon, Modal, ThemeToggle, TranslatedText } from '../../../components'
+import { ChevronRightIcon, Modal, PlusIcon, ThemeToggle, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useCatalogues } from '../../../hooks/useCatalogues'
 import { useDisplayName } from '../../../hooks/useDisplayName'
@@ -215,8 +215,17 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
   }
 
   const catalogue = catalogues[0]
-  const recentCategories = recentlyOpened.filter((entry) => entry.type === 'category')
-  const recentScreens = recentlyOpened.filter((entry) => entry.type === 'screen')
+  /**
+   * "Recently opened" only earns its place when it's a genuine shortcut — i.e.
+   * when the record isn't already sitting a few rows above in the same flyout.
+   * The full list is shown whenever it fits, so an unfiltered recents group
+   * mostly just repeated entries that were already visible (a five-screen
+   * install listed one of those five twice), adding scanning cost and no reach.
+   */
+  const visibleCategoryIds = new Set((catalogue?.categories ?? []).map((category) => category.id))
+  const visibleScreenIds = new Set(screens.map((screen) => screen.screenID))
+  const recentCategories = recentlyOpened.filter((entry) => entry.type === 'category' && !visibleCategoryIds.has(entry.id))
+  const recentScreens = recentlyOpened.filter((entry) => entry.type === 'screen' && !visibleScreenIds.has(entry.id))
   const activeScreen = activeSubmenuRow ? screens.find((screen) => screen.screenID === activeSubmenuRow) : undefined
 
   if (variant === 'mobile') {
@@ -292,7 +301,15 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
         />
         <div className="admin-sidebar-nav__rail" onMouseEnter={openCluster} onMouseLeave={scheduleCloseCluster}>
           <div className="admin-sidebar-nav__top">
-            <ul className="admin-sidebar-nav__list">
+            {/*
+              Assistant and Search open a side panel; they never navigate. They used to sit
+              interleaved with the real destinations (Search wedged between Overview and
+              Messages), so at rest — when the rail is icon-only — every row looked like the
+              same kind of thing. They're their own group now, divided from the navigation
+              below, so "opens a panel" and "goes somewhere" are distinguishable before you
+              commit to a hover.
+            */}
+            <ul className="admin-sidebar-nav__list admin-sidebar-nav__list--tools">
               {assistantAllowedEntities.length > 0 && (
                 <li>
                   <button
@@ -311,10 +328,28 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
                   </button>
                 </li>
               )}
-              {visibleItems.flatMap((item) => {
+              <li>
+                <button
+                  type="button"
+                  className="admin-sidebar-nav__link"
+                  onClick={() => {
+                    onTogglePanel?.('search')
+                    closeFlyouts()
+                    onNavigate?.()
+                  }}
+                  title={t('admin.search.title')}
+                  aria-label={t('admin.search.title')}
+                >
+                  <SearchIcon className="admin-sidebar-nav__icon" />
+                  <span className="admin-sidebar-nav__link-label">{t('admin.search.title')}</span>
+                </button>
+              </li>
+            </ul>
+            <ul className="admin-sidebar-nav__list">
+              {visibleItems.map((item) => {
                 const NavIcon = ADMIN_NAV_ICONS[item.to]
                 const hasFlyout = FLYOUT_RAIL_ITEMS.has(item.to)
-                const navLi = (
+                return (
                   <li
                     key={item.to}
                     onMouseEnter={
@@ -347,26 +382,6 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
                     </NavLink>
                   </li>
                 )
-                if (item.to !== 'overview') return [navLi]
-                return [
-                  navLi,
-                  <li key="search-action">
-                    <button
-                      type="button"
-                      className="admin-sidebar-nav__link"
-                      onClick={() => {
-                        onTogglePanel?.('search')
-                        closeFlyouts()
-                        onNavigate?.()
-                      }}
-                      title={t('admin.search.title')}
-                      aria-label={t('admin.search.title')}
-                    >
-                      <SearchIcon className="admin-sidebar-nav__icon" />
-                      <span className="admin-sidebar-nav__link-label">{t('admin.search.title')}</span>
-                    </button>
-                  </li>,
-                ]
               })}
             </ul>
           </div>
@@ -405,9 +420,6 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
           {activeRailItem === 'products' && catalogue && (
             <>
               <div className="admin-sidebar-nav__flyout-header">{displayName(catalogue.name)}</div>
-              <Link to={`/admin/dashboard/products?catalogueId=${catalogue.id}&allProducts=1`} className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
-                {t('admin.products.viewAllProducts')}
-              </Link>
               {catalogue.categories.map((category) => (
                 <Link
                   key={category.id}
@@ -433,15 +445,26 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
                   ))}
                 </>
               )}
+              {/* Same grouping as the Screens flyout below: the category records are the body, and the whole-catalogue destination sits apart in the footer rather than reading as one more category. */}
+              <div className="admin-sidebar-nav__flyout-footer">
+                <Link to={`/admin/dashboard/products?catalogueId=${catalogue.id}&allProducts=1`} className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                  <span>{t('admin.products.viewAllProducts')}</span>
+                  <ChevronRightIcon />
+                </Link>
+              </div>
             </>
           )}
 
+          {/*
+            Four different kinds of thing used to sit here as visually identical rows — another
+            section's destination, the screen records themselves, a create action, and a history
+            list — so "Add screen" read as a sixth screen until you noticed it had no chevron.
+            They're now grouped: records form the body, the create action sits in its own footer,
+            and Display Manager is labelled as the separate destination it is.
+          */}
           {activeRailItem === 'screens' && (
             <>
               <div className="admin-sidebar-nav__flyout-header">{t('admin.nav.screens')}</div>
-              <Link to="/admin/dashboard/screens?displayManager=1" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
-                {t('admin.displayManager.title')}
-              </Link>
               {screens.map((screen) => (
                 <Link
                   key={screen.screenID}
@@ -454,9 +477,6 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
                   <ChevronRightIcon />
                 </Link>
               ))}
-              <Link to="/admin/dashboard/screens?new=1" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
-                {t('admin.screens.addScreen')}
-              </Link>
               {recentScreens.length > 0 && (
                 <>
                   <div className="admin-sidebar-nav__flyout-section">{t('admin.nav.recentlyOpened')}</div>
@@ -467,29 +487,39 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
                   ))}
                 </>
               )}
+              <div className="admin-sidebar-nav__flyout-footer">
+                <Link to="/admin/dashboard/displays" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                  <span>{t('admin.displayManager.title')}</span>
+                  <ChevronRightIcon />
+                </Link>
+                <Link to="/admin/dashboard/screens?new=1" className="admin-sidebar-nav__flyout-row admin-sidebar-nav__flyout-row--create" onClick={handleRowActivate}>
+                  <PlusIcon />
+                  <span>{t('admin.screens.addScreen')}</span>
+                </Link>
+              </div>
             </>
           )}
 
           {activeRailItem === 'settings' && (
             <>
               <div className="admin-sidebar-nav__flyout-header">{t('admin.nav.settings')}</div>
-              <Link to="/admin/dashboard/settings?view=store" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+              <Link to="/admin/dashboard/settings/store" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
                 {t('admin.store.title')}
               </Link>
-              <Link to="/admin/dashboard/settings?view=integrations" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+              <Link to="/admin/dashboard/settings/integrations" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
                 {t('admin.settings.integrations.title')}
               </Link>
               {session?.role !== 'limited' && (
-                <Link to="/admin/dashboard/settings?view=advanced" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                <Link to="/admin/dashboard/settings/advanced" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
                   {t('admin.settings.advanced.title')}
                 </Link>
               )}
               {session?.role !== 'limited' && (
-                <Link to="/admin/dashboard/settings?view=backup" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+                <Link to="/admin/dashboard/settings/backup" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
                   {t('admin.settings.backup.title')}
                 </Link>
               )}
-              <Link to="/admin/dashboard/settings?view=developers" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
+              <Link to="/admin/dashboard/settings/developers" className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
                 {t('admin.settings.developersTitle')}
               </Link>
             </>

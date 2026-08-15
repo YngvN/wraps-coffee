@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Alert, BackButton, Badge, Button, Card, CloseIcon, CollapsibleSection, Input, PlusIcon, Spinner, TranslatedText } from '../../../components'
+import { Alert, Badge, Button, Card, CloseIcon, CollapsibleSection, Input, PlusIcon, Spinner, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useDisplayMachineCloseRequests } from '../../../hooks/useDisplayMachineCloseRequests'
 import { useDisplayMachines } from '../../../hooks/useDisplayMachines'
@@ -10,7 +10,6 @@ import { useDisplayUpdateState } from '../../../hooks/useDisplayUpdateState'
 import { useScreens } from '../../../hooks/useScreens'
 import { useScrollToAndHighlight } from '../../../hooks/useScrollToAndHighlight'
 import { useLanguage } from '../../../i18n'
-import { goBack } from '../../../lib/backStack'
 import { approveDisplayPairing, getUpdatesStatus, setUpdateRollback } from '../../../lib/localServer'
 import { DISPLAY_MAX_IMAGE_PX_OPTIONS, type DisplayMachine, type DisplayMaxImagePx, type DisplayUpdateProgressStatus, type DisplayUpdateTier } from '../../../types/displayMachine'
 import { resolveDisplayUpdateState, type DisplayUpdateState, type UpdatesHubStatus } from '../../../utils/displayUpdateState'
@@ -217,7 +216,7 @@ export function DisplayManagerView() {
   /**
    * Deep-link support: `?pendingMachineId=<id>` scrolls to and highlights that pending card — reached via the
    * notification bell (`NotificationsDropdown`) or global search (`useGlobalSearchIndex`), both of which build a
-   * URL of the form `/admin/dashboard/screens?displayManager=1&pendingMachineId=<id>`. `ScreensView`'s own effect
+   * URL of the form `/admin/dashboard/displays?pendingMachineId=<id>`. `ScreensView`'s own effect
    * consumes `displayManager` and opens this view; this effect only ever touches `pendingMachineId`, the same
    * "each view strips only its own param" convention every other deep-linkable view follows. If the request was
    * already approved or expired by the time this runs, it's simply never found — same accepted behavior every
@@ -337,8 +336,8 @@ export function DisplayManagerView() {
 
   return (
     <div className="display-manager-view">
+      {/* No Back button: this is a top-level section of its own now, not a sub-view reached from Screens. */}
       <div className="display-manager-view__header">
-        <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: t('admin.screens.title') })}</BackButton>
         <TranslatedText as="h1" id="admin.displayManager.title" />
       </div>
       <TranslatedText as="p" id="admin.displayManager.description" className="admin-page-description" />

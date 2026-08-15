@@ -26,7 +26,7 @@ interface NotificationsDropdownProps {
  * `AdminRightPanel` sliding in from the right edge of the screen rather than
  * a small anchored dropdown box. Each row links straight to the relevant
  * record via the same `?orderId=`/`?catalogueId=&categoryId=&productId=`/
- * `?displayManager=1&pendingMachineId=` deep-link query params
+ * `/displays?pendingMachineId=` deep link
  * `OrdersView`/`ProductsView`/`DisplayManagerView` already read on mount
  * (see those views' own `useSearchParams` effects) — clicking one is a
  * real jump-to, not just a generic "go look at X" link. No new WS plumbing
@@ -84,7 +84,7 @@ export function NotificationsDropdown({ open, onToggle, onClose }: Notifications
             })}
             {pairingRequests.map((request) => (
               <li key={request.machineID}>
-                <Link to={`/admin/dashboard/screens?displayManager=1&pendingMachineId=${request.machineID}`} onClick={onClose}>
+                <Link to={`/admin/dashboard/displays?pendingMachineId=${request.machineID}`} onClick={onClose}>
                   <span className="notifications-dropdown__item-title">{t('admin.notifications.newPairingRequest', { name: request.label })}</span>
                 </Link>
               </li>

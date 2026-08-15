@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, statfsSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, statfsSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { basename, dirname, extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,13 +18,22 @@ mkdirSync(UPLOADS_DIR, { recursive: true })
 export const VIDEO_PENDING_DIR = join(UPLOADS_DIR, '.pending')
 mkdirSync(VIDEO_PENDING_DIR, { recursive: true })
 
-const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
-const CONTENT_TYPE_TO_EXT: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/gif': 'gif',
+/**
+ * `sharp`'s own decoded-format string for every format that's already safe to store and serve
+ * as-is (every browser's own `<img>` can render it) — anything `sharp` can decode that *isn't* in
+ * this map (HEIC/HEIF, TIFF, AVIF, ...) still gets accepted, just converted to JPEG first, see
+ * `handleUpload`. Kept as a format→ext map (rather than reusing the old Content-Type allowlist)
+ * because the format is now sniffed from the file's own bytes, not trusted from the browser-supplied
+ * `Content-Type` header — iOS WebKit routinely sends an unreliable header (an empty `file.type` on
+ * the client becomes a generic `application/octet-stream` on the wire) for Photo Library assets.
+ */
+const SHARP_FORMAT_TO_EXT: Record<string, string> = {
+  jpeg: 'jpg',
+  png: 'png',
+  webp: 'webp',
+  gif: 'gif',
 }
 
 const EXT_TO_CONTENT_TYPE: Record<string, string> = {
@@ -110,19 +119,37 @@ function isVariantFilename(name: string): boolean {
  * `pickImageVariant` and `DisplayMachine.maxImagePx`.
  */
 export async function handleUpload(req: IncomingMessage, res: ServerResponse, host: string, isScreenPreview = false) {
-  const contentType = req.headers['content-type'] ?? ''
-  const ext = CONTENT_TYPE_TO_EXT[contentType]
-  if (!ext) {
-    sendJson(res, 415, { error: 'Unsupported content type — expected an image/* upload' })
-    return
-  }
-
   let buffer: Buffer
   try {
     buffer = await readBody(req, MAX_UPLOAD_BYTES)
   } catch {
-    sendJson(res, 413, { error: 'File too large (10MB limit)' })
+    sendJson(res, 413, { error: 'File too large (25MB limit)' })
     return
+  }
+
+  // Sniffed from the file's own bytes rather than trusted from the `Content-Type` header — see
+  // `SHARP_FORMAT_TO_EXT`'s own doc comment for why the header alone isn't reliable enough here.
+  let format: string | undefined
+  try {
+    format = (await sharp(buffer).metadata()).format
+  } catch {
+    // Not decodable as an image at all.
+  }
+  if (!format) {
+    sendJson(res, 415, { error: 'Unsupported file — expected a decodable image' })
+    return
+  }
+  let ext = SHARP_FORMAT_TO_EXT[format]
+  if (!ext) {
+    // A real image `sharp` can read but that isn't safe to store/serve as-is (HEIC/HEIF, TIFF,
+    // AVIF, ...) — re-encode it to a JPEG every browser can render directly.
+    try {
+      buffer = await sharp(buffer).jpeg({ quality: 90 }).toBuffer()
+    } catch {
+      sendJson(res, 415, { error: 'Unsupported file — expected a decodable image' })
+      return
+    }
+    ext = 'jpg'
   }
 
   const id = randomUUID()
@@ -192,8 +219,18 @@ async function generateMissingVariant(originalName: string, size: (typeof UPLOAD
   }
 }
 
-/** Serves the original, or (with `?size=tiny|thumb|small|medium|blur`, see `UPLOAD_VARIANT_SUFFIXES`) its compressed companion — generating that companion on first request if it doesn't exist yet (see `generateMissingVariant`), and falling back to the original if it can't be produced at all. */
-export async function handleServeUpload(res: ServerResponse, requestedFilename: string, size: string | null) {
+/**
+ * Serves the original, or (with `?size=tiny|thumb|small|medium|blur`, see `UPLOAD_VARIANT_SUFFIXES`)
+ * its compressed companion — generating that companion on first request if it doesn't exist yet (see
+ * `generateMissingVariant`), and falling back to the original if it can't be produced at all.
+ *
+ * Honors a `Range` request header with a real `206 Partial Content` response when present — required
+ * for `<video>` playback on iOS WebKit (Safari, and Firefox-on-iOS since it's WKWebView-based too),
+ * which refuses to play any video from a server that only ever returns a full `200` response, with no
+ * visible error. A plain request (no `Range` header, the common case for an `<img>`) still gets the
+ * previous full-file `200` response, just now advertising `Accept-Ranges` up front.
+ */
+export async function handleServeUpload(req: IncomingMessage, res: ServerResponse, requestedFilename: string, size: string | null) {
   const safeName = basename(requestedFilename)
   let targetName = safeName
 
@@ -211,11 +248,39 @@ export async function handleServeUpload(res: ServerResponse, requestedFilename: 
   }
 
   const ext = extname(targetName).slice(1)
+  const contentType = EXT_TO_CONTENT_TYPE[ext] ?? 'application/octet-stream'
+  // Safe because every filename is unique-per-upload and never mutated in
+  // place — a replace always creates a new file and deletes the old.
+  const cacheControl = 'public, max-age=31536000, immutable'
+  const fileSize = statSync(filePath).size
+
+  const rangeHeader = req.headers.range
+  const rangeMatch = rangeHeader?.match(/^bytes=(\d*)-(\d*)$/)
+  if (rangeMatch) {
+    const start = rangeMatch[1] ? Number(rangeMatch[1]) : 0
+    const end = rangeMatch[2] ? Number(rangeMatch[2]) : fileSize - 1
+    if (start >= fileSize || end >= fileSize || start > end) {
+      res.writeHead(416, { 'Content-Range': `bytes */${fileSize}`, ...CORS_HEADERS })
+      res.end()
+      return
+    }
+    res.writeHead(206, {
+      'Content-Type': contentType,
+      'Content-Length': end - start + 1,
+      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': cacheControl,
+      ...CORS_HEADERS,
+    })
+    createReadStream(filePath, { start, end }).pipe(res)
+    return
+  }
+
   res.writeHead(200, {
-    'Content-Type': EXT_TO_CONTENT_TYPE[ext] ?? 'application/octet-stream',
-    // Safe because every filename is unique-per-upload and never mutated in
-    // place — a replace always creates a new file and deletes the old.
-    'Cache-Control': 'public, max-age=31536000, immutable',
+    'Content-Type': contentType,
+    'Content-Length': fileSize,
+    'Accept-Ranges': 'bytes',
+    'Cache-Control': cacheControl,
     ...CORS_HEADERS,
   })
   res.end(readFileSync(filePath))

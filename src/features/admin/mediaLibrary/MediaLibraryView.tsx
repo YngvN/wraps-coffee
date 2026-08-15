@@ -10,6 +10,25 @@ import { getThumbnailUrl } from '../../../utils/responsiveImage'
 import { MediaViewerModal } from './MediaViewerModal'
 import './MediaLibraryView.scss'
 
+/** Video filename extensions checked when a file's own `type` isn't a reliable `image/`/`video/` prefix — see `guessUploadKind`. */
+const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm']
+
+/**
+ * Best-effort image/video guess for a file whose `type` isn't a usable `image/`/`video/` prefix.
+ * iOS WebKit (Safari, and Firefox-on-iOS since it's WKWebView-based too) frequently hands over an
+ * empty `file.type` for an asset picked from the Photo Library — HEIC/HEIF stills, Live Photos, or
+ * an iCloud-optimized original not yet fully downloaded. Falling back to the filename's own
+ * extension (and, failing that, defaulting to `'image'`) means the file still gets uploaded — and,
+ * if it genuinely isn't one, rejected server-side with a visible error — instead of `uploadFiles`
+ * silently dropping it with zero feedback, which is what happened before this existed.
+ */
+function guessUploadKind(file: File): 'image' | 'video' {
+  if (file.type.startsWith('image/')) return 'image'
+  if (file.type.startsWith('video/')) return 'video'
+  const name = file.name.toLowerCase()
+  return VIDEO_EXTENSIONS.some((ext) => name.endsWith(ext)) ? 'video' : 'image'
+}
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -95,16 +114,19 @@ export function MediaLibraryView() {
 
   const uploadFiles = (files: FileList | File[]) => {
     if (!session) return
-    for (const file of Array.from(files)) {
-      if (file.type.startsWith('image/')) startUpload(file, 'image', session.token)
-      else if (file.type.startsWith('video/')) startUpload(file, 'video', session.token)
-    }
+    for (const file of Array.from(files)) startUpload(file, guessUploadKind(file), session.token)
   }
 
   const handleFileInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
+    // Copied into a real array *before* the input is cleared: `event.target.files` is a live
+    // `FileList` tied to the input itself, and WebKit (iOS Safari, and Firefox-on-iOS with it)
+    // empties that list in place when `value` is reset — so holding the list across the reset
+    // leaves a truthy-but-empty list, and every picked file is silently lost with no error at all.
+    // Chrome/Firefox on desktop keep the old list alive instead, which is why this only ever broke
+    // on iOS. The reset itself has to stay, so re-picking the same file still fires `change`.
+    const files = Array.from(event.target.files ?? [])
     event.target.value = ''
-    if (files) uploadFiles(files)
+    if (files.length > 0) uploadFiles(files)
   }
 
   const handleDragEnter = (event: DragEvent) => {

@@ -1,3 +1,4 @@
+@use '../../../styles/mixins' as *;
 @use '../../../styles/variables' as *;
 
 .theme-color-list-editor__label {
@@ -25,8 +26,7 @@
   align-items: center;
   gap: calc($spacing-unit / 2);
   padding: calc($spacing-unit / 2) $spacing-unit;
-  border: 1px solid $color-border;
-  border-radius: 8px;
+  @include surface('sunken');
   color: $color-text-muted;
   font-size: 0.8125rem;
 }
