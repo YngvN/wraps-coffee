@@ -37,6 +37,24 @@
     }
   }
 
+  // Destructive actions (delete, revoke). Same outlined shape as
+  // `--secondary` so it sits at equal visual weight next to an Edit button,
+  // but in the error color so consequence is encoded in the styling rather
+  // than only in the label. Filling it would make every list row's Delete
+  // louder than the page's own primary action.
+  &--danger {
+    background: transparent;
+    border-color: $color-error;
+    color: $color-error;
+
+    @media (hover: hover) {
+      &:hover:not(:disabled) {
+        background: $color-error;
+        color: $color-bg;
+      }
+    }
+  }
+
   // Pressed/touch-held look: an inset shadow makes the button appear
   // pushed into the page.
   &:active:not(:disabled) {

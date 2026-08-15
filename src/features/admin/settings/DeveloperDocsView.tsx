@@ -247,6 +247,7 @@ POST /users/<id>/password         (Authorization: Bearer <token>, admin/subadmin
         <pre>
           <code>{`POST /uploads                     (Authorization: Bearer <token>, Content-Type: image/*, body = raw file bytes, max 10MB)
 → 201 { "url": "http://.../uploads/<uuid>.<ext>" }
+POST /uploads?purpose=screen-preview   (same, but stored as "screen-preview-<uuid>.<ext>" and hidden from GET /uploads below)
 
 POST /uploads/video                (Authorization: Bearer <token>, body = raw file bytes, any format, max 500MB)
 → 202 { "id", "filename": "<uuid>.mp4", "url", "status": "processing" }
@@ -266,6 +267,10 @@ GET /uploads/<filename>?size=blur    (480px WebP, pre-blurred, images only, if i
 
 GET /uploads                      (Authorization: Bearer <token> — lists every original, image or video)
 → 200 [{ "filename", "url", "thumbUrl", "sizeBytes", "uploadedAt", "kind": "image" | "video", "status"?: "processing" | "failed", "errorMessage"?, "displayName"? }, ...]
+   (excludes auto-captured screen previews — files named "screen-preview-<uuid>.<ext>", plus any
+    captured before that prefix existed. They still exist, are still served by GET /uploads/<filename>,
+    and still count toward /uploads/storage; they're just not offered as browsable media. Read them
+    from a screen's own previewImages instead.)
 
 PATCH /uploads/<filename>/name     (Authorization: Bearer <token>, body = { "displayName": string })
 → 200 { "displayName" }   (empty string clears it)

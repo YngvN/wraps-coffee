@@ -91,7 +91,9 @@ export function AdminDashboard() {
 
         <main className="admin-dashboard__content">
           <AnimatePresence mode="wait">
+            {/* The width cap lives on this inner element, not on `__content` itself, so the page padding stays edge-relative while the content column centers inside it (see `AdminDashboard.scss`). Explicitly classed rather than targeted as `> div` — framer-motion owns this element, and a structural selector would break silently if it ever wraps it. */}
             <motion.div
+              className="admin-dashboard__content-inner"
               key={location.pathname}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

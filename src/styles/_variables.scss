@@ -5,6 +5,8 @@
 $color-bg: var(--color-bg);
 $color-surface: var(--color-surface);
 $color-surface-hover: var(--color-surface-hover);
+$color-surface-raised: var(--color-surface-raised);
+$color-surface-sunken: var(--color-surface-sunken);
 $color-grey: var(--color-grey);
 $color-text: var(--color-text);
 $color-text-muted: var(--color-text-muted);
@@ -17,6 +19,12 @@ $color-overlay: var(--color-overlay);
 $color-shadow: var(--color-shadow);
 $color-logo: var(--color-logo);
 $color-gold: var(--color-gold);
+
+// Corner radii — same aliasing rationale as the colors above, so a radius is
+// named by role rather than repeated as a literal in every stylesheet.
+$radius-sm: var(--radius-sm);
+$radius-md: var(--radius-md);
+$radius-lg: var(--radius-lg);
 
 // Brand palette (ADHDisplay). These stay constant across light/dark themes.
 $color-mustard: #dfa93e;

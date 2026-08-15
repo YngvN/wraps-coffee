@@ -554,7 +554,10 @@ const httpServer = createServer((req, res) => {
     }
 
     if (req.method === 'POST' && !filename) {
-      void handleUpload(req, res, host)
+      // `?purpose=screen-preview` marks an auto-captured screen thumbnail, which is stored
+      // under its own filename prefix so it never shows up as browsable media (see
+      // `SCREEN_PREVIEW_FILENAME_PREFIX`). Anything else is a normal upload.
+      void handleUpload(req, res, host, url.searchParams.get('purpose') === 'screen-preview')
       return
     }
 
@@ -564,7 +567,13 @@ const httpServer = createServer((req, res) => {
     }
 
     if (req.method === 'GET' && !filename) {
-      sendJson(res, 200, listUploads(host))
+      // Auto-captured screen previews are filtered out here (and only here) — they're
+      // generated artifacts rather than media anyone chose to upload, so they'd otherwise
+      // fill the Media Library, the "Use stored image" picker and the assistant's own
+      // picker with near-identical screenshots. They stay on disk, still count toward
+      // storage usage, and are still visible to the orphan sweep — see
+      // `collectScreenPreviewFilenames`.
+      sendJson(res, 200, listUploads(host, { legacyFilenames: screensSnapshots.collectScreenPreviewFilenames() }))
       return
     }
   }

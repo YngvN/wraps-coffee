@@ -65,6 +65,26 @@ export function stemOf(filename: string): string {
  */
 export const UPLOAD_VARIANT_SUFFIXES = ['small', 'thumb', 'blur', 'medium', 'tiny'] as const
 
+/**
+ * Filename prefix marking an upload as an auto-captured screen preview
+ * (`ScreenConfig.previewImages`, see `src/features/screens/screenPreviewCapture.ts`)
+ * rather than media anyone chose to add. `listUploads` hides these from the
+ * browsable library.
+ *
+ * A *filename* marker rather than a lookup against the live screens array,
+ * because the two fail differently: once a screen is deleted, its previews are
+ * no longer referenced by anything, so a reference-based check would let them
+ * reappear in the Media Library as ordinary images right when they've become
+ * pure garbage. The prefix survives that. (A reference-based check still runs
+ * alongside this one — see `collectScreenPreviewFilenames` — to cover previews
+ * captured before this prefix existed.)
+ *
+ * Part of the stem, so `stemOf`/`variantFilenames`/`isVariantFilename` all keep
+ * working unchanged: a preview's own `-thumb.webp` companion is named from the
+ * prefixed stem and is filtered as a variant exactly like any other.
+ */
+export const SCREEN_PREVIEW_FILENAME_PREFIX = 'screen-preview-'
+
 /** Every derivative filename for an upload's own stem, e.g. `<stem>-small.webp`. */
 function variantFilenames(stem: string): string[] {
   return UPLOAD_VARIANT_SUFFIXES.map((suffix) => `${stem}-${suffix}.webp`)
@@ -89,7 +109,7 @@ function isVariantFilename(name: string): boolean {
  * from. Protecting a weak display from an oversized decode is the *serving* side's job — see
  * `pickImageVariant` and `DisplayMachine.maxImagePx`.
  */
-export async function handleUpload(req: IncomingMessage, res: ServerResponse, host: string) {
+export async function handleUpload(req: IncomingMessage, res: ServerResponse, host: string, isScreenPreview = false) {
   const contentType = req.headers['content-type'] ?? ''
   const ext = CONTENT_TYPE_TO_EXT[contentType]
   if (!ext) {
@@ -106,7 +126,7 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse, ho
   }
 
   const id = randomUUID()
-  const filename = `${id}.${ext}`
+  const filename = `${isScreenPreview ? SCREEN_PREVIEW_FILENAME_PREFIX : ''}${id}.${ext}`
   const originalPath = join(UPLOADS_DIR, filename)
   writeFileSync(originalPath, buffer)
   mirrorFile(originalPath)
@@ -288,12 +308,28 @@ function readDisplayName(filename: string): string | undefined {
   return existsSync(namePath) ? readFileSync(namePath, 'utf-8') : undefined
 }
 
-/** Lists every original upload (excluding generated size companions, see `UPLOAD_VARIANT_SUFFIXES`, and status/name marker files, so each upload appears once), newest first. */
-export function listUploads(host: string): UploadListEntry[] {
+/**
+ * Lists every original upload (excluding generated size companions, see
+ * `UPLOAD_VARIANT_SUFFIXES`, and status/name marker files, so each upload
+ * appears once), newest first.
+ *
+ * Pass `hideScreenPreviews` to drop the auto-captured screen previews the
+ * *browsable* library shouldn't offer — by prefix
+ * (`SCREEN_PREVIEW_FILENAME_PREFIX`) plus `legacyFilenames` for previews
+ * captured before that prefix existed (see `collectScreenPreviewFilenames`).
+ *
+ * Omitting it lists everything, deliberately: `storageCleanup.ts`'s orphan
+ * sweep calls this to decide what's deletable, so hiding previews from it by
+ * default would make a whole category of upload permanently un-sweepable —
+ * precisely the files most likely to become garbage, since a deleted screen
+ * orphans every preview it had.
+ */
+export function listUploads(host: string, hideScreenPreviews?: { legacyFilenames: ReadonlySet<string> }): UploadListEntry[] {
   const files = readdirSync(UPLOADS_DIR).filter((name) => {
     if (name === '.gitkeep' || name === '.pending') return false
     if (isVariantFilename(name)) return false
     if (name.endsWith('.processing') || name.endsWith('.error') || name.endsWith('.name')) return false
+    if (hideScreenPreviews && (name.startsWith(SCREEN_PREVIEW_FILENAME_PREFIX) || hideScreenPreviews.legacyFilenames.has(name))) return false
     return true
   })
 

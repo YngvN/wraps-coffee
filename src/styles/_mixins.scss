@@ -1,5 +1,30 @@
-// Shared style snippets reused across more than one screen-display slide —
-// pull in with `@use '../../styles/mixins' as *;`.
+// Shared style snippets reused across more than one place — pull in with
+// `@use '../../styles/mixins' as *;` (depth depends on the importing file).
+@use 'variables' as *;
+
+/// A content container's own chrome: a tinted fill and a rounded corner, with
+/// no border. Replaces the `border: 1px solid $color-border; border-radius:
+/// 8px;` pair that used to be repeated in dozens of stylesheets — grouping
+/// now reads from the fill instead of an outline, which keeps a dense admin
+/// view from looking like a stack of boxes.
+///
+/// `$level` is `'raised'` (an ordinary container on the page background) or
+/// `'sunken'` (a container nested inside a raised one, or a row that has to
+/// stay distinguishable from ordinary rows that now carry a fill too — a
+/// raised surface drawn on a raised surface is invisible).
+///
+/// Sets `border: none` explicitly so this can be dropped into a selector
+/// that currently declares a border without having to hand-remove that line.
+@mixin surface($level: 'raised', $radius: $radius-md) {
+  border: none;
+  border-radius: $radius;
+
+  @if $level == 'sunken' {
+    background: $color-surface-sunken;
+  } @else {
+    background: $color-surface-raised;
+  }
+}
 
 /// Clamps a text block to at most `$lines` lines, ellipsizing the rest —
 /// used for a slide's own heading (max 3 lines, so a long headline wraps

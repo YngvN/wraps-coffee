@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BackButton, Button, Card, ImageUploadField, Input, SlideTransition, TranslatedText } from '../../../components'
+import { BackButton, Card, ImageUploadField, Input, NavRowList, SlideTransition, TranslatedText } from '../../../components'
 import { useLanguage } from '../../../i18n'
 import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
@@ -141,19 +141,13 @@ export function StoreSettingsView() {
             />
           </Card>
 
-          <Card title={t('admin.contact.title')}>
-            <p className="store-settings-view__hint">{t('admin.store.contactHint')}</p>
-            <Button type="button" variant="secondary" onClick={openContactInfo}>
-              {t('admin.store.contactButton')}
-            </Button>
-          </Card>
-
-          <Card title={t('admin.appearance.title')}>
-            <p className="store-settings-view__hint">{t('admin.store.appearanceHint')}</p>
-            <Button type="button" variant="secondary" onClick={openAppearance}>
-              {t('admin.store.appearanceButton')}
-            </Button>
-          </Card>
+          {/* This view's own sub-views, grouped as one menu — same treatment as `SettingsView`'s own row group, so a destination looks the same wherever it's offered. */}
+          <NavRowList
+            items={[
+              { id: 'contact', label: t('admin.contact.title'), onClick: openContactInfo },
+              { id: 'appearance', label: t('admin.appearance.title'), onClick: openAppearance },
+            ]}
+          />
         </div>
       )}
     </SlideTransition>

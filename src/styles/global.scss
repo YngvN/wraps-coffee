@@ -11,6 +11,15 @@
   --color-bg: #ffffff;
   --color-surface: #fffaf2;
   --color-surface-hover: rgba(0, 0, 0, 0.04);
+  // Container fills (see `_mixins.scss`'s own `surface` mixin). `raised` is
+  // an ordinary content container sitting on `--color-bg`; `sunken` is for a
+  // container nested inside a raised one, or for a row that has to stay
+  // distinguishable now that ordinary rows carry a fill of their own.
+  // Deliberately separate from `--color-surface`, which is already
+  // load-bearing as the sidebar background and a couple of "special row"
+  // tints — reusing it would move all of those at once.
+  --color-surface-raised: #faf6ef;
+  --color-surface-sunken: #f3ece0;
   --color-grey: #e8e8e8;
   --color-text: #111111;
   --color-text-muted: #5c594e;
@@ -39,6 +48,12 @@
   --color-info: #2563eb;
   --color-info-bg: rgba(37, 99, 235, 0.1);
   --color-info-border: rgba(37, 99, 235, 0.3);
+
+  // Corner radii. Theme-invariant, so they're only declared here and never
+  // overridden in the dark block below.
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 }
 
 /** Dark theme token overrides, applied via `<html data-theme="dark">`. */
@@ -48,6 +63,13 @@
   --color-bg: #000000;
   --color-surface: #050505;
   --color-surface-hover: rgba(255, 255, 255, 0.08);
+  // Dark mode needs a much bigger step up from the background than light
+  // does: `--color-surface`'s own #050505 on a pure-black page is
+  // effectively invisible without a border, which is exactly why every dark
+  // container used to depend on its 1px outline. These are the values that
+  // still read as a distinct surface once that border is gone.
+  --color-surface-raised: #141414;
+  --color-surface-sunken: #1f1f1f;
   --color-grey: #262626;
   --color-text: #f5f5f5;
   --color-text-muted: #c4c4c4;

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Badge, ChevronRightIcon, DiscountedPrice, EditDeleteButtons } from '../../../components'
+import { useDisplayName } from '../../../hooks/useDisplayName'
 import { useNumberInputValue } from '../../../hooks/useNumberInputValue'
 import { useLanguage } from '../../../i18n'
 import type { Catalogue } from '../../../types/category'
@@ -23,7 +24,8 @@ interface ProductRowProps {
 
 /** One product's own row: thumbnail, name, price/discount, allergen/dietary badges, availability/out-of-stock badges, a quick inline stock-quantity edit (only while `trackStock` is on), and Edit/Move/Delete actions. Shared by `ProductBoard` (one column per category, plus "No category") and, in future, anywhere else a flat product list is rendered — extracted so that layout doesn't have to duplicate this markup. */
 export function ProductRow({ product, defaultPrice, catalogues, onOpen, onDelete, onStockQuantityChange, onMove }: ProductRowProps) {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
+  const displayName = useDisplayName()
   const [isMoving, setIsMoving] = useState(false)
   const stockQuantityInputProps = useNumberInputValue(product.stockQuantity ?? 0, (value) => onStockQuantityChange(Math.max(0, Math.round(value) || 0)))
 
@@ -35,7 +37,7 @@ export function ProductRow({ product, defaultPrice, catalogues, onOpen, onDelete
       <button type="button" className="products-view__item-open" onClick={onOpen}>
         {product.image && <img className="products-view__item-thumb" src={getThumbnailUrl(product.image)} alt="" />}
         <div className="products-view__item-info">
-          <span className="products-view__item-name">{product.name[language]}</span>
+          <span className="products-view__item-name">{displayName(product.name)}</span>
           {effective && <DiscountedPrice price={effective.original} discount={product.discount} t={t} />}
           {product.allergens.map((code) => (
             <span key={code} className="products-view__allergen">

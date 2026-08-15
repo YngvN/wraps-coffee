@@ -77,6 +77,34 @@ export function collectImageFilenamesFromScreens(screens: MinimalScreenConfig[])
   return referenced
 }
 
+/**
+ * Just the auto-captured screen-preview thumbnails (`ScreenConfig.previewImages`,
+ * produced by `src/features/screens/screenPreviewCapture.ts`), by upload filename.
+ *
+ * These are generated artifacts, not media anyone uploaded: they're re-captured
+ * wholesale on every screen save, so they'd otherwise pile up in the Media
+ * Library — and be offerable as a background image in the "Use stored image"
+ * picker — as a churn of near-identical screenshots nobody chose to add. The
+ * `/uploads` listing route filters these out for exactly that reason.
+ *
+ * Deliberately *not* subtracted from anything else: they still occupy real disk
+ * on the kiosk, so they keep counting toward `handleStorageUsage`'s own total
+ * (which exists to warn before the disk fills), they're still mirrored to the
+ * backup folder, and `storageCleanup.ts` still sees them via its own unfiltered
+ * `listUploads` call — so a preview left orphaned by a deleted screen is still
+ * swept the same way any other orphan is.
+ */
+export function collectScreenPreviewFilenames(screens: MinimalScreenConfig[] = liveScreens()): Set<string> {
+  const previews = new Set<string>()
+  for (const screen of screens) {
+    for (const previewUrl of screen.previewImages ?? []) {
+      const filename = extractUploadFilename(previewUrl)
+      if (filename) previews.add(filename)
+    }
+  }
+  return previews
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = join(__dirname, 'data')
 const SNAPSHOTS_DIR = join(DATA_DIR, 'screens-snapshots')

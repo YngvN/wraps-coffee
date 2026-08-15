@@ -183,7 +183,7 @@ export function MessageBoardView() {
                       <button type="button" className="message-board-view__tab-manage-btn" onClick={() => openRenameBoard(board)}>
                         {t('admin.common.edit')}
                       </button>
-                      <button type="button" className="message-board-view__tab-manage-btn" onClick={() => handleDeleteBoard(board)}>
+                      <button type="button" className="message-board-view__tab-manage-btn message-board-view__tab-manage-btn--danger" onClick={() => handleDeleteBoard(board)}>
                         {t('admin.common.delete')}
                       </button>
                     </div>

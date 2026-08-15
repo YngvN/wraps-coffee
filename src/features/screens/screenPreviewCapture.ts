@@ -130,7 +130,8 @@ export async function captureScreenPreviews(screen: ScreenConfig, token: string,
     }
     try {
       const file = new File([blob], `${screen.screenID}-preview-stage-${stage}.png`, { type: 'image/png' })
-      newUrls.push(await uploadImage(file, token))
+      // `purpose` keeps these out of the Media Library and both image pickers — see `uploadImage`.
+      newUrls.push(await uploadImage(file, token, undefined, { purpose: 'screen-preview' }))
     } catch {
       for (const uploaded of newUrls) void deleteUpload(uploaded, token)
       return null

@@ -99,6 +99,21 @@
   }
 }
 
+// Deleting a whole board (and every post on it) is the most destructive
+// action on this view, but sat at the exact weight of the "Edit" link
+// beside it. Colored rather than restyled, so the tab strip's own layout
+// is untouched.
+.message-board-view__tab-manage-btn--danger {
+  color: $color-error;
+
+  @media (hover: hover) {
+    &:hover {
+      color: $color-error;
+      text-decoration-thickness: 2px;
+    }
+  }
+}
+
 .message-board-view__add-board {
   display: inline-flex;
   align-items: center;

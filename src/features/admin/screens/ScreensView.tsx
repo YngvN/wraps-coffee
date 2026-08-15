@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BackButton, Button, ChevronRightIcon, PlusIcon, SlideTransition, TranslatedText } from '../../../components'
+import { BackButton, ChevronRightIcon, PlusIcon, SlideTransition, TranslatedText } from '../../../components'
 import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { useRecentlyOpened } from '../../../hooks/useRecentlyOpened'
@@ -252,16 +252,12 @@ export function ScreensView() {
           <div className="screens-view__list-view">
             <div className="screens-view__header">
               <TranslatedText as="h1" id="admin.screens.title" />
-              <div className="screens-view__header-actions">
-                <Button variant="secondary" onClick={() => setScreensaverModalOpen(true)}>
-                  {screensaverSchedule ? t('admin.screens.changeScreensaverButton') : t('admin.screens.screensaverButton')}
-                </Button>
-              </div>
             </div>
             <TranslatedText as="p" id="admin.screens.description" className="admin-page-description" />
 
+            {/* Every action on this view in one cluster: create first, navigation second, and the screen-saver settings last. The screen-saver button used to sit alone at the far right of the header instead, a full page-width away from the other two. */}
             <div className="screens-view__toolbar">
-              <button type="button" className="screens-view__add-row" onClick={() => openForm(null)}>
+              <button type="button" className="screens-view__toolbar-action screens-view__add-row" onClick={() => openForm(null)}>
                 <PlusIcon />
                 {t('admin.screens.addScreen')}
               </button>
@@ -272,6 +268,10 @@ export function ScreensView() {
                   <ChevronRightIcon />
                 </button>
               </div>
+
+              <button type="button" className="screens-view__toolbar-action" onClick={() => setScreensaverModalOpen(true)}>
+                {screensaverSchedule ? t('admin.screens.changeScreensaverButton') : t('admin.screens.screensaverButton')}
+              </button>
             </div>
 
             {screens.length === 0 ? (

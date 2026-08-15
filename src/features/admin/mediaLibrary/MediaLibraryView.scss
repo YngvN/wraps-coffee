@@ -1,3 +1,4 @@
+@use '../../../styles/mixins' as *;
 @use '../../../styles/variables' as *;
 
 .media-library {
@@ -114,9 +115,7 @@
   flex-direction: column;
   gap: calc($spacing-unit / 4);
   padding: calc($spacing-unit / 2);
-  border: 1px solid $color-border;
-  border-radius: 8px;
-  background: $color-bg;
+  @include surface('raised');
   overflow: hidden;
 }
 

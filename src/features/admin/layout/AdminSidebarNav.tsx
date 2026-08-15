@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { ChevronRightIcon, Modal, ThemeToggle, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useCatalogues } from '../../../hooks/useCatalogues'
+import { useDisplayName } from '../../../hooks/useDisplayName'
 import { useLanOrigin } from '../../../hooks/useLanOrigin'
 import { useRecentlyOpened } from '../../../hooks/useRecentlyOpened'
 import { useScreens } from '../../../hooks/useScreens'
@@ -88,7 +89,8 @@ interface AdminSidebarNavProps {
  * Store branding lives in `AdminTopNavbar` now, not here.
  */
 export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = false, onTogglePinned, onTogglePanel }: AdminSidebarNavProps) {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
+  const displayName = useDisplayName()
   const { session, clearSession } = useAdminSession()
   const [sidebarSettings] = useSidebarSettings()
   const [catalogues] = useCatalogues()
@@ -402,7 +404,7 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
         >
           {activeRailItem === 'products' && catalogue && (
             <>
-              <div className="admin-sidebar-nav__flyout-header">{catalogue.name[language]}</div>
+              <div className="admin-sidebar-nav__flyout-header">{displayName(catalogue.name)}</div>
               <Link to={`/admin/dashboard/products?catalogueId=${catalogue.id}&allProducts=1`} className="admin-sidebar-nav__flyout-row" onClick={handleRowActivate}>
                 {t('admin.products.viewAllProducts')}
               </Link>
@@ -413,7 +415,7 @@ export function AdminSidebarNav({ onNavigate, variant = 'desktop', isPinned = fa
                   className="admin-sidebar-nav__flyout-row"
                   onClick={handleRowActivate}
                 >
-                  {category.name[language]}
+                  {displayName(category.name)}
                 </Link>
               ))}
               {recentCategories.length > 0 && (

@@ -11,6 +11,11 @@
 }
 
 .orders-view__list {
+  // Capped so a row's name (left) and its action buttons (right) stay within
+  // reading distance of each other. Uncapped, that gap grew with the monitor
+  // — measured at 831px/1471px/2111px on a 1280/1920/2560 display, i.e. a
+  // bigger screen made the list harder to scan, not easier.
+  max-width: var(--admin-list-max-width);
   display: flex;
   flex-direction: column;
   gap: $spacing-unit * 1.5;

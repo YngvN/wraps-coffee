@@ -168,9 +168,20 @@ function xhrUpload(url: string, file: File, token: string, onProgress?: (fractio
   })
 }
 
-/** Uploads an image file, which the server also compresses into `-small`/`-thumb` companion variants. Returns the original's URL — same shape whether or not compression succeeded. `onProgress` (0-1) reports network-transfer progress only. */
-export async function uploadImage(file: File, token: string, onProgress?: (fraction: number) => void): Promise<string> {
-  const { status, body } = await xhrUpload(`${serverBaseUrl()}/uploads`, file, token, onProgress)
+/**
+ * Uploads an image file, which the server also compresses into `-small`/`-thumb`
+ * companion variants. Returns the original's URL — same shape whether or not
+ * compression succeeded. `onProgress` (0-1) reports network-transfer progress only.
+ *
+ * Pass `purpose: 'screen-preview'` for an auto-captured screen thumbnail (see
+ * `src/features/screens/screenPreviewCapture.ts`). Those are stored under their own
+ * filename prefix so they never appear as browsable media in the Media Library or
+ * either image picker — they're generated artifacts, re-captured on every screen
+ * save, not something anyone chose to add.
+ */
+export async function uploadImage(file: File, token: string, onProgress?: (fraction: number) => void, options?: { purpose?: 'screen-preview' }): Promise<string> {
+  const query = options?.purpose ? `?purpose=${options.purpose}` : ''
+  const { status, body } = await xhrUpload(`${serverBaseUrl()}/uploads${query}`, file, token, onProgress)
   if (status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (status < 200 || status >= 300) throw new UploadError((body as { error?: string }).error ?? 'Upload failed')
   return (body as { url: string }).url

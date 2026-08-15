@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { BackButton, Button, Card, Checkbox, NumberInput, SlideTransition, TranslatedText } from '../../../components'
+import { BackButton, Card, Checkbox, NavRowList, NumberInput, SlideTransition, TranslatedText, type NavRowItem } from '../../../components'
 import { availableLanguages, useLanguage } from '../../../i18n'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useClockFormatPreference, type ClockFormat } from '../../../hooks/useClockFormatPreference'
@@ -94,6 +94,29 @@ export function SettingsView() {
   /** Registers whichever sub-view is currently open as its own level of the shared browser-back stack (see `useBackLevel`), so the mouse's back button closes it exactly the way its own Back button does. */
   useBackLevel(subView !== 'main', closeSubView)
 
+  /**
+   * Every sub-view this page can open, as one grouped menu (see `NavRowList`)
+   * instead of six separate cards each holding a lone button. Labels reuse
+   * each sub-view's own existing title key, so no new strings were needed.
+   *
+   * The `limited`-role restriction is a conditional spread over data rather
+   * than three JSX conditionals around individual rows — the row group has no
+   * per-row gating of its own, and this keeps "which rows exist" answerable
+   * in one place.
+   */
+  const subViewRows: NavRowItem[] = [
+    { id: 'store', label: t('admin.store.title'), onClick: () => openSubView('store') },
+    { id: 'integrations', label: t('admin.settings.integrations.title'), onClick: () => openSubView('integrations') },
+    { id: 'developers', label: t('admin.settings.developersTitle'), onClick: () => openSubView('developers') },
+    ...(session?.role === 'limited'
+      ? []
+      : [
+          { id: 'advanced', label: t('admin.settings.advanced.title'), onClick: () => openSubView('advanced') },
+          { id: 'backup', label: t('admin.settings.backup.title'), onClick: () => openSubView('backup') },
+          { id: 'testing', label: t('admin.settings.testing.title'), onClick: () => openSubView('testing') },
+        ]),
+  ]
+
   return (
     <SlideTransition viewKey={subView} direction={direction}>
       {subView === 'store' ? (
@@ -140,18 +163,7 @@ export function SettingsView() {
         <div className="settings-view">
           <TranslatedText as="h1" id="admin.settings.title" />
           <TranslatedText as="p" id="admin.settings.description" className="admin-page-description" />
-          <Card title={t('admin.store.title')}>
-            <p className="settings-view__developers-hint">{t('admin.settings.storeHint')}</p>
-            <Button type="button" variant="secondary" onClick={() => openSubView('store')}>
-              {t('admin.settings.storeButton')}
-            </Button>
-          </Card>
-          <Card title={t('admin.settings.integrations.title')}>
-            <p className="settings-view__developers-hint">{t('admin.settings.integrations.hint')}</p>
-            <Button type="button" variant="secondary" onClick={() => openSubView('integrations')}>
-              {t('admin.settings.integrations.button')}
-            </Button>
-          </Card>
+          <NavRowList items={subViewRows} />
           <Card title={t('admin.settings.languageLabel')}>
             <div className="settings-view__language-options">
               {availableLanguages.map((option) => (
@@ -247,36 +259,6 @@ export function SettingsView() {
               />
             )}
           </Card>
-          <Card title={t('admin.settings.developersTitle')}>
-            <p className="settings-view__developers-hint">{t('admin.settings.developersHint')}</p>
-            <Button type="button" variant="secondary" onClick={() => openSubView('developers')}>
-              {t('admin.settings.developersButton')}
-            </Button>
-          </Card>
-          {session?.role !== 'limited' && (
-            <Card title={t('admin.settings.advanced.title')}>
-              <p className="settings-view__developers-hint">{t('admin.settings.advanced.hint')}</p>
-              <Button type="button" variant="secondary" onClick={() => openSubView('advanced')}>
-                {t('admin.settings.advanced.button')}
-              </Button>
-            </Card>
-          )}
-          {session?.role !== 'limited' && (
-            <Card title={t('admin.settings.backup.title')}>
-              <p className="settings-view__developers-hint">{t('admin.settings.backup.hint')}</p>
-              <Button type="button" variant="secondary" onClick={() => openSubView('backup')}>
-                {t('admin.settings.backup.button')}
-              </Button>
-            </Card>
-          )}
-          {session?.role !== 'limited' && (
-            <Card title={t('admin.settings.testing.title')}>
-              <p className="settings-view__developers-hint">{t('admin.settings.testing.hint')}</p>
-              <Button type="button" variant="secondary" onClick={() => openSubView('testing')}>
-                {t('admin.settings.testing.button')}
-              </Button>
-            </Card>
-          )}
           <Card title={t('admin.settings.about.title')}>
             <p className="settings-view__developers-hint">
               {appVersion ? t('admin.settings.about.versionLabel', { version: appVersion }) : t('admin.settings.about.loading')}

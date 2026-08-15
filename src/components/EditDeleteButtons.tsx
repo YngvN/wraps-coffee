@@ -164,7 +164,7 @@ export function EditDeleteButtons({ onEdit, onDuplicate, onMove, onDelete, editM
           <span className="edit-delete-buttons__label">{t('admin.products.moveToOtherCatalogue')}</span>
         </Button>
       )}
-      <Button variant="secondary" className="edit-delete-buttons__button" onClick={onDelete} aria-label={t('admin.common.delete')}>
+      <Button variant="danger" className="edit-delete-buttons__button" onClick={onDelete} aria-label={t('admin.common.delete')}>
         <TrashIcon />
         <span className="edit-delete-buttons__label">{t('admin.common.delete')}</span>
       </Button>

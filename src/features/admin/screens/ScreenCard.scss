@@ -1,3 +1,4 @@
+@use '../../../styles/mixins' as *;
 @use '../../../styles/variables' as *;
 
 .screen-card {
@@ -5,8 +6,7 @@
   flex-direction: column;
   width: 100%;
   overflow: hidden;
-  border: 1px solid $color-border;
-  border-radius: 8px;
+  @include surface('raised');
 }
 
 // Background/text come from --screen-* custom properties (see

@@ -13,6 +13,7 @@ import { useScreens } from '../../../hooks/useScreens'
 import { useLanguage } from '../../../i18n'
 import { listUsers, type AdminUserSummary } from '../../../lib/localServer'
 import { NEWS_SOURCES } from '../../../types/news'
+import { resolveBilingualField } from '../../../utils/bilingual'
 import { resolveProductCatalogue } from '../../../utils/productCatalogue'
 import { ENTUR_TAGS, TRANSIT_TAGS, WEATHER_TAGS } from '../integrations/integrationSearchTags'
 import { ADMIN_NAV_ICONS, NAV_ITEMS } from '../layout/adminNavItems'
@@ -64,7 +65,7 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
     const catalogueEntries: SearchResultEntry[] = catalogues.map((catalogue) => ({
       id: `catalogue:${catalogue.id}`,
       type: 'catalogue',
-      title: catalogue.name[language],
+      title: resolveBilingualField(catalogue.name, language),
       subtitle: t('admin.search.types.catalogue'),
       keywords: [],
       url: `/admin/dashboard/products?catalogueId=${catalogue.id}`,
@@ -74,8 +75,8 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
       catalogue.categories.map((category) => ({
         id: `category:${category.id}`,
         type: 'category',
-        title: category.name[language],
-        subtitle: catalogue.name[language],
+        title: resolveBilingualField(category.name, language),
+        subtitle: resolveBilingualField(catalogue.name, language),
         keywords: [],
         url: `/admin/dashboard/products?catalogueId=${catalogue.id}&categoryId=${category.id}`,
       })),
@@ -87,8 +88,8 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
       return {
         id: `product:${product.itemID}`,
         type: 'product',
-        title: product.name[language],
-        subtitle: resolved?.category?.name[language] ?? (resolved ? t('admin.products.noCategoryColumnLabel') : undefined),
+        title: resolveBilingualField(product.name, language),
+        subtitle: resolved?.category ? resolveBilingualField(resolved.category.name, language) : resolved ? t('admin.products.noCategoryColumnLabel') : undefined,
         keywords: [],
         url: resolved ? `/admin/dashboard/products?catalogueId=${resolved.catalogue.id}${categoryParam}&productId=${product.itemID}` : '/admin/dashboard/products',
       }

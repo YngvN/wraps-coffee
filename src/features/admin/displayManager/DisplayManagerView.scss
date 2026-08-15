@@ -255,6 +255,10 @@
   flex-direction: column;
   gap: calc($spacing-unit / 4);
   margin-top: $spacing-unit;
+  // Was stretching the select across the full card width; capped to roughly
+  // match this same view's own screen-assignment select, which already sits
+  // at a sane width (see `--admin-field-max-width` in `AdminDashboard.scss`).
+  max-width: var(--admin-field-max-width);
 }
 
 .display-manager-view__image-cap-label {

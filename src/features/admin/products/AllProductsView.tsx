@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Badge, BackButton, Modal, TranslatedText } from '../../../components'
+import { useDisplayName } from '../../../hooks/useDisplayName'
 import { useProducts } from '../../../hooks/useProducts'
 import { useLanguage } from '../../../i18n'
 import { goBack } from '../../../lib/backStack'
@@ -34,7 +35,8 @@ interface AllProductsViewProps {
  * itself, not here.
  */
 export function AllProductsView({ catalogue }: AllProductsViewProps) {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
+  const displayName = useDisplayName()
   const [products, setProducts] = useProducts()
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
 
@@ -50,7 +52,7 @@ export function AllProductsView({ catalogue }: AllProductsViewProps) {
   return (
     <div className="products-view">
       <div className="products-view__sub-header">
-        <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: catalogue.name[language] })}</BackButton>
+        <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: displayName(catalogue.name) })}</BackButton>
         <h1>{t('admin.products.allProductsTitle')}</h1>
       </div>
       <TranslatedText as="p" id="admin.products.allProductsDescription" className="admin-page-description" />
@@ -65,9 +67,9 @@ export function AllProductsView({ catalogue }: AllProductsViewProps) {
                 {product.image ? <img src={getThumbnailUrl(product.image)} alt="" /> : <ImagesIcon className="all-products-view__placeholder-icon" />}
               </div>
               <div className="all-products-view__card-body">
-                <span className="all-products-view__card-name">{product.name[language]}</span>
+                <span className="all-products-view__card-name">{displayName(product.name)}</span>
                 <span className="all-products-view__card-category">
-                  {product.category ? categoryById.get(product.category)?.name[language] : t('admin.products.noCategoryColumnLabel')}
+                  {product.category ? displayName(categoryById.get(product.category)?.name) : t('admin.products.noCategoryColumnLabel')}
                 </span>
                 <div className="all-products-view__card-badges">
                   {!product.available && <Badge variant="neutral">{t('admin.products.hiddenLabel')}</Badge>}

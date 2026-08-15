@@ -1,10 +1,13 @@
+@use '../styles/mixins' as *;
 @use '../styles/variables' as *;
 
 .card {
-  border: 1px solid $color-border;
-  border-radius: 8px;
+  // No box-shadow here on purpose: `OrdersView.scss`'s own
+  // `.orders-view__item--highlighted .card` sets `box-shadow` to draw the
+  // deep-linked-order ring, and a shadow declared here would be replaced by
+  // it rather than stacking. The fill alone carries the separation.
+  @include surface('raised', $radius-lg);
   padding: $spacing-unit * 2;
-  background: $color-bg;
 
   &__title {
     margin: 0 0 $spacing-unit;
