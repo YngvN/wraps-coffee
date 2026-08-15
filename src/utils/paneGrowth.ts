@@ -1,6 +1,7 @@
-import type { LayoutNode, PaneGrowthFallback, PaneId } from '../types/screen'
+import type { LayoutNode, PaneGrowthFallback, PaneId, SlideTransitionDirection } from '../types/screen'
 import { computeLayoutGeometry, containsEdge, rectEdgeSegment, type PaneEdge } from './layoutGeometry'
 import { listLeaves } from './layoutTree'
+import { ancestorSteps, nearestAncestor } from './screenLayout'
 
 export interface LeafSetDiff {
   appeared: PaneId[]
@@ -79,6 +80,49 @@ export function touchedScreenEdges(tree: LayoutNode, leafId: PaneId): PaneEdge[]
   const EPSILON = 0.01
   const onBoundary = (value: number) => value <= EPSILON || value >= 100 - EPSILON
   return EDGE_PRIORITY.filter((edge) => onBoundary(rectEdgeSegment(leaf.rect, edge).position))
+}
+
+const DIRECTION_TO_EDGE: Record<SlideTransitionDirection, PaneEdge> = { left: 'left', right: 'right', up: 'top', down: 'bottom' }
+const EDGE_TO_DIRECTION: Record<PaneEdge, SlideTransitionDirection> = { left: 'left', right: 'right', top: 'up', bottom: 'down' }
+
+/**
+ * The slide-in/out direction a pane's own rotation should use by default, so
+ * it only ever enters/exits through an actual screen edge and never through
+ * a border it shares with a neighboring pane.
+ *
+ * A leaf's nearest row-ancestor (if any) leaves exactly one of left/right
+ * "locally" free — the other is bordered by its immediate sibling; likewise
+ * up/down for its nearest column-ancestor. That local answer alone isn't
+ * enough once there are 2+ levels of same-axis nesting (three columns, three
+ * rows, a 4-way split, ...): a leaf's own "free" local side can still be
+ * bordered by a *different* pane one level further up (see this repo's own
+ * comment history for the exact 3-column bug this was written to fix — the
+ * middle column's nearest ancestor says "left is free," which is only true
+ * within its own immediate 2-cell split, not against the screen's actual
+ * left edge, which the leftmost column already occupies).
+ *
+ * So the nearest-ancestor answer is only trusted once it's confirmed against
+ * the leaf's own *resolved* position via `touchedScreenEdges` — a leaf
+ * touching a real screen edge along the *other* axis (a full-width middle
+ * row entering from the left/right, a full-height middle column entering
+ * from the top/bottom) is preferred over the nearest-ancestor's wrong guess.
+ * `touchedScreenEdges`'s own `EDGE_PRIORITY` order (`left, right, top,
+ * bottom`) breaks the tie deterministically whenever more than one real edge
+ * qualifies. A leaf touching no real edge at all (fully interior, boxed in
+ * on every side — only possible several levels deep) has no true "enters
+ * from a DOM edge" option, so this falls back to the nearest-ancestor answer
+ * unchanged — today's "best effort" behavior for that case.
+ */
+export function paneDefaultSlideDirection(root: LayoutNode, leafId: PaneId): SlideTransitionDirection {
+  const steps = ancestorSteps(root, leafId)
+  const row = nearestAncestor(steps, 'row')
+  const column = nearestAncestor(steps, 'column')
+  const nearestDirection: SlideTransitionDirection = row ? (row.throughFirst ? 'left' : 'right') : column ? (column.throughFirst ? 'up' : 'down') : 'right'
+
+  const touchedEdges = touchedScreenEdges(root, leafId)
+  if (touchedEdges.includes(DIRECTION_TO_EDGE[nearestDirection])) return nearestDirection
+  if (touchedEdges.length > 0) return EDGE_TO_DIRECTION[touchedEdges[0]]
+  return nearestDirection
 }
 
 /**

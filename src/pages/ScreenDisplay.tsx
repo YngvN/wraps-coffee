@@ -761,7 +761,7 @@ export function ScreenDisplay() {
     if (!tree) return
     const { tree: nextTree, newPaneId } = splitLeaf(tree, leafId, axis, edge)
     const nextLayout = writeStageCheckpoint(viewScreen.layout, targetStage, nextTree)
-    const nextPaneSlots = { ...viewScreen.paneSlots, [newPaneId]: cloneSlot(viewScreen.paneSlots[leafId] ?? emptySlot()) }
+    const nextPaneSlots = { ...viewScreen.paneSlots, [newPaneId]: cloneSlot(viewScreen.paneSlots[leafId] ?? emptySlot(), leafId) }
     applyScreenPatch({ layout: nextLayout, paneSlots: nextPaneSlots })
   }
 
@@ -786,9 +786,9 @@ export function ScreenDisplay() {
     const originalSlot = viewScreen.paneSlots[leafId] ?? emptySlot()
     const nextPaneSlots = {
       ...viewScreen.paneSlots,
-      [rightId]: cloneSlot(originalSlot),
-      [bottomLeftId]: cloneSlot(originalSlot),
-      [bottomRightId]: cloneSlot(originalSlot),
+      [rightId]: cloneSlot(originalSlot, leafId),
+      [bottomLeftId]: cloneSlot(originalSlot, leafId),
+      [bottomRightId]: cloneSlot(originalSlot, rightId),
     }
     applyScreenPatch({ layout: nextLayout, paneSlots: nextPaneSlots })
   }

@@ -32,8 +32,8 @@ interface PaneVisualProps {
   /** Forwarded to `.split-layout__pane-content-inner` — same purpose as `outerRef`, for the *inner* element those hooks measure. */
   contentInnerRef?: Ref<HTMLDivElement>
   className?: string
-  /** When given, the outer element renders as a `motion.div` driven by these — `LayoutPane.tsx`'s own crossfade transition. Omitted entirely for a static caller (a plain, unanimated `<div>`). */
-  motionProps?: { variants: Variants; initial: string; animate: string; transition: Transition }
+  /** When given, the outer element renders as a `motion.div` driven by these — `LayoutPane.tsx`'s own crossfade transition. Omitted entirely for a static caller (a plain, unanimated `<div>`). `initial: false` (as opposed to a variant name) skips the mount-time entrance pose entirely — see `LayoutPane.tsx`'s own `stageStatic` prop doc comment for when that's needed. */
+  motionProps?: { variants: Variants; initial: string | false; animate: string; transition: Transition }
 }
 
 /**

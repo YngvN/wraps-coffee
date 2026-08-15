@@ -4,8 +4,8 @@ import type { LanguageCode } from '../../i18n'
 import type { LayoutNode, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SplitDirection, TextSizes } from '../../types/screen'
 import type { Divider, Rect } from '../../utils/layoutGeometry'
 import { listLeaves } from '../../utils/layoutTree'
-import type { PaneGrowthOrigin } from '../../utils/paneGrowth'
-import { nodeGridTemplate, paneDefaultSlideDirection, pathKey, resolveRatio, type NodePath, type RatioPatch } from '../../utils/screenLayout'
+import { paneDefaultSlideDirection, type PaneGrowthOrigin } from '../../utils/paneGrowth'
+import { nodeGridTemplate, pathKey, resolveRatio, type NodePath, type RatioPatch } from '../../utils/screenLayout'
 import { resolveSlotBackgroundColor, resolveSlotLocked, subtreeGroupId, subtreeHasLockedLeaf } from '../../utils/screenStages'
 import { LayoutPane } from './LayoutPane'
 import { PaneCornerHandle } from './PaneCornerHandle'
@@ -36,7 +36,7 @@ interface LayoutTreeProps {
   transitionDuration: number
   /** Threaded straight through to every `LayoutPane`'s own prop of the same name — see `SplitLayout`'s own `contentPhase` state for what each phase drives. */
   contentPhase: 'idle' | 'exiting' | 'holding'
-  /** Every leaf id this stage transition doesn't actually affect (see `SplitLayout.tsx`'s own `computeStageStaticSets`) — threaded straight through to each matching `LayoutPane`'s own `stageStatic` prop. */
+  /** Every leaf id this stage transition doesn't actually affect — either a persisting pane with unchanged content, or a newly-split-off pane whose `splitFromPaneId` lineage matches a pane that was already showing this same content (see `SplitLayout.tsx`'s own `computeStageStaticSets`) — threaded straight through to each matching `LayoutPane`'s own `stageStatic` prop. */
   stageStaticLeafIds: Set<PaneId>
   /** Every split node's own `pathKey` with at least one side (its own `first` or `second`) whose leaf set is unchanged by this stage transition (see `computeStageStaticSets`) — such a divider stays visible through `'exiting'` instead of shrinking away, and gets `stableResizeGridTransition` instead of `gridTransition` so a ratio change there (if any) glides smoothly rather than snapping behind a blanked screen. Covers a persisting pane resizing alongside a sibling region that's genuinely gaining/losing panes, not just a split where nothing changes anywhere below it. */
   stableSplitPaths: Set<string>

@@ -1,4 +1,4 @@
-import type { LayoutNode, PaneId, SlideTransitionDirection, SplitDirection } from '../types/screen'
+import type { LayoutNode, PaneId, SplitDirection } from '../types/screen'
 import { findLeafPath } from './layoutTree'
 
 /** A step from a `split` node to one of its two children. */
@@ -77,14 +77,14 @@ export function nodeGridTemplate(node: Extract<LayoutNode, { type: 'split' }>): 
 }
 
 /** One `split` ancestor of a leaf, on the root-to-leaf path — which child ('first'/'second') the leaf descends through, and that ancestor's own path (for `pathKey`/`setRatioAtPath`). Ordered root-to-leaf; the *last* entry is nearest the leaf. */
-interface AncestorStep {
+export interface AncestorStep {
   path: NodePath
   direction: SplitDirection
   /** Whether the leaf descends through this ancestor's `first` child (vs. `second`). */
   throughFirst: boolean
 }
 
-function ancestorSteps(root: LayoutNode, leafId: PaneId): AncestorStep[] {
+export function ancestorSteps(root: LayoutNode, leafId: PaneId): AncestorStep[] {
   const path = findLeafPath(root, leafId)
   if (!path) return []
   const steps: AncestorStep[] = []
@@ -99,7 +99,7 @@ function ancestorSteps(root: LayoutNode, leafId: PaneId): AncestorStep[] {
   return steps
 }
 
-function nearestAncestor(steps: AncestorStep[], direction: SplitDirection): AncestorStep | undefined {
+export function nearestAncestor(steps: AncestorStep[], direction: SplitDirection): AncestorStep | undefined {
   for (let i = steps.length - 1; i >= 0; i--) if (steps[i].direction === direction) return steps[i]
   return undefined
 }
@@ -134,27 +134,6 @@ export function paneResizableAxes(root: LayoutNode, leafId: PaneId): PaneResizab
     width: row ? { path: row.path, isFirstShare: row.throughFirst } : undefined,
     height: column ? { path: column.path, isFirstShare: column.throughFirst } : undefined,
   }
-}
-
-/**
- * The slide-in/out direction a pane's own rotation should use by default, so
- * it only ever enters/exits through an actual screen edge and never through
- * a border it shares with a neighboring pane. A leaf's nearest row-ancestor
- * (if any) leaves exactly one of left/right free — the other is bordered by
- * its sibling; likewise up/down for its nearest column-ancestor. Prefers the
- * free horizontal edge as a consistent tie-break when both axes have an
- * ancestor (matching this function's own previous fixed-shape behavior),
- * falling back to the free vertical edge if only a column-ancestor exists,
- * and to `'right'` for a root leaf with no ancestors at all (the whole
- * screen, one pane, no neighbor on any side).
- */
-export function paneDefaultSlideDirection(root: LayoutNode, leafId: PaneId): SlideTransitionDirection {
-  const steps = ancestorSteps(root, leafId)
-  const row = nearestAncestor(steps, 'row')
-  if (row) return row.throughFirst ? 'left' : 'right'
-  const column = nearestAncestor(steps, 'column')
-  if (column) return column.throughFirst ? 'up' : 'down'
-  return 'right'
 }
 
 /** The default fraction of the screen's own viewport (standing in for `containerWidth`/`containerHeight`, since an arrangement always fills it entirely) a slide's own `resizeToFit` image/video box is fit within, along either axis, until its own `resizeScale` says otherwise. */

@@ -46,7 +46,7 @@ interface LayoutPaneProps {
   transitionDuration: number
   /** Which phase of the stage-transition sequence is currently playing (see `SplitLayout`'s own `contentPhase` state) — `'idle'` (the default, when omitted, e.g. `ExitingPaneGhost`'s own wrapped instance) renders content normally; `'exiting'`/`'holding'` both force this pane's content (and background) into their own hidden/exit state via `suppressEnter` below, regardless of whether `activeContentSlot` would otherwise say a slot should be entering — unless `stageStatic` is also true, see that prop's own doc comment. */
   contentPhase?: 'idle' | 'exiting' | 'holding'
-  /** True while this pane's own resolved identity (see `resolvePaneIdentitySignature`) is unchanged between the stage transition's old and new stage — see `SplitLayout.tsx`'s own `stageStaticLeafIds`. Such a pane sits out the transition entirely: its content never gets forced into `suppressEnter`'s hidden/exit pose, so it stays fully visible with no fade/slide, regardless of what the rest of the screen is doing. Omit (or `false`, the default) for the normal behavior. */
+  /** True while this pane's own resolved identity (see `resolvePaneIdentitySignature`) is unchanged between the stage transition's old and new stage, or — for a pane that's structurally new this transition — its `splitFromPaneId` lineage matches a pane that already showed this same content (see `SplitLayout.tsx`'s own `stageStaticLeafIds`). Such a pane sits out the transition entirely: its content never gets forced into `suppressEnter`'s hidden/exit pose, so it stays fully visible with no fade/slide, regardless of what the rest of the screen is doing. Also skips the mount-time entrance pose entirely (see this file's own `initial` below) — necessary for the split-lineage case, since that pane is a genuinely fresh component mount. Omit (or `false`, the default) for the normal behavior. */
   stageStatic?: boolean
   reducedMotion: boolean | null
   /** Hovering close to the pane's own middle (either axis) reveals a "Split" line/label there; clicking splits it 50/50 along that axis — see `PaneSplitZones`. Omit (like `onEditSlide`) to disable, e.g. while the screen is locked. Only ever actually rendered while `selected` is also true (see the render below) — an unselected pane offers no split zones at all, regardless of this prop. */
@@ -394,7 +394,15 @@ export function LayoutPane({
             }}
             motionProps={{
               variants,
-              initial: 'initial',
+              // `false` skips Framer Motion's mount-time entrance pose entirely, rendering straight at
+              // the `animate` pose instead — needed for a `stageStatic` pane that's nonetheless a
+              // genuinely fresh component mount (the split-lineage case, see this component's own
+              // `stageStatic` prop doc comment): `initial` is honored unconditionally on true first
+              // mount regardless of what `animate` resolves to, so merely keeping `suppressEnter` false
+              // isn't enough on its own to stop that one entrance slide from playing. Harmless for an
+              // already-mounted `stageStatic` pane (the ordinary persisting-content case) — `initial` is
+              // only ever read at mount, so changing it on a pane that isn't remounting has no effect.
+              initial: stageStatic ? false : 'initial',
               animate: !suppressEnter && activeContentSlot === slotIndex ? 'animate' : 'exit',
               transition: !suppressEnter && activeContentSlot === slotIndex ? enterTransition : exitTransition,
             }}

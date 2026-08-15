@@ -41,8 +41,17 @@ function sameLeafIds(a: Set<PaneId>, b: Set<PaneId>): boolean {
  * exactly this shape: one pane that persists across every stage, resizing as siblings elsewhere come and
  * go around it).
  *
- * A leaf present in only one of the two trees is never "static" — it's genuinely appearing/disappearing,
- * already handled by the existing `enteringGrowth`/`exitingGhosts` machinery. A split node qualifies as
+ * A leaf present in only one of the two trees is usually genuinely appearing/disappearing — normally
+ * handled by the existing `enteringGrowth`/`exitingGhosts` machinery instead — with one exception: an
+ * appeared leaf whose own `ScreenSlot.splitFromPaneId` names a leaf that *was* present in the old tree,
+ * and whose content there matches this leaf's own content now, is treated as static too. That's the
+ * "split a pane into two mid-screen-build, one half keeps showing what the whole pane already was"
+ * case — the new half is a structurally different `PaneId` (so it still gets a fresh mount and the
+ * ordinary blank-and-snap geometry treatment for the *divider* next to it, which is genuinely new), but
+ * its own content shouldn't play an entrance slide for content that was already on screen a moment ago.
+ * The content-signature check still has to pass — a stale/since-diverged lineage never forces a match.
+ *
+ * A split node qualifies as
  * "stable" independently of its own `ratio` — a stage advance that only *resizes* a divider counts too,
  * so it gets a smooth CSS grid-template glide to its new ratio (like a live divider drag already does)
  * with its border staying fully visible throughout, instead of the border shrinking away and the
@@ -64,9 +73,17 @@ function computeStageStaticSets(
   const oldLeafIds = new Set(listLeaves(oldTree).map((leaf) => leaf.id))
   const staticLeafIds = new Set<PaneId>()
   for (const leaf of listLeaves(newTree)) {
-    if (!oldLeafIds.has(leaf.id)) continue
     const slot = paneSlots[leaf.id]
-    if (slot && resolvePaneIdentitySignature(slot, oldStage, defaultPaneLanguage) === resolvePaneIdentitySignature(slot, newStage, defaultPaneLanguage)) {
+    if (!slot) continue
+    if (oldLeafIds.has(leaf.id)) {
+      if (resolvePaneIdentitySignature(slot, oldStage, defaultPaneLanguage) === resolvePaneIdentitySignature(slot, newStage, defaultPaneLanguage)) {
+        staticLeafIds.add(leaf.id)
+      }
+      continue
+    }
+    const sourceId = slot.splitFromPaneId
+    const sourceSlot = sourceId && oldLeafIds.has(sourceId) ? paneSlots[sourceId] : undefined
+    if (sourceSlot && resolvePaneIdentitySignature(sourceSlot, oldStage, defaultPaneLanguage) === resolvePaneIdentitySignature(slot, newStage, defaultPaneLanguage)) {
       staticLeafIds.add(leaf.id)
     }
   }

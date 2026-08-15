@@ -19,7 +19,7 @@ export function findNode(root: LayoutNode, id: PaneId): LayoutNode | undefined {
   return findNode(root.first, id) ?? findNode(root.second, id)
 }
 
-/** The root-to-leaf chain of nodes leading to `id` (root first, the leaf itself last), or `undefined` if `id` isn't in `root` at all — used to walk a leaf's ancestor `split` nodes (see `paneResizableAxes`/`paneDefaultSlideDirection` in `screenLayout.ts`). */
+/** The root-to-leaf chain of nodes leading to `id` (root first, the leaf itself last), or `undefined` if `id` isn't in `root` at all — used to walk a leaf's ancestor `split` nodes (see `screenLayout.ts`'s own `ancestorSteps`, consumed by `paneResizableAxes` there and by `paneGrowth.ts`'s own `paneDefaultSlideDirection`). */
 export function findLeafPath(root: LayoutNode, id: PaneId): LayoutNode[] | undefined {
   if (root.type === 'leaf') return root.id === id ? [root] : undefined
   const throughFirst = findLeafPath(root.first, id)
@@ -40,8 +40,8 @@ export function countLeaves(root: LayoutNode): number {
   return listLeaves(root).length
 }
 
-/** Deep-copies every `StageTimeline` field of `slot` so the copy shares no object identity with the original and can diverge independently going forward (used when splitting a pane — see `splitLeaf`). */
-export function cloneSlot(slot: ScreenSlot): ScreenSlot {
+/** Deep-copies every `StageTimeline` field of `slot` so the copy shares no object identity with the original and can diverge independently going forward (used when splitting a pane — see `splitLeaf`). `sourceId` is the pane being split (i.e. `slot`'s own id) — recorded on the clone as `splitFromPaneId`, not carried forward from `slot`'s own (irrelevant, more distant) lineage. */
+export function cloneSlot(slot: ScreenSlot, sourceId: PaneId): ScreenSlot {
   return {
     content: { ...slot.content },
     backgroundColor: { ...slot.backgroundColor },
@@ -57,6 +57,7 @@ export function cloneSlot(slot: ScreenSlot): ScreenSlot {
     ...(slot.customHtmlPlacement !== undefined ? { customHtmlPlacement: slot.customHtmlPlacement } : {}),
     ...(slot.customCssPolicyVersion !== undefined ? { customCssPolicyVersion: slot.customCssPolicyVersion } : {}),
     ...(slot.customHtmlPolicyVersion !== undefined ? { customHtmlPolicyVersion: slot.customHtmlPolicyVersion } : {}),
+    splitFromPaneId: sourceId,
   }
 }
 
@@ -84,8 +85,9 @@ function replaceNode(root: LayoutNode, id: PaneId, replacement: LayoutNode): Lay
  * matches exactly where the split actually lands. Both leaves' own content
  * is left for the caller to populate in `paneSlots` — this only returns
  * the new *shape*; the caller is expected to write `paneSlots[newPaneId] =
- * cloneSlot(paneSlots[leafId])` (duplicating content into both halves) as
- * part of the same atomic patch.
+ * cloneSlot(paneSlots[leafId], leafId)` (duplicating content into both
+ * halves, and recording the new half's own split lineage) as part of the
+ * same atomic patch.
  */
 export function splitLeaf(root: LayoutNode, leafId: PaneId, axis: SplitDirection, edge: 'start' | 'end'): { tree: LayoutNode; newPaneId: PaneId } {
   const newPaneId = generatePaneId()

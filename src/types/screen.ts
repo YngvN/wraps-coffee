@@ -498,6 +498,17 @@ export interface ScreenSlot {
   customCssPolicyVersion?: number
   /** Same purpose as `customCssPolicyVersion`, for `customHtml`'s own tag/attribute allowlist. */
   customHtmlPolicyVersion?: number
+  /**
+   * The `PaneId` this pane was split off of, if it was created via "Split pane"/"Split into 4"
+   * (`splitLeaf`, `src/utils/layoutTree.ts`) rather than seeded fresh (`createLeaf`) — a single fixed
+   * fact about how this pane came to exist, set once at split time and never updated afterward, same
+   * "single value across every stage" posture as `customCss`. Lets a stage transition recognize a
+   * newly-appeared leaf as a continuation of a pane that existed in the previous stage (see
+   * `SplitLayout.tsx`'s own `computeStageStaticSets`) instead of always playing its entrance animation —
+   * content-signature equality against the source pane is still checked at that point, so a stale or
+   * since-diverged lineage never forces a false match, it only says *which* pane to compare against.
+   */
+  splitFromPaneId?: PaneId
 }
 
 /** How a screen's panes are arranged along their split axis: side by side, or stacked. */

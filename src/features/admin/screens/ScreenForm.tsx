@@ -565,7 +565,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     if (!resolvedTree) return
     const { tree, newPaneId } = splitLeaf(resolvedTree, leafId, axis, edge)
     const nextLayout = writeStageCheckpoint(draft.layout, clampedActiveStage, tree)
-    const nextPaneSlots = { ...draft.paneSlots, [newPaneId]: cloneSlot(draft.paneSlots[leafId]) }
+    const nextPaneSlots = { ...draft.paneSlots, [newPaneId]: cloneSlot(draft.paneSlots[leafId], leafId) }
     setDraft({ layout: nextLayout, paneSlots: nextPaneSlots })
     setActiveTab(newPaneId)
     if (screen) applyDraftableScreenPatch({ layout: nextLayout, paneSlots: nextPaneSlots })
@@ -581,9 +581,9 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     const originalSlot = draft.paneSlots[leafId]
     const nextPaneSlots = {
       ...draft.paneSlots,
-      [rightId]: cloneSlot(originalSlot),
-      [bottomLeftId]: cloneSlot(originalSlot),
-      [bottomRightId]: cloneSlot(originalSlot),
+      [rightId]: cloneSlot(originalSlot, leafId),
+      [bottomLeftId]: cloneSlot(originalSlot, leafId),
+      [bottomRightId]: cloneSlot(originalSlot, rightId),
     }
     setDraft({ layout: nextLayout, paneSlots: nextPaneSlots })
     if (screen) applyDraftableScreenPatch({ layout: nextLayout, paneSlots: nextPaneSlots })
