@@ -26,6 +26,12 @@ export function useGoogleFontLoader(fontFamilies: string[], linkId: string = DEF
       link = document.createElement('link')
       link.id = linkId
       link.rel = 'stylesheet'
+      // Lets `html-to-image` (used by screenPreviewCapture.ts) read this
+      // stylesheet's `cssRules` to embed its `@font-face` src as data URIs —
+      // without CORS mode, a cross-origin stylesheet's CSSOM is opaque to JS
+      // even though it applies visually fine, and Google Fonts responds with
+      // `Access-Control-Allow-Origin: *` so this is safe to request.
+      link.crossOrigin = 'anonymous'
       document.head.appendChild(link)
     }
     const familyParams = trimmed.map((family) => `family=${family.replace(/\s+/g, '+')}:wght@300..700`).join('&')
