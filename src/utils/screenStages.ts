@@ -1,7 +1,7 @@
 import type { LanguageCode } from '../i18n'
 import { DEFAULT_TEXT_SIZES, type BackgroundImage, type LayoutNode, type PaneId, type ScreenConfig, type ScreenSlot, type ScreenSlotContent, type StageTimeline, type TextSizes } from '../types/screen'
 import { listLeaves } from './layoutTree'
-import { isResizeToFitContent } from './screenSlots'
+import { isResizeToFitContent, resolveContentBackgroundImage } from './screenSlots'
 
 /**
  * Which stage number actually supplies a timeline's effective value at
@@ -62,6 +62,22 @@ export function getPersistedSlotTextSizes(screen: ScreenConfig, leafId: PaneId, 
 /** This slot's own language override at `stage` — `undefined` means "use the cafe's own Standard pane language" (see `useDefaultPaneLanguage`), whether because nothing was ever set or because it was explicitly reset back to it. */
 export function resolveSlotLanguage(slot: ScreenSlot, stage: number): LanguageCode | undefined {
   return resolveStageValue(slot.language, stage)
+}
+
+/**
+ * A pane's own resolved identity at `stage` — every field a stage transition's crossfade (see
+ * `useCrossfadeSlot`'s own key in `LayoutPane.tsx`) treats as "this is genuinely different content" for
+ * this pane, folded into a single comparable string. Shared between that crossfade key and
+ * `SplitLayout.tsx`'s own stage-transition "did this pane actually change between the old and new stage"
+ * check, so the two can never disagree about what counts as a change.
+ */
+export function resolvePaneIdentitySignature(slot: ScreenSlot, stage: number, defaultPaneLanguage: LanguageCode): string {
+  const content = resolveSlotContent(slot, stage)
+  const backgroundColor = resolveSlotBackgroundColor(slot, stage)
+  const backgroundImage = resolveContentBackgroundImage(content, resolveSlotBackgroundImage(slot, stage))
+  const language = resolveSlotLanguage(slot, stage) ?? defaultPaneLanguage
+  const textColor = resolveSlotTextColor(slot, stage)
+  return JSON.stringify({ content, backgroundColor, backgroundImage, overlay: backgroundImage?.overlay, language, textColor })
 }
 
 /** Whether this pane is locked at `stage` — `false` (unlocked) whenever nothing was ever set, exactly like every other stage-checkpointed field's own carry-forward behavior (see `resolveStageValue`). */

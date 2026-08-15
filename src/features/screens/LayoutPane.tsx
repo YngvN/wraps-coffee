@@ -10,7 +10,15 @@ import type { BackgroundImage, BackgroundImageOverlay, PaneId, ScreenConfig, Scr
 import { backgroundImageTextStyle, getScreenColorVars, slotBackgroundColorStyle, slotTextColorStyle } from '../../utils/screenColors'
 import type { PaneGrowthOrigin } from '../../utils/paneGrowth'
 import { resolveContentBackgroundImage } from '../../utils/screenSlots'
-import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage, resolveSlotOverflowMode, resolveSlotTextColor } from '../../utils/screenStages'
+import {
+  resolvePaneIdentitySignature,
+  resolveSlotBackgroundColor,
+  resolveSlotBackgroundImage,
+  resolveSlotContent,
+  resolveSlotLanguage,
+  resolveSlotOverflowMode,
+  resolveSlotTextColor,
+} from '../../utils/screenStages'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
 import { collapsedClipPath, FULL_REVEAL_CLIP_PATH, PANE_GROWTH_DURATION_SECONDS, paneTransitionDelaySeconds } from './paneGrowthMotion'
 import { PaneClearButton } from './PaneClearButton'
@@ -36,8 +44,10 @@ interface LayoutPaneProps {
   defaultPaneLanguage: LanguageCode
   editingFocus: ScreenConfig['editingFocus']
   transitionDuration: number
-  /** Which phase of the stage-transition sequence is currently playing (see `SplitLayout`'s own `contentPhase` state) — `'idle'` (the default, when omitted, e.g. `ExitingPaneGhost`'s own wrapped instance) renders content normally; `'exiting'`/`'holding'` both force this pane's content (and background) into their own hidden/exit state via `suppressEnter` below, regardless of whether `activeContentSlot` would otherwise say a slot should be entering. */
+  /** Which phase of the stage-transition sequence is currently playing (see `SplitLayout`'s own `contentPhase` state) — `'idle'` (the default, when omitted, e.g. `ExitingPaneGhost`'s own wrapped instance) renders content normally; `'exiting'`/`'holding'` both force this pane's content (and background) into their own hidden/exit state via `suppressEnter` below, regardless of whether `activeContentSlot` would otherwise say a slot should be entering — unless `stageStatic` is also true, see that prop's own doc comment. */
   contentPhase?: 'idle' | 'exiting' | 'holding'
+  /** True while this pane's own resolved identity (see `resolvePaneIdentitySignature`) is unchanged between the stage transition's old and new stage — see `SplitLayout.tsx`'s own `stageStaticLeafIds`. Such a pane sits out the transition entirely: its content never gets forced into `suppressEnter`'s hidden/exit pose, so it stays fully visible with no fade/slide, regardless of what the rest of the screen is doing. Omit (or `false`, the default) for the normal behavior. */
+  stageStatic?: boolean
   reducedMotion: boolean | null
   /** Hovering close to the pane's own middle (either axis) reveals a "Split" line/label there; clicking splits it 50/50 along that axis — see `PaneSplitZones`. Omit (like `onEditSlide`) to disable, e.g. while the screen is locked. Only ever actually rendered while `selected` is also true (see the render below) — an unselected pane offers no split zones at all, regardless of this prop. */
   onSplitPane?: (leafId: PaneId, axis: SplitDirection, edge: 'start' | 'end') => void
@@ -124,6 +134,7 @@ export function LayoutPane({
   editingFocus,
   transitionDuration,
   contentPhase = 'idle',
+  stageStatic,
   reducedMotion,
   onSplitPane,
   onSplitFour,
@@ -158,8 +169,8 @@ export function LayoutPane({
    */
   const scopeId = `${screenID}:${leafId}`
   const scopedCss = usePaneCustomContent(scopeId, slot.customCss)
-  /** True for both of `contentPhase`'s non-idle values — this pane's own content/background stays forced into its hidden/exit state for the whole "old content exiting, then borders moving" stretch of the stage-transition sequence, only actually revealing once the caller settles back to `'idle'`. */
-  const suppressEnter = contentPhase !== 'idle'
+  /** True for both of `contentPhase`'s non-idle values — this pane's own content/background stays forced into its hidden/exit state for the whole "old content exiting, then borders moving" stretch of the stage-transition sequence, only actually revealing once the caller settles back to `'idle'`. Never true for a `stageStatic` pane, which sits out the whole sequence instead of playing it pointlessly on content that never actually changed. */
+  const suppressEnter = contentPhase !== 'idle' && !stageStatic
 
   /** This pane's own content/background leaving vs. arriving — each gets its own small deterministic-per-pane extra delay (see `paneTransitionDelaySeconds`) so a multi-pane stage advance doesn't have every pane leave/arrive in exact lockstep, rather than sharing one `transition` object like before. */
   const exitTransition = reducedMotion ? { duration: 0 } : { duration: transitionDuration, delay: paneTransitionDelaySeconds(leafId, 'exit'), ease: 'easeInOut' as const }
@@ -251,8 +262,8 @@ export function LayoutPane({
   // difference between these two stages is its own on-screen size. Content
   // that's genuinely different still transitions correctly, since the
   // signature simply reflects whatever the resolved values actually are.
-  const { slots: contentSlots, activeSlot: activeContentSlot } = useCrossfadeSlot<PaneContentSnapshot>(contentSnapshot, (item) =>
-    JSON.stringify({ content: item.content, backgroundColor: item.backgroundColor, backgroundImage: item.backgroundImage, overlay: item.overlay, language: item.language, textColor: item.textColor }),
+  const { slots: contentSlots, activeSlot: activeContentSlot } = useCrossfadeSlot<PaneContentSnapshot>(contentSnapshot, () =>
+    resolvePaneIdentitySignature(slot, stage, defaultPaneLanguage),
   )
 
   // Re-measures whenever this exact slot's own resolved content or text

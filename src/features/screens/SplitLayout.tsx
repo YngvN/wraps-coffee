@@ -4,15 +4,15 @@ import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import { useActiveAppearanceTheme } from '../../hooks/useAppearanceThemes'
 import { useGoogleFontLoader } from '../../hooks/useGoogleFontLoader'
 import { useLanguage, type LanguageCode } from '../../i18n'
-import { DEFAULT_SCREEN_BACKGROUND_COLOR, type LayoutNode, type PaneId, type ScreenConfig, type ScreenSlotContent, type SplitDirection, type TextSizes } from '../../types/screen'
+import { DEFAULT_SCREEN_BACKGROUND_COLOR, type LayoutNode, type PaneId, type ScreenConfig, type ScreenSlot, type ScreenSlotContent, type SplitDirection, type TextSizes } from '../../types/screen'
 import { applyRatioPatchPreservingDescendants, computeLayoutGeometry, FULL_BOX, type Divider, type LayoutGeometry, type Rect } from '../../utils/layoutGeometry'
 import { listLeaves } from '../../utils/layoutTree'
 import { diffLeafSets, resolvePaneGrowthOrigin, type PaneGrowthOrigin } from '../../utils/paneGrowth'
 import { backgroundImageTextStyle, borderColorStyle, getScreenColorVars } from '../../utils/screenColors'
-import { mediaResizeRatioPatch, mediaResizeScaleFromDrag, paneResizableAxes, pathKey, type NodePath, type PaneResizableAxes, type RatioPatch } from '../../utils/screenLayout'
+import { mediaResizeRatioPatch, mediaResizeScaleFromDrag, nodeAtPath, paneResizableAxes, pathKey, type NodePath, type PaneResizableAxes, type RatioPatch } from '../../utils/screenLayout'
 import { isNewsSlotContent, isResizeToFitContent, resizeToFitMediaUrl } from '../../utils/screenSlots'
 import { getBackgroundImageUrl, getSmallUrl } from '../../utils/responsiveImage'
-import { isSlotActive, resolveSlotContent, resolveStageValue, writeStageCheckpoint } from '../../utils/screenStages'
+import { isSlotActive, resolvePaneIdentitySignature, resolveSlotContent, resolveStageValue, writeStageCheckpoint } from '../../utils/screenStages'
 import { ExitingPaneGhost } from './ExitingPaneGhost'
 import { LayoutTree } from './LayoutTree'
 import { BORDER_TRANSITION_DURATION_SECONDS, CONTENT_TRANSITION_DURATION_SECONDS, EXIT_PHASE_DURATION_SECONDS, PANE_GROWTH_DURATION_SECONDS } from './paneGrowthMotion'
@@ -20,6 +20,73 @@ import './SplitLayout.scss'
 
 /** The stage-transition sequence's own three phases — see `SplitLayout`'s own `contentPhase` state and doc comment for what each drives. */
 type ContentPhase = 'idle' | 'exiting' | 'holding'
+
+/** Every leaf id under `node`, as a `Set` — the plain identity `computeStageStaticSets` compares a region against its own prior self with. */
+function leafIdSet(node: LayoutNode): Set<PaneId> {
+  return new Set(listLeaves(node).map((leaf) => leaf.id))
+}
+
+/** Same members, regardless of order — used to tell whether a region (a split's own `first`/`second` side, whole subtree included) still holds exactly the same panes it did before, i.e. nothing was added to or removed from *that specific side*. */
+function sameLeafIds(a: Set<PaneId>, b: Set<PaneId>): boolean {
+  return a.size === b.size && [...a].every((id) => b.has(id))
+}
+
+/**
+ * Computed once at the start of a stage transition (see `SplitLayout`'s own `prevEffectiveStage` block)
+ * — which leaves' own resolved identity is unchanged between the old and new stage, and which split
+ * dividers have at least one side whose own leaf set is unchanged, so `LayoutTree`/`LayoutPane` can let
+ * those specific panes and borders sit out the disruptive "blank behind a snap" part of the transition
+ * rather than treating a part of the screen that isn't actually being added to or removed from like it
+ * is — even while the *other* side of that same divider genuinely is (a real-world screen very often has
+ * exactly this shape: one pane that persists across every stage, resizing as siblings elsewhere come and
+ * go around it).
+ *
+ * A leaf present in only one of the two trees is never "static" — it's genuinely appearing/disappearing,
+ * already handled by the existing `enteringGrowth`/`exitingGhosts` machinery. A split node qualifies as
+ * "stable" independently of its own `ratio` — a stage advance that only *resizes* a divider counts too,
+ * so it gets a smooth CSS grid-template glide to its new ratio (like a live divider drag already does)
+ * with its border staying fully visible throughout, instead of the border shrinking away and the
+ * geometry snapping behind a blanked screen. Only requiring *one* side's leaf set to match (not both, as
+ * an earlier version of this function did) is what makes this cover that "one persisting pane, one
+ * churning region" shape — requiring both meant any leaf appearing/disappearing anywhere under a split
+ * disqualified its border entirely, even directly alongside a pane that never itself gained or lost a
+ * neighbor. The churning side's own interior still gets the ordinary blank-behind-a-snap treatment,
+ * recursively, at whichever of *its own* nested split paths that applies to.
+ */
+function computeStageStaticSets(
+  oldTree: LayoutNode,
+  newTree: LayoutNode,
+  paneSlots: Record<PaneId, ScreenSlot>,
+  oldStage: number,
+  newStage: number,
+  defaultPaneLanguage: LanguageCode,
+): { staticLeafIds: Set<PaneId>; stableSplitPaths: Set<string> } {
+  const oldLeafIds = new Set(listLeaves(oldTree).map((leaf) => leaf.id))
+  const staticLeafIds = new Set<PaneId>()
+  for (const leaf of listLeaves(newTree)) {
+    if (!oldLeafIds.has(leaf.id)) continue
+    const slot = paneSlots[leaf.id]
+    if (slot && resolvePaneIdentitySignature(slot, oldStage, defaultPaneLanguage) === resolvePaneIdentitySignature(slot, newStage, defaultPaneLanguage)) {
+      staticLeafIds.add(leaf.id)
+    }
+  }
+
+  const stableSplitPaths = new Set<string>()
+  const walk = (node: LayoutNode, path: NodePath) => {
+    if (node.type !== 'split') return
+    const oldNode = nodeAtPath(oldTree, path)
+    if (oldNode.type === 'split' && oldNode.direction === node.direction) {
+      const firstInert = sameLeafIds(leafIdSet(oldNode.first), leafIdSet(node.first))
+      const secondInert = sameLeafIds(leafIdSet(oldNode.second), leafIdSet(node.second))
+      if (firstInert || secondInert) stableSplitPaths.add(pathKey(path))
+    }
+    walk(node.first, [...path, 'first'])
+    walk(node.second, [...path, 'second'])
+  }
+  walk(newTree, [])
+
+  return { staticLeafIds, stableSplitPaths }
+}
 
 interface SplitLayoutProps {
   screen: ScreenConfig
@@ -166,6 +233,26 @@ export function SplitLayout({
    * live rotation/step controls get the sequenced version).
    */
   const [contentPhase, setContentPhase] = useState<ContentPhase>('idle')
+
+  const fallbackLeafId = Object.keys(screen.paneSlots)[0] ?? 'none'
+  // Memoized so it's a *stable* reference across renders that don't change
+  // `screen.layout`/`displayStage` (the object-literal fallback branch
+  // would otherwise be a fresh object every render) — required for the
+  // `diffWithBase`/`enteringGrowth` memoization below (both keyed on
+  // `tree`) to actually skip work, not just on paper. Keyed on `displayStage`
+  // (not `effectiveStage`) so the tree/shape — and everything derived from
+  // it, including the grid reflow and pane grow/collapse diffing — only
+  // updates once the stage-transition sequence's exit phase has finished.
+  // Computed here, ahead of the `prevEffectiveStage` block below, so that
+  // block can read it as "the tree as it stood right before this
+  // transition" — this render's `displayStage` is still the pre-transition
+  // value the whole way through (see this file's own "adjusting state
+  // during render" pattern, same idiom `diffBase`/`prevTree` further down
+  // rely on).
+  const tree = useMemo(
+    () => resolveStageValue(screen.layout, displayStage) ?? { type: 'leaf' as const, id: fallbackLeafId },
+    [screen.layout, displayStage, fallbackLeafId],
+  )
   /**
    * Detects a genuine target-stage change synchronously during render —
    * React's own documented "adjusting state when a prop changes" pattern
@@ -183,6 +270,16 @@ export function SplitLayout({
    * separate bookkeeping.
    */
   const [prevEffectiveStage, setPrevEffectiveStage] = useState(effectiveStage)
+  /**
+   * Which leaves are content-unchanged, and which split dividers have an unchanged leaf set on both
+   * sides (see `computeStageStaticSets`) — computed once, right when a genuine transition starts (below),
+   * and held fixed for its whole `'exiting'`→`'holding'`→`'idle'` cycle so a pane/border doesn't flicker
+   * between suppressed and unsuppressed mid-sequence. Irrelevant (and left at their prior value, unused)
+   * whenever `contentPhase` stays `'idle'` — the reduced-motion/`forcedStage` branch below never even
+   * reads these.
+   */
+  const [stageStaticLeafIds, setStageStaticLeafIds] = useState<Set<PaneId>>(() => new Set())
+  const [stableSplitPaths, setStableSplitPaths] = useState<Set<string>>(() => new Set())
   if (prevEffectiveStage !== effectiveStage) {
     setPrevEffectiveStage(effectiveStage)
     if (reducedMotion || forcedStage !== undefined) {
@@ -190,6 +287,10 @@ export function SplitLayout({
       setDisplayTick(effectiveTick)
       setContentPhase('idle')
     } else {
+      const newTree = resolveStageValue(screen.layout, effectiveStage) ?? { type: 'leaf' as const, id: fallbackLeafId }
+      const stageStaticSets = computeStageStaticSets(tree, newTree, screen.paneSlots, displayStage, effectiveStage, defaultPaneLanguage)
+      setStageStaticLeafIds(stageStaticSets.staticLeafIds)
+      setStableSplitPaths(stageStaticSets.stableSplitPaths)
       setContentPhase('exiting')
     }
   }
@@ -265,19 +366,6 @@ export function SplitLayout({
     </div>
   ) : null
 
-  const fallbackLeafId = Object.keys(screen.paneSlots)[0] ?? 'none'
-  // Memoized so it's a *stable* reference across renders that don't change
-  // `screen.layout`/`displayStage` (the object-literal fallback branch
-  // would otherwise be a fresh object every render) — required for the
-  // `diffWithBase`/`enteringGrowth` memoization below (both keyed on
-  // `tree`) to actually skip work, not just on paper. Keyed on `displayStage`
-  // (not `effectiveStage`) so the tree/shape — and everything derived from
-  // it, including the grid reflow and pane grow/collapse diffing — only
-  // updates once the stage-transition sequence's exit phase has finished.
-  const tree = useMemo(
-    () => resolveStageValue(screen.layout, displayStage) ?? { type: 'leaf' as const, id: fallbackLeafId },
-    [screen.layout, displayStage, fallbackLeafId],
-  )
   const leaves = listLeaves(tree)
   const paneGrowthFallback = screen.paneGrowthFallback ?? 'screenEdge'
 
@@ -504,15 +592,16 @@ export function SplitLayout({
 
   // Borders default off (an absent `showSlotBorders` means no-borders, not shown) — see that field's own doc comment for why: the divider gap's translucent tint reads as an unwanted glow against a whole-screen background image, so a screen only gets visible borders once explicitly opted into.
   const borderModifier = screen.showSlotBorders ? '' : ' split-layout--no-borders'
+  const baseGridTransitionCss = `grid-template-columns ${PANE_GROWTH_DURATION_SECONDS}s ease, grid-template-rows ${PANE_GROWTH_DURATION_SECONDS}s ease, background-color 0.4s ease`
   /**
-   * A stage transition deliberately gets **no** grid-template transition at
-   * all: its geometry snaps in a single reflow on the commit that enters
-   * `'holding'`, at the one moment nothing distinguishable is on screen to
-   * see it move: the borders have shrunk away, and every pane's content — its
-   * backdrop along with it, since the two travel together now — has already
-   * slid off, leaving nothing but the screen's own flat background.
-   * Animating it instead — as this used to, unconditionally
-   * — meant `grid-template-columns`/`-rows`, both layout-affecting, re-running
+   * A stage transition deliberately gets **no** grid-template transition for
+   * most splits: their geometry snaps in a single reflow on the commit that
+   * enters `'holding'`, at the one moment nothing distinguishable is on
+   * screen to see it move: the borders have shrunk away, and every pane's
+   * content — its backdrop along with it, since the two travel together now —
+   * has already slid off, leaving nothing but the screen's own flat
+   * background. Animating it instead — as this used to, unconditionally —
+   * meant `grid-template-columns`/`-rows`, both layout-affecting, re-running
    * layout on the main thread every frame for half a second, with the
    * highest-contrast thing on screen gliding along carrying every dropped
    * frame with it.
@@ -522,8 +611,17 @@ export function SplitLayout({
    * a smooth glide is the point and the cost is paid once, not every 10
    * seconds forever on a kiosk. `isDragging` still opts out separately, since
    * a transition actively fights a drag that's already updating every frame.
+   *
+   * `stableSplitPaths` splits (see `computeStageStaticSets`) are the one
+   * stage-transition exception: a divider whose own leaf set isn't gaining or
+   * losing a pane is architecturally the same as a live divider drag, just
+   * triggered by a stage advance instead of a pointer — see
+   * `stableResizeGridTransition` below, which `LayoutTree.tsx` applies to
+   * exactly those splits instead of this one.
    */
-  const gridTransition = isDragging || contentPhase !== 'idle' ? false : `grid-template-columns ${PANE_GROWTH_DURATION_SECONDS}s ease, grid-template-rows ${PANE_GROWTH_DURATION_SECONDS}s ease, background-color 0.4s ease`
+  const gridTransition = isDragging || contentPhase !== 'idle' ? false : baseGridTransitionCss
+  /** The same transition `gridTransition` uses, but never suppressed by `contentPhase` — only by an actual drag in progress. See `gridTransition`'s own doc comment for why a `stableSplitPaths` divider gets this instead. */
+  const stableResizeGridTransition = isDragging ? false : baseGridTransitionCss
 
   const mediaResizeScaleFromPatch = (patch: RatioPatch): number | undefined => {
     if (!activeMediaResize) return undefined
@@ -601,6 +699,8 @@ export function SplitLayout({
         editingFocus={screen.editingFocus}
         transitionDuration={CONTENT_TRANSITION_DURATION_SECONDS}
         contentPhase={contentPhase}
+        stageStaticLeafIds={stageStaticLeafIds}
+        stableSplitPaths={stableSplitPaths}
         reducedMotion={reducedMotion}
         selectedLeafId={selectedLeafId}
         dimUnselectedPanes={dimUnselectedPanes}
@@ -614,6 +714,7 @@ export function SplitLayout({
         selectedLeafIds={selectedLeafIds}
         onToggleChecked={onToggleChecked}
         gridTransition={gridTransition}
+        stableResizeGridTransition={stableResizeGridTransition}
         showSlotBorders={Boolean(screen.showSlotBorders)}
         onSplitPane={onSplitPane}
         onSplitFour={onSplitFour}

@@ -36,6 +36,10 @@ interface LayoutTreeProps {
   transitionDuration: number
   /** Threaded straight through to every `LayoutPane`'s own prop of the same name — see `SplitLayout`'s own `contentPhase` state for what each phase drives. */
   contentPhase: 'idle' | 'exiting' | 'holding'
+  /** Every leaf id this stage transition doesn't actually affect (see `SplitLayout.tsx`'s own `computeStageStaticSets`) — threaded straight through to each matching `LayoutPane`'s own `stageStatic` prop. */
+  stageStaticLeafIds: Set<PaneId>
+  /** Every split node's own `pathKey` with at least one side (its own `first` or `second`) whose leaf set is unchanged by this stage transition (see `computeStageStaticSets`) — such a divider stays visible through `'exiting'` instead of shrinking away, and gets `stableResizeGridTransition` instead of `gridTransition` so a ratio change there (if any) glides smoothly rather than snapping behind a blanked screen. Covers a persisting pane resizing alongside a sibling region that's genuinely gaining/losing panes, not just a split where nothing changes anywhere below it. */
+  stableSplitPaths: Set<string>
   reducedMotion: boolean | null
   /** Omit to render every divider read-only (no drag handles at all) — e.g. while the screen is locked. */
   onLiveChange?: (path: NodePath, ratio: number) => void
@@ -48,6 +52,8 @@ interface LayoutTreeProps {
   /** Threaded straight through to every `SplitLayoutDivider`'s own prop of the same name — a plain click (not a drag) on any border opens the screen-wide border settings, since the setting itself isn't specific to any one divider. Omit together with `onLiveChange`/`onCommit` to disable entirely. */
   onBorderClick?: () => void
   gridTransition: string | false
+  /** Applied instead of `gridTransition` to a split whose own path is in `stableSplitPaths` — see `SplitLayout.tsx`'s own doc comment on the prop of the same name for why such a split still animates smoothly even mid-stage-transition. */
+  stableResizeGridTransition: string | false
   /** Whether this screen draws lines between its panes at all (`ScreenConfig.showSlotBorders`) — when false the split's own `gap` is closed by CSS and no `SplitBorderLine` is rendered, so there's nothing to animate either. */
   showSlotBorders: boolean
   /** Draws a persistent highlight ring around this one pane, if any — see `SplitLayout`'s own doc comment. */
@@ -117,6 +123,8 @@ export function LayoutTree({
   editingFocus,
   transitionDuration,
   contentPhase,
+  stageStaticLeafIds,
+  stableSplitPaths,
   reducedMotion,
   onLiveChange,
   onCommit,
@@ -125,6 +133,7 @@ export function LayoutTree({
   allDividers,
   onBorderClick,
   gridTransition,
+  stableResizeGridTransition,
   showSlotBorders,
   selectedLeafId,
   dimUnselectedPanes,
@@ -166,6 +175,7 @@ export function LayoutTree({
         editingFocus={editingFocus}
         transitionDuration={transitionDuration}
         contentPhase={contentPhase}
+        stageStatic={stageStaticLeafIds.has(node.id)}
         reducedMotion={reducedMotion}
         selected={node.id === selectedLeafId}
         dimmed={Boolean(dimUnselectedPanes && selectedLeafId !== undefined && node.id !== selectedLeafId)}
@@ -188,7 +198,10 @@ export function LayoutTree({
     )
   }
 
-  const gridTemplate = { ...nodeGridTemplate(node), ...(!reducedMotion && gridTransition ? { transition: gridTransition } : {}) }
+  /** Whether at least one of this exact split's own two sides is unaffected by the current stage transition — see `SplitLayout.tsx`'s own `stableSplitPaths` doc comment. Drives both `gridTemplate`'s own choice of transition below and `bordersVisible` further down. */
+  const isStableSplit = stableSplitPaths.has(pathKey(path))
+  const effectiveGridTransition = isStableSplit ? stableResizeGridTransition : gridTransition
+  const gridTemplate = { ...nodeGridTemplate(node), ...(!reducedMotion && effectiveGridTransition ? { transition: effectiveGridTransition } : {}) }
   const orientation = node.direction === 'row' ? 'vertical' : 'horizontal'
   const axis = node.direction === 'row' ? 'x' : 'y'
   const axisStart = node.direction === 'row' ? box.x : box.y
@@ -236,8 +249,18 @@ export function LayoutTree({
    * precisely why nothing is seen jumping: the line is still at zero
    * thickness on the frame the grid reflows, and only then expands, already
    * at its new position.
+   *
+   * Also stays visible regardless of `contentPhase` whenever `isStableSplit`
+   * is true — at least one of this divider's own two sides isn't
+   * gaining/losing a pane, so from that side's perspective there's no
+   * disruptive reflow at this divider to hide in the first place, even if the
+   * *other* side is (which gets its own blank-behind-a-snap treatment,
+   * scoped to whichever of its own nested split paths that applies to). A
+   * ratio change here (if any) instead glides smoothly via
+   * `stableResizeGridTransition` above, with the border staying put the
+   * whole time, however much content changes deeper inside either side.
    */
-  const bordersVisible = contentPhase !== 'exiting'
+  const bordersVisible = contentPhase !== 'exiting' || isStableSplit
 
   /** Builds one `PaneCornerHandle`'s props: `childPaths` is one path (a single T-junction corner) or two (a merged "+", both kept equal through the drag). */
   const cornerHandle = (key: string, childRatio: number, childPaths: NodePath[]) => {
@@ -299,6 +322,8 @@ export function LayoutTree({
         editingFocus={editingFocus}
         transitionDuration={transitionDuration}
         contentPhase={contentPhase}
+        stageStaticLeafIds={stageStaticLeafIds}
+        stableSplitPaths={stableSplitPaths}
         reducedMotion={reducedMotion}
         onLiveChange={onLiveChange}
         onCommit={onCommit}
@@ -307,6 +332,7 @@ export function LayoutTree({
         allDividers={allDividers}
         onBorderClick={onBorderClick}
         gridTransition={gridTransition}
+        stableResizeGridTransition={stableResizeGridTransition}
         showSlotBorders={showSlotBorders}
         selectedLeafId={selectedLeafId}
         dimUnselectedPanes={dimUnselectedPanes}
@@ -341,6 +367,8 @@ export function LayoutTree({
         editingFocus={editingFocus}
         transitionDuration={transitionDuration}
         contentPhase={contentPhase}
+        stageStaticLeafIds={stageStaticLeafIds}
+        stableSplitPaths={stableSplitPaths}
         reducedMotion={reducedMotion}
         onLiveChange={onLiveChange}
         onCommit={onCommit}
@@ -349,6 +377,7 @@ export function LayoutTree({
         allDividers={allDividers}
         onBorderClick={onBorderClick}
         gridTransition={gridTransition}
+        stableResizeGridTransition={stableResizeGridTransition}
         showSlotBorders={showSlotBorders}
         selectedLeafId={selectedLeafId}
         dimUnselectedPanes={dimUnselectedPanes}
