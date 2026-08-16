@@ -52,11 +52,8 @@
   display: block;
   width: 100%;
   height: 100%;
-  // `qrcode.react` sets `preserveAspectRatio="none"` internally, which
-  // would otherwise stretch the code out of square to match a non-square
-  // box; `object-fit: contain` is what overrides that (an SVG's intrinsic
-  // 1:1 ratio, from its own `viewBox`, still applies for CSS sizing
-  // purposes even with that attribute set) and keeps it square, centered
-  // within whatever box it ends up as.
-  object-fit: contain;
+  // No `object-fit` needed: `QrCodeSvg` draws into a square `viewBox` and leaves
+  // `preserveAspectRatio` at its `xMidYMid meet` default, so the code keeps its own 1:1 ratio and
+  // centers itself inside a non-square box. The rule that used to sit here existed only to undo
+  // `qrcode.react`'s own `preserveAspectRatio="none"`, and went away with that library.
 }

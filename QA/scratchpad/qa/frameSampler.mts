@@ -36,6 +36,43 @@ export interface FrameWindow {
   worstAtMs: number
   /** Which `contentPhase` was in effect when the worst frame landed, for the same reason. */
   worstPhase: string
+  /**
+   * **The primary metric for mount-stall work.** Total time spent over budget *during `'holding'`
+   * only* — `Σ (delta − BUDGET_MS)` across every frame in that phase whose delta exceeded it.
+   *
+   * Replaces `worstMs` as the number to compare variants on, for two reasons the 2026-08-15 report
+   * ran into directly ("on the dense stages the run-to-run spread is wider than the difference
+   * between the two columns"):
+   *
+   *  - **A sum is far more stable than a maximum.** `worstMs` is a single sample of a heavy-tailed
+   *    distribution and moves hundreds of ms run to run on the same build; a sum over the whole
+   *    phase averages that out and can actually resolve a 30% effect.
+   *  - **Scoping to `'holding'` targets the thing being measured.** That is the phase the geometry
+   *    commits and the new panes mount in — 13 of 21 worst frames landed there — so a whole-window
+   *    number dilutes it with the exit animation and the content slide-in either side.
+   *
+   * `worstMs` stays alongside it, unchanged, as the number comparable to the existing report.
+   */
+  holdingDebtMs: number
+  /** How many frames the `'holding'` phase lasted — context for `holdingDebtMs`, which would otherwise not distinguish "one very bad frame" from "many mildly bad ones". */
+  holdingFrames: number
+  /**
+   * The same over-budget sum as `holdingDebtMs`, but split across **all three** phases plus the
+   * post-`'idle'` tail.
+   *
+   * Added after the first TV run on a real screen (`Screen 3 (verify)`) contradicted the assumption
+   * `holdingDebtMs` alone was built on. The 2026-08-15 report found 13 of 21 worst frames in
+   * `'holding'` and concluded the mount was the whole cost; on a real screen only 5 of 23 landed
+   * there, against 12 in `'exiting'` and 6 in `'idle'`. Those two are exactly the boundaries where
+   * `LayoutPane`'s own `trackShrink` flips and every shrink-enabled pane re-runs its binary search in
+   * one commit — so a holding-only metric is blind to most of the cost it was meant to measure.
+   *
+   * Keyed by the raw `data-content-phase` value, so a phase that is ever added shows up on its own
+   * rather than being silently folded into another bucket.
+   */
+  debtByPhase: Record<string, number>
+  /** Frame count per phase, same keying as `debtByPhase` — a phase's debt is uninterpretable without knowing how many frames it had to accumulate over. */
+  framesByPhase: Record<string, number>
 }
 
 /**
@@ -49,6 +86,10 @@ export function frameSamplerSource(postUrl?: string): string {
   window.__qaFrameSampler = true;
   window.__qaFrameWindows = [];
   var TAIL_MS = 700;
+  // Held fixed at the *TV's* 50Hz budget on both devices deliberately — \`holdingDebtMs\` is meant to
+  // be one quantity computed identically everywhere, the same reason this whole sampler exists as a
+  // single shared source string. A desktop number computed against 16.7 would not be the same metric.
+  var BUDGET_MS = 20;
   var POST_URL = ${postUrl ? JSON.stringify(postUrl) : 'null'};
   var deltas = [];
   var marks = [];
@@ -73,11 +114,27 @@ export function frameSamplerSource(postUrl?: string): string {
       over33: deltas.filter(function (d) { return d > 33; }).length,
       meanMs: deltas.length ? Math.round((deltas.reduce(function (a, b) { return a + b; }, 0) / deltas.length) * 10) / 10 : 0,
       worstAtMs: 0,
-      worstPhase: '-'
+      worstPhase: '-',
+      holdingDebtMs: 0,
+      holdingFrames: 0,
+      debtByPhase: {},
+      framesByPhase: {}
     };
+    // Compared against the *raw* max, not \`w.worstMs\` — that is rounded to one decimal and can round
+    // *up* past every real delta, in which case no mark ever matched and \`worstPhase\` silently
+    // reported '-'. Which phase the worst frame landed in is the single most load-bearing field here
+    // (it is what attributes the cost to the mount rather than to an animation), so it must never
+    // depend on a rounding direction.
+    var rawWorst = deltas.length ? Math.max.apply(null, deltas) : 0;
     for (var i = 0; i < marks.length; i++) {
-      if (marks[i][0] >= w.worstMs) { w.worstAtMs = marks[i][1]; w.worstPhase = marks[i][2]; }
+      if (marks[i][0] >= rawWorst) { w.worstAtMs = marks[i][1]; w.worstPhase = marks[i][2]; }
+      var phaseKey = marks[i][2] || '?';
+      w.framesByPhase[phaseKey] = (w.framesByPhase[phaseKey] || 0) + 1;
+      if (marks[i][0] > BUDGET_MS) w.debtByPhase[phaseKey] = (w.debtByPhase[phaseKey] || 0) + (marks[i][0] - BUDGET_MS);
     }
+    for (var key in w.debtByPhase) w.debtByPhase[key] = Math.round(w.debtByPhase[key]);
+    w.holdingDebtMs = w.debtByPhase['holding'] || 0;
+    w.holdingFrames = w.framesByPhase['holding'] || 0;
     window.__qaFrameWindows.push(w);
     if (POST_URL) {
       try { fetch(POST_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(w), keepalive: true }); } catch (e) {}

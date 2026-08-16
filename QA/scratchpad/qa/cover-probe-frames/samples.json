@@ -1,0 +1,296 @@
+[
+  {
+    "atMs": 0,
+    "coverage": 0.3097916666666667,
+    "meanR": 96,
+    "meanG": 115,
+    "meanB": 125
+  },
+  {
+    "atMs": 1261,
+    "coverage": 0,
+    "meanR": 17,
+    "meanG": 17,
+    "meanB": 17
+  },
+  {
+    "atMs": 2151,
+    "coverage": 0,
+    "meanR": 17,
+    "meanG": 17,
+    "meanB": 17
+  },
+  {
+    "atMs": 3128,
+    "coverage": 0,
+    "meanR": 0,
+    "meanG": 0,
+    "meanB": 0
+  },
+  {
+    "atMs": 3888,
+    "coverage": 0,
+    "meanR": 115,
+    "meanG": 115,
+    "meanB": 115
+  },
+  {
+    "atMs": 4639,
+    "coverage": 0.0001388888888888889,
+    "meanR": 71,
+    "meanG": 66,
+    "meanB": 60
+  },
+  {
+    "atMs": 5916,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 7034,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 8108,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 9145,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 10284,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 11318,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 12409,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 13496,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 14646,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 15711,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 16858,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 17959,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 19139,
+    "coverage": 0.0002777777777777778,
+    "meanR": 95,
+    "meanG": 71,
+    "meanB": 76
+  },
+  {
+    "atMs": 20426,
+    "coverage": 0.003958333333333334,
+    "meanR": 99,
+    "meanG": 77,
+    "meanB": 98
+  },
+  {
+    "atMs": 21729,
+    "coverage": 0.335625,
+    "meanR": 104,
+    "meanG": 84,
+    "meanB": 119
+  },
+  {
+    "atMs": 23051,
+    "coverage": 0.6315972222222223,
+    "meanR": 109,
+    "meanG": 90,
+    "meanB": 142
+  },
+  {
+    "atMs": 24361,
+    "coverage": 0.8271527777777777,
+    "meanR": 114,
+    "meanG": 96,
+    "meanB": 164
+  },
+  {
+    "atMs": 25651,
+    "coverage": 0.9918055555555556,
+    "meanR": 119,
+    "meanG": 103,
+    "meanB": 186
+  },
+  {
+    "atMs": 26926,
+    "coverage": 1,
+    "meanR": 123,
+    "meanG": 109,
+    "meanB": 208
+  },
+  {
+    "atMs": 28203,
+    "coverage": 1,
+    "meanR": 128,
+    "meanG": 115,
+    "meanB": 228
+  },
+  {
+    "atMs": 29144,
+    "coverage": 1,
+    "meanR": 128,
+    "meanG": 115,
+    "meanB": 228
+  },
+  {
+    "atMs": 30057,
+    "coverage": 1,
+    "meanR": 128,
+    "meanG": 115,
+    "meanB": 228
+  },
+  {
+    "atMs": 30986,
+    "coverage": 1,
+    "meanR": 128,
+    "meanG": 115,
+    "meanB": 228
+  },
+  {
+    "atMs": 31992,
+    "coverage": 1,
+    "meanR": 128,
+    "meanG": 115,
+    "meanB": 228
+  },
+  {
+    "atMs": 32949,
+    "coverage": 1,
+    "meanR": 128,
+    "meanG": 115,
+    "meanB": 228
+  },
+  {
+    "atMs": 33891,
+    "coverage": 1,
+    "meanR": 128,
+    "meanG": 115,
+    "meanB": 228
+  },
+  {
+    "atMs": 34874,
+    "coverage": 1,
+    "meanR": 128,
+    "meanG": 115,
+    "meanB": 228
+  },
+  {
+    "atMs": 35766,
+    "coverage": 1,
+    "meanR": 128,
+    "meanG": 115,
+    "meanB": 228
+  },
+  {
+    "atMs": 36730,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 37800,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 38939,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 40137,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 41220,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 42381,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 43429,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  },
+  {
+    "atMs": 44576,
+    "coverage": 0.0002777777777777778,
+    "meanR": 91,
+    "meanG": 66,
+    "meanB": 58
+  }
+]

@@ -68,7 +68,11 @@ function row(t: TransitionSample, f: FrameWindow | undefined): string {
   const shared = t.survived + t.remounted
   const identity = shared === 0 ? 'n/a (no shared panes)' : `${t.survived}/${shared} kept`
   const frameCell = f
-    ? `f=${String(f.frames).padStart(3)} worst=${String(f.worstMs).padStart(6)}ms >16.7=${String(f.over16_7).padStart(3)} >33=${String(f.over33).padStart(3)}`
+    ? `f=${String(f.frames).padStart(3)} worst=${String(f.worstMs).padStart(6)}ms >16.7=${String(f.over16_7).padStart(3)} >33=${String(f.over33).padStart(3)} ` +
+      // The mount-stall metric — see `debtByPhase`'s own doc comment for why this is split per phase
+      // rather than reported for `'holding'` alone, and why it, not `worst`, is what variants get
+      // compared on. `@` is which phase the worst frame actually landed in.
+      `debt[${(['exiting', 'holding', 'idle'] as const).map((p) => `${p[0]}=${String(f.debtByPhase?.[p] ?? 0).padStart(4)}`).join(' ')}] @${f.worstPhase}`
     : 'f=  (no frame window)'
   return (
     `${t.fromStage} -> ${t.toStage}   snap=${String(t.snapPercent).padStart(3)}% of ${String(t.totalPx).padStart(4)}px (${t.snapPane.replace('pane-x-', '').replace('pane-r-', '').padEnd(8)})   ` +

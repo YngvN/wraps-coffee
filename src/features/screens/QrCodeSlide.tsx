@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import type { CSSProperties } from 'react'
-import { QRCodeSVG } from 'qrcode.react'
+import { QrCodeSvg } from './QrCodeSvg'
+import type { QrErrorCorrectionLevel } from './qrCodePath'
 import { useCrossfadeSlot } from '../../hooks/useCrossfadeSlot'
 import { useCurrentNewsHeadline, type NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
@@ -12,16 +13,41 @@ import { buildSourceMark } from '../../utils/newsSourceMark'
 import { getScreenColorVars } from '../../utils/screenColors'
 import './QrCodeSlide.scss'
 
-/** `qrcode.react`'s own internal default `size` (its SVG's coordinate/viewBox space) — this file never overrides that prop, relying on CSS `width`/`height` percentages for the actual rendered size instead, so `imageSettings`' pixel dimensions need to be proportioned against this fixed internal value, not the rendered one. */
-const QR_INTERNAL_SIZE = 128
-/** The embedded logo's own bounding box (both real logo images and the constructed fallback mark are *contained* within a square of this size, not stretched to fill it — see `realLogoDimensions`/`buildSourceMark`) — kept comfortably within `level="H"`'s ~30% error-correction tolerance once its modules are excavated. */
+/**
+ * The embedded logo's own bounding box, as a fraction of the code's own side — both real logo images
+ * and the constructed fallback mark are *contained* within a square this size, not stretched to fill
+ * it (see `logoFractions`/`buildSourceMark`).
+ *
+ * The area it excavates is this squared: **4.84%**. That number is what picks the error-correction
+ * level below — `'M'` corrects ~15%, a 3.1x margin over the damage actually done.
+ */
 const LOGO_SIZE_FRACTION = 0.22
+
+/**
+ * Weakest acceptable error correction for a code carrying an embedded logo.
+ *
+ * Was `'H'` (~30%) until 2026-08-16, on the reasoning that excavating the centre demanded the
+ * strongest level available. Measurement showed that to be over-provisioned by roughly 6x: the logo
+ * damages 4.84% of the symbol (see `LOGO_SIZE_FRACTION`) against H's 30% budget, and the density that
+ * bought was not free — a QR pane was the most expensive pane kind on the kiosk, and dropping to `'M'`
+ * removes **43-48%** of the modules for a typical news article URL.
+ *
+ * Fewer modules also means each one is ~32% physically larger at the same pane size, and module size
+ * — not error-correction level — is what limits a phone camera reading a TV from across a room. So
+ * this is expected to scan *better*, not worse, despite the lower level. `buildQrGeometry` still
+ * upgrades beyond this for free whenever the chosen version has room (see its own doc comment), so
+ * this is a floor rather than a fixed choice.
+ */
+const LOGO_MIN_LEVEL = 'M' as const
 
 /** One slot's own frozen render input — snapshotted at the moment it becomes current (see `useCrossfadeSlot`), so a still-fading-out code never has its own pattern/logo replaced underneath it before its exit animation finishes. */
 interface QrRenderSnapshot {
   targetUrl: string
-  imageSettings: { src: string; height: number; width: number; excavate: boolean } | undefined
-  level: 'H' | 'L'
+  logoSrc: string | undefined
+  /** Size of `logoSrc` as a fraction of the code's own side — see `QrCodeSvg`'s own props. */
+  logoWidthFraction: number
+  logoHeightFraction: number
+  minLevel: QrErrorCorrectionLevel
 }
 
 interface QrCodeSlideProps {
@@ -89,31 +115,37 @@ export function QrCodeSlide({ url, size, linkMode, newsSourceMode, linkedNewsSou
   const targetUrl = isNewsMode ? headline?.link : url
 
   const showLogo = isNewsMode && (showSourceLogo ?? true) && Boolean(source)
-  const logoSize = QR_INTERNAL_SIZE * LOGO_SIZE_FRACTION
   // `qrLogoSlug` (when a source has one — currently just Klar Tale) is a
   // separate, simplified/more-square logo file saved specifically for this
   // small embedded footprint, distinct from `logoSlug`'s own on-screen
   // `NewsSourceMark` rendering.
   const realLogoSrc = showLogo ? getLogoSrc(source!.qrLogoSlug ?? source!.logoSlug) : undefined
-  const constructedMark = showLogo && !realLogoSrc ? buildSourceMark(source!, logoSize) : undefined
+  // No explicit size: the mark is a vector data URI drawn into a `LOGO_SIZE_FRACTION`-sized box in
+  // *module* coordinates, so the pixel size it is authored at no longer matters (it did while
+  // `qrcode.react` needed `imageSettings` in its own fixed 128-unit space).
+  const constructedMark = showLogo && !realLogoSrc ? buildSourceMark(source!) : undefined
   // A real logo image is rarely square — contain-fit it within the
   // `logoSize` box using its own known aspect ratio instead of forcing both
   // dimensions to `logoSize`, which would stretch it out of shape. The
   // constructed fallback mark is always square already (see
   // `buildSourceMark`), so its own returned dimensions need no adjustment.
   const realLogoAspectRatio = source?.logoAspectRatio ?? 1
-  const realLogoDimensions =
-    realLogoAspectRatio >= 1 ? { width: logoSize, height: logoSize / realLogoAspectRatio } : { width: logoSize * realLogoAspectRatio, height: logoSize }
-  const imageSettings = realLogoSrc
-    ? { src: realLogoSrc, ...realLogoDimensions, excavate: true }
-    : constructedMark
-      ? { src: constructedMark.uri, width: constructedMark.width, height: constructedMark.height, excavate: true }
-      : undefined
+  /** Contain-fit within a `LOGO_SIZE_FRACTION` square, expressed as fractions of the code's own side. The constructed fallback mark is already square, so it fills the box on both axes. */
+  const logoFractions =
+    realLogoAspectRatio >= 1
+      ? { width: LOGO_SIZE_FRACTION, height: LOGO_SIZE_FRACTION / realLogoAspectRatio }
+      : { width: LOGO_SIZE_FRACTION * realLogoAspectRatio, height: LOGO_SIZE_FRACTION }
+  const logoSrc = realLogoSrc ?? constructedMark?.uri
 
   const snapshot: QrRenderSnapshot | undefined = targetUrl
-    ? // 'H' (~30% tolerance) is required once a logo excavates the center —
-      // the default 'L' (~7%) isn't enough and would produce an unscannable code.
-      { targetUrl, imageSettings, level: imageSettings ? 'H' : 'L' }
+    ? {
+        targetUrl,
+        logoSrc,
+        ...(realLogoSrc ? { logoWidthFraction: logoFractions.width, logoHeightFraction: logoFractions.height } : { logoWidthFraction: LOGO_SIZE_FRACTION, logoHeightFraction: LOGO_SIZE_FRACTION }),
+        // A code with nothing excavated has no damage to correct for, so it stays at the weakest
+        // level and the smallest symbol — see `LOGO_MIN_LEVEL` for the logo-bearing case.
+        minLevel: logoSrc ? LOGO_MIN_LEVEL : 'L',
+      }
     : undefined
   const { slots, activeSlot } = useCrossfadeSlot<QrRenderSnapshot>(snapshot, (item) => item.targetUrl)
 
@@ -142,21 +174,20 @@ export function QrCodeSlide({ url, size, linkMode, newsSourceMode, linkedNewsSou
               animate={{ opacity: activeSlot === slotIndex ? 1 : 0 }}
               transition={{ duration: 0.4 }}
             >
-              <QRCodeSVG
+              <QrCodeSvg
                 // Keyed by this slot's own URL, not left to reuse whatever
-                // `QRCodeSVG` (and, internally, whatever embedded-logo
-                // `<image>`) this slot rendered last time it was active —
-                // same reasoning as `NewsSlide`'s own headline `<img>` key:
-                // reusing the same node and just changing `imageSettings.src`
-                // risks the *previous* logo staying visibly painted until
-                // the new one finishes loading, rather than the code simply
-                // re-rendering fresh.
+                // code (and embedded-logo `<image>`) this slot rendered last
+                // time it was active — same reasoning as `NewsSlide`'s own
+                // headline `<img>` key: reusing the same node and just
+                // changing the logo `src` risks the *previous* logo staying
+                // visibly painted until the new one finishes loading, rather
+                // than the code simply re-rendering fresh.
                 key={slot.targetUrl}
                 value={slot.targetUrl}
-                bgColor="transparent"
-                fgColor="currentColor"
-                level={slot.level}
-                imageSettings={slot.imageSettings}
+                minLevel={slot.minLevel}
+                logoSrc={slot.logoSrc}
+                logoWidthFraction={slot.logoWidthFraction}
+                logoHeightFraction={slot.logoHeightFraction}
                 className="qr-code-slide__code"
               />
             </motion.div>

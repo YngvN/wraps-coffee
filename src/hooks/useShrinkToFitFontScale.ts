@@ -1,4 +1,4 @@
-import { useLayoutEffect, type RefObject } from 'react'
+import { useLayoutEffect, useRef, type RefObject } from 'react'
 import { SLIDE_SIZE_VAR_NAMES } from '../utils/textSizeVars'
 import { createShrinkToFitScheduler, RESIZE_SETTLE_MS } from './shrinkToFitScheduler'
 
@@ -8,8 +8,36 @@ const MUTATION_SETTLE_MS = 500
 /** See `useShrinkToFitScale`'s own doc comment for why a periodic safety-net remeasure exists on top of the resize/mutation triggers. */
 const POLL_INTERVAL_MS = 2000
 
-/** Iterations of the binary search below — 8 gets within ~0.4% of the true largest fitting scale, plenty for a visual font size. */
-const SEARCH_ITERATIONS = 8
+/**
+ * How close the search below has to bracket the true largest fitting scale before stopping —
+ * `1 / 2**8`, i.e. exactly the precision the previous fixed 8-iteration search over
+ * `[MIN_SCALE, 1]` reached, so this is a like-for-like replacement rather than a quality change.
+ *
+ * A tolerance rather than a fixed iteration count because the search is now *seeded* (see
+ * `measureAndScale`): starting from a known-good bracket, converging to the same precision usually
+ * takes far fewer probes, and a fixed count would throw that saving away.
+ */
+const SCALE_TOLERANCE = 1 / 2 ** 8
+
+/**
+ * How much larger than the last resolved scale to probe when re-confirming it (1%).
+ *
+ * The re-confirm is what makes the common case cheap. Measurement on the kiosk showed **100% of this
+ * hook's passes ran the full 8-iteration search** — never once hitting the `fitsAt(1)` fast path —
+ * and that most passes come from the safety poll and the mutation observer firing on a pane whose
+ * size has not actually changed (one pane ran 44 full searches in 40 seconds). For such a pane the
+ * answer is simply last time's scale, and proving it takes three probes in total — scale 1 does not
+ * fit, the seed does, and the seed nudged up does not.
+ *
+ * Floored at `SCALE_TOLERANCE` in absolute terms where it is applied, because a purely relative
+ * margin is *narrower* than the search's own convergence tolerance for any seed below ~0.4, which
+ * would land the nudge inside a bracket already declared converged and send the pass into a needless
+ * full-range search.
+ */
+const SEED_PROBE_MARGIN = 0.01
+
+/** How many distinct box sizes a pane remembers a resolved scale for — comfortably more than the number of stages any real screen cycles through, while staying bounded against a divider drag walking a new size every frame. */
+const SCALE_CACHE_LIMIT = 8
 
 /** Never literally `0` — a degenerate zero font size has nothing left to search from; effectively "no minimum" for any real content. */
 const MIN_SCALE = 0.01
@@ -60,12 +88,16 @@ const GAP_SCALE_EXPONENT = 2
  * override every descendant's own `var(--slide-*-size, ...)` picks up
  * automatically via ordinary CSS inheritance (no `calc()`/`var()` nesting
  * involved at all). Since changing font size is a genuine layout change,
- * finding the right value takes a binary search — each candidate is
- * applied, then `scrollHeight` (forcing a synchronous reflow) is read back
- * to see whether it now fits, narrowing the search until it converges on
- * the largest scale that still does. A fast path checks scale `1` first and
- * skips the search entirely when nothing needs shrinking at all (the common
- * case). No minimum floor beyond `MIN_SCALE`'s own numerical safety margin.
+ * finding the right value takes a search — each candidate is applied, then
+ * `scrollHeight` (forcing a synchronous reflow) is read back to see whether
+ * it now fits, narrowing the bracket until it converges to
+ * `SCALE_TOLERANCE` on the largest scale that still does. Two shortcuts keep
+ * the usual cost far below a full bisection: scale `1` is checked first and
+ * skips everything when nothing needs shrinking at all, and otherwise the
+ * search is *seeded* from this pane's own last resolved scale, which is
+ * still the answer on the majority of passes and takes three probes to
+ * confirm rather than nine to rediscover (see `SEED_PROBE_MARGIN`). No
+ * minimum floor beyond `MIN_SCALE`'s own numerical safety margin.
  *
  * Same triggers and signature as `useShrinkToFitScale` (see its own doc
  * comment) — a debounced `ResizeObserver` on `outerRef`, a debounced
@@ -74,11 +106,10 @@ const GAP_SCALE_EXPONENT = 2
  * safety-net poll — so `LayoutPane.tsx` can point both hooks at the exact
  * same ref pair and just switch which one is actually `enabled` per pane.
  * The resize debounce matters even more here than in `useShrinkToFitScale`:
- * every candidate in the binary search below forces its own synchronous
- * layout, so an un-debounced resize burst (e.g. an automated stage
- * transition's ~30-tick, ~0.5s geometry animation) would force up to
- * `SEARCH_ITERATIONS` layouts on every single tick, not just once per
- * resize.
+ * every candidate in the search below forces its own synchronous layout, so
+ * an un-debounced resize burst (e.g. an automated stage transition's
+ * ~30-tick, ~0.5s geometry animation) would force a whole search's worth of
+ * layouts on every single tick, not just once per resize.
  *
  * Also exposes `--fit-gap-scale` on `innerRef`, alongside the `--slide-*-
  * size` vars — a *steeper* multiplier (see `GAP_SCALE_EXPONENT`) a slide's
@@ -101,6 +132,26 @@ export function useShrinkToFitFontScale(
   /** See `useShrinkToFitScale`'s own doc comment on the same parameter. */
   trackResize = true,
 ) {
+  /**
+   * Scales this pane has already resolved, keyed by the box size they were resolved *for*.
+   *
+   * Keyed by size rather than being a single last-value because of what measurement showed: seeding
+   * from the last scale alone removed 43% of this hook's forced layouts but **did not improve stage
+   * transitions at all** on the kiosk (forced layouts during `'holding'` went 167 -> 166). All the
+   * saving landed on the safety poll, where the pane's box had not changed. At a transition the box
+   * *has* changed, so a single last-value seed is always wrong exactly when it matters.
+   *
+   * Stages cycle, though, so a pane returning to a shape it has held before asks for a size it has
+   * already solved — and then the seed is not merely close, it is the answer, confirmable in three
+   * probes instead of rediscovered in nine.
+   *
+   * A ref (not state) because it must survive the effect *re-running*, which happens on every
+   * `contentPhase` flip as well as any content change — the very passes this exists to make cheap.
+   */
+  const scaleCacheRef = useRef(new Map<string, number>())
+  /** Fallback seed for a size never seen before — better than nothing, since a pane's scale at a new size is usually nearer its last one than it is to the middle of the whole range. */
+  const lastScaleRef = useRef(1)
+
   useLayoutEffect(() => {
     const outer = outerRef.current
     const inner = innerRef.current
@@ -133,20 +184,75 @@ export function useShrinkToFitFontScale(
       return measured.scrollHeight <= outer.clientHeight && (!checkWidth || measured.scrollWidth <= outer.clientWidth)
     }
 
+    /** Records `scale` as this pane's answer at `sizeKey`, most-recently-used last so the eviction below drops the stalest entry. */
+    const remember = (sizeKey: string, scale: number) => {
+      const cache = scaleCacheRef.current
+      cache.delete(sizeKey)
+      cache.set(sizeKey, scale)
+      // Bounded because a divider drag walks through a new size every frame, which would otherwise
+      // grow this map without limit for as long as the kiosk stays up. A handful of entries is enough
+      // to cover every stage a screen actually cycles through, which is the case that matters.
+      while (cache.size > SCALE_CACHE_LIMIT) cache.delete(cache.keys().next().value as string)
+      lastScaleRef.current = scale
+    }
+
     const measureAndScale = () => {
       if (!enabled) {
         clearOverride()
         return
       }
-      if (fitsAt(1)) return
+
+      // Every `fitsAt` below is one forced synchronous layout — the unit this whole function exists
+      // to spend as few of as possible.
+      const fitsAtFullSize = fitsAt(1)
+      // Read straight after a `fitsAt`, which has just forced layout — so these are free rather than
+      // forcing another pass of their own. Reading them at the top of the function instead would cost
+      // an extra forced layout on every single pass.
+      const sizeKey = `${outer.clientWidth}x${outer.clientHeight}`
+
+      if (fitsAtFullSize) {
+        remember(sizeKey, 1)
+        return
+      }
+
+      const seed = scaleCacheRef.current.get(sizeKey) ?? lastScaleRef.current
       let low = MIN_SCALE
       let high = 1
-      for (let i = 0; i < SEARCH_ITERATIONS; i++) {
+
+      // Re-confirm last time's answer before searching for a new one. See `SEED_PROBE_MARGIN` for
+      // why this is the case worth optimising: if the seed still fits and a nudge up does not, it is
+      // still the largest fitting scale, reached in three probes rather than nine.
+      if (seed > MIN_SCALE && seed < 1) {
+        if (fitsAt(seed)) {
+          // Floored at `SCALE_TOLERANCE` above the seed, not just 1% of it. A purely relative margin
+          // is *smaller* than the search's own absolute convergence tolerance for any seed below
+          // ~0.4 — so the nudge would land inside the bracket the previous search had already
+          // declared converged, still fit, and send this pass down the "room opened up" path into a
+          // full-range search. That made the seeding a near no-op for exactly the small-scale panes
+          // it was supposed to help most.
+          const nudged = Math.min(1, Math.max(seed * (1 + SEED_PROBE_MARGIN), seed + SCALE_TOLERANCE))
+          if (nudged >= 1 || !fitsAt(nudged)) {
+            // That last probe left `nudged` applied, so the answer has to be written back explicitly.
+            remember(sizeKey, seed)
+            applyScale(seed)
+            return
+          }
+          // Room has genuinely opened up (the pane grew, or its content shrank) — `nudged` is a
+          // known-fitting lower bound, and `fitsAt(1)` already failed, so `1` is a valid upper one.
+          low = nudged
+        } else {
+          // The seed no longer fits (the pane shrank, or its content grew) — the answer is below it.
+          high = seed
+        }
+      }
+
+      while (high - low > SCALE_TOLERANCE) {
         const mid = (low + high) / 2
         if (fitsAt(mid)) low = mid
         else high = mid
       }
       applyScale(low)
+      remember(sizeKey, low)
     }
 
     const scheduler = createShrinkToFitScheduler(measureAndScale)

@@ -11,6 +11,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { frameSamplerSource } from './frameSampler.mts'
+import { capabilityProbeSource } from './capabilityProbe.mts'
 
 const MARKER = '<!-- qa-frame-sampler -->'
 const INDEX = 'dist/index.html'
@@ -23,6 +24,13 @@ if (html.includes(MARKER)) {
   console.log('[inject] already injected — rebuild first to start clean')
   process.exit(0)
 }
-const script = `${MARKER}\n<script>${frameSamplerSource(`${collector}/frame`)}</script>\n`
+// The capability probe (`capabilityProbe.mts`) rides along with the sampler rather than being
+// injected separately: it needs the exact same one-line-into-`dist` delivery, fires once per load,
+// and its answer (this WebView's Chromium version) is needed to interpret whatever the sampler in
+// the same page then reports.
+const script =
+  `${MARKER}\n` +
+  `<script>${capabilityProbeSource(`${collector}/capability`)}</script>\n` +
+  `<script>${frameSamplerSource(`${collector}/frame`)}</script>\n`
 writeFileSync(INDEX, html.replace('</body>', `${script}</body>`))
-console.log(`[inject] sampler injected into ${INDEX}, posting to ${collector}/frame`)
+console.log(`[inject] sampler + capability probe injected into ${INDEX}, posting to ${collector}/frame and ${collector}/capability`)
