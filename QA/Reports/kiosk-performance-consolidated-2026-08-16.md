@@ -104,7 +104,7 @@ Confidence: **CONFIRMED** = measured on the target device with a control isolati
    | screen shape | dominant cost | evidence |
    |---|---|---|
    | transit / weather / catalogue / event-month (`Screen 3`) | the shrink-to-fit **font binary search** | disabling both shrink hooks removes **85–89%** |
-   | qrcode / news / time (`Skjerm 1`, id `screen-8ec76ce7-…`) | **slide component rendering**, chiefly QR path rasterisation | shrink-disable does nothing; QR removal removes **44%** of worst frame, **32%** of debt |
+   | qrcode / news / time (`Skjerm 1`, id `screen-8ec76ce7-…`) | **slide component rendering**, chiefly QR path rasterisation | shrink-disable does nothing (re-confirmed by fact 8's V1a/V1b on this fixture); QR removal removed **44%** of worst frame, **32%** of debt — **but both QR-removal percentages are against the superseded baseline, see fact 11** |
 
 4. **CONFIRMED — the irreducible floor is ~zero.** Replacing every slide's content with a static
    `<div>` at identical geometry takes `Screen 3` from 240–400 ms worst to **20 ms with zero budget
@@ -130,6 +130,114 @@ Confidence: **CONFIRMED** = measured on the target device with a control isolati
 7. **CONFIRMED — decoding a 1920×1080 PNG costs 545–598 ms on this hardware** (three runs; includes
    fetching it over WiFi). Same order as the stall itself. Any design showing a full-screen still must
    pre-decode and hold it resident.
+
+8. **CONFIRMED — the shrink cost is `measureAndScale` itself, not the observers firing.** The V1
+   bisection (2026-08-16, regime C, `Screen 3`) splits the 85% cleanly:
+
+   | arm | worst (median) | debt (median) | n |
+   |---|---|---|---|
+   | baseline (current tree) | 320 ms `[120–660]` | 880 ms `[340–1540]` | 25 |
+   | **V1a** — measurement on, observers never installed | 320 ms `[80–640]` | 740 ms `[160–1360]` | 35 |
+   | **V1b** — observers installed and firing, `measureAndScale` an immediate no-op | **60 ms** `[40–600]` | **100 ms** `[20–680]` | 31 |
+
+   V1b recovers **81% of worst frame and 89% of debt** — the whole effect, matching the original
+   both-hooks-disabled ablation (60 ms / 80 ms). V1a recovers **0% of worst frame and ~16% of debt**.
+   The `ResizeObserver`/`MutationObserver`/2 s poll are therefore close to free; what they *trigger* is
+   the entire cost.
+
+   **This inverts the reading §8 previously prescribed** ("if V1b wins, the cost is the observers
+   firing"). That mapping was backwards: V1b leaves every observer installed and firing at full rate
+   and still removes the stall, which is only possible if the observers are cheap.
+
+   Sharper still: **V1a keeps the observers off but keeps the `measureAndScale()` call that runs on
+   every effect re-run — and that alone reproduces the full baseline cost.** The effect's deps include
+   `contentPhase`, so each phase flip re-runs a full search on every pane. Those effect-driven passes,
+   not observer-driven ones, are the stall.
+
+   Negative control: on `Skjerm 1` (no shrink-search pane kinds) baseline / V1a / V1b measure
+   700 / 720 / 730 ms worst and 1140 / 1120 / 1150 ms debt — flat, as fact 3 predicts. Both ablations
+   behaving on the fixture where they should do nothing is what rules out a build/flag mix-up on the
+   fixture where they do.
+
+9. **CONFIRMED — the search and the CSS custom-property writes are not separable cost centres.**
+   `fitsAt` *is* a write plus a forced read: it calls `applyScale` (the `--slide-*-size` writes) and
+   then reads `scrollHeight`. There is no probe without a write. This collapses §6's old three-way
+   split into two — observers (free) and measurement-including-its-writes (all of it) — and means the
+   "different scaling mechanism entirely" branch cannot be reached by ablation alone.
+
+10. **CONFIRMED — QR corner rounding costs the entire error-correction density win.** Three arms on
+    `Skjerm 1`, regime C, same session (see fact 11 on why only same-session arms are comparable here):
+
+    | arm | worst (median) | debt (median) | holding debt | n |
+    |---|---|---|---|---|
+    | **A** — M + rounded (`d9d9b90`, current tree) | 700 ms `[460–860]` | 1140 ms `[1020–1260]` | 800 | 23 |
+    | **B** — M + square | **520 ms** `[400–640]` | **860 ms** `[780–980]` | 600 | 22 |
+    | **C** — H + square (pre-change baseline) | 720 ms `[540–840]` | 1140 ms `[1040–1240]` | 860 | 19 |
+
+    Dropping H→M is worth **−28% worst / −25% debt** (B vs C, debt ranges non-overlapping). Rounding
+    gives back **+180 ms worst / +280 ms debt** (A vs B) — within noise of exactly the amount the
+    density saved. **A and C are indistinguishable**, so the shipped change is currently a no-op on
+    frame cost while carrying two stacked scannability reductions.
+
+11. **CONFIRMED — `Skjerm 1`'s baseline roughly doubled between 2026-08-15 and `d9d9b90`;
+    `Screen 3`'s did not.** Arm C (H + square — i.e. the pre-QR-change code) measures 720 ms / 1140 ms
+    against the ~355 ms / ~735 ms this report previously quoted as that fixture's baseline. `Screen 3`
+    re-measured at 320 ms / 880 ms, identical to the older `tv-fix-screen3` capture. The cause was not
+    isolated (content drift — longer news URLs, more QR panes resolving — is the leading candidate,
+    since arm C restores the old *code* and not the old *number*). **Consequence: the older `Skjerm 1`
+    figures, including the "QR removed = ~200 ms / ~500 ms" ceiling, are not comparable to anything
+    measured on `d9d9b90`. Re-measure that ceiling before quoting it.**
+
+12. **CONFIRMED — deferring the search off the transition path fixes §6's open problem.** Two changes
+    to `useShrinkToFitFontScale`, measured as separate arms (2026-08-16, regime C, v0.2.69):
+
+    | arm | worst (median) | debt (median) | debt e / h / i | n |
+    |---|---|---|---|---|
+    | baseline (`d9d9b90`) | 320 ms `[140–620]` | 930 ms `[360–1560]` | 370 / 260 / 480 | 28 |
+    | **A** — phase removed from the effect's deps; search resumable, one probe per frame, only while idle | **80 ms** `[40–660]` | 520 ms `[60–1080]` | 80 / 60 / 380 | 35 |
+    | **A+B** — plus a process-wide scale store, pre-warmed off-screen at boot | **80 ms** `[40–600]` | **380 ms** `[40–1140]` | 60 / 40 / 300 | 33 |
+
+    **−75% worst frame and −59% debt.** The transition phases are where it lands: `exiting`
+    370 → 60 and `holding` 260 → 40, i.e. essentially gone. Against fact 8's V1b ceiling (60 ms /
+    100 ms, `measureAndScale` disabled outright) A+B captures nearly all of the worst-frame win but
+    only part of the debt win — **the residual ~300 ms is `idle` debt, the same search still running,
+    merely relocated out of the transition.** Ranges still overlap on the upper tail, as they did for
+    V1b itself; the medians are stable and the phase split is unambiguous.
+
+    Negative control, same session: `Skjerm 1` measures 720 ms / 1140 ms at baseline and
+    720 ms / 1160 ms at A+B — flat, exactly as fact 3 predicts, which is what rules out a build mix-up.
+
+    Arm B costs **nothing measurable at boot** despite mounting every stage off-screen: the first six
+    windows of the A+B run are no worse than A's (1140/460/860/80/360/300 against
+    1080/640/920/120/700/940).
+
+13. **CONFIRMED — the pre-0.2.69 search could settle on a scale that does not fit.** On `Screen 3`'s
+    transit pane the old code resolves 0.8605 and **overflows its box by 35 px** (−7% slack);
+    the reworked hook resolves 0.806 and fits. Reproduced by re-measuring the original code directly,
+    so it is the code and not content drift. The old overflow-only correctness probe could not see
+    this — a scale that is too *large* shows up as overflow, but nothing reported slack, so the
+    failure was invisible. `shrink-correctness.mts` now reports slack and per-pane resolved scale.
+
+14. **CONFIRMED — `IntersectionObserver` cannot drive a scale-correction loop.** Tested directly
+    (arm C, since reverted): a sentinel at the end of `CatalogueSlide`'s flow, observed against the
+    pane box, does yield the right overflow ratio from `boundingClientRect`/`rootBounds`
+    (3.12 and 7.38, matching `scrollHeight / clientHeight`) at **zero forced layouts** — but IO is
+    **edge-triggered on threshold crossings, not a continuous geometry feed**. A zero-area target
+    pins `intersectionRatio` at 0, so after the first delivery nothing ever fires again: 1 delivery in
+    2.5 s. A 1 px sentinel does deliver crossings (entering the box at scale 0.25, leaving at 0.35)
+    but still only 3 deliveries across a 12-step sweep. **"Solve from the observed magnitude" is dead.**
+    A crossing-driven geometric search (shrink x0.9 per frame until the sentinel crosses in) remains
+    viable and would cost no forced layouts, at the price of visible stepping over ~7–10 frames.
+
+15. **CONFIRMED — `Screen 3 (verify)` is half the fixture this report has been describing.** Its
+    `paneSlots` holds 6 entries, but **three are orphans not present in `layout`** and never render.
+    It actually renders **3 panes**, with only **4 shrink-enabled (pane, stage) pairs**: one transit
+    at stage 1 and three catalogue at stage 3. Stage 2 (`event:calendar` + two empty) contains no
+    shrink-enabled pane at all. The "6 panes, 4 transit + 6 catalogue + 1 event" in fact 1 counts the
+    `paneSlots` object, orphans included. Related: **no `event:month` pane exists on any screen in the
+    dataset**, so `EventMonthSlide` — the only slide whose overflow is purely on the width axis — is
+    currently exercised by nothing, and `checkWidth` is reached only by `weather` panes, where the
+    comment at `LayoutPane.tsx:336-347` already explains it is a no-op.
 
 ---
 
@@ -189,7 +297,31 @@ rasterisation**, which is a different thing.
 
 ---
 
-## 6. The open problem
+## 6. The open problem — **RESOLVED 2026-08-16**
+
+**Answer: the cost is the measurement passes triggered by the effect re-running, and each pass is
+expensive because every probe is a CSS write plus a forced synchronous layout. The observers are
+close to free.** See facts 8 and 9 for the numbers; the reasoning that led here is kept below.
+
+What this rules in and out:
+
+- **Gating or coalescing the observers is not the fix.** V1a removed all three and recovered 0% of
+  worst frame. It also demotes step 4 below (raising `POLL_INTERVAL_MS`): the poll is a subset of the
+  ~16% of debt that *all* observer traffic accounts for, so the ceiling on that idea is a few percent.
+- **Making individual probes cheaper is not the fix either**, and now for a measured reason rather
+  than an inferred one — that is what the seeded search already tried, for 0%.
+- **The fix is to stop running full searches on `contentPhase` flips.** The hook's effect lists
+  `contentPhase` among its deps, so every flip re-runs `measureAndScale()` on every pane, and fact 8
+  shows those effect-driven passes alone reproduce the entire baseline cost. A pane whose box and
+  content are both unchanged across a flip does not need re-measuring at all; the existing size-keyed
+  cache does not help because it still re-probes to confirm (§4, "a cache hit is not a cheap pass").
+
+**Still open (narrower):** whether the forced layout or the style invalidation dominates within a
+single probe. Fact 9 says ablation cannot separate them — `fitsAt` cannot measure without writing —
+so answering it needs a restructured scaling mechanism, not another flag. Not worth doing before the
+`contentPhase` work above, which avoids whole passes rather than making one cheaper.
+
+### The reasoning this replaced
 
 **Fact 3 says disabling the shrink hooks removes 85–89% of a real screen's stall. Making the search
 43% cheaper removed 0%. Both are solidly measured. They cannot both be about probe count.**
@@ -218,7 +350,8 @@ changed.
 
 ## 7. Code state as of this document
 
-**Version 0.2.67.** Two changes sit **uncommitted** in the working tree:
+**Version 0.2.68**, clean at `d9d9b90` (updated 2026-08-16 — both changes below have since been
+committed; they were uncommitted at 0.2.67 when this section was first written):
 
 1. **`useShrinkToFitFontScale` — seeded search + size-keyed scale cache.** Correct (verified against
    baseline: the overflow checker reports identical transients with and without it), −43% forced
@@ -229,7 +362,8 @@ changed.
 2. **QR codes — error-correction level H → M, plus rounded module corners.** New files
    `qrCodePath.ts` / `QrCodeSvg.tsx`; `QrCodeSlide` no longer uses `qrcode.react` (that library does
    not expose its module matrix); new dependency `qrcode-generator`. Measured **43% fewer modules**
-   across the real codes on screen (9,732 → 5,508 total modules). **Neither TV-verified nor
+   across the real codes on screen (9,732 → 5,508 total modules). **Now TV-verified (fact 10): as
+   shipped it is a frame-cost no-op, because the rounding cancels the density win. Still not
    phone-scan-verified.**
 
 **`ENABLE_FLAT_PANE_LAYOUT = false`** (`paneGrowthMotion.ts`). The flat pane layer fixes pane DOM
@@ -242,54 +376,68 @@ that basis.
 
 ## 8. Suggested next steps, in order
 
-### 1. Bisect the V1 ablation — the highest-information experiment available
+### 1. Stop re-measuring on `contentPhase` flips — **DONE 2026-08-16, shipped in v0.2.69**
 
-The only thing that resolves §6. Two one-line variants, each built and measured on `Screen 3` and
-`Skjerm 1` with the regime-C harness:
+See fact 12 for the numbers: **−75% worst frame, −59% debt** on `Screen 3`, flat on `Skjerm 1`. Two
+changes, both in `useShrinkToFitFontScale.ts` behind `ARM_A_DEFERRED_SEARCH` / `ARM_B_SHARED_SCALE_STORE`
+(kept as toggles for re-measurement, both on):
 
-- **V1a** — keep `measureAndScale` running, but never install the `ResizeObserver` /
-  `MutationObserver` / poll.
-- **V1b** — keep all three observers installed, but make `measureAndScale` an immediate no-op.
+- **A** — the transition phase is no longer a dependency of the measurement effect, so a flip no
+  longer re-runs the effect at all; and the binary search is a resumable state machine
+  (`SearchState`) advancing **one probe per animation frame**, only while the pane is idle. The best
+  fitting scale so far stays painted between probes, so intermediate candidates are never visible.
+  Flipping the flag off drains the same state machine synchronously, which is the pre-0.2.69
+  behaviour — one search implementation, so the arms cannot drift apart.
+- **B** — `src/hooks/shrinkScaleStore.ts`, a process-wide store addressed by
+  (screen, pane, stage, **box aspect ratio** — never pixels, since `cqmin` makes the answer mostly
+  size-invariant), pre-filled at kiosk boot by `warmShrinkScales.ts` rendering each stage off-screen
+  and letting the real hooks populate it. Rendered at the **live viewport size**, not
+  `referenceCanvasSize`'s fixed 1920x1080, because `CatalogueSlide`'s `minmax(max(160px, 14ch), 1fr)`
+  and `EventMonthSlide`'s `column-width: max(320px, 26ch)` are absolute px floors that change the
+  column count between 1920 and the TV's own 960 CSS px.
 
-Whichever recovers the 85% names the real cost. If **V1b** wins, the cost is the observers firing (and
-the fix is gating or coalescing them). If **V1a** wins, it is the measurement itself, and the fix is
-either fewer passes or cheaper ones. If neither reproduces it alone, it is the CSS custom-property
-writes invalidating whole subtrees, and the fix is a different scaling mechanism entirely.
+**What is left:** ~300 ms of `idle` debt — the same search, merely relocated out of the transition.
+Closing that means avoiding the passes entirely, not deferring them; the poll deliberately re-derives
+(it is the only thing that notices content *shrinking*, since the box has not changed and the resize
+observer stays quiet), so a cheaper "did the content actually change" signal is the next lever.
 
-**Do not attempt another optimisation before this runs.** Two have already been built and measured to
-zero effect for want of it.
+### 2. Decide the QR corner radius, then phone-scan whatever ships
 
-### 2. Verify the QR change (needs the TV, ~10 min, plus a phone)
+Frame cost is **measured and settled** (fact 10) — the TV half of this step is done. `M + rounded`
+(the current tree) is statistically identical to the `H + square` baseline: rounding at
+`CORNER_RADIUS = 0.3` costs back the entire H→M density win. `M + square` is the only arm that beats
+baseline, at −28% worst / −25% debt.
 
-Three builds on `Skjerm 1`, measured separately so the two effects are not conflated:
+The kill criterion has therefore triggered. Two options, both needing a decision before any code moves:
 
-| build | isolates | reference |
+| option | frame cost | cost of finding out |
 |---|---|---|
-| baseline (H, square) | — | ~355 ms worst, ~735 ms debt |
-| M + square | the density win alone | expect a real drop |
-| M + rounded (current tree) | rounding's added cost | must stay below baseline |
-| *(QR removed)* | the ceiling any QR change can reach | ~200 ms worst, ~500 ms debt |
+| **Ship `M + square`** (`CORNER_RADIUS` → 0, `FINDER_RADIUS_FRACTION` → 0) | known: −25% debt | none — already measured |
+| **Halve the radius** (0.3 → 0.15, finder fraction 0.28 → 0.14) | unknown; recovers at best ~half the win *if* cost scales with radius | another full TV arm, plus a phone-scan of eroded corners |
 
-**Kill criterion:** if `M + rounded` is not better than baseline, rounding costs more than density
-saves — drop the radius (0.3 → 0.15) or ship `M + square`.
+`M + square` also removes one of the two stacked scannability reductions, which shortens the phone
+test to validating the level change alone.
 
-**And scan the codes with a real phone.** No QR *decoder* exists in this repo — all three QR packages
-only encode — so this cannot be automated. The change stacks two scannability reductions (lower
-correction level *and* eroded corners), so test the worst case: longest article URL, logo on, customer
-distance, off-axis, glare, older phone. Fallback order: radius 0.3 → 0.15, then level M → Q (still
-−16% density, 5.2× margin), then back to H.
+**Then scan the codes with a real phone** — for whichever variant ships, since the level drop to `M`
+is common to all of them. No QR *decoder* exists in this repo (all three QR packages only encode), so
+this cannot be automated. Test the worst case: longest article URL, logo on, customer distance,
+off-axis, glare, older phone. Fallback order: level M → Q (still −16% density, 5.2× margin), then
+back to H.
 
 ### 3. Settle the seeded-search change
 
 Keep or revert (§7.1). Not a measurement question — it works, it just does not do the job it was
 written for.
 
-### 4. Consider the 2-second safety poll
+### 4. The 2-second safety poll — **largely closed by fact 8, keep only as CPU hygiene**
 
-~57% of all shrink passes are `POLL_INTERVAL_MS = 2000` firing on unchanged panes. Raising it to ~10 s
-would cut those 5×. This trades away how fast the shrink self-corrects when the observers miss a
-change, which is the poll's entire purpose — a product judgement, not a measurement. Worth revisiting
-**after** step 1, which may make it moot.
+~57% of all shrink passes are `POLL_INTERVAL_MS = 2000` firing on unchanged panes, and raising it to
+~10 s would cut those 5×. But V1a removed the poll *and* both observers outright and recovered **0% of
+worst frame, ~16% of debt** — so the poll is a fraction of a fraction, and it is not a stall fix.
+
+What remains is the original hygiene argument: fewer wakeups on a device that runs for weeks. That is
+a product judgement about how fast the shrink self-corrects when the observers miss a change, not a
+measurement question, and it should not be confused for performance work.
 
 ### 5. Only if steps 1–4 leave a real screen over budget: hide the stall behind a bitmap
 
@@ -317,8 +465,12 @@ every stage change, clock stopped and video paused — not the ~0.3 s the mount-
 | `extreme-audit.mts` | desktop per-transition audit (snap / border / identity / frames) |
 | `capabilityProbe.mts` | WebView version + feature detection, in-page |
 | `tv-cover-probe.mts` / `coverLayerProbe.mts` | compositor-survives-a-stall probe, sampled via `screencap` |
-| `shrink-counter.mts`, `shrink-cachehit.mts`, `shrink-correctness.mts` | shrink-to-fit attribution and correctness |
+| `shrink-counter.mts`, `shrink-cachehit.mts` | shrink attribution — **both need a `window.__qaShrink` instrumentation patch that is not in `src/`**; budget for re-writing it |
+| `shrink-correctness.mts` | shrink correctness, no instrumentation needed. Reports overflow on **both** axes, **slack**, and each pane's **resolved scale**, per (pane, stage), as JSON; `QA_BASELINE=<file>` diffs an arm against a baseline and fails on >5% scale drift. Samples only while `data-content-phase` is `idle`, and picks the active crossfade slot by **identity transform**, not opacity — the `'slide'` transition style holds opacity 1 in all three poses, so an opacity test silently attributes the *previous* stage's slide to the current one |
+| `shrink-arm-audit.mts` | desktop arm comparison: groups windows by `fromStage -> toStage` and reports medians per group. Necessary because a whole-run median mixes transition types that differ ~6x in cost, diluting any change to the expensive one |
 | `qr-verify.mts`, `qr-density.mts` | QR module-count verification |
+| `summarize-frames.mts` | median worst frame + median `debtByPhase` per run file, with ranges; trims cross-arm contamination (see §10) |
+| `wait-frames.mts` | blocks until a run file holds N windows *from the current page load* — what to gate a run on rather than raw file length |
 | `make-resize-screen.mts`, `make-extreme-screen.mts` | fixture builders |
 
 **Legacy (regimes A/B), in `diagnostics/pane-resize-stutter/`:** scripts `01`–`09` survive; the
@@ -341,7 +493,7 @@ adb shell am force-stop no.adhdisplay.companion && \
 
 | id | name | shape |
 |---|---|---|
-| `1783715372380` | Screen 3 (verify) | 3 stages, 6 panes — 4 transit + 6 catalogue + 1 event. **The shrink-cost fixture.** |
+| `1783715372380` | Screen 3 (verify) | 3 stages, **3 live panes** (its `paneSlots` also holds 3 orphans not in `layout` — see fact 15). Only **4 shrink-enabled (pane, stage) pairs**: transit@1, catalogue@3 x3. **The shrink-cost fixture.** |
 | `screen-8ec76ce7-…` | Skjerm 1 | 2 stages, 17/13 panes — news + qrcode + time, zero shrink-search kinds. **The QR/render fixture.** |
 | `screen-extreme-anim-test` | EXTREME anim test | 9 stages, up to 25 panes. Amplifier; not representative. |
 | `screen-extreme-resize-test` | EXTREME 5×5 resize | 2 stages, 25 panes, pure resize. |
@@ -362,6 +514,17 @@ adb shell am force-stop no.adhdisplay.companion && \
 - **Assuming a stale baseline is current.** The 2026-08-15 TV numbers predated a commit that touched
   the data-polling path by five hours. Re-measuring closed it (they were unchanged), but always check.
 - **`adb` ambiguity after a sleep/reconnect** — see §1.
+- **The collector silently mixes arms at their boundary.** It is an append-only sink on a fixed port,
+  so the *previous* arm's build keeps posting until the relaunch — a run file can open with windows
+  belonging to the arm before it (seen as a lone `index: 31` ahead of a fresh `1`). Separately, the
+  PWA's `registerType: 'autoUpdate'` service worker can reload the page mid-run, restarting the
+  sampler's index. Both are handled by trimming to the last index restart (`summarize-frames.mts` /
+  `wait-frames.mts` do this); **never read a raw run file, and never gate a run's length on raw file
+  length** — that can stop with a handful of usable samples.
+- **Confirm the build actually rebuilt by checking the sampler marker is *gone* from `dist/index.html`.**
+  `npm run build` runs `tsc` before `vite build`, so if typechecking fails vite never runs and `dist/`
+  keeps the previous — still-injected — build. `grep -c qa-frame-sampler dist/index.html` returning `0`
+  after a build proves vite re-ran; returning `1` means you are about to measure the previous arm.
 - **Two QR encoders are now in the bundle.** `QrCodeSlide` uses `qrcode-generator`; the two admin login
   QR codes still use `qrcode.react`. Migrating those two (~6 lines each) would let the older dependency
   be dropped entirely — worth doing, not urgent.

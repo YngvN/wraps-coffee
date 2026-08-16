@@ -14,6 +14,7 @@ import { OtherSettingsEditor } from '../features/screens/OtherSettingsEditor'
 import { ScreenToolbar } from '../features/screens/ScreenToolbar'
 import { SlotEditor } from '../features/screens/SlotEditor'
 import { SplitLayout } from '../features/screens/SplitLayout'
+import { warmShrinkScales } from '../features/screens/warmShrinkScales'
 import { StagePlaybackControls } from '../features/screens/StagePlaybackControls'
 import { TransitionSettingsEditor } from '../features/screens/TransitionSettingsEditor'
 import { captureScreenPreviews } from '../features/screens/screenPreviewCapture'
@@ -446,6 +447,27 @@ export function ScreenDisplay() {
     document.documentElement.requestFullscreen?.().catch(() => {})
     window.history.replaceState(null, '', window.location.pathname)
   }, [])
+
+  /**
+   * **Arm B (experiment, 2026-08-16)** — pre-resolves every stage's shrink-to-fit font scales once,
+   * off-screen, before the rotation first reaches them (see `warmShrinkScales`). Read-only kiosk
+   * route only: an editor tab is being actively driven by a human and re-renders its panes
+   * constantly anyway, so it would pay the warm-up cost for nothing. The `canEdit` this mirrors is
+   * declared further down, past the `!screen` early return below, and a hook cannot live there.
+   *
+   * Keyed on the screen's *id*, not the screen object, so it runs once per screen per page load
+   * rather than on every sync snapshot (which hands back a fresh object reference each time).
+   * Deliberately fire-and-forget: nothing on screen waits for it, and a failure just means the panes
+   * resolve their own scale live exactly as they did before this existed.
+   */
+  const warmedScreenIdRef = useRef<string | null>(null)
+  const screenIdToWarm = screen?.screenID
+  useEffect(() => {
+    if (!screen || !screenIdToWarm || (session && isEditorRoute) || warmedScreenIdRef.current === screenIdToWarm) return
+    warmedScreenIdRef.current = screenIdToWarm
+    void warmShrinkScales(screen, defaultPaneLanguage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the screen's identity rather than the object itself, per the doc comment above.
+  }, [screenIdToWarm, session, isEditorRoute, defaultPaneLanguage])
 
   if (!screen) {
     return (

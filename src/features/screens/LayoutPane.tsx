@@ -365,10 +365,19 @@ export function LayoutPane({
   // (it writes `transform: none`, reads `scrollHeight`/`scrollWidth`, then writes a scale). Doing that
   // per pane while the geometry is still moving measures a size that is already stale by the time it
   // is applied, and pays for the privilege in the single most contended window there is. Flipping
-  // this back to `true` on the return to `'idle'` re-runs the hook's own effect, which measures once,
-  // synchronously, against the settled geometry — which is exactly the one measurement that was ever
-  // worth taking. See `trackResize`'s own doc comment for why this freezes the last-good scale rather
-  // than stripping it (`enabled: false`), i.e. why nothing visibly pops mid-transition.
+  // this back to `true` on the return to `'idle'` lets the measurement run against the settled
+  // geometry — which is exactly the one measurement that was ever worth taking. See `trackResize`'s
+  // own doc comment for why this freezes the last-good scale rather than stripping it
+  // (`enabled: false`), i.e. why nothing visibly pops mid-transition.
+  //
+  // The two hooks consume this argument differently, and deliberately so. `useShrinkToFitScale` takes
+  // it as `trackResize`, a dependency of its own effect — so a flip tears its observers down and
+  // rebuilds them, remeasuring once on the way. `useShrinkToFitFontScale` takes it as `idle`, which
+  // is explicitly *not* one of its dependencies: measurement on that hook is far more expensive (a
+  // whole search of forced synchronous layouts rather than one), and making the phase a dependency is
+  // exactly what made every flip re-run a full search on every pane — 85–89% of a real screen's
+  // stage-transition stall (see the consolidated kiosk-performance report, fact 8). There it only
+  // suspends probing, and the search resumes across frames once the pane settles.
   const trackShrink = contentPhase === 'idle'
   useShrinkToFitScale(contentOuterRef0, contentInnerRef0, overflowMode === 'shrink' && !usesFontScale0, [shrinkDep0], activeContentSlot === 0 && trackShrink)
   useShrinkToFitScale(contentOuterRef1, contentInnerRef1, overflowMode === 'shrink' && !usesFontScale1, [shrinkDep1], activeContentSlot === 1 && trackShrink)

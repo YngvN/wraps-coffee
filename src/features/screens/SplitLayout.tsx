@@ -816,6 +816,12 @@ export function SplitLayout({
       // write per phase/stage change.
       data-content-phase={contentPhase}
       data-stage={displayStage}
+      // Also load-bearing beyond observation: `shrinkScaleStore.ts` addresses a resolved font scale
+      // by (screen, pane, stage, box aspect), and reads all three of those straight off the DOM so
+      // nothing has to be threaded through `LayoutPane`'s already very wide prop list. Pane ids are
+      // only unique *within* a screen (`legacy-1` exists on most of them), so the screen id is what
+      // keeps two screens' panes from sharing a cache entry.
+      data-screen-id={screen.screenID}
     >
       {screenBackgroundLayer}
       {useFlatLayer ? (
