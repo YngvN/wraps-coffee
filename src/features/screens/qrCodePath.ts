@@ -153,6 +153,36 @@ function finderPattern(x: number, y: number): string {
 }
 
 /**
+ * **Experiment (2026-08-16) — cache `buildQrGeometry`'s result across mounts, not just within one.**
+ *
+ * `QrCodeSvg`'s own `useMemo` already avoids recomputing this on a re-render of an *already-mounted*
+ * instance, but a QR pane's crossfade slot (`useCrossfadeSlot`) mounts a **fresh** component instance
+ * into the alternate slot on every single stage transition — a brand-new `useMemo` with nothing in
+ * it, so the whole encode-and-rasterise cost repeats every time even when the code being drawn is
+ * byte-identical to one already drawn a moment ago. That's true far more often than it looks: a
+ * `linkMode: 'custom'` code never changes at all, and a `linkMode: 'news'` one only changes as often
+ * as the headline it follows does (`useCurrentNewsHeadline`) — on a stage-driven screen that's the
+ * headline's own rotation length (`DEFAULT_NEWS_HEADLINE_COUNT` headlines), not every transition.
+ *
+ * `buildQrGeometry` is a pure function of its own three arguments — no DOM, no randomness — so unlike
+ * the shrink-to-fit scale this cache needs no seeding pass and no invalidation: the same inputs
+ * always produce the same output, forever, so a cache hit is simply correct rather than merely a
+ * good guess. Flip to `Boolean(0)` to bypass it. See `ARM_A_DEFERRED_SEARCH` (`useShrinkToFitFontScale.ts`)
+ * for why this is `Boolean(1)` and not a literal `true`.
+ */
+const CACHE_QR_GEOMETRY = Boolean(1)
+
+/** Bounds the cache below — comfortably more than any kiosk's own QR pane count times the handful of distinct excavation boxes a logo toggle produces, while staying bounded against a `'news'`-linked pane cycling through many distinct headlines over a long uptime. Evicts least-recently-written first. */
+const GEOMETRY_CACHE_LIMIT = 64
+
+const geometryCache = new Map<string, QrCodeGeometry>()
+
+function geometryCacheKey(value: string, minLevel: QrErrorCorrectionLevel, excavation: QrExcavation | undefined): string {
+  const e = excavation ? `${excavation.x},${excavation.y},${excavation.width},${excavation.height}` : ''
+  return `${minLevel}|${e}|${value}`
+}
+
+/**
  * Encodes `value` and returns the geometry needed to draw it as a single `<path>` in a
  * `0 0 moduleCount moduleCount` viewBox.
  *
@@ -162,6 +192,20 @@ function finderPattern(x: number, y: number): string {
  * survive, so the two are chosen together: see `QrCodeSlide`'s own call site.
  */
 export function buildQrGeometry(value: string, minLevel: QrErrorCorrectionLevel, excavation?: QrExcavation): QrCodeGeometry {
+  if (CACHE_QR_GEOMETRY) {
+    const key = geometryCacheKey(value, minLevel, excavation)
+    const cached = geometryCache.get(key)
+    if (cached) return cached
+    const geometry = buildQrGeometryUncached(value, minLevel, excavation)
+    geometryCache.delete(key)
+    geometryCache.set(key, geometry)
+    while (geometryCache.size > GEOMETRY_CACHE_LIMIT) geometryCache.delete(geometryCache.keys().next().value as string)
+    return geometry
+  }
+  return buildQrGeometryUncached(value, minLevel, excavation)
+}
+
+function buildQrGeometryUncached(value: string, minLevel: QrErrorCorrectionLevel, excavation?: QrExcavation): QrCodeGeometry {
   const { qr, level } = buildBoosted(value, minLevel)
   const moduleCount = qr.getModuleCount()
 
