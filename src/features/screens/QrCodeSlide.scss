@@ -48,6 +48,25 @@
   will-change: opacity;
 }
 
+// Fixed-size rasterisation host — see `QR_FIXED_RASTER` in `QrCodeSlide.tsx` for the full reasoning
+// and the measurement that motivated it. In short: the slot above is already its own compositor
+// layer, but a layer re-rasterises whenever its *layout size* changes, and a QR code is several
+// hundred SVG subpaths to re-rasterise. Laying the code out at a constant `RASTER_PX` square and
+// fitting it with `transform: scale()` keeps the layout size constant, so a pane resize becomes a
+// compositor property change rather than a repaint.
+//
+// Its own `width`/`height`/negative margins come inline from `RASTER_PX` (single source of truth);
+// `top`/`left: 50%` plus those margins centre it, and `transform-origin: center` keeps it centred as
+// it scales.
+.qr-code-slide__raster {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: scale(var(--qr-raster-scale, 1));
+  transform-origin: center;
+  will-change: transform;
+}
+
 .qr-code-slide__code {
   display: block;
   width: 100%;

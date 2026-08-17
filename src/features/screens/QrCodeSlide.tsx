@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import type { CSSProperties } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { QrCodeSvg } from './QrCodeSvg'
 import type { QrErrorCorrectionLevel } from './qrCodePath'
 import { useCrossfadeSlot } from '../../hooks/useCrossfadeSlot'
@@ -39,6 +39,105 @@ const LOGO_SIZE_FRACTION = 0.22
  * this is a floor rather than a fixed choice.
  */
 const LOGO_MIN_LEVEL = 'M' as const
+
+/**
+ * **Experiment (2026-08-17) — rasterise the code once at a fixed size and *scale* it to fit, instead
+ * of re-laying it out at every new pane size.**
+ *
+ * Measured on the `Empty test` fixture (11 stages of pure geometry, otherwise zero frame debt): a
+ * single QR pane costs nothing at **mount** — `buildQrGeometry`'s cross-mount cache already handles
+ * that — but costs on almost every transition that **resizes** it, and nothing on the transitions
+ * that leave its box alone. The remaining cost is therefore not encoding and not path construction,
+ * both already cached, but the browser **re-rasterising several hundred SVG subpaths at each new
+ * size**. That is paint work in the compositor, so no JS-level cache can reach it.
+ *
+ * `.qr-code-slide__slot` is already promoted to its own layer (`will-change: opacity`, see the
+ * `.scss`), but promotion alone does not help here: a resize changes the layer's own *layout* size,
+ * and a layer re-rasterises when its size changes. The fix is to stop the size from changing at all —
+ * the code is laid out in a fixed square (`rasterSizePx`) and fitted to the pane with
+ * `transform: scale()`, which is a compositor property. The scale is written as a custom property
+ * from a `ResizeObserver` reading `contentRect` (never `clientWidth` after a write), so it costs no
+ * forced layout.
+ *
+ * Measured on `Empty test` (2026-08-17, TV): summed across the transitions that actually resize the
+ * QR pane, debt **400ms -> 180ms (-55%)**, and `holding` debt to zero. Not elimination — Chromium
+ * still re-rasters when the raster scale changes enough, which the large swings on that fixture
+ * (~0.68 -> ~0.15) do provoke.
+ *
+ * Whether Chromium actually reuses the existing texture rather than re-rasterising at the new raster
+ * scale is **not guaranteed** — it re-rasters on a significant scale change unless a transform
+ * animation is running. That is exactly what this flag exists to measure. Flip to `Boolean(0)` for
+ * the previous behaviour. See `ARM_A_DEFERRED_SEARCH` for why this is not a literal `true`.
+ */
+const QR_FIXED_RASTER = Boolean(1)
+
+/**
+ * Never rasterise smaller than this, in CSS px — a floor, not a target.
+ *
+ * A pane can be arbitrarily small (the `Empty test` fixture takes one down to ~11% of the screen),
+ * and sizing the raster to *that* would mean re-rasterising the moment it grows again, which is the
+ * whole cost this is avoiding. The floor keeps a small pane's code re-usable when it later expands.
+ */
+const MIN_RASTER_PX = 320
+
+/**
+ * Largest square, in CSS px, this display could ever need to draw a code at — and therefore the size
+ * the code is laid out and rasterised at before `transform: scale()` fits it to whatever pane it is
+ * actually in.
+ *
+ * **Derived from the viewport rather than fixed**, because the fit transform must only ever scale
+ * *down*: downscaling a raster stays crisp, upscaling blurs, and a QR that has to survive a phone
+ * camera across a room cannot afford blur. A code can never be larger than the smaller viewport
+ * dimension (a pane cannot exceed the screen, and the code is a square contained inside its pane), so
+ * that is exactly the size at which the raster is guaranteed sharp everywhere at the least cost.
+ *
+ * An earlier version of this used a fixed 640, chosen against the TV's own 960x540 CSS viewport. That
+ * is correct for this TV but **upscales 1.45x on a 1920x1080 viewport** — measured directly in the
+ * editor preview — which would have silently traded away scannability on any higher-resolution
+ * display. Rasterisation cost scales with area, so deriving it also avoids paying for a 1080px raster
+ * on a device that tops out at 540.
+ *
+ * Read once per mount rather than tracked live: a kiosk's viewport never changes, and an admin
+ * resizing an editor window is not worth a re-raster mid-session — the `min` floor and the
+ * scale-down-only property both still hold as long as the window only ever gets *smaller*, and a
+ * window made larger simply gets the same slight softening the fixed constant used to give it
+ * everywhere.
+ */
+function rasterSizePx(): number {
+  if (typeof window === 'undefined') return MIN_RASTER_PX
+  return Math.max(MIN_RASTER_PX, Math.ceil(Math.min(window.innerWidth, window.innerHeight)))
+}
+
+/**
+ * Keeps `--qr-raster-scale` on `stackRef` equal to "how much of `rasterPx` the pane's own box can
+ * actually show", so the fixed-size code above fits its pane exactly.
+ *
+ * Reads the observer entry's own `contentRect` rather than `clientWidth`/`clientHeight`, so nothing
+ * here forces a synchronous layout — the same discipline `useShrinkToFitFontScale` follows for the
+ * same reason. The one read at mount happens before this effect writes anything, so it is a clean
+ * read off the layout the browser has already done.
+ *
+ * Writing the scale cannot feed back into the observed size: the scaled element is absolutely
+ * positioned, so it contributes nothing to `stackRef`'s own layout and the loop terminates.
+ */
+function useQrRasterScale(stackRef: RefObject<HTMLDivElement | null>, enabled: boolean, rasterPx: number) {
+  useLayoutEffect(() => {
+    const stack = stackRef.current
+    if (!stack || !enabled) return
+
+    const write = (width: number, height: number) => {
+      stack.style.setProperty('--qr-raster-scale', `${Math.min(width, height) / rasterPx}`)
+    }
+    write(stack.clientWidth, stack.clientHeight)
+
+    const observer = new ResizeObserver((entries) => {
+      const rect = entries[entries.length - 1].contentRect
+      write(rect.width, rect.height)
+    })
+    observer.observe(stack)
+    return () => observer.disconnect()
+  }, [stackRef, enabled, rasterPx])
+}
 
 /** One slot's own frozen render input — snapshotted at the moment it becomes current (see `useCrossfadeSlot`), so a still-fading-out code never has its own pattern/logo replaced underneath it before its exit animation finishes. */
 interface QrRenderSnapshot {
@@ -148,6 +247,12 @@ export function QrCodeSlide({ url, size, linkMode, newsSourceMode, linkedNewsSou
       }
     : undefined
   const { slots, activeSlot } = useCrossfadeSlot<QrRenderSnapshot>(snapshot, (item) => item.targetUrl)
+  const stackRef = useRef<HTMLDivElement>(null)
+  // Resolved once per mount (lazy `useState` initialiser, never updated) rather than on every
+  // render — see `rasterSizePx`. Reading `window.innerWidth` during render would be an impure call,
+  // the same reason `useDeterministicRotationIndex` only ever reads `Date.now()` in an initialiser.
+  const [rasterPx] = useState(rasterSizePx)
+  useQrRasterScale(stackRef, QR_FIXED_RASTER && Boolean(targetUrl), rasterPx)
 
   if (!targetUrl) return null
 
@@ -163,7 +268,7 @@ export function QrCodeSlide({ url, size, linkMode, newsSourceMode, linkedNewsSou
 
   return (
     <div className={`qr-code-slide${branded ? ' qr-code-slide--branded' : ''}`} style={brandStyle}>
-      <div className="qr-code-slide__stack" style={{ width: sizePercent, height: sizePercent }}>
+      <div ref={stackRef} className="qr-code-slide__stack" style={{ width: sizePercent, height: sizePercent }}>
         {slots.map((slot, slotIndex) => {
           if (!slot) return null
           return (
@@ -174,22 +279,34 @@ export function QrCodeSlide({ url, size, linkMode, newsSourceMode, linkedNewsSou
               animate={{ opacity: activeSlot === slotIndex ? 1 : 0 }}
               transition={{ duration: 0.4 }}
             >
-              <QrCodeSvg
-                // Keyed by this slot's own URL, not left to reuse whatever
-                // code (and embedded-logo `<image>`) this slot rendered last
-                // time it was active — same reasoning as `NewsSlide`'s own
-                // headline `<img>` key: reusing the same node and just
-                // changing the logo `src` risks the *previous* logo staying
-                // visibly painted until the new one finishes loading, rather
-                // than the code simply re-rendering fresh.
-                key={slot.targetUrl}
-                value={slot.targetUrl}
-                minLevel={slot.minLevel}
-                logoSrc={slot.logoSrc}
-                logoWidthFraction={slot.logoWidthFraction}
-                logoHeightFraction={slot.logoHeightFraction}
-                className="qr-code-slide__code"
-              />
+              {/* Fixed-size rasterisation host — see `QR_FIXED_RASTER`. Sized inline from `rasterPx`
+                  (see `rasterSizePx`) rather than in the `.scss`, since it is resolved per display
+                  rather than being a constant. Rendered only while the flag is on: an unstyled
+                  wrapper would give the code's own `height: 100%` an auto-height parent to resolve
+                  against and collapse it, so the flag-off path has to put the code straight back
+                  into the slot, exactly as before. */}
+              {QR_FIXED_RASTER ? (
+                <div className="qr-code-slide__raster" style={{ width: rasterPx, height: rasterPx, marginLeft: -rasterPx / 2, marginTop: -rasterPx / 2 }}>
+                  <QrCodeSvg key={slot.targetUrl} value={slot.targetUrl} minLevel={slot.minLevel} logoSrc={slot.logoSrc} logoWidthFraction={slot.logoWidthFraction} logoHeightFraction={slot.logoHeightFraction} className="qr-code-slide__code" />
+                </div>
+              ) : (
+                <QrCodeSvg
+                  // Keyed by this slot's own URL, not left to reuse whatever
+                  // code (and embedded-logo `<image>`) this slot rendered last
+                  // time it was active — same reasoning as `NewsSlide`'s own
+                  // headline `<img>` key: reusing the same node and just
+                  // changing the logo `src` risks the *previous* logo staying
+                  // visibly painted until the new one finishes loading, rather
+                  // than the code simply re-rendering fresh.
+                  key={slot.targetUrl}
+                  value={slot.targetUrl}
+                  minLevel={slot.minLevel}
+                  logoSrc={slot.logoSrc}
+                  logoWidthFraction={slot.logoWidthFraction}
+                  logoHeightFraction={slot.logoHeightFraction}
+                  className="qr-code-slide__code"
+                />
+              )}
             </motion.div>
           )
         })}

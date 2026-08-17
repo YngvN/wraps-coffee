@@ -239,6 +239,90 @@ Confidence: **CONFIRMED** = measured on the target device with a control isolati
     currently exercised by nothing, and `checkWidth` is reached only by `weather` panes, where the
     comment at `LayoutPane.tsx:336-347` already explains it is a no-op.
 
+16. **CONFIRMED — the QR mount cost lands hidden, in the same commit as the geometry snap, not while
+    anything is visibly still.** Traced in `SplitLayout.tsx`: the `exiting → holding` timer
+    (`:389-395`) flips `displayStage` to the new stage **and** enters `'holding'` in one commit — the
+    same commit the pane geometry snaps in. New content (a QR pane included) only resolves and mounts
+    once `displayStage` reaches it, so the mount — and whatever a slide does synchronously on
+    mount — runs concurrently with the busiest commit in the whole sequence, hidden behind
+    `suppressEnter` (still true through `holding`). The reveal, once `contentPhase` returns to
+    `'idle'`, is by then just a transform on already-rendered content. This is why a stutter can be
+    visible *before* the QR itself is: the expensive part already ran, hidden, one phase earlier.
+
+    The `holding`-heavy phase split already in fact 10's `d9d9b90` row (holding debt ~800 of 1140
+    total, ~70%) is consistent with this independent of the fix below — it says where the cost was
+    landing before anything changed.
+
+    **Fix:** `buildQrGeometry` (`qrCodePath.ts`) is a pure function of its own three arguments — no
+    DOM, no randomness — but was only memoised *within* one component instance
+    (`QrCodeSvg`'s own `useMemo`), which is thrown away every time, since `useCrossfadeSlot` mounts a
+    **fresh** instance into the alternate slot on every transition. A module-level cache
+    (`geometryCache`, keyed on `value|minLevel|excavation`, bounded at 64 entries LRU) survives across
+    mounts instead, behind `CACHE_QR_GEOMETRY = Boolean(1)`. Correctness risk is close to zero — a
+    cache hit on a pure function's own exact inputs cannot be wrong, only stale-if-different, which
+    the key already prevents.
+
+    Measured (2026-08-17, regime C):
+
+    | fixture | scope | worst | debt |
+    |---|---|---|---|
+    | `Skjerm 1` | whole run, cold+warm mixed (headline advances `stageTick % 8`, so content repeats roughly every 4 loops) | 700 → **440 ms** (−37%) | 1110 → **720 ms** (−35%) |
+    | `Ny test` | `3→4` only, the transition that mounts the QR pane (`linkMode: 'custom'`, fixed URL — clean cold-then-always-warm case) | 220 → **140 ms** (−36%) | 820 → **720 ms** (−12%) |
+    | `Ny test` | `4→1`, the transition after — QR already mounted, only the cheap reveal transform plays | 140 → 140 ms (flat) | 760 → 760 ms (flat) |
+
+    The `4→1` row is the strongest evidence for the mechanism above: the cost disappears exactly on
+    the mounting transition and is untouched on the one after, which is only possible if the cost was
+    at mount and not at reveal.
+
+    **Checked and not applicable elsewhere:** catalogue's own expensive per-mount work is the
+    shrink-to-fit search, already covered by fact 12's `shrinkScaleStore` (same cross-mount-cache
+    shape, already shipped). `NewsSlide` has no comparable expensive pure computation on mount — only
+    a cheap image-width read (`useLayoutEffect`) — so there is currently nothing analogous to fix
+    there.
+
+17. **CONFIRMED — a QR pane's remaining cost was re-rasterisation on *resize*, and it is fixed by
+    rasterising once and scaling with a transform.** Isolated on a new fixture, `Empty test`
+    (`screen-4d546476-…`, 11 stages of pure geometry — splits, moves and resizes of flat colour
+    blocks, no real content). That fixture on its own measures **worst 20 ms / debt 0 ms**: 8 of its
+    11 transitions have *zero* debt, which is an independent on-device replication of fact 4 — the
+    blank-and-snap machinery, structural restructuring included, is genuinely free.
+
+    Adding **one** QR pane to it took the whole run to worst 40 ms / debt 20 ms. Mapping each
+    transition against that pane's own computed box showed the cost is **not at mount**:
+
+    | transition | QR pane | debt |
+    |---|---|---|
+    | 1→2 | mounts | **0** |
+    | 2→3, 6→7 | box unchanged | **0** |
+    | 3→4, 4→5, 5→6, 7→8, 9→10, 10→11 | resized | 20–120 each |
+
+    Mount being free is `buildQrGeometry`'s cross-mount cache (fact 16) working. What remained was
+    the browser **re-rasterising several hundred SVG subpaths every time the pane's box changed** —
+    paint work, unreachable by any JS-level cache. Note `.qr-code-slide__slot` was *already* promoted
+    to its own layer (`will-change: opacity`, fix 2): promotion alone does not help, because a layer
+    re-rasterises when its own **layout size** changes.
+
+    **Fix:** lay the code out at a fixed square and fit it to the pane with `transform: scale()` — a
+    compositor property — so a resize stops being a layout change (`QR_FIXED_RASTER`,
+    `QrCodeSlide.tsx`). The scale comes from a `ResizeObserver` reading `contentRect`, never
+    `clientWidth` after a write, so it costs no forced layout.
+
+    | arm | worst | debt | debt summed over the resize transitions |
+    |---|---|---|---|
+    | no QR at all (the floor) | 20 ms | 0 ms | — |
+    | QR, raster off | 40 ms | 20 ms | 400 |
+    | QR, fixed 640 px raster | 20.1 ms | 0 ms | 160 |
+    | **QR, viewport-derived raster** | **20.1 ms** | **0 ms** | **120 (−70%)** |
+
+    The final arm is **indistinguishable from having no QR pane at all** on this fixture.
+
+    **The raster size must be derived, not fixed.** The fit transform has to only ever scale *down* —
+    downscaling stays crisp, upscaling blurs, and a code a customer points a phone at cannot afford
+    blur. A fixed 640 was right for the TV's 960x540 CSS viewport but **upscaled 1.45x at 1920x1080**,
+    measured directly. `rasterSizePx()` uses `min(innerWidth, innerHeight)` (floored at 320), which
+    verified as no-upscaling on both viewports — and is also *faster* than the fixed 640 on the TV,
+    since it rasterises 540 px rather than 640 and cost scales with area.
+
 ---
 
 ## 4. Refuted or superseded — do not re-try these
@@ -290,10 +374,14 @@ content-dependent and must be measured per screen, not assumed either way.**
 | 4 | Gap-accumulation fix (`gapAwareTracks`) — every split overflowed its container by its own 4 px gap, compounding with nesting depth | correctness only; frame cost identical | C |
 | 5 | Shrink observers gated on `contentPhase === 'idle'`; `PANE_GROWTH_DURATION` 0.5 → 0.3 s | ~10% on light transitions, **nothing measurable** on dense ones | C |
 | 6 | Companion: `clearHistory` 10 s after each screen load; relaunch-on-reboot disabled | resource hygiene, not frame cost | — |
+| 7 | `useShrinkToFitFontScale` — search deferred off the transition, frame-sliced, seeded from a shared cross-mount store (`ARM_A_DEFERRED_SEARCH` / `ARM_B_SHARED_SCALE_STORE`) | `Screen 3` worst 320 → **80 ms** (−75%), debt 930 → **380 ms** (−59%); `Skjerm 1` flat | C |
+| 8 | QR geometry — cross-mount memoisation (`CACHE_QR_GEOMETRY`) | `Skjerm 1` worst 700 → **440 ms** (−37%), debt 1110 → **720 ms** (−35%); isolated to the QR-mounting transition on `Ny test`: worst 220 → **140 ms** (−36%) | C |
+| 9 | QR — fixed-size raster fitted by `transform: scale()`, raster size derived from the viewport (`QR_FIXED_RASTER`) | `Empty test` debt summed over the QR pane's resizing transitions **400 → 120 ms (−70%)**; whole run lands on the no-QR floor (worst 20 ms, debt 0) | C |
 
 Fix 2 is the single largest win in the whole investigation and is why QR/news crossfades are no longer
-the top cost. Note it addressed the **crossfade repaint**; the remaining QR cost is **mount-time path
-rasterisation**, which is a different thing.
+the top cost. It addressed the **crossfade repaint**; the remaining QR cost was **mount-time path
+rasterisation**, which fix 8 now closes (fact 16) — a different mechanism from fix 2, not a
+continuation of it.
 
 ---
 
@@ -350,14 +438,14 @@ changed.
 
 ## 7. Code state as of this document
 
-**Version 0.2.68**, clean at `d9d9b90` (updated 2026-08-16 — both changes below have since been
-committed; they were uncommitted at 0.2.67 when this section was first written):
+**Version 0.2.69** (updated 2026-08-17 — item 3 below is new since this section was last written):
 
 1. **`useShrinkToFitFontScale` — seeded search + size-keyed scale cache.** Correct (verified against
    baseline: the overflow checker reports identical transients with and without it), −43% forced
    layouts, −22% measure time, no frame-cost regression. **It does not fix the stall.** Keep-or-revert
    is an open judgement call: it reduces continuous background CPU on a device that runs for weeks, at
-   the cost of real complexity in a hook every pane depends on.
+   the cost of real complexity in a hook every pane depends on. Superseded as *the* stall fix by
+   fact 12 (item 4 below); this remains as the seed source for A's search.
 
 2. **QR codes — error-correction level H → M, plus rounded module corners.** New files
    `qrCodePath.ts` / `QrCodeSvg.tsx`; `QrCodeSlide` no longer uses `qrcode.react` (that library does
@@ -365,6 +453,21 @@ committed; they were uncommitted at 0.2.67 when this section was first written):
    across the real codes on screen (9,732 → 5,508 total modules). **Now TV-verified (fact 10): as
    shipped it is a frame-cost no-op, because the rounding cancels the density win. Still not
    phone-scan-verified.**
+
+3. **QR geometry — cross-mount memoisation.** `qrCodePath.ts`, behind `CACHE_QR_GEOMETRY`. See
+   fact 16. **Shipped, on.** Independent of item 2 above — this caches the encode/rasterise result
+   regardless of what level or corner radius produced it, so it applies unchanged to whichever way
+   item 2 is eventually decided.
+
+4. **`useShrinkToFitFontScale` — deferred, frame-sliced search + shared scale store.** Behind
+   `ARM_A_DEFERRED_SEARCH` / `ARM_B_SHARED_SCALE_STORE`. See fact 12. **Shipped, both on.** This is
+   the actual fix for §8 step 1 (the stall) — item 1 above is a seed source it consumes, not the fix
+   itself.
+
+5. **QR — fixed-size raster fitted by transform.** `QrCodeSlide.tsx`, behind `QR_FIXED_RASTER`, with
+   the raster size derived per display by `rasterSizePx()`. See fact 17. **Shipped, on.** Independent
+   of items 2 and 3: item 3 removes the *encode* cost at mount, this removes the *rasterisation* cost
+   at resize, and both are independent of whatever level/corner radius item 2 settles on.
 
 **`ENABLE_FLAT_PANE_LAYOUT = false`** (`paneGrowthMotion.ts`). The flat pane layer fixes pane DOM
 identity across restructures (0/1, 1/2, 1/3 kept → 1/1, 2/2, 3/3) and makes every restructure animate,
@@ -401,7 +504,48 @@ Closing that means avoiding the passes entirely, not deferring them; the poll de
 (it is the only thing that notices content *shrinking*, since the box has not changed and the resize
 observer stays quiet), so a cheaper "did the content actually change" signal is the next lever.
 
-### 2. Decide the QR corner radius, then phone-scan whatever ships
+### 2. Cross-mount memoisation for QR — **DONE 2026-08-17**
+
+See fact 16. `Skjerm 1` whole-run: −37% worst / −35% debt. Isolated to the transition that actually
+mounts a QR pane (`Ny test`, `3→4`): −36% worst / −12% debt, flat on the transition after — which is
+the evidence the mechanism (fact 16's own trace of `SplitLayout.tsx`) is right: new content mounts
+hidden, in the same commit as the geometry snap, one phase before it's ever revealed. That mount
+timing is generic — any slide kind's own per-mount cost pays the same tax, not just QR's. Checked
+against the other two candidates this session: catalogue's already has this exact fix
+(`shrinkScaleStore`, step 1 below); news has no comparable expensive per-mount computation to cache.
+The lever itself — cache or otherwise avoid whatever a slide does on mount, since mount always lands
+on the transition's busiest commit — is worth checking against any *future* slide kind whose mount is
+expensive, not just these three.
+
+### 3. Fixed-raster + transform-scale for QR — **DONE 2026-08-17**
+
+See fact 17. Debt over the resizing transitions **400 → 120 (−70%)**, landing at the no-QR floor.
+
+### 4. Explore the same fixed-raster trick for the *other* pane contents
+
+Fact 17's mechanism is not QR-specific. **Any** pane content re-rasterises when its box changes, and a
+stage transition resizes many panes at once — so the same "lay it out at a fixed size, fit it with a
+compositor transform" treatment is worth testing per slide kind. What makes QR the ideal first case
+also tells you where this does and does not transfer:
+
+- **Good candidates — appearance is scale-invariant.** A QR code, an image, a logo, a source mark all
+  look *the same* at any size; only their pixel dimensions differ, so rasterising once and scaling is
+  visually lossless (given the scale-down-only rule from fact 17). `ImageSlide` is the obvious next
+  one to measure, and the embedded logos inside `TransitSlide`/`WeatherSlide`/`QrCodeSlide` after it.
+- **Wrong candidates — content that must genuinely reflow.** `CatalogueSlide`, `TransitSlide`'s
+  departure grid, `WeatherSlide`'s hour row, `EventMonthSlide`'s multi-column list and `NewsSlide`'s
+  headline all *re-wrap* at a new size, and re-wrapping is the entire point of the shrink-to-fit
+  system (fact 12). Scaling a rasterised text block instead would keep the old line breaks and defeat
+  it. For these, the lever is the existing one — avoid re-measuring, not avoid re-laying-out.
+- **Cheap way to find out where it is worth anything:** `Empty test` is now the instrument for this. It
+  measures **exactly zero debt** on its own, so dropping a single pane of any one kind into it
+  attributes that kind's own resize cost with no other noise, exactly as it did for QR here.
+
+Worth doing before any of the motion-quality work below: if resize rasterisation is broadly expensive
+across pane kinds, that changes the cost of *any* proposal that keeps content visible while a pane
+resizes (see step 7).
+
+### 5. Decide the QR corner radius, then phone-scan whatever ships
 
 Frame cost is **measured and settled** (fact 10) — the TV half of this step is done. `M + rounded`
 (the current tree) is statistically identical to the `H + square` baseline: rounding at
@@ -424,12 +568,12 @@ this cannot be automated. Test the worst case: longest article URL, logo on, cus
 off-axis, glare, older phone. Fallback order: level M → Q (still −16% density, 5.2× margin), then
 back to H.
 
-### 3. Settle the seeded-search change
+### 6. Settle the seeded-search change
 
 Keep or revert (§7.1). Not a measurement question — it works, it just does not do the job it was
 written for.
 
-### 4. The 2-second safety poll — **largely closed by fact 8, keep only as CPU hygiene**
+### 7. The 2-second safety poll — **largely closed by fact 8, keep only as CPU hygiene**
 
 ~57% of all shrink passes are `POLL_INTERVAL_MS = 2000` firing on unchanged panes, and raising it to
 ~10 s would cut those 5×. But V1a removed the poll *and* both observers outright and recovered **0% of
@@ -439,7 +583,7 @@ What remains is the original hygiene argument: fewer wakeups on a device that ru
 a product judgement about how fast the shrink self-corrects when the observers miss a change, not a
 measurement question, and it should not be confused for performance work.
 
-### 5. Only if steps 1–4 leave a real screen over budget: hide the stall behind a bitmap
+### 8. Only if steps 1–7 leave a real screen over budget: hide the stall behind a bitmap
 
 Fully investigated and currently **shelved**, because fact 4 says a fix exists. If it is ever revived,
 `document.startViewTransition` is the strongest option: it cleared both capability gates (fact 6),
@@ -495,6 +639,8 @@ adb shell am force-stop no.adhdisplay.companion && \
 |---|---|---|
 | `1783715372380` | Screen 3 (verify) | 3 stages, **3 live panes** (its `paneSlots` also holds 3 orphans not in `layout` — see fact 15). Only **4 shrink-enabled (pane, stage) pairs**: transit@1, catalogue@3 x3. **The shrink-cost fixture.** |
 | `screen-8ec76ce7-…` | Skjerm 1 | 2 stages, 17/13 panes — news + qrcode + time, zero shrink-search kinds. **The QR/render fixture.** |
+| `screen-624ebb7c-…` | Ny test | 4 stages, 6 panes — transit/weather/catalogue/image/news/qrcode, and it genuinely restructures its layout between stages (unlike `Screen 3`). The mixed-content fixture. |
+| `screen-4d546476-…` | Empty test | 11 stages of **pure geometry** — flat colour blocks being split, moved and resized, no real content. Measures **worst 20 ms / debt 0 ms** on its own, so it is the zero-noise instrument for attributing any *single* pane kind's own cost (see fact 17, and §8 step 4). |
 | `screen-extreme-anim-test` | EXTREME anim test | 9 stages, up to 25 panes. Amplifier; not representative. |
 | `screen-extreme-resize-test` | EXTREME 5×5 resize | 2 stages, 25 panes, pure resize. |
 
