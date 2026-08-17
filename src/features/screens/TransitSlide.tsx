@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FetchedLogo } from '../../components'
 import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
+import { useFitItemCount } from '../../hooks/useFitItemCount'
 import { useTransitDepartures } from '../../hooks/useTransitDepartures'
 import { useLanguage } from '../../i18n'
 import { DEFAULT_TRANSIT_DEPARTURE_COUNT, DEFAULT_TRANSIT_DEPARTURE_MODE, type TransitDepartureMode, type TransitIconPack } from '../../types/screen'
@@ -114,12 +115,8 @@ const transitItemTransition = { duration: 0.4, ease: 'easeInOut' as const }
 // 3+ columns: a left/right slide would visually cross over a neighboring
 // column's own content (there's no longer a full pane's width, or even half
 // of it, for either half to travel across), so a row instead fades in/out
-// while its own `max-height` collapses/expands — contained entirely within
-// its own column, never spilling into the one next to it. `4em` is a
-// generous upper bound (comfortably taller than one row ever actually
-// needs, at any text size) rather than a measured value — `max-height`
-// only needs to reach *at least* the row's real height for the
-// collapse/expand to read correctly; it doesn't need to match it exactly.
+// while its own height collapses/expands — contained entirely within its own
+// column, never spilling into the one next to it.
 // Deliberately no `layout` prop beyond `"position"` for reordering within a
 // column (see its own use below) — the collapse/expand is a real box
 // shrinking/growing in normal document flow (this AnimatePresence is *not*
@@ -127,10 +124,33 @@ const transitItemTransition = { duration: 0.4, ease: 'easeInOut' as const }
 // up/down smoothly for free, as an ordinary consequence of the browser
 // reflowing around a box whose own height is changing — no extra animation
 // needed to make that part happen.
+//
+// **`height: 'auto'`, not `maxHeight: '4em'` (fixed 2026-08-17).** The
+// previous version animated `max-height` between `0` and a deliberately
+// generous `4em`, but a variant's own resting pose is left applied as an
+// inline style after the animation finishes — so every settled row in this
+// mode permanently carried `max-height: 4em`. Together with
+// `.transit-slide__item`'s own `overflow: hidden` (which exists precisely so
+// the collapse clips, see `TransitSlide.scss`) that silently cut off any row
+// taller than 4em, which a pane with a large `--slide-description-size`, or
+// with `showLineName` on (a second `display: block` line inside
+// `.transit-slide__destination`), reaches easily — the row's own tallest
+// content is sized off properties `4em` knows nothing about. Framer Motion
+// measures `'auto'` before animating and restores it at the end, so the
+// collapse still reads identically while a settled row has no height cap at
+// all and can never be clipped. `overflow: hidden` then only ever clips
+// during the animation itself, which is all it was ever meant to do.
+//
+// `overflow` rides along on the variants rather than living in the stylesheet: a collapsing row does
+// need to clip (its content is taller than the box being animated down to zero), but a *settled* one
+// must not, or content that momentarily exceeds its own grid track — a departure inserted above it
+// resizing the subgrid, a destination that wrapped — gets cut off with no way to tell. Framer applies
+// a non-animatable property like this immediately at the start of the animation, and `transitionEnd`
+// releases it once the row has finished arriving, so clipping lasts exactly as long as the animation.
 const transitRowVariants = {
-  hidden: { opacity: 0, maxHeight: 0 },
-  visible: { opacity: 1, maxHeight: '4em' },
-  exit: { opacity: 0, maxHeight: 0 },
+  hidden: { opacity: 0, height: 0, overflow: 'hidden' },
+  visible: { opacity: 1, height: 'auto', transitionEnd: { overflow: 'visible' } },
+  exit: { opacity: 0, height: 0, overflow: 'hidden' },
 }
 const transitRowTransition = { duration: 0.4, ease: 'easeInOut' as const }
 
@@ -493,14 +513,22 @@ export function TransitSlide({
   const paneRef = useRef<HTMLDivElement>(null)
   const columnCount = useColumnCount(paneRef)
   const reducedMotion = useReducedMotion()
+  // Departures are what gives when even the smallest legible type cannot fit them all (see
+  // `useFitItemCount` and `useShrinkToFitFontScale`'s own `MIN_LEGIBLE_SCALE`). Dropping from the end
+  // is the right choice here for the same reason it is on the weather pane: the list is time-sorted,
+  // so the departures a viewer can still catch are at the top and the ones furthest out are the ones
+  // they can most afford to lose. Measured against the pane root, which already clips
+  // (`overflow-y: hidden` in `TransitSlide.scss`), so its own overflow is exactly the question asked.
+  const visibleDepartureCount = useFitItemCount(paneRef, departures.length)
+  const visibleDepartures = useMemo(() => departures.slice(0, visibleDepartureCount), [departures, visibleDepartureCount])
   // Never more columns than there are departures to fill them with.
-  const effectiveColumnCount = Math.max(1, Math.min(columnCount, departures.length || 1))
+  const effectiveColumnCount = Math.max(1, Math.min(columnCount, visibleDepartures.length || 1))
   // Called unconditionally (rules of hooks) even in single-column mode,
   // where its result goes unused below — single column has no cross-column
   // reassignment to stage in the first place, so it reads straight off the
   // already-staged `departures` list directly instead, without this hook's
   // own extra step of buffering.
-  const sequencedColumns = useSequencedColumns(departures, effectiveColumnCount, effectiveStopId ?? '')
+  const sequencedColumns = useSequencedColumns(visibleDepartures, effectiveColumnCount, effectiveStopId ?? '')
 
   if (!effectiveStopId) {
     return (
@@ -521,7 +549,7 @@ export function TransitSlide({
   // max-height one — see `transitRowVariants`'s own doc comment for why a
   // middle column has no sensible edge left to slide a row toward.
   const usesMaxHeightAnimation = effectiveColumnCount >= 3
-  const columns = isMultiColumn ? sequencedColumns : chunkIntoColumns(departures, effectiveColumnCount)
+  const columns = isMultiColumn ? sequencedColumns : chunkIntoColumns(visibleDepartures, effectiveColumnCount)
 
   return (
     <div ref={paneRef} className={`transit-slide${branded ? ` transit-slide--branded-${resolvedBrand}` : ''}${showingLogo ? ' transit-slide--has-logo' : ''}`}>
@@ -539,6 +567,10 @@ export function TransitSlide({
           <motion.div
             key={effectiveColumnCount}
             className={`transit-slide__list${isMultiColumn ? ' transit-slide__list--multi-column' : ''}`}
+            // Marks this list as the slide's *body* — the part that fades out before the pane
+            // resizes and returns re-laid-out afterwards, while the brand logo and heading (siblings
+            // outside it) stay put throughout. See `LayoutPane.tsx`'s own `bodyHidden`/`skipsLayout`.
+            data-slide-body=""
             variants={SLIDE_LAYOUT_FADE_VARIANTS}
             initial="initial"
             animate="animate"

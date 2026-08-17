@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 import { SLIDE_SIZE_VAR_NAMES } from '../utils/textSizeVars'
-import { readShrinkScale, shrinkScaleKeyFromDom, writeShrinkScale, type ShrinkScaleKey } from './shrinkScaleStore'
+import { clearShrinkScale, fingerprintContent, readShrinkScale, shrinkScaleKeyFromDom, shrinkScaleStoreSize, writeShrinkScale, type ShrinkScaleKey } from './shrinkScaleStore'
 import { createShrinkToFitScheduler, RESIZE_SETTLE_MS, type ShrinkToFitScheduler } from './shrinkToFitScheduler'
 
 /**
@@ -49,6 +49,94 @@ const ARM_A_DEFERRED_SEARCH = Boolean(1)
  */
 const ABLATE_MEASUREMENT = Boolean(0)
 
+/**
+ * **Arm H (experiment, 2026-08-17) — stop re-deriving a scale the shared store has already resolved.**
+ *
+ * Fact 12 left ~300ms of `idle` debt as "the same search, merely relocated out of the transition",
+ * and named avoiding whole passes (rather than making one cheaper) as the next lever. Measured on
+ * `Empty test` + one catalogue pane, that residual is the dominant remaining cost once fact 19's
+ * holding cost is gone: arm F measures 700ms debt with 600 of it in `idle`, and ablating the search
+ * on top of F takes the whole run to 80ms/80ms. So this is what is left.
+ *
+ * Two changes, both gated here:
+ *
+ * 1. **A box-change pass with a store hit and unchanged content settles with no probes at all.**
+ *    `ARM_B_SHARED_SCALE_STORE` currently only *seeds* the search — a stage transition changes every
+ *    pane's box, so the unchanged-box early-out misses, and the pane re-probes to re-confirm an
+ *    answer the store already holds. The store is addressed by (screen, pane, stage, aspect) and is
+ *    only ever written by a search that genuinely resolved, so a hit on an unchanged-content pane is
+ *    that pane's answer, not a guess.
+ * 2. **A poll-driven pass skips the `fitsAt(1)` probe.** That probe lays the whole *unshrunken* menu
+ *    out, which for a 55-item catalogue is the single most expensive layout in the pass, purely to
+ *    re-learn that it does not fit. The `'seed'`/`'nudge'` pair that follows is already exactly the
+ *    "is there room to grow?" question the poll exists to ask (see `POLL_INTERVAL_MS`), so the poll
+ *    keeps its correctness job at two probes instead of three.
+ *
+ * Correctness rests on content changes still forcing a real search: the content fingerprint is part
+ * of the store address (`fingerprintContent`), and a DOM change the fingerprint cannot see drops the
+ * entry outright from the `MutationObserver` below. The 2s poll's own re-derive is deliberately
+ * preserved rather than skipped, because it is the only thing that notices content *shrinking*
+ * (fact 13's failure mode, and §8 step 7's reason for keeping it).
+ *
+ * **MEASURED FLAT, 2026-08-17 — shipped off.** Two builds of this (shape-only key, then
+ * content-addressed) both measured 680ms total debt against arm F's 700ms, `idle` unmoved at ~600.
+ * The instrumentation below says why, and it is not that the idea is wrong — it is that the
+ * preconditions never hold. Over 42 working passes on one catalogue pane: **9 fast-path hits, 13
+ * store misses, 21 poll passes, and 290 probes — ~6.9 probes per pass.** So:
+ *
+ * - **The poll is half of all passes**, and it deliberately re-derives, so no store fast path can
+ *   ever touch it. Skipping its `fitsAt(1)` removes one probe out of ~7.
+ * - **~6.9 probes per pass means the seeding is barely working at all** — a seeded re-confirm is
+ *   supposed to cost three (`SEED_PROBE_MARGIN`). This is close to a full bisection every time.
+ * - **`storeSize` reached only 13 entries, climbing one at a time during the run**, i.e. entries are
+ *   being written live rather than pre-warmed in bulk. `warmShrinkScales` is not populating this
+ *   store usefully for this fixture, so almost every address is cold on first use.
+ *
+ * The real levers are therefore the poll's own re-derive cost and why seeding degrades to a full
+ * search, not the fast path added here. Left in place, off, because the instrumentation and the
+ * content-addressed key are what a follow-up needs; flipping it on restores the measured-flat arm.
+ *
+ * Note this consciously *narrows* the store key when on (content is part of the address), which can
+ * only reduce hit rate versus the shape-only key `ARM_B_SHARED_SCALE_STORE` seeds from — hence the
+ * `''` fallback at the call site, so the flag genuinely isolates the arm instead of changing Arm B's
+ * own behaviour underneath it.
+ *
+ * Never write this as a literal `true` — see `ARM_A_DEFERRED_SEARCH` below.
+ */
+const TRUST_WARM_SCALE = Boolean(0)
+
+/**
+ * **QA instrumentation (2026-08-17), gated on `TRUST_WARM_SCALE`.** Counts what this hook actually
+ * does per run, published on `window.__qaShrinkStats` for a QA probe to post to the frame collector.
+ *
+ * It exists because two successive attempts at cutting the `idle` debt measured **completely flat**
+ * (680ms against arm F's 700ms) while an outright ablation of the same hook takes it to 60ms — a
+ * combination that cannot be reasoned about from frame numbers alone, since "the fast path fired and
+ * did not help" and "the fast path never fired" produce identical medians. The report's §9 notes the
+ * previous shrink counters needed exactly such a patch and that it was never kept in `src/`; this is
+ * that patch, kept behind the arm's own flag so it costs nothing when the arm is off.
+ */
+interface ShrinkStats {
+  /** `beginSearch` calls that got past the unchanged-box early-out, i.e. passes that will do work. */
+  passes: number
+  /** Passes that settled straight off a shared-store hit with no probe at all (Arm H, change 1). */
+  fastPath: number
+  /** Passes that opened a real search because the store had nothing for this address. */
+  storeMiss: number
+  /** Passes the poll marked, which deliberately re-derive (Arm H, change 2). */
+  pollPasses: number
+  /** Individual `fitsAt` probes performed — each one a style write plus a forced synchronous layout. */
+  probes: number
+  /** Entries currently held in the shared store, so a warm-up that populated nothing is visible. */
+  storeSize: number
+}
+
+const shrinkStats: ShrinkStats = { passes: 0, fastPath: 0, storeMiss: 0, pollPasses: 0, probes: 0, storeSize: 0 }
+
+if (TRUST_WARM_SCALE && typeof window !== 'undefined') {
+  ;(window as unknown as { __qaShrinkStats: () => ShrinkStats }).__qaShrinkStats = () => ({ ...shrinkStats, storeSize: shrinkScaleStoreSize() })
+}
+
 /** Same settle window as `useShrinkToFitScale` — see its own doc comment for why a DOM-mutation-triggered remeasure waits rather than firing on the very next frame. */
 const MUTATION_SETTLE_MS = 500
 
@@ -58,7 +146,8 @@ const POLL_INTERVAL_MS = 2000
 /**
  * How close the search below has to bracket the true largest fitting scale before stopping —
  * `1 / 2**8`, i.e. exactly the precision the previous fixed 8-iteration search over
- * `[MIN_SCALE, 1]` reached, so this is a like-for-like replacement rather than a quality change.
+ * `[0.01, 1]` reached, so this is a like-for-like replacement rather than a quality change.
+ * (The lower bound is now `MIN_LEGIBLE_SCALE`; the precision this converges to is unchanged.)
  *
  * A tolerance rather than a fixed iteration count because the search is *seeded* (see
  * `beginSearch`): starting from a known-good bracket, converging to the same precision usually
@@ -86,8 +175,41 @@ const SEED_PROBE_MARGIN = 0.01
 /** How many distinct box sizes a pane remembers a resolved scale for — comfortably more than the number of stages any real screen cycles through, while staying bounded against a divider drag walking a new size every frame. */
 const SCALE_CACHE_LIMIT = 8
 
-/** Never literally `0` — a degenerate zero font size has nothing left to search from; effectively "no minimum" for any real content. */
+/** Never literally `0` — a degenerate zero font size has nothing left to search from. The absolute lower bound the search may fall back to when even `MIN_LEGIBLE_SCALE` cannot fit the content; see that constant. */
 const MIN_SCALE = 0.01
+
+/**
+ * The scale the search *prefers* not to go below — the **legibility floor** (2026-08-17).
+ *
+ * Replaces a bare `MIN_SCALE = 0.01`, which was a numerical safety margin rather than a design
+ * decision: it let the search shrink text arbitrarily far to make it fit, which on a dense pane
+ * produced type nobody could read at kiosk distance. "Technically visible" is not the goal; a kiosk
+ * that has to be walked up to has already failed.
+ *
+ * Below this the answer *should* become "show less" rather than "shrink more" — which is what
+ * `useFitItemCount` does for `WeatherSlide` and `TransitSlide`, the two slides that can drop items
+ * without losing meaning.
+ *
+ * **It is a preference, not a hard stop, and treating it as a hard stop was a real regression.**
+ * Shipped that way briefly on 2026-08-17 and caught by `shrink-correctness.mts`: a `food-menu`
+ * catalogue needs a scale well below 0.5, so every one of `Empty test`'s 11 stages pinned at exactly
+ * 0.5 and **overflowed its pane by up to 2478px**, which `overflow: hidden` then cut off. A menu with
+ * its bottom half silently missing is a far worse outcome than a small one, and it is precisely the
+ * truncation this whole change set exists to remove — overflow *is* truncation, just without an
+ * ellipsis to admit it. A slide with no way to drop items (a catalogue: every item is the point) must
+ * therefore be allowed below the floor rather than left overflowing.
+ *
+ * So the search tries `[MIN_LEGIBLE_SCALE, 1]` first and only widens to `[MIN_SCALE,
+ * MIN_LEGIBLE_SCALE]` when nothing in the preferred range fits at all — see `'floor'` in
+ * `advanceSearch`.
+ *
+ * A *relative* floor, not an absolute px size, because the base sizes it scales are themselves an
+ * admin's own configured choice (`textSizesToCssVars`): halving a deliberately large heading is still
+ * legible, so the floor has to be expressed against what was asked for rather than against a fixed
+ * number. 0.5 sits comfortably below every scale real content has been measured resolving to
+ * (0.806-0.86 on the dense fixtures), so it binds only where the alternative was genuinely unreadable.
+ */
+const MIN_LEGIBLE_SCALE = 0.5
 
 /** CSS custom property this hook exposes alongside the `--slide-*-size` ones — see its own doc comment below for what it's for. */
 const FIT_GAP_SCALE_VAR = '--fit-gap-scale'
@@ -103,8 +225,8 @@ const GAP_SCALE_EXPONENT = 2
  * in local variables between iterations.
  */
 interface SearchState {
-  /** Which probe the next `advanceSearch` call performs. Mirrors the original loop's own structure: check full size, re-confirm the seed, nudge it, then bisect. */
-  step: 'full' | 'seed' | 'nudge' | 'bisect'
+  /** Which probe the next `advanceSearch` call performs. Mirrors the original loop's own structure: check full size, re-confirm the seed, nudge it, then bisect — plus `'floor'`, which re-opens the search below `MIN_LEGIBLE_SCALE` when nothing above it fits (see that constant). */
+  step: 'full' | 'seed' | 'nudge' | 'bisect' | 'floor'
   /** Largest scale known to fit. */
   low: number
   /** Smallest scale known *not* to fit. */
@@ -176,7 +298,8 @@ interface SearchState {
  * otherwise the search is *seeded* from this pane's own last resolved scale,
  * which is still the answer on the majority of passes and takes three probes
  * to confirm rather than nine to rediscover (see `SEED_PROBE_MARGIN`). No
- * minimum floor beyond `MIN_SCALE`'s own numerical safety margin.
+ * search bottoms out at `MIN_LEGIBLE_SCALE` rather than shrinking without limit — below that the
+ * slide drops items instead (see that constant).
  *
  * Same triggers and signature as `useShrinkToFitScale` (see its own doc
  * comment) — a debounced `ResizeObserver` on `outerRef`, a debounced
@@ -247,6 +370,25 @@ export function useShrinkToFitFontScale(
   const schedulerRef = useRef<ShrinkToFitScheduler | null>(null)
   /** The shared-store address of the in-flight search, captured when it opened so `settle` can write the answer back without re-reading the box (which would force a layout). `null` when Arm B is off, or when this pane has no derivable address. */
   const storeKeyRef = useRef<ShrinkScaleKey | null>(null)
+  /**
+   * This pane's content-identity fingerprint, folded into the shared-store address so a stored scale
+   * is only ever read back for the exact content it was resolved against (see `fingerprintContent`
+   * and `TRUST_WARM_SCALE`).
+   *
+   * Derived from `deps` — `LayoutPane.tsx` passes its own `shrinkDep0`/`shrinkDep1`, already a
+   * `JSON.stringify` of the slot's content plus its text-size vars, which is exactly the identity
+   * wanted here and costs nothing extra to reuse.
+   */
+  const contentFingerprint = TRUST_WARM_SCALE ? fingerprintContent(deps) : ''
+  /**
+   * Set by the 2-second safety poll to mark its own next pass, so `beginSearch` can skip that pass's
+   * `fitsAt(1)` probe (see `TRUST_WARM_SCALE`, change 2).
+   *
+   * Only the poll sets this. A resize- or mutation-driven pass genuinely may need full size again —
+   * a pane that grew, or content that shrank to where it now fits unscaled — whereas the poll is
+   * re-asking a question whose answer was "does not fit at 1" the last time anything checked.
+   */
+  const pollPassRef = useRef(false)
 
   useLayoutEffect(() => {
     const outer = outerRef.current
@@ -275,6 +417,7 @@ export function useShrinkToFitFontScale(
 
     /** Applies `scale`, then reports whether the measured content now fits — the style write plus the `scrollHeight`/`scrollWidth` reads together force one synchronous layout pass. */
     const fitsAt = (scale: number): boolean => {
+      if (TRUST_WARM_SCALE) shrinkStats.probes++
       applyScale(scale)
       const measured = (inner.firstElementChild as HTMLElement | null) ?? inner
       return measured.scrollHeight <= outer.clientHeight && (!checkWidth || measured.scrollWidth <= outer.clientWidth)
@@ -323,12 +466,46 @@ export function useShrinkToFitFontScale(
       // which is exactly what a crossfade slot swap and a stage restructure both do — while the local
       // cache does not. It falls through to the local cache and then to the last resolved scale, so a
       // pane whose address cannot be derived (rendered outside a `SplitLayout`) behaves as before.
-      const storeKey = ARM_B_SHARED_SCALE_STORE ? shrinkScaleKeyFromDom(outer, width, height) : null
+      const storeKey = ARM_B_SHARED_SCALE_STORE ? shrinkScaleKeyFromDom(outer, width, height, contentFingerprint) : null
       storeKeyRef.current = storeKey
-      const seed = (storeKey ? readShrinkScale(storeKey) : undefined) ?? scaleCacheRef.current.get(sizeKey) ?? lastScaleRef.current
+      const stored = storeKey ? readShrinkScale(storeKey) : undefined
+      const wasPollPass = pollPassRef.current
+      pollPassRef.current = false
+      if (TRUST_WARM_SCALE) {
+        shrinkStats.passes++
+        if (wasPollPass) shrinkStats.pollPasses++
+        if (stored === undefined) shrinkStats.storeMiss++
+      }
+
+      // Arm H, change 1 — the store already holds the answer for this exact (screen, pane, stage,
+      // shape, content), so re-confirming it costs three forced layouts to arrive back where we
+      // started. Settle straight onto it instead.
+      //
+      // What makes this sound is that the address now includes the content fingerprint: a hit cannot
+      // belong to different content the way it could when the key was shape-only. A change the
+      // fingerprint cannot see (async slide data arriving) is caught by the `MutationObserver` below,
+      // which drops the entry rather than merely flagging a local ref — per-instance state is useless
+      // here, since a fresh slide instance mounts on every transition (fact 16).
+      //
+      // Deliberately *not* applied to a poll pass: the poll's whole job is to re-derive, because it is
+      // the only trigger that can notice content having shrunk (the box has not changed, so the resize
+      // observer stays quiet — see `POLL_INTERVAL_MS` and fact 13). Skipping probes there would pin a
+      // pane at a scale it no longer needs, which is the correctness bug this hook already had once.
+      if (TRUST_WARM_SCALE && stored !== undefined && !wasPollPass) {
+        shrinkStats.fastPath++
+        settle(sizeKey, stored)
+        return false
+      }
+
+      const seed = stored ?? scaleCacheRef.current.get(sizeKey) ?? lastScaleRef.current
       searchRef.current = {
-        step: 'full',
-        low: MIN_SCALE,
+        // Arm H, change 2 — a poll pass with a usable seed skips straight to re-confirming it. The
+        // `'full'` step probes `fitsAt(1)`, laying out the entire unshrunken slide, only to re-learn
+        // what the previous pass already established; `'seed'`/`'nudge'` then answers the poll's real
+        // question (is there room to grow back?) on its own. A pane with no seed still starts at
+        // `'full'`, since there is nothing to re-confirm.
+        step: TRUST_WARM_SCALE && wasPollPass && seed > MIN_LEGIBLE_SCALE && seed < 1 ? 'seed' : 'full',
+        low: MIN_LEGIBLE_SCALE,
         high: 1,
         seed,
         nudged: seed,
@@ -353,7 +530,7 @@ export function useShrinkToFitFontScale(
             return false
           }
           // Nothing fits at full size, so the seed is the best guess to re-confirm first.
-          if (state.seed > MIN_SCALE && state.seed < 1) state.step = 'seed'
+          if (state.seed > MIN_LEGIBLE_SCALE && state.seed < 1) state.step = 'seed'
           else state.step = 'bisect'
           applyScale(state.display)
           return true
@@ -394,8 +571,26 @@ export function useShrinkToFitFontScale(
           applyScale(state.display)
           return true
         }
+        case 'floor': {
+          // Nothing in the preferred range fit, so the bracket re-opens below the legibility floor
+          // rather than settling on a scale that overflows. `MIN_LEGIBLE_SCALE` is a known
+          // *non*-fitting upper bound here, which is exactly what `'bisect'` needs.
+          state.low = MIN_SCALE
+          state.high = MIN_LEGIBLE_SCALE
+          state.display = MIN_SCALE
+          state.step = 'bisect'
+          applyScale(state.display)
+          return true
+        }
         case 'bisect': {
           if (state.high - state.low <= SCALE_TOLERANCE) {
+            // Converged onto the legibility floor without ever proving it fits — the bracket started
+            // there, so `low` has never been probed. Confirm it before settling, and drop below it if
+            // it does not fit, so content is never left overflowing (see `MIN_LEGIBLE_SCALE`).
+            if (state.low === MIN_LEGIBLE_SCALE && !fitsAt(MIN_LEGIBLE_SCALE)) {
+              state.step = 'floor'
+              return true
+            }
             settle(state.sizeKey, state.low)
             return false
           }
@@ -474,6 +669,13 @@ export function useShrinkToFitFontScale(
       // A mutation means the content itself changed, so the currently-applied scale was resolved for
       // something else — re-open the search rather than letting the unchanged-box early-out skip it.
       appliedSizeKeyRef.current = null
+      // Under Arm H the store is content-addressed, but only by the *config* fingerprint — a slide
+      // whose own async data arrived (transit departures, a loaded image) renders differently under an
+      // unchanged fingerprint, so its stored answer is now wrong and no fingerprint change will ever
+      // retire it. Dropping the entry outright is what forces the re-probe, and it has to be the
+      // shared store rather than a local ref because the next mount is a different instance (fact 16).
+      const staleKey = storeKeyRef.current
+      if (TRUST_WARM_SCALE && staleKey) clearShrinkScale(staleKey)
       scheduler.scheduleMeasureAfterSettle(MUTATION_SETTLE_MS)
     })
     mutationObserver.observe(inner, { childList: true, subtree: true, characterData: true })
@@ -487,6 +689,12 @@ export function useShrinkToFitFontScale(
     // sliced one probe per frame and only ever runs while the pane is idle.
     const pollInterval = setInterval(() => {
       appliedSizeKeyRef.current = null
+      // Marks the pass as the poll's own, which under Arm H both keeps it out of the no-probe store
+      // fast path (the poll must genuinely re-derive — that is its whole correctness job) and lets it
+      // skip the `fitsAt(1)` probe it does not need. Deliberately *not* `contentDirtyRef`: content has
+      // not been observed to change here, and marking it so would also force the next
+      // transition-driven pass into a full search.
+      pollPassRef.current = true
       scheduler.scheduleMeasure()
     }, POLL_INTERVAL_MS)
 

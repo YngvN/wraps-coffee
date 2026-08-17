@@ -34,7 +34,24 @@ import { SplitLayout } from './SplitLayout'
  * Failure is always non-fatal. A stage that throws is skipped; the hooks then simply resolve that
  * pane's scale live the way they did before this existed.
  */
+/**
+ * **Off for troubleshooting (2026-08-17).** Whether to run this pass at all.
+ *
+ * It costs one full off-screen `SplitLayout` mount per stage — 11 of them on `Empty test`, each through
+ * `withOffscreenStage`'s whole settle sequence — and the measurement says it buys nothing on the fixture
+ * it was built for. Two independent reasons: re-running the pre-warm baseline on the current tree
+ * (consolidated report fact 27) moved neither the median worst frame nor the debt, and the search never
+ * probes its seed at all for below-floor content, because `'full'` routes to `'seed'` only when
+ * `seed > MIN_LEGIBLE_SCALE` — which a 55-item catalogue never is. So the store it fills is, for a
+ * catalogue, write-only.
+ *
+ * Flip back to `Boolean(1)` to restore it. Never a literal `true` — see `LayoutPane.tsx`'s
+ * `SUPPRESSED_SKIPS_LAYOUT`.
+ */
+const WARM_SHRINK_SCALES_ENABLED = Boolean(0)
+
 export async function warmShrinkScales(screen: ScreenConfig, defaultPaneLanguage: LanguageCode): Promise<number> {
+  if (!WARM_SHRINK_SCALES_ENABLED) return 0
   const stageCount = screen.useStages ? Math.max(1, screen.stageCount ?? 1) : 1
   const size = { width: window.innerWidth, height: window.innerHeight }
   if (size.width <= 0 || size.height <= 0) return 0

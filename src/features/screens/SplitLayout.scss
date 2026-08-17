@@ -228,6 +228,72 @@
   // `.screen-display--hide-scrollbar` already uses.
 }
 
+// Applied by `LayoutPane.tsx` (see its own `skipsLayout`) for the stretch of a stage transition where
+// this slot's content is already fully hidden but the pane's box is still gliding to its new shape.
+//
+// `content-visibility: hidden` skips the subtree's layout, paint and hit-testing outright, rather than
+// merely hiding it — which is the whole point. The subtree lives inside a `container-type: size` pane
+// (see `.split-layout__pane` above), so while the pane's box animates, every `cqmin`-based
+// `--slide-*-size` re-resolves and re-lays-out the entire slide on every frame of the glide. Opacity 0
+// and a translate (`transitions.ts`'s two variant sets) both leave that cost fully payable on content
+// nobody can see; this does not. The browser caches the subtree's rendering state, so releasing it
+// again is cheaper than a first layout.
+//
+// Deliberately on the *inner* element, not the slot root: the root also carries this slot's own
+// backdrop layer (`.split-layout__pane-bg`), which is cheap and has no reason to stop being laid out.
+.split-layout__pane-content--layout-skipped .split-layout__pane-content-inner {
+  content-visibility: hidden;
+}
+
+// The live subtree behind a resting bitmap (`LayoutPane.tsx`'s `SLIDE_BITMAP_AT_REST`). Only ever applied
+// when a capture for exactly this content actually exists, so this can never blank a pane.
+//
+// `content-visibility: hidden` rather than `visibility`/`opacity`: the whole point of the resting-bitmap
+// arm is that the hidden subtree stops being *laid out*, not merely stops being painted — an invisible
+// but laid-out catalogue still re-resolves every `cqmin` size against its animating container and
+// re-flows per frame, which is the mechanism consolidated report fact 19 measured and fact 22 removed.
+.split-layout__pane-content--bitmap-backed .split-layout__pane-content-inner {
+  content-visibility: hidden;
+}
+
+// Body-only variant of the two rules above — a pane keeping the *same* content across a shape change
+// hides only the part that genuinely has to re-flow (`[data-slide-body]`, declared by the slide
+// itself) and keeps its chrome painted throughout. See `LayoutPane.tsx`'s own `BODY_ONLY_REFLOW`.
+//
+// The fade lives here rather than in a Framer Motion variant because the element being faded belongs
+// to the *slide*, several components below the crossfade slot that owns the motion props — driving it
+// from CSS is what avoids threading a motion target down through `PaneVisual` and `SlotContent` into
+// each slide. `opacity` alone is a compositor-only property, so this costs nothing while it runs.
+//
+// Duration matches `CONTENT_TRANSITION_DURATION_SECONDS` (`paneGrowthMotion.ts`), so a body fades out
+// on exactly the same clock as a whole slot would have, and is therefore fully gone by the time
+// `EXIT_PHASE_DURATION_SECONDS` ends and the geometry starts gliding.
+.split-layout__pane-content [data-slide-body] {
+  transition: opacity 0.4s ease-in-out;
+}
+
+// `!important` is load-bearing, not a shortcut. Both bodies that declare `data-slide-body` are
+// Framer Motion elements carrying `SLIDE_LAYOUT_FADE_VARIANTS` (`TransitSlide`'s list, `WeatherSlide`'s
+// list), and Framer writes its animated `opacity` as an **inline style** — which outranks any class
+// selector. Without this the rule below is silently ignored and the body never fades at all, while
+// every other symptom (chrome painted, `--body-hidden` present in the DOM) still looks correct. That
+// is exactly how it shipped broken the first time.
+//
+// It is safe to outrank Framer here because the only opacity Framer drives on these elements is the
+// layout-swap fade, which fires on an orientation/column-count change — never during the
+// `exiting`/`holding` window this class is applied for.
+.split-layout__pane-content--body-hidden [data-slide-body] {
+  opacity: 0 !important;
+}
+
+// Once the body has finished fading it stops being laid out as well — this, not the fade, is where the
+// cost actually is: the subtree sits inside a `container-type: size` pane whose box is animating, so
+// every `cqmin` font size in it re-resolves per frame and re-flows the whole list for nobody's benefit
+// (consolidated report fact 19). Split from the fade above so the fade itself stays visible.
+.split-layout__pane-content--body-skipped [data-slide-body] {
+  content-visibility: hidden;
+}
+
 .split-layout__pane-content-inner {
   width: 100%;
   height: 100%;
@@ -275,4 +341,42 @@
   background: rgba(0, 0, 0, 0.55);
   pointer-events: none;
   transition: opacity 0.15s ease;
+}
+
+// The chrome of a body-hidden pane, pinned and transform-scaled for the stretch its box is gliding —
+// applied by `LayoutPane.tsx` (see its own `CHROME_FIXED_LAYOUT`).
+//
+// `BODY_ONLY_REFLOW` takes the re-flowing body out of layout through a resize but deliberately keeps the
+// chrome painted, which leaves the chrome as the last thing in the pane still laying out while the box
+// animates — and inside a `container-type: size` pane, that means its `cqmin` type re-resolves and
+// re-lays-out every single frame (the same mechanism `--layout-skipped` above exists to stop).
+//
+// So for that window the slot stops resolving against the moving pane and resolves against itself
+// instead: a fixed px box, its own `container-type: size`, and one `transform: scale()` tracking the
+// pane. Both custom properties are written imperatively by `useFrozenChromeScale` (the scale changes per
+// frame, and re-rendering React per frame would put back the cost this removes). `transform-origin` is
+// the top-left corner so the scaled result stays anchored to the pane's own origin rather than drifting
+// out from under it, matching `SlideBitmapLayer`'s own reasoning.
+// **On the inner element, never the slot root** — the same rule, and the same reason, as
+// `--layout-skipped` above: the root paints this slot's own backdrop (`slotBackgroundColorStyle`, plus
+// any background image), and that backdrop has to keep filling the pane on *both* axes for the whole
+// glide. Pinning the root to a fixed box and fitting it with a uniform scale cannot do that whenever the
+// pane's aspect changes, so the background stopped covering the pane mid-glide and snapped back into
+// place when the freeze released — visible on `Ny test`'s 1→2 as the border animating correctly while
+// the transit backdrop lagged behind it. Freezing only the inner leaves the backdrop full-size and
+// unscaled, which is the whole point of it living on the root.
+.split-layout__pane-content--chrome-frozen .split-layout__pane-content-inner {
+  width: var(--chrome-frozen-width, 100%);
+  height: var(--chrome-frozen-height, 100%);
+  container-type: size;
+  transform: scale(var(--chrome-scale, 1));
+  // Overrides the `center` this element carries for `useShrinkToFitScale`'s own transform — a scale
+  // anchored at the centre would drift the chrome out from under the pane's own origin as the box moves.
+  // Safe to override here because the two never apply at once: this window only ever opens for a slide
+  // that declares `data-slide-body`, and those kinds all use the font-scale hook, which writes custom
+  // properties rather than a transform.
+  transform-origin: top left;
+  // Promoted so the per-frame transform never re-rasterises the text underneath it — the same promotion
+  // `QrCodeSlide.scss` relies on for its own fixed raster.
+  will-change: transform;
 }

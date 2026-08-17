@@ -28,17 +28,51 @@ const ASPECT_BUCKETS = 200
 
 const store = new Map<string, number>()
 
-/** Identifies one pane's own resolved scale, at one stage, at one box shape. */
+/** Identifies one pane's own resolved scale, at one stage, at one box shape, for one exact content. */
 export interface ShrinkScaleKey {
   screenID: string
   paneId: string
   stage: string
   /** The pane box's own width/height ratio — see this module's own doc comment for why this, rather than its pixel size, is what the answer is keyed on. */
   aspect: number
+  /**
+   * A fingerprint of *what is inside* the pane — see `fingerprintContent`.
+   *
+   * **Arm H (2026-08-17).** Without this the address pins down the box but not its contents, so a
+   * stored scale could only ever be used as a *seed* for a search that then re-confirmed it. Folding
+   * content into the key makes a hit self-evidently valid: same pane, same stage, same shape, same
+   * content resolves to the same scale, so the search can be skipped outright rather than re-run.
+   *
+   * It has to live in the key rather than in a hook-local "has the content changed since I last
+   * probed?" ref, because `useCrossfadeSlot` mounts a **fresh** slide instance on every transition
+   * (consolidated report fact 16) — per-instance memory is always empty on exactly the pass that
+   * matters. This is the same cross-mount-cache shape as `qrCodePath.ts`'s `geometryCache`.
+   */
+  content: string
+}
+
+/**
+ * Reduces a pane's own content-identity string (`LayoutPane.tsx`'s `shrinkDep0`/`shrinkDep1`, already
+ * a `JSON.stringify` of the slot's content plus its text-size vars) to a short, stable token.
+ *
+ * Hashed rather than used whole only to keep the map's keys small — these strings run to hundreds of
+ * characters for a catalogue. A collision would hand one content another's scale, which the 2-second
+ * safety poll's own re-derive corrects within one interval; at the handful of entries a screen
+ * actually holds, the probability is negligible either way.
+ */
+export function fingerprintContent(parts: readonly unknown[]): string {
+  const source = parts.map((part) => (typeof part === 'string' ? part : JSON.stringify(part) ?? '')).join('\u0000')
+  // FNV-1a, 32-bit — small, dependency-free, and well-distributed over the short ASCII JSON these are.
+  let hash = 0x811c9dc5
+  for (let i = 0; i < source.length; i++) {
+    hash ^= source.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(36)
 }
 
 function serialize(key: ShrinkScaleKey): string {
-  return `${key.screenID}|${key.paneId}|${key.stage}|${Math.round(key.aspect * ASPECT_BUCKETS)}`
+  return `${key.screenID}|${key.paneId}|${key.stage}|${Math.round(key.aspect * ASPECT_BUCKETS)}|${key.content}`
 }
 
 /**
@@ -54,14 +88,26 @@ function serialize(key: ShrinkScaleKey): string {
  * Returns `null` when any part of the address is missing (a pane rendered outside a `SplitLayout`, or
  * a degenerate zero-height box) — callers then simply fall back to their own local cache.
  */
-export function shrinkScaleKeyFromDom(outer: HTMLElement, width: number, height: number): ShrinkScaleKey | null {
+export function shrinkScaleKeyFromDom(outer: HTMLElement, width: number, height: number, content: string): ShrinkScaleKey | null {
   if (height <= 0 || width <= 0) return null
   const paneId = outer.closest('[data-pane-id]')?.getAttribute('data-pane-id')
   const layout = outer.closest('.split-layout')
   const screenID = layout?.getAttribute('data-screen-id')
   const stage = layout?.getAttribute('data-stage')
   if (!paneId || !screenID || !stage) return null
-  return { screenID, paneId, stage, aspect: width / height }
+  return { screenID, paneId, stage, aspect: width / height, content }
+}
+
+/**
+ * Drops one entry, so the next pass re-probes instead of trusting it.
+ *
+ * Used when a pane's DOM content changed *without* its content-identity string changing — async
+ * slide data arriving (a transit board's departures, an image finishing load), which the
+ * `MutationObserver` sees but `fingerprintContent` cannot, since the fingerprint is built from the
+ * stored slot config rather than the rendered result. Cross-mount for the same reason the store is.
+ */
+export function clearShrinkScale(key: ShrinkScaleKey): void {
+  store.delete(serialize(key))
 }
 
 /** The scale this pane last resolved at this shape, if anything ever has. */

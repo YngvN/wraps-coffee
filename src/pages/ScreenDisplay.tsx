@@ -15,6 +15,8 @@ import { ScreenToolbar } from '../features/screens/ScreenToolbar'
 import { SlotEditor } from '../features/screens/SlotEditor'
 import { SplitLayout } from '../features/screens/SplitLayout'
 import { warmShrinkScales } from '../features/screens/warmShrinkScales'
+import { SLIDE_BITMAP_ENABLED } from '../features/screens/slideBitmapStore'
+import { warmSlideBitmaps } from '../features/screens/warmSlideBitmaps'
 import { StagePlaybackControls } from '../features/screens/StagePlaybackControls'
 import { TransitionSettingsEditor } from '../features/screens/TransitionSettingsEditor'
 import { captureScreenPreviews } from '../features/screens/screenPreviewCapture'
@@ -465,7 +467,15 @@ export function ScreenDisplay() {
   useEffect(() => {
     if (!screen || !screenIdToWarm || (session && isEditorRoute) || warmedScreenIdRef.current === screenIdToWarm) return
     warmedScreenIdRef.current = screenIdToWarm
-    void warmShrinkScales(screen, defaultPaneLanguage)
+    // Sequential, never concurrent: both mount a live `SplitLayout` off-screen, and running them at
+    // once would put two full screens' worth of data subscriptions and animations on this device's
+    // four cores simultaneously.
+    //
+    // The bitmap pass is gated on its own flag rather than merely producing unused captures, because
+    // it is the expensive one — up to one `html-to-image` capture per pane per stage at
+    // `devicePixelRatio`, measured on the TV producing 3.5-second frames while the rotation was
+    // already playing. See `SLIDE_BITMAP_ENABLED` for the measurement that turned it off.
+    void warmShrinkScales(screen, defaultPaneLanguage).then(() => (SLIDE_BITMAP_ENABLED ? warmSlideBitmaps(screen, defaultPaneLanguage) : undefined))
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the screen's identity rather than the object itself, per the doc comment above.
   }, [screenIdToWarm, session, isEditorRoute, defaultPaneLanguage])
 

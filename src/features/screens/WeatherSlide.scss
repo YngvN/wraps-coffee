@@ -94,16 +94,17 @@
 // Spans every row track as a single grid item — needed for `subgrid` below
 // to hand the *same* shared row tracks back down to its own children, same
 // "real box, not `display: contents`" reasoning as `TransitSlide`'s own
-// `.transit-slide__item`. `overflow: hidden` matters for the same reason
-// there too: it's what actually clips this column's content while framer
-// motion animates it sliding out.
+// `.transit-slide__item` — which, for the same reason, also no longer clips.
 .weather-slide__item {
   grid-row: 1 / -1;
   display: grid;
   grid-template-rows: subgrid;
   justify-items: center;
   align-items: center;
-  overflow: hidden;
+  // **No `overflow: hidden` (2026-08-17).** It used to clip this column while Framer animated it
+  // sliding out, but it clipped at rest too — which, now that the values inside it wrap instead of
+  // ellipsis-truncating, silently cut them off. An hour card travels off the *pane's* own edge when it
+  // slides, and `.weather-slide` already clips there, so nothing here needs to.
   // A grid item's default `min-width` is `auto` (shrink-to-fit its own
   // content), not `0` — without this, a value/label's own `white-space:
   // nowrap` (below) would force this column wider to fit it instead of
@@ -161,7 +162,9 @@
   align-items: end;
   height: 4.5em;
   padding-bottom: 0.4em;
-  border-bottom: 1px solid var(--screen-border);
+  // Deliberately no `border-bottom` (2026-08-17). With no detail columns toggled on, the labels this row
+  // exists for are all empty spacers, so the rule was the only thing it drew — a line hanging above the
+  // forecast attached to nothing.
   overflow: visible;
 }
 
@@ -184,7 +187,7 @@
   // middle line instead of drifting to whichever edge they'd otherwise
   // gravitate to.
   align-items: center;
-  overflow: hidden;
+  // Same reasoning as `.weather-slide__item` above — clipping at rest would truncate a wrapped value.
 }
 
 .weather-slide__row-label,
@@ -229,20 +232,36 @@
   }
 }
 
-// `white-space: nowrap` + `text-overflow: ellipsis` on every one of these —
-// the last-resort CSS-only fallback for whenever a horizontal-mode hour
-// column's own `minmax(0, 1fr)` track (see `.weather-slide__list--horizontal`)
-// still ends up narrower than a value/label genuinely needs, e.g. while
-// `LayoutPane`'s own shrink-to-fit measurement is still catching up to a
-// pane that was just resized — same "graceful truncate instead of an
-// abrupt/illegible clip" posture as `TransitSlide`'s own `.transit-slide__destination`.
+// **Deliberately no `white-space: nowrap` / `text-overflow: ellipsis` on any
+// of these (2026-08-17).** They used to carry both, as a last-resort CSS-only
+// fallback for a horizontal-mode hour column narrower than its own value
+// needs. A weather reading is short enough that an ellipsis eats most of its
+// meaning — a temperature truncated to "2…" is not a degraded reading, it is
+// a wrong one — so this pane now never truncates. A value that does not fit
+// wraps, and the pane's own shrink-to-fit reduces the type until everything
+// fits; if that would go below the legibility floor, `WeatherSlide` drops
+// forecast hours instead of shrinking further (see the hook's own
+// `MIN_LEGIBLE_SCALE` and this file's `useVisibleHourCount`).
+//
+// `max-width: 100%` stays — it is what keeps a value inside its own column's
+// track rather than widening the grid, which is what makes the overflow
+// measurable for shrink-to-fit in the first place.
 .weather-slide__time {
   color: var(--screen-text-muted);
   font-size: var(--slide-description-size, 4cqmin);
   max-width: 100%;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+}
+
+// The leading card is always the current hour, labelled "Now" rather than a clock time (see
+// `renderHourFields`) — the one row a viewer glancing at the pane is actually looking for, so it reads
+// at the temperature's own size and in the full text colour rather than the muted one every later hour
+// uses. Sized off `--slide-item-title-size` (what `.weather-slide__temp` uses) rather than a multiplier
+// of the muted size, so "Now" and its own temperature stay on one visual weight as the shrink-to-fit
+// search scales the whole pane.
+.weather-slide__time--now {
+  color: var(--screen-text);
+  font-size: var(--slide-item-title-size, 5.5cqmin);
+  font-weight: 700;
 }
 
 .weather-slide__icon {
@@ -261,18 +280,12 @@
   font-size: var(--slide-item-title-size, 5.5cqmin);
   font-weight: 700;
   max-width: 100%;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .weather-slide__value {
   color: var(--screen-text-muted);
   font-size: calc(var(--slide-description-size, 4cqmin) * 0.85);
   max-width: 100%;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .weather-slide__low-high {
@@ -352,9 +365,33 @@
 
 @supports not (grid-template-columns: subgrid) {
   // Vertical mode — rows of hours sharing the list's own column tracks.
+  //
+  // **`1fr`, not `auto` (2026-08-17).** The block comment above predicted that independently-sized
+  // `auto` tracks would "come out near-identical" because every row carries the same field structure.
+  // Measured on the TV (Chromium 116, no subgrid), that is wrong and visibly so: `auto` sizes each row's
+  // tracks to *its own* content, and the content genuinely differs per row — the leading card reads "Now"
+  // where the rest read "07:00", and each hour's weather symbol is a different SVG with a different
+  // intrinsic width (a bare moon is far narrower than a moon behind cloud). So every row placed its
+  // temperature at a slightly different x and the column visibly stepped in and out down the list.
+  //
+  // Equal tracks are the only thing that aligns rows that cannot share them. The list is given a
+  // definite width for the same reason — `1fr` needs a basis to divide, and without it the tracks fall
+  // back to sizing on content, which is exactly the behaviour being replaced.
+  .weather-slide__list--vertical {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
   .weather-slide__column-header,
   .weather-slide__row {
-    grid-template-columns: repeat(var(--weather-track-count, 3), auto);
+    grid-template-columns: repeat(var(--weather-track-count, 3), minmax(0, 1fr));
     column-gap: $spacing-unit * 1.5;
+    // `center`, overriding the `start` both rules carry above. That `start` exists to keep a value under
+    // its own tilted header label, whose pivot is its column's left edge — right for subgrid's
+    // content-sized tracks, wrong here: these tracks are equal and span the pane, so left-hugging every
+    // cell leaves all the slack piled up after the last column and the whole block reads as sitting left
+    // of centre. Centring each cell in its own equal track is what makes the group symmetric within the
+    // pane while keeping the columns aligned with each other.
+    justify-items: center;
   }
 }

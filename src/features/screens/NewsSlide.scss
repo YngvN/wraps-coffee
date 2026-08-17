@@ -165,12 +165,13 @@
   font-size: var(--slide-heading-size, 8cqmin);
   font-weight: 700;
   line-height: 1.3;
-  // Wraps up to 3 lines before anything else gives — the pane's own
-  // `useShrinkToFitScale` then shrinks this (already up-to-3-line) block
-  // together with the description/meta/image below it if it's still too
-  // tall, rather than a long headline alone forcing a scrollbar or getting
-  // silently clipped mid-word.
-  @include line-clamp(3);
+  // **Deliberately unclamped (2026-08-17).** This used to be
+  // `@include line-clamp(3)`, which cut a long headline off after three lines
+  // with an ellipsis — a kiosk headline that stops mid-sentence is worse than
+  // a small one, since nobody can recover the missing words. It now wraps to
+  // as many lines as it needs and the pane's own shrink-to-fit reduces the
+  // whole block until it fits, down to a legibility floor (see
+  // `useShrinkToFitFontScale`'s own `MIN_LEGIBLE_SCALE`).
 }
 
 // Both `global.scss`'s bare `h2 { font-family: $font-subheading }` (a
@@ -196,10 +197,9 @@
   font-size: var(--slide-description-size, 4cqmin);
   line-height: 1.5;
   color: var(--screen-text-muted);
-  // Long feed summaries would otherwise push the meta line (or the image)
-  // off a shorter pane — clamped (same technique as the headline above)
-  // rather than left to grow arbitrarily tall before the shrink kicks in.
-  @include line-clamp(4);
+  // Unclamped for the same reason as the headline above — a summary cut off
+  // mid-sentence reads as broken rather than as abbreviated. Shrink-to-fit
+  // absorbs a long one instead.
 }
 
 .news-slide__meta {

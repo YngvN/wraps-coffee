@@ -99,11 +99,23 @@ const REFLOW_HIDE_ENABLED = Boolean(1)
  * barely changed proportionally. The former should hide through the resize; the latter has no reason
  * to.
  *
- * `0.2` (20%) is a first cut, not a measured optimum — case in point: `Empty test`'s own catalogue
- * pane goes from 1080px to 540px tall (a 50% relative change) between stages 3 and 4, comfortably over
- * this bar.
+ * **Lowered 0.2 -> 0.02 (2026-08-17).** The original 0.2 was explicitly "a first cut, not a measured
+ * optimum", and it was set when hiding meant blanking the *entire pane* — at that cost, only a drastic
+ * reshape was worth it. Observed on `Ny test` in a browser: its transit and weather panes reshape by
+ * less than 20%, stayed `stageStatic`, and so re-flowed their lists live in front of the viewer while
+ * the box glided — exactly the artefact this set exists to prevent, just under the bar.
+ *
+ * Two things make a near-zero threshold right now. The hide is far cheaper than it was: a slide that
+ * declares `data-slide-body` only fades its re-flowing list and keeps its chrome painted throughout
+ * (see `LayoutPane.tsx`'s `BODY_ONLY_REFLOW`), so this no longer trades a blank pane for a stable one.
+ * And any shape change at all can change a wrap or a column count — there is no size delta that is
+ * reliably too small to re-flow, only ones that usually do not.
+ *
+ * `0.02` rather than `0` purely to ignore sub-pixel rounding: `computeLayoutGeometry` accumulates
+ * small floating-point error across nested splits, so a pane that did not actually move can report a
+ * change of a fraction of a percent.
  */
-const REFLOW_HIDE_THRESHOLD = 0.2
+const REFLOW_HIDE_THRESHOLD = 0.02
 
 /** Relative change of `next` from `prev`, as a fraction — `0` when `prev` is degenerate (a pane can only reach zero width/height transiently, and dividing by it would produce `Infinity`/`NaN` rather than a comparable ratio). */
 function relativeChange(prev: number, next: number): number {

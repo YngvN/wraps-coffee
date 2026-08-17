@@ -149,15 +149,23 @@ $transit-trailing-tracks: minmax(0, max-content) minmax(0, max-content); // `.tr
 // shared tracks back down to their own children via `subgrid` — while
 // still being a real box of its own (not `display: contents`, which the
 // single-shared-grid-across-all-rows version before columns existed used
-// instead): multi-column mode's own fade + `max-height` collapse/expand
-// animates *this* element directly, which needs a real box to animate.
-// `overflow: hidden` is what actually makes the `max-height` collapse
-// visually clip its own content while animating, in both modes.
+// instead): multi-column mode's own fade + height collapse/expand animates
+// *this* element directly, which needs a real box to animate.
+//
+// **Deliberately no `overflow: hidden` here (fixed 2026-08-17).** It used to be unconditional, which
+// meant every row clipped its own content at *all* times rather than only while animating — so a row
+// that momentarily exceeded its own grid track (a departure being inserted above it shifting the
+// subgrid's row sizing, a wrapped destination) was cut off mid-content, permanently and invisibly.
+// That is the "lines partly hidden when a new line appears in the middle" symptom.
+//
+// Clipping is now applied only for the animation that genuinely needs it — the 3+ column height
+// collapse, which sets `overflow: hidden` from its own variants and releases it on `transitionEnd`
+// (see `transitRowVariants` in `TransitSlide.tsx`). The 1-/2-column slide-outs never needed it here:
+// their halves travel off the *pane's* own edges, and `.transit-slide` already clips there.
 .transit-slide__item {
   display: grid;
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
-  overflow: hidden;
 
   &--cancelled {
     .transit-slide__leading,
