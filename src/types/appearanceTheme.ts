@@ -12,7 +12,7 @@ export interface AppearanceThemeColor {
  * `<h2>`-style subheadings (`$font-subheading`) — used across every slide
  * type (time, events, transit, news, message board, the product menu, etc.),
  * not specific to any one of them. Each is a Google Font family name (e.g.
- * "Quicksand"), loaded at runtime by `useGoogleFontLoader`.
+ * "Quicksand"), self-hosted in `public/fonts` and always available — see `scripts/fetch-google-fonts.mts`.
  */
 export interface AppearanceThemeFonts {
   body: string

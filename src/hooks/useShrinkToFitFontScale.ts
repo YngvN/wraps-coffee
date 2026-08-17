@@ -32,6 +32,23 @@ const ARM_B_SHARED_SCALE_STORE = Boolean(1)
  */
 const ARM_A_DEFERRED_SEARCH = Boolean(1)
 
+/**
+ * **Ablation (experiment, 2026-08-17) — flip to `Boolean(1)` to make every measurement pass an
+ * immediate no-op, leaving the observers and poll installed and firing at full rate.**
+ *
+ * This is fact 8's V1b arm, re-armed for the catalogue-cost question: `Empty test` plus a single
+ * catalogue pane measures 48ms/frame against that fixture's own 20ms/0-debt floor, and the two
+ * candidate explanations — the deferred shrink search still running in `idle`, versus plain
+ * layout/reflow of a large catalogue DOM at 11 different box shapes — are not separable from the
+ * phase split alone. Turning the search off while changing nothing else attributes the split
+ * directly.
+ *
+ * Never commit this as `Boolean(1)`, and never write it as a literal `true` — see
+ * `ARM_A_DEFERRED_SEARCH` below for why the literal breaks the build in a way that silently measures
+ * the previous arm.
+ */
+const ABLATE_MEASUREMENT = Boolean(0)
+
 /** Same settle window as `useShrinkToFitScale` — see its own doc comment for why a DOM-mutation-triggered remeasure waits rather than firing on the very next frame. */
 const MUTATION_SETTLE_MS = 500
 
@@ -405,6 +422,11 @@ export function useShrinkToFitFontScale(
         clearOverride()
         return
       }
+      // Ablation: no probe, no style write, no cache read — the pane simply renders at its own base
+      // size and overflows. Deliberately placed *below* the `enabled` check so a disabled pane still
+      // has its override cleared exactly as it always did, and *above* everything else so not one
+      // forced layout of this hook's own survives the flag.
+      if (ABLATE_MEASUREMENT) return
       // Suspended mid-transition: the seed (or last resolved scale) stays painted, and the search
       // resumes from wherever it got to once the pane settles. This is the whole point of the arm.
       if (!idleRef.current) return

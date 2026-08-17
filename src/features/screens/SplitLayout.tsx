@@ -2,7 +2,6 @@ import { useReducedMotion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import { useActiveAppearanceTheme } from '../../hooks/useAppearanceThemes'
-import { useGoogleFontLoader } from '../../hooks/useGoogleFontLoader'
 import { useLanguage, type LanguageCode } from '../../i18n'
 import { DEFAULT_SCREEN_BACKGROUND_COLOR, type LayoutNode, type PaneId, type ScreenConfig, type ScreenSlot, type ScreenSlotContent, type SplitDirection, type TextSizes } from '../../types/screen'
 import { applyRatioPatchPreservingDescendants, computeLayoutGeometry, FULL_BOX, type Divider, type LayoutGeometry, type Rect } from '../../utils/layoutGeometry'
@@ -80,6 +79,38 @@ function sameLeafIds(a: Set<PaneId>, b: Set<PaneId>): boolean {
  * a synthetic starting ratio (matching wherever the origin pane's old edge was) to its real target ratio,
  * instead of the ordinary instant-snap every other genuinely-new divider still gets.
  */
+/**
+ * **Experiment (2026-08-17).** Flip to `Boolean(0)` to fall back to the previous behaviour — every
+ * `stageStatic` leaf glides fully visible regardless of how much its own box changes shape, which is
+ * what exposed the gap this fixes (see `REFLOW_HIDE_THRESHOLD`'s own doc comment for the concrete
+ * case that motivated it). See `ARM_A_DEFERRED_SEARCH` (`useShrinkToFitFontScale.ts`) for why this is
+ * not a literal `true`.
+ */
+const REFLOW_HIDE_ENABLED = Boolean(1)
+
+/**
+ * How much a `stageStatic` leaf's own box has to change, relative to its *prior* size, before it is
+ * moved from `staticLeafIds` into `reflowHideLeafIds` instead — see that set's own doc comment for
+ * what the distinction does.
+ *
+ * Relative to the pane's own prior size, not an absolute percentage-point difference in the shared
+ * 0-100 screen space: a pane growing from 10% to 20% height has doubled — genuinely likely to force a
+ * different wrap/column count — while one moving from 45% to 55% (same 10-point absolute delta) has
+ * barely changed proportionally. The former should hide through the resize; the latter has no reason
+ * to.
+ *
+ * `0.2` (20%) is a first cut, not a measured optimum — case in point: `Empty test`'s own catalogue
+ * pane goes from 1080px to 540px tall (a 50% relative change) between stages 3 and 4, comfortably over
+ * this bar.
+ */
+const REFLOW_HIDE_THRESHOLD = 0.2
+
+/** Relative change of `next` from `prev`, as a fraction — `0` when `prev` is degenerate (a pane can only reach zero width/height transiently, and dividing by it would produce `Infinity`/`NaN` rather than a comparable ratio). */
+function relativeChange(prev: number, next: number): number {
+  if (prev <= 0) return 0
+  return Math.abs(next - prev) / prev
+}
+
 function computeStageStaticSets(
   oldTree: LayoutNode,
   newTree: LayoutNode,
@@ -87,21 +118,62 @@ function computeStageStaticSets(
   oldStage: number,
   newStage: number,
   defaultPaneLanguage: LanguageCode,
-): { staticLeafIds: Set<PaneId>; stableSplitPaths: Set<string>; negligibleMoveSplitPaths: Set<string>; growingSplitPaths: Map<string, 'first' | 'second'> } {
+): {
+  staticLeafIds: Set<PaneId>
+  /**
+   * `staticLeafIds` normally means "content identity unchanged, so glide fully visible, no fade" (see
+   * `LayoutPane`'s own `stageStatic` prop). That assumption holds for content whose *appearance*
+   * doesn't depend on box shape — a static image, a QR code — but breaks for content that reflows
+   * (a catalogue grid, a transit departure list): the geometry can still glide smoothly (that part is
+   * unrelated — see `stableSplitPaths` below, computed purely from leaf-set stability, not content
+   * identity), while the *content itself* visibly re-wraps live in front of the viewer through a large
+   * shape change. Confirmed on `Empty test`: a catalogue pane's own box glides 1080px -> 540px tall
+   * over ~300ms with `opacity: 1` the entire time — the grid genuinely re-flowing on screen.
+   *
+   * A leaf lands here **instead of** `staticLeafIds` (never both) when its own box changed by more
+   * than `REFLOW_HIDE_THRESHOLD` between the two stages. `LayoutPane` ANDs membership here with
+   * whether this pane's *content kind* actually reflows at different sizes (`usesFontScale` — transit,
+   * weather, catalogue, event-month; the same set the shrink-to-fit search already treats specially) —
+   * this set only says the box changed a lot, not that hiding through the change is warranted, which
+   * is exactly right for a QR/image pane that (after fact 17's raster fix) is genuinely cheap and
+   * visually fine to glide through no matter how much it resizes.
+   */
+  reflowHideLeafIds: Set<PaneId>
+  stableSplitPaths: Set<string>
+  negligibleMoveSplitPaths: Set<string>
+  growingSplitPaths: Map<string, 'first' | 'second'>
+} {
   const oldLeafIds = new Set(listLeaves(oldTree).map((leaf) => leaf.id))
+  const oldLeafRects = new Map(computeLayoutGeometry(oldTree).leaves.map((leaf) => [leaf.id, leaf.rect]))
+  const newLeafRects = new Map(computeLayoutGeometry(newTree).leaves.map((leaf) => [leaf.id, leaf.rect]))
+  const changedShapeEnough = (id: PaneId): boolean => {
+    const oldRect = oldLeafRects.get(id)
+    const newRect = newLeafRects.get(id)
+    if (!oldRect || !newRect) return false
+    return relativeChange(oldRect.width, newRect.width) > REFLOW_HIDE_THRESHOLD || relativeChange(oldRect.height, newRect.height) > REFLOW_HIDE_THRESHOLD
+  }
+
   const staticLeafIds = new Set<PaneId>()
+  const reflowHideLeafIds = new Set<PaneId>()
+  const markStatic = (id: PaneId) => {
+    if (REFLOW_HIDE_ENABLED && changedShapeEnough(id)) reflowHideLeafIds.add(id)
+    else staticLeafIds.add(id)
+  }
   for (const leaf of listLeaves(newTree)) {
     const slot = paneSlots[leaf.id]
     if (!slot) continue
     if (oldLeafIds.has(leaf.id)) {
       if (resolvePaneIdentitySignature(slot, oldStage, defaultPaneLanguage) === resolvePaneIdentitySignature(slot, newStage, defaultPaneLanguage)) {
-        staticLeafIds.add(leaf.id)
+        markStatic(leaf.id)
       }
       continue
     }
     const sourceId = slot.splitFromPaneId
     const sourceSlot = sourceId && oldLeafIds.has(sourceId) ? paneSlots[sourceId] : undefined
     if (sourceSlot && resolvePaneIdentitySignature(sourceSlot, oldStage, defaultPaneLanguage) === resolvePaneIdentitySignature(slot, newStage, defaultPaneLanguage)) {
+      // A freshly-mounted, lineage-matched leaf has no *old* rect of its own to compare against
+      // (`oldLeafRects` is keyed by the old tree's own leaf ids, and this id is new) — always
+      // `staticLeafIds`, never `reflowHideLeafIds`, which needs a real before/after pair.
       staticLeafIds.add(leaf.id)
     }
   }
@@ -171,7 +243,7 @@ function computeStageStaticSets(
     walkGrowing(newTree, [])
   }
 
-  return { staticLeafIds, stableSplitPaths, negligibleMoveSplitPaths, growingSplitPaths }
+  return { staticLeafIds, reflowHideLeafIds, stableSplitPaths, negligibleMoveSplitPaths, growingSplitPaths }
 }
 
 interface SplitLayoutProps {
@@ -365,6 +437,8 @@ export function SplitLayout({
    * reads these.
    */
   const [stageStaticLeafIds, setStageStaticLeafIds] = useState<Set<PaneId>>(() => new Set())
+  /** See `computeStageStaticSets`'s own `reflowHideLeafIds` doc comment. */
+  const [reflowHideLeafIds, setReflowHideLeafIds] = useState<Set<PaneId>>(() => new Set())
   const [stableSplitPaths, setStableSplitPaths] = useState<Set<string>>(() => new Set())
   const [negligibleMoveSplitPaths, setNegligibleMoveSplitPaths] = useState<Set<string>>(() => new Set())
   const [growingSplitPaths, setGrowingSplitPaths] = useState<Map<string, 'first' | 'second'>>(() => new Map())
@@ -378,6 +452,7 @@ export function SplitLayout({
       const newTree = resolveStageValue(screen.layout, effectiveStage) ?? { type: 'leaf' as const, id: fallbackLeafId }
       const stageStaticSets = computeStageStaticSets(tree, newTree, screen.paneSlots, displayStage, effectiveStage, defaultPaneLanguage)
       setStageStaticLeafIds(stageStaticSets.staticLeafIds)
+      setReflowHideLeafIds(stageStaticSets.reflowHideLeafIds)
       setStableSplitPaths(stageStaticSets.stableSplitPaths)
       setNegligibleMoveSplitPaths(stageStaticSets.negligibleMoveSplitPaths)
       setGrowingSplitPaths(stageStaticSets.growingSplitPaths)
@@ -406,7 +481,6 @@ export function SplitLayout({
 
   /** The store's currently active appearance theme — its 3 font roles are loaded here (once, at the shared root every render path — thumbnail, editor preview, and live kiosk display — goes through) and applied via `--screen-font-*` below; its color palette is offered by `BackgroundColorPicker` instead, since panes/screens themselves still just store a plain hex. */
   const activeTheme = useActiveAppearanceTheme()
-  useGoogleFontLoader([activeTheme.fonts.body, activeTheme.fonts.heading, activeTheme.fonts.subheading])
 
   /** `--screen-bg`/`--screen-text`/etc, redeclared right at this wrapper so every descendant pane — including one with no background color of its own — resolves them from the *screen's* own configured appearance rather than leaking through to whatever ancestor styling happens to surround `SplitLayout` whenever it's used (e.g. the admin form's own "Layout" preview never set these at all otherwise). A pane with its own background color still overrides these locally (see `slotBackgroundColorStyle`), same as ever — this only fixes the fallback. */
   const screenColorStyle = {
@@ -875,6 +949,7 @@ export function SplitLayout({
         transitionDuration={CONTENT_TRANSITION_DURATION_SECONDS}
         contentPhase={contentPhase}
         stageStaticLeafIds={stageStaticLeafIds}
+        reflowHideLeafIds={reflowHideLeafIds}
         stableSplitPaths={stableSplitPaths}
         negligibleMoveSplitPaths={negligibleMoveSplitPaths}
         growingSplitPaths={growingSplitPaths}

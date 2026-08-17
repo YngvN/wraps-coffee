@@ -60,6 +60,17 @@ createServer((req, res) => {
         res.end()
         return
       }
+      // A free-form escape hatch for one-off in-page diagnostics on a device with no attachable
+      // DevTools (see the report's §1): anything posted as `{ kind: 'debug', ... }` is printed and
+      // otherwise ignored. Deliberately handled *before* the frame-window fallthrough below — an
+      // unrecognised payload would otherwise be pushed into the frame array and silently corrupt the
+      // run file it is meant to be diagnosing.
+      if ('kind' in payload && (payload as { kind: string }).kind === 'debug') {
+        console.log(`[debug] ${JSON.stringify((payload as unknown as Record<string, unknown>).data)}`)
+        res.writeHead(204, cors)
+        res.end()
+        return
+      }
       const window = payload as FrameWindow
       windows.push(window)
       writeFileSync(OUT, JSON.stringify(windows, null, 2))

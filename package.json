@@ -1,11 +1,13 @@
 {
   "name": "adhdisplay-admin",
   "private": true,
-  "version": "0.2.70",
+  "version": "0.2.72",
   "type": "module",
   "scripts": {
     "dev": "concurrently -n vite,ws -c blue,magenta \"vite --host\" \"tsx watch server/index.ts\"",
     "build": "tsc -b && vite build",
+    "fonts:fetch": "tsx scripts/fetch-google-fonts.mts",
+    "ollama:fetch": "tsx scripts/fetch-ollama-model.mts",
     "lint": "eslint .",
     "preview": "concurrently -n vite,ws -c blue,magenta \"vite preview --host\" \"tsx server/index.ts\"",
     "preview:kiosk": "concurrently -n vite,ws -c blue,magenta --kill-others \"vite preview --host\" \"tsx server/index.ts\"",

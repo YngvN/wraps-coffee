@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion'
-import { useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from 'react'
+import { useRef, useState, type CSSProperties } from 'react'
 import { QrCodeSvg } from './QrCodeSvg'
 import type { QrErrorCorrectionLevel } from './qrCodePath'
 import { useCrossfadeSlot } from '../../hooks/useCrossfadeSlot'
 import { useCurrentNewsHeadline, type NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
 import { useNewsHeadlines } from '../../hooks/useNewsHeadlines'
+import { useRasterFitScale } from '../../hooks/useRasterFitScale'
 import { NEWS_SOURCES } from '../../types/news'
 import { DEFAULT_QR_CODE_SIZE } from '../../types/screen'
 import { getLogoSrc } from '../../utils/logoAssets'
@@ -106,37 +107,6 @@ const MIN_RASTER_PX = 320
 function rasterSizePx(): number {
   if (typeof window === 'undefined') return MIN_RASTER_PX
   return Math.max(MIN_RASTER_PX, Math.ceil(Math.min(window.innerWidth, window.innerHeight)))
-}
-
-/**
- * Keeps `--qr-raster-scale` on `stackRef` equal to "how much of `rasterPx` the pane's own box can
- * actually show", so the fixed-size code above fits its pane exactly.
- *
- * Reads the observer entry's own `contentRect` rather than `clientWidth`/`clientHeight`, so nothing
- * here forces a synchronous layout — the same discipline `useShrinkToFitFontScale` follows for the
- * same reason. The one read at mount happens before this effect writes anything, so it is a clean
- * read off the layout the browser has already done.
- *
- * Writing the scale cannot feed back into the observed size: the scaled element is absolutely
- * positioned, so it contributes nothing to `stackRef`'s own layout and the loop terminates.
- */
-function useQrRasterScale(stackRef: RefObject<HTMLDivElement | null>, enabled: boolean, rasterPx: number) {
-  useLayoutEffect(() => {
-    const stack = stackRef.current
-    if (!stack || !enabled) return
-
-    const write = (width: number, height: number) => {
-      stack.style.setProperty('--qr-raster-scale', `${Math.min(width, height) / rasterPx}`)
-    }
-    write(stack.clientWidth, stack.clientHeight)
-
-    const observer = new ResizeObserver((entries) => {
-      const rect = entries[entries.length - 1].contentRect
-      write(rect.width, rect.height)
-    })
-    observer.observe(stack)
-    return () => observer.disconnect()
-  }, [stackRef, enabled, rasterPx])
 }
 
 /** One slot's own frozen render input — snapshotted at the moment it becomes current (see `useCrossfadeSlot`), so a still-fading-out code never has its own pattern/logo replaced underneath it before its exit animation finishes. */
@@ -252,7 +222,9 @@ export function QrCodeSlide({ url, size, linkMode, newsSourceMode, linkedNewsSou
   // render — see `rasterSizePx`. Reading `window.innerWidth` during render would be an impure call,
   // the same reason `useDeterministicRotationIndex` only ever reads `Date.now()` in an initialiser.
   const [rasterPx] = useState(rasterSizePx)
-  useQrRasterScale(stackRef, QR_FIXED_RASTER && Boolean(targetUrl), rasterPx)
+  // A square raster, so both axes take the same size — see `useRasterFitScale`, which this and
+  // `CatalogueBitmap` share rather than each keeping a copy of the same observer.
+  useRasterFitScale(stackRef, '--qr-raster-scale', QR_FIXED_RASTER && Boolean(targetUrl), rasterPx, rasterPx)
 
   if (!targetUrl) return null
 

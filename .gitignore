@@ -45,6 +45,22 @@ installer/Output
 installer/node-lts-x64.msi
 installer/OllamaSetup.exe
 
+# The pre-seeded Ollama model store the installer bundles (~2.5 GB, qwen3:4b),
+# downloaded by scripts/fetch-ollama-model.mts. Third-party weights, re-fetchable
+# at any time, so treated exactly like the two installers above: fetched fresh by
+# build-installer.yml in CI, and produced locally by `npm run ollama:fetch`
+# before compiling by hand.
+installer/ollama-models
+
+# Self-hosted Google Fonts (woff2 + the generated stylesheet), downloaded by
+# scripts/fetch-google-fonts.mts. ~36 MB across ~2000 files covering all 999
+# families in src/data/googleFonts.json - re-fetchable at any time, so it's
+# treated exactly like the Node.js/Ollama installers above: fetched fresh by
+# build-installer.yml when building via CI, and produced locally by
+# `npm run fonts:fetch` before compiling the installer by hand. The installer
+# ships whatever is on disk via its existing "..\public\*" entry.
+public/fonts
+
 # Expo CLI's own cache directory (adhdisplay-companion/), created by
 # `expo start`/`expo export`.
 .expo

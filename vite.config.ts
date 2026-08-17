@@ -40,18 +40,31 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Deliberately does **not** include `woff2`. The self-hosted font set
+        // (public/fonts, see scripts/fetch-google-fonts.mts) is ~36 MB across
+        // ~2000 files, and precaching it would make every service-worker
+        // install download the entire Google Fonts catalogue up front to serve
+        // the two or three faces a given screen actually uses. The generated
+        // stylesheet is matched by `css` above and precached, which is what
+        // lets the runtime rule below resolve the handful of files that matter.
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        // Raised from the default 2 MB: the generated google-fonts.css is a
+        // single ~800 KB entry covering all 999 families, and the default limit
+        // would silently drop it from the precache.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: { cacheName: 'google-fonts-stylesheets' },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            // Replaces two rules that pointed at fonts.googleapis.com and
+            // fonts.gstatic.com. Nothing requests those any more — fonts are
+            // served same-origin from the local server (see index.html) — so
+            // those rules had become dead configuration. This one caches each
+            // woff2 the first time a screen actually renders with it, which
+            // spreads the cost across only the faces in use instead of paying
+            // for all 2000 up front, and then survives a local-server restart.
+            urlPattern: ({ url }) => url.pathname.startsWith('/fonts/files/'),
             handler: 'CacheFirst',
             options: {
-              cacheName: 'google-fonts-webfonts',
+              cacheName: 'self-hosted-fonts',
               cacheableResponse: { statuses: [0, 200] },
               expiration: { maxAgeSeconds: 60 * 60 * 24 * 365 },
             },

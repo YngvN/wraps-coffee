@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { useRef, useState, type CSSProperties, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react'
 import { useCrossfadeSlot } from '../../hooks/useCrossfadeSlot'
 import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import { usePaneCustomContent } from '../../hooks/usePaneCustomContent'
@@ -21,7 +21,7 @@ import {
   resolveSlotTextColor,
 } from '../../utils/screenStages'
 import { textSizesToCssVars } from '../../utils/textSizeVars'
-import { collapsedClipPath, FULL_REVEAL_CLIP_PATH, PANE_GROWTH_DURATION_SECONDS, paneTransitionDelaySeconds } from './paneGrowthMotion'
+import { BORDER_TRANSITION_DURATION_SECONDS, collapsedClipPath, FULL_REVEAL_CLIP_PATH, PANE_GROWTH_DURATION_SECONDS, paneTransitionDelaySeconds } from './paneGrowthMotion'
 import { PaneClearButton } from './PaneClearButton'
 import { PaneDeleteButton } from './PaneDeleteButton'
 import { PaneEditButton } from './PaneEditButton'
@@ -49,6 +49,26 @@ interface LayoutPaneProps {
   contentPhase?: 'idle' | 'exiting' | 'holding'
   /** True while this pane's own resolved identity (see `resolvePaneIdentitySignature`) is unchanged between the stage transition's old and new stage, or — for a pane that's structurally new this transition — its `splitFromPaneId` lineage matches a pane that already showed this same content (see `SplitLayout.tsx`'s own `stageStaticLeafIds`). Such a pane sits out the transition entirely: its content never gets forced into `suppressEnter`'s hidden/exit pose, so it stays fully visible with no fade/slide, regardless of what the rest of the screen is doing. Also skips the mount-time entrance pose entirely (see this file's own `initial` below) — necessary for the split-lineage case, since that pane is a genuinely fresh component mount. Omit (or `false`, the default) for the normal behavior. */
   stageStatic?: boolean
+  /**
+   * **Experiment (2026-08-17).** True when this pane's own content identity is unchanged (same as
+   * `stageStatic`'s own test) but its box changed shape enough between the two stages that
+   * `SplitLayout.tsx`'s `computeStageStaticSets` moved it into `reflowHideLeafIds` instead of
+   * `staticLeafIds` — see that set's own doc comment for the full reasoning and the concrete case
+   * (`Empty test`'s catalogue pane) that motivated it. Mutually exclusive with `stageStatic`: a leaf
+   * is in exactly one of the two sets, never both.
+   *
+   * Unlike `stageStatic`, this does **not** by itself change how `suppressEnter` behaves — a pane
+   * with this prop true is simply *not* `stageStatic`, so it already goes through the ordinary
+   * fade-through-`exiting`/`holding` path every changing-content pane uses (correct as-is: that path
+   * already finishes well before the geometry glide even starts, see `useReflowRevealHold`'s own doc
+   * comment). What this prop actually adds is on the *reveal* side: whether the ordinary path's
+   * `contentPhase === 'idle'` is early enough to safely reveal, given this pane's box may still be
+   * gliding at that exact moment (see `useReflowRevealHold`), and whether the ordinary path should
+   * apply at all — a QR/image pane whose appearance doesn't depend on box shape has no reason to fade
+   * through a resize just because it happens to be large, so `usesFontScale0`/`usesFontScale1` below
+   * gate this to the slide kinds that actually reflow.
+   */
+  reflowHide?: boolean
   reducedMotion: boolean | null
   /** Hovering close to the pane's own middle (either axis) reveals a "Split" line/label there; clicking splits it 50/50 along that axis — see `PaneSplitZones`. Omit (like `onEditSlide`) to disable, e.g. while the screen is locked. Only ever actually rendered while `selected` is also true (see the render below) — an unselected pane offers no split zones at all, regardless of this prop. */
   onSplitPane?: (leafId: PaneId, axis: SplitDirection, edge: 'start' | 'end') => void
@@ -133,6 +153,80 @@ interface PaneContentSnapshot {
 }
 
 /**
+ * **Experiment (2026-08-17).** Extra hold, past the ordinary return-to-`'idle'`, for a `reflowHide`
+ * pane specifically — see that prop's own doc comment for the full case. `stageStatic`/`reflowHide`
+ * are mutually exclusive, so a `reflowHide` pane is *not* `stageStatic`, meaning `suppressEnter`
+ * already engages the instant `contentPhase` leaves `'idle'` and its content fade-out already runs on
+ * the same, already-tuned `CONTENT_TRANSITION_DURATION_SECONDS`/stagger every changing-content pane
+ * uses — comfortably finished before `'holding'` (and the geometry glide, which starts exactly when
+ * `'holding'` does) even begins. **Fade-out timing needs nothing new.**
+ *
+ * Fade-*in* is the half that does: `contentPhase` returns to `'idle'` after
+ * `BORDER_TRANSITION_DURATION_SECONDS` (0.2s) of `'holding'`, but a `stableResizeGridTransition` grid
+ * glide runs for `PANE_GROWTH_DURATION_SECONDS` (0.3s) — starting at the exact same `'holding'`-entry
+ * commit. So `'idle'` arrives ~100ms before the glide is actually done, and revealing right then would
+ * show this pane's content fading in over a box that is still visibly moving — measured directly on
+ * `Empty test`: `contentPhase` returned to `'idle'` at a box height of 601px, 61px short of its final
+ * 540px. This hook holds `suppressEnter` on past that point until `PANE_GROWTH_DURATION_SECONDS` has
+ * elapsed **from `'holding'`'s own entry**, which is provably enough regardless of how many nested
+ * `stableResizeGridTransition` splits sit above this leaf: every one of them starts on that same
+ * commit and runs that same shared duration *in parallel*, not in sequence, so this leaf's own box is
+ * done moving by then no matter how deep its ancestor chain is.
+ *
+ * A fixed timer rather than a `ResizeObserver`-based settle-debounce (the pattern
+ * `useShrinkToFitFontScale`'s own resize handling uses elsewhere) because the duration here is a
+ * known, shared, uniform constant — not content-dependent — so there is nothing a debounce would
+ * discover that the constant doesn't already guarantee, and a timer adds no settle-window latency on
+ * top of it.
+ */
+const REFLOW_REVEAL_HOLD_SECONDS = Math.max(0, PANE_GROWTH_DURATION_SECONDS - BORDER_TRANSITION_DURATION_SECONDS)
+
+interface ReflowRevealHoldState {
+  holding: boolean
+  lastReflowHide: boolean | undefined
+  lastContentPhase: 'idle' | 'exiting' | 'holding' | undefined
+}
+
+function useReflowRevealHold(contentPhase: 'idle' | 'exiting' | 'holding' | undefined, reflowHide: boolean | undefined): boolean {
+  /**
+   * Applies the two *synchronous* transitions (turning the hold on/off the same render its own
+   * inputs change, not one commit later) directly in the render body — React's own documented
+   * "adjusting state when a prop changes" pattern, same idiom `useCrossfadeSlot.ts`'s own slot-flip
+   * and `SplitLayout.tsx`'s own `prevEffectiveStage` block already use, and for the same reason: this
+   * codebase's lint config flags both a synchronous `setState` sitting directly in a `useEffect` body
+   * (`react-hooks/set-state-in-effect`) and reading/writing a ref during render
+   * (`react-hooks/refs`) — `useCrossfadeSlot.ts` sidesteps both by keeping "what was last seen"
+   * inside the same state object as the derived value, compared against `state.lastKey`, which is
+   * ordinary committed state and therefore safe to read during render. Only the genuinely async
+   * case — waiting out the glide's own remaining time once `'idle'` arrives — needs a real effect,
+   * below.
+   */
+  const [state, setState] = useState<ReflowRevealHoldState>({ holding: false, lastReflowHide: undefined, lastContentPhase: undefined })
+  if (state.lastReflowHide !== reflowHide || state.lastContentPhase !== contentPhase) {
+    const holding = !reflowHide
+      ? false
+      : contentPhase !== 'idle'
+        ? true
+        : // `contentPhase` just reached `'idle'` while `reflowHide` is true — carry the prior value
+          // forward; the effect below is what actually schedules its release, since that genuinely
+          // needs a timer rather than a same-render decision.
+          state.holding
+    setState({ holding, lastReflowHide: reflowHide, lastContentPhase: contentPhase })
+  }
+
+  useEffect(() => {
+    if (!reflowHide || contentPhase !== 'idle') return
+    // `contentPhase` just reached `'idle'`, which itself arrived `BORDER_TRANSITION_DURATION_SECONDS`
+    // after `'holding'` (and the grid glide) started — so only the *remainder* of
+    // `PANE_GROWTH_DURATION_SECONDS` is still outstanding from here, not the full duration again.
+    const timer = setTimeout(() => setState((prev) => (prev.holding ? { ...prev, holding: false } : prev)), REFLOW_REVEAL_HOLD_SECONDS * 1000)
+    return () => clearTimeout(timer)
+  }, [contentPhase, reflowHide])
+
+  return state.holding
+}
+
+/**
  * Renders one pane's currently-showing content (animated whenever its own
  * resolved content actually changes value — not merely whenever the stage
  * crosses into a new checkpoint, see the crossfade key below), background,
@@ -158,6 +252,7 @@ export function LayoutPane({
   transitionDuration,
   contentPhase = 'idle',
   stageStatic,
+  reflowHide,
   reducedMotion,
   onSplitPane,
   onSplitFour,
@@ -195,8 +290,6 @@ export function LayoutPane({
    */
   const scopeId = `${screenID}:${leafId}`
   const scopedCss = usePaneCustomContent(scopeId, slot.customCss)
-  /** True for both of `contentPhase`'s non-idle values — this pane's own content/background stays forced into its hidden/exit state for the whole "old content exiting, then borders moving" stretch of the stage-transition sequence, only actually revealing once the caller settles back to `'idle'`. Never true for a `stageStatic` pane, which sits out the whole sequence instead of playing it pointlessly on content that never actually changed. */
-  const suppressEnter = contentPhase !== 'idle' && !stageStatic
 
   /** This pane's own content/background leaving vs. arriving — each gets its own small deterministic-per-pane extra delay (see `paneTransitionDelaySeconds`) so a multi-pane stage advance doesn't have every pane leave/arrive in exact lockstep, rather than sharing one `transition` object like before. */
   const exitTransition = reducedMotion ? { duration: 0 } : { duration: transitionDuration, delay: paneTransitionDelaySeconds(leafId, 'exit'), ease: 'easeInOut' as const }
@@ -329,6 +422,13 @@ export function LayoutPane({
     content?.kind === 'transit' || content?.kind === 'weather' || content?.kind === 'catalogue' || isEventMonth(content)
   const usesFontScale0 = usesFontScale(contentSlots[0]?.content)
   const usesFontScale1 = usesFontScale(contentSlots[1]?.content)
+  // Which of `usesFontScale0`/`usesFontScale1` actually applies right now: for a `reflowHide` leaf —
+  // content identity unchanged across this transition, per `reflowHide`'s own doc comment — the two
+  // crossfade slots hold the same content, so `activeContentSlot` alone picks the one that matters.
+  const reflowHideEligible = Boolean(reflowHide) && (activeContentSlot === 0 ? usesFontScale0 : usesFontScale1)
+  const reflowRevealHold = useReflowRevealHold(contentPhase, reflowHideEligible)
+  /** True for both of `contentPhase`'s non-idle values — this pane's own content/background stays forced into its hidden/exit state for the whole "old content exiting, then borders moving" stretch of the stage-transition sequence, only actually revealing once the caller settles back to `'idle'`. Never true for a `stageStatic` pane, which sits out the whole sequence instead of playing it pointlessly on content that never actually changed. A `reflowHide` pane (content unchanged too, but its own box changed shape enough to be worth hiding through — see that prop's own doc comment) is not `stageStatic`, so the first half of this already engages the ordinary way; `reflowRevealHold` is what keeps it hidden a little past the ordinary `'idle'` return, until this pane's own geometry glide has actually finished (see `useReflowRevealHold`). */
+  const suppressEnter = (contentPhase !== 'idle' && !stageStatic) || reflowRevealHold
   // `EventMonthSlide`'s own CSS multi-column list has no graceful width
   // fallback of its own (unlike `TransitSlide`'s ellipsis-truncating
   // destination column) — see `useShrinkToFitFontScale`'s own doc comment

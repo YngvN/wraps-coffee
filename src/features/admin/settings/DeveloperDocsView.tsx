@@ -731,7 +731,7 @@ POST /assistant/ollama-test        (Authorization: Bearer <token>, admin/subadmi
 POST /assistant/ollama-pull        (Authorization: Bearer <token>, admin/subadmin only)
 { "tag": string }
 → 200 { "ok": true }
-→ 502 { "ok": false, "error": string }   (pulls a model tag onto the configured Ollama host via its own /api/pull endpoint — backs the Integrations page's "Download missing model" button and its own model manager's "Add a model" field; first pulls are a one-time few-GB download and can take several minutes)
+→ 502 { "ok": false, "error": string }   (pulls a model tag onto the configured Ollama host via its own /api/pull endpoint — backs the Integrations page's "Download missing model" button and its own model manager's "Add a model" field; first pulls are a one-time few-GB download and can take several minutes. On Windows this normally only comes up for the vision model: the Windows installer already seeds the default thinking model (qwen3:4b) straight into Ollama's model store from a copy bundled inside it, so /assistant/ollama-test reports it installed and the "Download missing model" button never renders for it — see scripts/fetch-ollama-model.mts and installer/adhdisplay.iss)
 
 GET /assistant/ollama-models       (Authorization: Bearer <token>, admin/subadmin only)
 → 200 { "ok": true, "models": [{ "name": string, "size": number }] }   ("size" in raw bytes; every tag actually pulled on the host, not just the two configured vision/thinking roles — backs the Integrations page's own model manager submenu)

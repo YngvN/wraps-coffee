@@ -39,6 +39,32 @@ jobs:
           # in [Files] rather than downloaded again at install time.
           Invoke-WebRequest -Uri 'https://ollama.com/download/OllamaSetup.exe' -OutFile 'installer/OllamaSetup.exe'
 
+      # Same treatment as the Node.js/Ollama installers above: re-fetchable
+      # third-party content, downloaded fresh per CI build rather than
+      # committed (public/fonts is gitignored). ~36 MB of woff2 covering every
+      # family in src/data/googleFonts.json, which the installer then ships via
+      # its existing "..\public\*" entry so a kiosk renders correct typography
+      # with no internet access. Needs Node before it runs, unlike the two
+      # plain Invoke-WebRequest steps above.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Download Google Fonts for offline use
+        run: |
+          npm ci
+          npm run fonts:fetch
+
+      # The assistant's default text model, pre-seeded into Ollama's own store
+      # layout so a kiosk needs no download to use it (see adhdisplay.iss's
+      # header comment). ~2.5 GB on top of the ~2.5 GB it then adds to the
+      # compiled installer, so this job now wants roughly 7 GB free on the
+      # runner. Every blob is sha256-verified by the script itself, so a
+      # truncated download fails here rather than on a customer's machine.
+      - name: Download bundled Ollama model
+        run: npm run ollama:fetch
+
       - name: Compile installer
         shell: cmd
         run: '"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\adhdisplay.iss'

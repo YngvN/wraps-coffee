@@ -86,7 +86,7 @@ npm run preview  # preview the production build + local sync server together
 npm run lint     # run eslint
 ```
 
-The local server binds to all interfaces (`--host`), so it's reachable from other devices on the same network — open `http://<this machine's LAN IP>:5173` from a kiosk device or a second admin's phone. By default, screen links use the `.local` mDNS name (Settings → Advanced) instead of a raw IP, so they keep working across router/computer restarts. On Windows, this needs UDP port 5353 open for mDNS multicast — the Windows installer (`installer/adhdisplay.iss`) opens this automatically, alongside TCP 4000/4173 for the server itself, and — if the "Install Ollama" task is selected — installs Ollama itself from a copy bundled inside the installer (no network wait, and updated in place if it's outdated) without pulling any models; those are downloaded later, on demand, from Settings → Integrations → Ollama. A machine running `npm run dev`/`npm run preview` directly will need that port allowed through Windows Firewall by hand the first time it's prompted. On Linux (e.g. a Raspberry Pi), `bash installer/linux/install.sh` is the equivalent turnkey setup: installs Node.js and Ollama, pulling the AI assistant's two default local models automatically as part of that same step (unlike Windows, see above), builds the app, opens the same ports via `ufw` if present, and registers a systemd service so it survives a reboot.
+The local server binds to all interfaces (`--host`), so it's reachable from other devices on the same network — open `http://<this machine's LAN IP>:5173` from a kiosk device or a second admin's phone. By default, screen links use the `.local` mDNS name (Settings → Advanced) instead of a raw IP, so they keep working across router/computer restarts. On Windows, this needs UDP port 5353 open for mDNS multicast — the Windows installer (`installer/adhdisplay.iss`) opens this automatically, alongside TCP 4000/4173 for the server itself, and — if the "Install Ollama" task is selected — installs Ollama itself from a copy bundled inside the installer (no network wait, and updated in place if it's outdated), together with the AI assistant's default text model (`qwen3:4b`, ~2.5 GB), pre-seeded into Ollama's own model store from a copy bundled in the same installer — so the assistant works offline the moment setup finishes, with nothing to download. Setup shows what Ollama and which models it found on the machine before installing anything, and skips the bundled copy if that model is already there. Only the vision model (`qwen2.5vl:3b`) is still downloaded later, on demand, from Settings → Integrations → Ollama. A machine running `npm run dev`/`npm run preview` directly will need that port allowed through Windows Firewall by hand the first time it's prompted. On Linux (e.g. a Raspberry Pi), `bash installer/linux/install.sh` is the equivalent turnkey setup: installs Node.js and Ollama, pulling the AI assistant's two default local models automatically as part of that same step (unlike Windows, see above), builds the app, opens the same ports via `ufw` if present, and registers a systemd service so it survives a reboot.
 
 Ollama, specifically (for the AI assistant's Local provider), can also be set up on its own — without the rest of the installer — via `bash scripts/setup-ollama.sh`, e.g. to add it to an existing install or change which models are pulled.
 
@@ -157,6 +157,54 @@ src/
 - **Ctrl-z not working on everytihng in editor**
 
 ## Credits
+
+### Fonts
+
+Typography comes from the [Google Fonts](https://fonts.google.com) catalogue — every family listed in
+`src/data/googleFonts.json`, selectable per theme in the admin's font picker.
+
+These fonts are **bundled with the application rather than loaded from Google's CDN**, so a kiosk
+renders correct typography with no internet connection (and so screen-to-bitmap capture can inline
+`@font-face` sources same-origin instead of making ~100 cross-origin requests per capture).
+`npm run fonts:fetch` downloads them as `woff2` into `public/fonts/`, restricted to the Latin subsets
+this application needs; the installer ships that folder, and neither the fonts nor the generated
+stylesheet are committed to this repository.
+
+Because the font files are **redistributed**, their licences ship with them, in the generated
+`public/fonts/LICENSES.md`. Each family stays under its own upstream licence — across the catalogue
+those are the [SIL Open Font License 1.1](https://scripts.sil.org/OFL), the
+[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0), and the
+[Ubuntu Font License 1.0](https://ubuntu.com/legal/font-licence). No font is modified; files are
+served exactly as delivered by Google's CSS API.
+
+### AI models
+
+The AI assistant's default text model is **Qwen3 4B**, published by the Qwen team at Alibaba Cloud
+under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+
+Like the fonts above, it is **redistributed rather than merely used**: the Windows installer bundles
+its weights and seeds them into Ollama's own model store, so a kiosk's assistant works with no
+internet connection and no multi-gigabyte download during setup. `npm run ollama:fetch` downloads
+them from the [Ollama](https://ollama.com) model registry into `installer/ollama-models/` (gitignored,
+like the fonts and the bundled Node.js/Ollama installers), verifying every blob against its own
+sha256 digest.
+
+Because they are redistributed, the licence ships with them: `scripts/fetch-ollama-model.mts`
+generates `installer/ollama-models/LICENSES.md` from the model's own licence layer, and the installer
+places it in the install folder as `OLLAMA-MODEL-LICENSES.md`. No model is modified — every file is
+byte-for-byte what the registry serves. Apache 2.0 does not require this application to change its
+own licence.
+
+The vision model (`qwen2.5vl:3b`) is not bundled and is downloaded on demand instead.
+
+### Bundled third-party software
+
+The Windows installer bundles [Node.js](https://nodejs.org) (MIT) and, when the optional AI task is
+selected, [Ollama](https://ollama.com) (MIT) — both installed as their own products rather than
+redistributed as part of this application, unlike the model weights above. Everything else this app
+depends on is listed under "Tech stack" above and installed from npm at build time.
+
+### UI
 
 The admin dashboard's top navbar + cascading sidebar layout is adapted from [Kamilica's AgentFire admin CodePen](https://codepen.io/Kamilica/pen/XRbvaL) (structure only — colors/typography are this app's own theme).
 

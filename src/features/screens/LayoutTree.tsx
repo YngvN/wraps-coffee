@@ -38,6 +38,8 @@ interface LayoutTreeProps {
   contentPhase: 'idle' | 'exiting' | 'holding'
   /** Every leaf id this stage transition doesn't actually affect — either a persisting pane with unchanged content, or a newly-split-off pane whose `splitFromPaneId` lineage matches a pane that was already showing this same content (see `SplitLayout.tsx`'s own `computeStageStaticSets`) — threaded straight through to each matching `LayoutPane`'s own `stageStatic` prop. */
   stageStaticLeafIds: Set<PaneId>
+  /** Same content-identity test as `stageStaticLeafIds`, but the leaf's own box changed shape enough that it was moved here instead — threaded through to each matching `LayoutPane`'s own `reflowHide` prop. See `SplitLayout.tsx`'s own `computeStageStaticSets` for the full reasoning. */
+  reflowHideLeafIds: Set<PaneId>
   /** Every split node's own `pathKey` with at least one side (its own `first` or `second`) whose leaf set is unchanged by this stage transition (see `computeStageStaticSets`) — such a divider stays visible through `'exiting'` instead of shrinking away, and gets `stableResizeGridTransition` instead of `gridTransition` so a ratio change there (if any) glides smoothly rather than snapping behind a blanked screen. Covers a persisting pane resizing alongside a sibling region that's genuinely gaining/losing panes, not just a split where nothing changes anywhere below it. */
   stableSplitPaths: Set<string>
   /** The subset of `stableSplitPaths` whose divider moves too little between the two stages to be worth animating (see `SplitLayout.tsx`'s own `negligibleMoveSplitPaths`) — such a split keeps its border visible through `'exiting'` like any other stable split, but takes its new ratio on the commit rather than gliding to it. */
@@ -128,6 +130,7 @@ export function LayoutTree({
   transitionDuration,
   contentPhase,
   stageStaticLeafIds,
+  reflowHideLeafIds,
   stableSplitPaths,
   negligibleMoveSplitPaths,
   growingSplitPaths,
@@ -249,6 +252,7 @@ export function LayoutTree({
         transitionDuration={transitionDuration}
         contentPhase={contentPhase}
         stageStatic={stageStaticLeafIds.has(node.id)}
+        reflowHide={reflowHideLeafIds.has(node.id)}
         reducedMotion={reducedMotion}
         selected={node.id === selectedLeafId}
         dimmed={Boolean(dimUnselectedPanes && selectedLeafId !== undefined && node.id !== selectedLeafId)}
@@ -435,6 +439,7 @@ export function LayoutTree({
         transitionDuration={transitionDuration}
         contentPhase={contentPhase}
         stageStaticLeafIds={stageStaticLeafIds}
+        reflowHideLeafIds={reflowHideLeafIds}
         stableSplitPaths={stableSplitPaths}
         negligibleMoveSplitPaths={negligibleMoveSplitPaths}
         growingSplitPaths={growingSplitPaths}
@@ -482,6 +487,7 @@ export function LayoutTree({
         transitionDuration={transitionDuration}
         contentPhase={contentPhase}
         stageStaticLeafIds={stageStaticLeafIds}
+        reflowHideLeafIds={reflowHideLeafIds}
         stableSplitPaths={stableSplitPaths}
         negligibleMoveSplitPaths={negligibleMoveSplitPaths}
         growingSplitPaths={growingSplitPaths}

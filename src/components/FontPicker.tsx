@@ -1,15 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import googleFonts from '../data/googleFonts.json'
 import { useEscapeToClose } from '../hooks/useEscapeToClose'
-import { useGoogleFontLoader } from '../hooks/useGoogleFontLoader'
 import { Input } from './Input'
 import './FontPicker.scss'
 
-/** How many matching font names to show (and load previews for) at once — enough to be useful without loading dozens of fonts per keystroke. */
+/** How many matching font names to show at once — enough to be useful without a wall of options per keystroke. Previews need no loading step: every family is self-hosted and already in the page's own stylesheet (see `scripts/fetch-google-fonts.mts`). */
 const MAX_SUGGESTIONS = 8
-
-/** Distinct from `useGoogleFontLoader`'s own default link id, so a `FontPicker`'s suggestion previews never fight over the same `<link>` tag with whatever else (e.g. `ThemeEditorForm`'s already-selected font previews) is loading fonts elsewhere on the same page. */
-const SUGGESTIONS_LINK_ID = 'font-picker-suggestions'
 
 const FONT_NAMES = googleFonts as string[]
 
@@ -38,7 +34,6 @@ export function FontPicker({ id, label, value, onChange, placeholder, required }
   const suggestions = query ? FONT_NAMES.filter((font) => font.toLowerCase().includes(query)).slice(0, MAX_SUGGESTIONS) : []
   const isShowingSuggestions = isOpen && suggestions.length > 0
 
-  useGoogleFontLoader(suggestions, SUGGESTIONS_LINK_ID)
   useEscapeToClose(isOpen, () => setIsOpen(false))
 
   // Closes the dropdown on an outside click/tap, same "click away" affordance a native `<select>` gets for free.

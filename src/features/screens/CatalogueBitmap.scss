@@ -1,0 +1,54 @@
+// See `CatalogueBitmap.tsx`'s own doc comment. The point of every rule here is that the *only* thing
+// that changes when the pane resizes is `--catalogue-raster-scale` — a transform, i.e. a compositor
+// property — so the browser never re-lays-out or re-rasterises the catalogue itself (fact 17).
+
+.catalogue-bitmap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  // Contains both the pre-capture live tree and the finished bitmap, each laid out at the full raster
+  // size and scaled down to fit — so whichever is showing, nothing spills into the pane's own box or
+  // contributes to its scroll size. That last part matters beyond appearance: it is what lets
+  // `useShrinkToFitFontScale` settle in a single probe here (`scrollHeight` can never exceed
+  // `clientHeight`) instead of running a search whose answer a transform-fitted raster ignores anyway.
+  overflow: hidden;
+}
+
+// Shared placement for the two mutually-exclusive children: both sit at the host's center and are
+// scaled about it, so the swap from live tree to bitmap is not itself a visible change.
+.catalogue-bitmap__raster,
+.catalogue-bitmap__image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: scale(var(--catalogue-raster-scale, 1));
+  transform-origin: center;
+  will-change: transform;
+}
+
+.catalogue-bitmap__raster {
+  // Centered by the same negative-margin trick the bitmap uses, but expressed in `translate` because
+  // this element's own size comes from an inline style rather than being known here.
+  translate: -50% -50%;
+  // Clips a catalogue taller than the raster. Deliberate: the capture is a fixed-size window onto the
+  // content, and a raster that grew to fit would defeat the fixed-size premise entirely.
+  overflow: hidden;
+  // **The load-bearing line for the live-DOM (`liveOnly`) arm — measured, not assumed.**
+  //
+  // `.split-layout__pane` declares `container-type: size` so every `--slide-*-size` (a `cqmin`
+  // length, see `textSizesToCssVars`) resolves against *the pane's own box*. During a stage
+  // transition that box is animated, so those font sizes change on **every frame of the glide**, and
+  // a changed font size re-lays-out the entire catalogue every frame. Fixing this element's own
+  // width/height does nothing about that on its own: it is a descendant of the pane, so its
+  // contents still resolve `cqmin` against the pane.
+  //
+  // Measured directly: pinning the box alone left `holding` debt at 360ms against the baseline's
+  // 400ms — i.e. no improvement at all. Declaring a container here makes `cqmin` resolve against
+  // this fixed box instead, so the catalogue's own type size stops tracking the pane and the
+  // re-layout-per-frame disappears.
+  container-type: size;
+}
+
+.catalogue-bitmap__image {
+  display: block;
+}
