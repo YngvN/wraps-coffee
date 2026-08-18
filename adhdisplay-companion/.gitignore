@@ -3,8 +3,12 @@
 android/
 ios/
 
-# Build output of `npm run build:tv` — versioned APKs, not source.
-dist/
+# dist/ (npm run build:tv's output) is deliberately NOT ignored: the compiled
+# release APK is committed so installer/adhdisplay.iss's own [Files] glob has
+# something to bundle without needing to rebuild it (a full Android build is
+# slow) - see that .iss's header comment. Only ever keep the current version's
+# APK there; delete the previous one before committing a new build so the
+# glob can't pick up two at once.
 
 # expo-updates code signing — see codeSigning/CODE_SIGNING.md for why only the private key (not
 # the certificate) is gitignored, unlike keystore/release.keystore which is fully committed.

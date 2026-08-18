@@ -8,8 +8,11 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
-dist-ssr
+# Anchored to the repo root's own Vite build output - a bare "dist" would
+# also match adhdisplay-companion/dist, which is deliberately NOT ignored
+# (its own .gitignore) since it holds the committed release APK.
+/dist
+/dist-ssr
 *.local
 
 # Local LAN sync server's own persisted state (users/sessions/synced keys) —

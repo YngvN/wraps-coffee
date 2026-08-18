@@ -4,13 +4,16 @@ name: Build ADHDisplay installer
 # workflow) rather than on every push, since compiling the installer isn't
 # needed for most commits and this keeps Actions usage to only when you
 # actually want a new ADHDisplaySetup.exe to hand to the client. The
-# Companion app's own separate Windows installer (ADHDisplayCompanionSetup.exe)
-# is built by the separate build-companion-installers.yml workflow instead -
-# a fully independent package with its own release cadence. The Companion
-# app's Android TV APK, however, is built right here (see the "Build
-# Companion Android TV APK" step below) since adhdisplay.iss's own [Files]
-# section bundles it inside this installer - see that .iss's header comment
-# and installer/build-with-apk.ps1, the equivalent local (non-CI) build path.
+# Companion app's own Windows installer + Android APK are built by the
+# separate build-companion-installers.yml workflow instead - a fully
+# independent package with its own release cadence, not bundled with this one.
+#
+# The Companion app's Android TV APK that DOES get bundled into this
+# installer (see adhdisplay.iss's own header comment) is not built here
+# either - a full Android/Gradle build is slow, so the compiled release APK
+# is committed straight into adhdisplay-companion/dist/ instead and just
+# comes along for free with the checkout step below. Run `npm run build:tv`
+# locally and commit the result there when the Companion app changes.
 on:
   workflow_dispatch: {}
 
@@ -68,32 +71,6 @@ jobs:
       # truncated download fails here rather than on a customer's machine.
       - name: Download bundled Ollama model
         run: npm run ollama:fetch
-
-      # GitHub's windows-latest runner already ships an Android SDK
-      # (ANDROID_HOME/ANDROID_SDK_ROOT preset, build-tools/platforms covering
-      # this project's targetSdk=34 - see adhdisplay-companion/README.md), so
-      # only the JDK needs pinning explicitly; Gradle wants 17 here (see
-      # scripts/build-tv-apk.js's own Kotlin-version comment for the sibling
-      # Gradle/Kotlin pin).
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      # Produces the signed release APK that adhdisplay.iss's own [Files]
-      # glob (..\adhdisplay-companion\dist\adhdisplay-companion-*.apk) expects
-      # to already exist at compile time - see that .iss's header comment and
-      # installer/build-with-apk.ps1 (the same two steps, for a local build).
-      # The signing keystore is committed (adhdisplay-companion/keystore/),
-      # so this needs no secrets to produce a stably-signed APK.
-      - name: Install Companion app dependencies
-        run: npm install
-        working-directory: adhdisplay-companion
-
-      - name: Build Companion Android TV APK
-        run: npm run build:tv
-        working-directory: adhdisplay-companion
 
       - name: Compile installer
         shell: cmd

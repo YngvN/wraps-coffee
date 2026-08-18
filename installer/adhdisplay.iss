@@ -31,14 +31,17 @@
 ; ADHDisplaySetup.exe into .exe plus .bin slices that must stay together.
 ;
 ; The [Files] section below also embeds the Companion app's Android TV APK
-; (built from ../adhdisplay-companion via `npm run build:tv`, not committed to
-; the repo either — see that project's own README "Building a release APK for
-; Android TV" section) so it ships inside the {app}\android-apk folder, ready
-; to copy to a USB stick per ../docs/INSTALL-TV.md. Since Inno resolves that
-; [Files] glob at compile time, the APK must already exist in
-; ../adhdisplay-companion/dist before running ISCC — run build-with-apk.ps1
-; (next to this file) for a local build, which runs both steps in one
-; command; build-installer.yml does the equivalent two steps itself in CI.
+; (built from ../adhdisplay-companion via `npm run build:tv`, then committed
+; straight into ../adhdisplay-companion/dist — see that project's own
+; .gitignore and README "Building a release APK for Android TV" section) so
+; it ships inside the {app}\android-apk folder, ready to copy to a USB stick
+; per ../docs/INSTALL-TV.md. Committed rather than built by ISCC's own callers
+; (build-installer.yml, build-with-apk.ps1) because a full Android/Gradle
+; build is slow — a full Android SDK/JDK toolchain is only needed when the
+; Companion app itself changes and its committed APK needs regenerating, not
+; on every installer compile. Since Inno resolves that [Files] glob at
+; compile time, whatever APK is currently committed there is what ships —
+; keep it in sync with adhdisplay-companion's own version.
 
 #define AppName "ADHDisplay"
 #define AppExeName "start-adhdisplay.bat"

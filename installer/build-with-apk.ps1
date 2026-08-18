@@ -1,11 +1,13 @@
-# Builds the Companion app's Android TV release APK, then compiles
+# Rebuilds the Companion app's Android TV release APK, then compiles
 # adhdisplay.iss - Inno resolves that .iss's own [Files] APK glob
-# (..\adhdisplay-companion\dist\adhdisplay-companion-*.apk) at compile time,
-# so the APK must exist on disk before ISCC runs; invoking ISCC directly
-# without this script first would fail with "no files found" the first time,
-# or silently embed a stale build any other time. Requires Inno Setup 6
-# (ISCC.exe) and a full Android SDK/JDK set up for `npm run build:tv` - see
-# adhdisplay-companion/README.md's "Building a release APK for Android TV".
+# (..\adhdisplay-companion\dist\adhdisplay-companion-*.apk) at compile time.
+# That APK is normally already committed in adhdisplay-companion\dist (see
+# that project's own .gitignore), so ISCC can be invoked directly most of the
+# time without this script; only run this when the Companion app itself has
+# changed and its committed APK needs regenerating before the next installer
+# compile picks up the new one. Requires Inno Setup 6 (ISCC.exe) and a full
+# Android SDK/JDK set up for `npm run build:tv` - see adhdisplay-companion/
+# README.md's "Building a release APK for Android TV".
 
 param(
   [string]$IsccPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
