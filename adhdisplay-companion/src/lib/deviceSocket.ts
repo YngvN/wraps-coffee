@@ -9,12 +9,17 @@ const MAX_RECONNECT_DELAY_MS = 10_000
  * are the Remote Screen Navigation spec's own additions (commit 9's server
  * side, consumed here starting commit 10b) — `effective-screen`'s
  * `screenId` is nullable, matching `DisplayMonitor.assignedScreenID`
- * (no screen assigned shows the standby screensaver).
+ * (no screen assigned shows the standby screensaver). Each `navigable-set`
+ * entry's own `previewImage` is that screen's stage-1 screenshot, reduced
+ * server-side to a relative `/uploads/...?size=medium` path (see
+ * `toRelativeUploadUrl` in `server/index.ts`) — `null` for a screen with no
+ * screenshot yet. `remoteNav.ts` hands the whole set to `previewCache.ts` to
+ * resolve into local `file://` uris before browse mode ever needs them.
  */
 export type DeviceServerMessage =
   | { type: 'check-update' }
   | { type: 'install-update'; mechanism: 'apk' }
-  | { type: 'navigable-set'; screens: { screenId: string; name: string }[] }
+  | { type: 'navigable-set'; screens: { screenId: string; name: string; previewImage: string | null }[] }
   | { type: 'effective-screen'; screenId: string | null }
 
 type MessageListener = (message: DeviceServerMessage) => void
@@ -39,6 +44,25 @@ function setConnected(next: boolean) {
 function sendHello() {
   if (!socket || socket.readyState !== WebSocket.OPEN || !currentMachineID) return
   socket.send(JSON.stringify({ type: 'device-hello', machineID: currentMachineID }))
+}
+
+/**
+ * Re-sends `device-hello` on an already-open socket to force a fresh `navigable-set` +
+ * `effective-screen` push (the hub re-sends both on every `device-hello`, connect or reconnect —
+ * see `server/index.ts`'s own handler). A no-op if the socket isn't open; the normal reconnect path
+ * already covers that case on its own.
+ *
+ * Exists because `pushToDevice`/`pushToAllDevices` on the hub are deliberately best-effort — not
+ * queued, not retried (see their own doc comments in `server/deviceSocket.ts`) — and a WebSocket can
+ * report `readyState === OPEN` for a while after the underlying connection has actually gone quiet
+ * (a brief Wi-Fi hiccup on the TV, packets silently dropped, no `close` event fired yet). A push that
+ * lands during that window is gone for good until *something else* happens to trigger another one —
+ * confirmed in practice: a screen assignment change made no difference to what was on screen until
+ * the whole app was restarted. `remoteNav.ts` calls this when browse mode is armed, so the navigable
+ * set has a fresh round trip to arrive before the second press needs it.
+ */
+export function requestFreshDeviceState() {
+  sendHello()
 }
 
 function scheduleReconnect() {

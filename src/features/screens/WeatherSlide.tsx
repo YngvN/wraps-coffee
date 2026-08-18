@@ -1,7 +1,8 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { YrLogo } from '../../components'
 import { useClockFormatPreference } from '../../hooks/useClockFormatPreference'
+import { useFitItemCount } from '../../hooks/useFitItemCount'
 import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
 import { useWeatherForecast } from '../../hooks/useWeatherForecast'
 import { useLanguage } from '../../i18n'
@@ -9,6 +10,7 @@ import type { IntegrationsConfig, WeatherHour, WeatherLocationStatus } from '../
 import { DEFAULT_WEATHER_FORECAST_HOURS, type WeatherIconPack } from '../../types/screen'
 import { formatClockTime } from '../../utils/clockFormat'
 import { weatherLocationKey } from '../../utils/weatherLocationKey'
+import { SLIDE_LAYOUT_FADE_VARIANTS, slideLayoutFadeTransition } from './slideLayoutFade'
 import { WeatherSymbolIcon } from './WeatherSymbolIcon'
 import './WeatherSlide.scss'
 
@@ -18,7 +20,8 @@ import './WeatherSlide.scss'
 // single set of variants directly on the `motion.li` (rather than a nested
 // `motion.span`) is all this needs. `layout="position"` (not plain `layout`
 // — see `TransitSlide.tsx`'s own comment on why) animates the remaining
-// cards sliding over to close the gap once one leaves/before one arrives.
+// cards sliding over to close the gap once one leaves/before one arrives —
+// but only while the pane itself is still, see `usePaneResizing`.
 // Used in "horizontal" mode (see `useIsVerticalPane`) — hours run left to
 // right, so a passing hour naturally exits toward the left and a new one
 // enters from the right.
@@ -40,6 +43,54 @@ const weatherItemTransition = { duration: 0.4, ease: 'easeInOut' as const }
 
 /** Below this pane aspect ratio (width ÷ height), the hourly forecast switches from a horizontal strip of hour-columns (with a shared row-label legend at the start — see `.weather-slide__list`'s own doc comment in `WeatherSlide.scss`) to a vertical list of hour-rows (with a shared column-header row on top instead, the same shape `TransitSlide` already uses) — a narrow/portrait pane has no room to add more side-by-side hour columns without either squeezing each one unreadably thin or scrolling sideways, while a plain vertical list is exactly what that shape already reads naturally. `1` (a perfect square) rather than something more forgiving like `TransitSlide`'s own `1.4` threshold — unlike a departures board's column count (which only ever *adds* columns as a pane gets wider), this is a binary either/or layout switch, so it should only kick in once a pane genuinely reads as "vertical rectangle," not merely as "not quite widescreen." */
 const VERTICAL_ASPECT_RATIO_THRESHOLD = 1
+
+/**
+ * How long after the pane's box last changed to treat it as still resizing.
+ *
+ * Covers the gap between the last `ResizeObserver` delivery and the layout genuinely settling — a
+ * little longer than `PANE_GROWTH_DURATION_SECONDS`' own tail, and short enough that an ordinary hourly
+ * rotation arriving right after a resize still gets its slide.
+ */
+const PANE_RESIZE_SETTLE_MS = 350
+
+/**
+ * True while this pane's own box is changing, and for a short settle afterwards — see
+ * `PANE_RESIZE_SETTLE_MS`.
+ *
+ * **Why this exists.** Framer Motion's `layout` prop animates *any* layout change, and cannot tell one
+ * cause from another. That is right for the hour-by-hour rotation, where the remaining cards sliding
+ * across to close a gap is the whole effect; it is wrong for a stage transition that reshapes the pane,
+ * where every card lands somewhere new at once and the list visibly shuffles into place *after* the
+ * fade-in has already finished. Suppressing `layout` for exactly that window leaves the rotation's own
+ * movement untouched while a resize resolves instantly — and it resolves while the body is still
+ * hidden, so nothing is seen moving at all (`LayoutPane`'s `BODY_ONLY_REFLOW`).
+ */
+function usePaneResizing(containerRef: React.RefObject<HTMLElement | null>): boolean {
+  const [resizing, setResizing] = useState(false)
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    let settle: ReturnType<typeof setTimeout> | undefined
+    // Skips the observer's own initial delivery, which reports the box without it having changed.
+    let seenFirst = false
+    const observer = new ResizeObserver(() => {
+      if (!seenFirst) {
+        seenFirst = true
+        return
+      }
+      setResizing(true)
+      if (settle !== undefined) clearTimeout(settle)
+      settle = setTimeout(() => setResizing(false), PANE_RESIZE_SETTLE_MS)
+    })
+    observer.observe(container)
+    return () => {
+      observer.disconnect()
+      if (settle !== undefined) clearTimeout(settle)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `containerRef` is a stable ref object; only its `.current` (read inside the effect, not a dependency) can meaningfully change.
+  }, [])
+  return resizing
+}
 
 /** Tracks whether `containerRef`'s own pane currently reads as a vertical rectangle (see `VERTICAL_ASPECT_RATIO_THRESHOLD`) via a plain `ResizeObserver`, the same technique `TransitSlide`'s own `useColumnCount` uses to react to the pane's own shape rather than a fixed breakpoint. */
 function useIsVerticalPane(containerRef: React.RefObject<HTMLElement | null>): boolean {
@@ -203,6 +254,17 @@ export function WeatherSlide({
   // `useColumnCount`.
   const paneRef = useRef<HTMLDivElement>(null)
   const isVertical = useIsVerticalPane(paneRef)
+  // Suppresses the cards' own layout animation for exactly the window the pane is reshaping — see `usePaneResizing`.
+  const paneResizing = usePaneResizing(paneRef)
+  const reducedMotion = useReducedMotion()
+  // Forecast hours are the thing that gives when even the smallest legible type cannot fit them all
+  // (see `useFitItemCount` and `useShrinkToFitFontScale`'s own `MIN_LEGIBLE_SCALE`). Dropping the
+  // furthest-out hours is the right end to lose: this pane is read for what the weather is doing
+  // *soon*, so hour 1 matters far more than hour 12, and `hourly` is time-sorted oldest-first.
+  // Measured against the pane root, which already clips (`overflow-y: hidden` in `WeatherSlide.scss`),
+  // so its own overflow is exactly the question being asked.
+  const visibleHourCount = useFitItemCount(paneRef, displayedHours.length)
+  const visibleHours = displayedHours.slice(0, visibleHourCount)
 
   if (!coordinates) {
     return (
@@ -230,16 +292,18 @@ export function WeatherSlide({
   // `WeatherSlide.scss`, since `repeat(<n>, auto)` needs a concrete count —
   // unlike `TransitSlide`'s own fixed column count, this one genuinely
   // varies with which details are on. Every `grid-row`/`grid-column: 1 / -1`
-  // subgrid below depends on this explicit count to resolve `-1` against —
-  // without it, there's no explicit grid to anchor "last track" to, and
-  // every track collapses into one.
+  // below depends on this explicit count to resolve `-1` against — without
+  // it, there's no explicit grid to anchor "last track" to, and every track
+  // collapses into one.
   const trackCount = 3 + [showWind, showHumidity, showPrecipitationProbability, showUvIndex, showPressure].filter(Boolean).length
 
-  /** One hour's own field values, in a fixed order shared by both orientations' own per-hour element (`.weather-slide__item` in horizontal mode, `.weather-slide__row` in vertical) — time, icon, temp always; each detail only when its own toggle is on, matching `renderDetailLabels`'s own conditions exactly (subgrid alignment is purely positional, so the two ever drifting out of sync would misalign every label against the wrong value). */
+  /** One hour's own field values, in a fixed order shared by both orientations' own per-hour element (`.weather-slide__item` in horizontal mode, `.weather-slide__row` in vertical) — time, icon, temp always; each detail only when its own toggle is on, matching `renderDetailLabels`'s own conditions exactly (grid alignment here is purely positional, so the two ever drifting out of sync would misalign every label against the wrong value). */
   const renderHourFields = (hour: WeatherHour, index: number): ReactNode => (
     <>
       {/* The leading card is always the current hour (the list is time-sorted, oldest-first) — reads better as "Now" than repeating the clock's own current hour back at it. Naturally lands on whichever card the sequencer has just reflowed into position 0, right as `useSequencedHours` retires the previous one. */}
-      <span className="weather-slide__time">{index === 0 ? t('admin.screens.weatherNowLabel') : formatClockTime(new Date(hour.time), language, clockFormat)}</span>
+      <span className={`weather-slide__time${index === 0 ? ' weather-slide__time--now' : ''}`}>
+        {index === 0 ? t('admin.screens.weatherNowLabel') : formatClockTime(new Date(hour.time), language, clockFormat)}
+      </span>
       <WeatherSymbolIcon symbolCode={hour.symbolCode} pack={iconPack} className="weather-slide__icon" />
       <span className="weather-slide__temp">{Math.round(hour.temperatureC)}°</span>
       {showWind && <span className="weather-slide__value">{hour.windSpeedMs !== undefined && t('admin.screens.weatherWindShortValue', { value: Math.round(hour.windSpeedMs) })}</span>}
@@ -275,62 +339,98 @@ export function WeatherSlide({
       {/* White, not `YrLogo`'s own default blue fill — the branded theme's background is now Yr's own blue (see `WeatherSlide.scss`), so the logo needs to be the light-on-dark variant to stay visible against it. */}
       {branded && (showBrandLogo ?? true) && <YrLogo fill="#ffffff" className="weather-slide__brand-logo" />}
       <div className="weather-slide__content">
-        {isVertical ? (
-          // Vertical mode: one row per hour, sharing column tracks via
-          // `subgrid` — the exact same shape `TransitSlide`'s own
-          // `.transit-slide__column` uses (a header row up top, one row per
-          // item below it), not a coincidence: a narrow/portrait pane and a
-          // departures board both read best as a plain top-to-bottom list.
-          <ul className="weather-slide__list weather-slide__list--vertical" style={trackCountStyle}>
-            <li className="weather-slide__column-header" aria-hidden="true">
-              {renderDetailLabels('weather-slide__column-header-label')}
-            </li>
-            <AnimatePresence initial={false} mode="popLayout">
-              {displayedHours.map((hour, index) => (
-                <motion.li
-                  key={hour.time}
-                  layout="position"
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  variants={weatherRowVariants}
-                  transition={weatherItemTransition}
-                  className="weather-slide__row"
-                >
-                  {renderHourFields(hour, index)}
-                </motion.li>
-              ))}
-            </AnimatePresence>
-          </ul>
-        ) : (
-          // Horizontal mode (the default): one column per hour, sharing row
-          // tracks via `subgrid` — the transpose of the vertical shape above
-          // (there, one row per hour sharing column tracks; here, one column
-          // per hour sharing row tracks), with a shared row-label legend at
-          // the *start* taking the header row's own place.
-          <ul className="weather-slide__list weather-slide__list--horizontal" style={trackCountStyle}>
-            <li className="weather-slide__row-labels" aria-hidden="true">{renderDetailLabels('weather-slide__row-label')}</li>
-            <AnimatePresence initial={false} mode="popLayout">
-              {displayedHours.map((hour, index) => (
-                <motion.li
-                  key={hour.time}
-                  layout="position"
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  variants={weatherItemVariants}
-                  transition={weatherItemTransition}
-                  className="weather-slide__item"
-                >
-                  {renderHourFields(hour, index)}
-                </motion.li>
-              ))}
-            </AnimatePresence>
-          </ul>
-        )}
+        {/* Fades the whole list container out/in whenever `isVertical` itself flips — a resize that stays within the same orientation never re-triggers this (see `slideLayoutFade.ts`), only an actual shape change does. Nested inside `.weather-slide__content`, not wrapping it, so the brand logo and low/high summary (siblings/outside this block) never fade with it. */}
+        <AnimatePresence mode="wait" initial={false}>
+          {isVertical ? (
+            // Vertical mode: one row per hour, sharing column tracks (see
+            // `WeatherSlide.scss`) — the exact same shape `TransitSlide`'s own
+            // `.transit-slide__column` uses (a header row up top, one row per
+            // item below it), not a coincidence: a narrow/portrait pane and a
+            // departures board both read best as a plain top-to-bottom list.
+            <motion.ul
+              key="vertical"
+              className="weather-slide__list weather-slide__list--vertical"
+              // Marks this list as the slide's *body* — the part that fades out before the pane
+              // resizes and returns re-laid-out afterwards, while the brand logo and heading (siblings
+              // outside it) stay put throughout. See `LayoutPane.tsx`'s own `bodyHidden`/`skipsLayout`.
+              data-slide-body=""
+              style={trackCountStyle}
+              variants={SLIDE_LAYOUT_FADE_VARIANTS}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={slideLayoutFadeTransition(reducedMotion)}
+            >
+              <li className="weather-slide__column-header" aria-hidden="true">
+                {renderDetailLabels('weather-slide__column-header-label')}
+              </li>
+              <AnimatePresence initial={false} mode="popLayout">
+                {visibleHours.map((hour, index) => (
+                  <motion.li
+                    key={hour.time}
+                    layout={paneResizing ? false : 'position'}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    variants={weatherRowVariants}
+                    transition={weatherItemTransition}
+                    className="weather-slide__row"
+                  >
+                    {renderHourFields(hour, index)}
+                  </motion.li>
+                ))}
+              </AnimatePresence>
+            </motion.ul>
+          ) : (
+            // Horizontal mode (the default): one column per hour, sharing row
+            // tracks (see `WeatherSlide.scss`) — the transpose of the vertical
+            // shape above (there, one row per hour sharing column tracks;
+            // here, one column per hour sharing row tracks), with a shared
+            // row-label legend at the *start* taking the header row's own
+            // place.
+            <motion.ul
+              key="horizontal"
+              className="weather-slide__list weather-slide__list--horizontal"
+              // Marks this list as the slide's *body* — the part that fades out before the pane
+              // resizes and returns re-laid-out afterwards, while the brand logo and heading (siblings
+              // outside it) stay put throughout. See `LayoutPane.tsx`'s own `bodyHidden`/`skipsLayout`.
+              data-slide-body=""
+              style={trackCountStyle}
+              variants={SLIDE_LAYOUT_FADE_VARIANTS}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={slideLayoutFadeTransition(reducedMotion)}
+            >
+              <li className="weather-slide__row-labels" aria-hidden="true">{renderDetailLabels('weather-slide__row-label')}</li>
+              <AnimatePresence initial={false} mode="popLayout">
+                {visibleHours.map((hour, index) => (
+                  <motion.li
+                    key={hour.time}
+                    layout={paneResizing ? false : 'position'}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    variants={weatherItemVariants}
+                    transition={weatherItemTransition}
+                    className="weather-slide__item"
+                  >
+                    {renderHourFields(hour, index)}
+                  </motion.li>
+                ))}
+              </AnimatePresence>
+            </motion.ul>
+          )}
+        </AnimatePresence>
         {/* Today's overall low/high (see `useWeatherForecast`), not any one hour's own reading — numbers only, no "L"/"H" labels, a vertical line between them. */}
         {todayLowC !== undefined && todayHighC !== undefined && (
-          <p className="weather-slide__low-high">
+          // Part of the slide's **body**, not its chrome (see `LayoutPane.tsx`'s `BODY_ONLY_REFLOW`).
+          // Chrome is the pane's own identity — the brand mark, the place it is showing — which is worth
+          // keeping painted through a resize so the pane reads as changing shape rather than as its
+          // content vanishing. This line is derived forecast data that re-flows with the hours above it,
+          // so it fades and leaves layout alongside them; without the attribute it stayed on screen
+          // through the glide while the list it summarises disappeared from under it.
+          <p className="weather-slide__low-high" data-slide-body="">
             {Math.round(todayLowC)}° | {Math.round(todayHighC)}°
           </p>
         )}

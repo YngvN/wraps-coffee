@@ -76,6 +76,26 @@
   padding: $spacing-unit * 4;
   min-width: 0;
   overflow-x: hidden;
+
+  // Content-width budget for the whole dashboard, declared here (rather than
+  // in `:root`) so it's scoped to the admin shell and adjustable from one
+  // place. Before this, nothing capped anything: every view stretched to the
+  // full monitor, so a text input holding a store name rendered ~1750px wide
+  // and a list row's actions drifted further from its label the bigger the
+  // display got — measurably worse on a larger screen, not better.
+  //
+  // `content` caps a whole view; `list` is the narrower cap for row-based
+  // lists, whose left-name/right-actions pairing is what suffers most from
+  // unbounded width; `field` caps an individual form control.
+  --admin-content-max-width: 1200px;
+  --admin-list-max-width: 56rem;
+  --admin-field-max-width: 32rem;
+}
+
+// The actual capped column. Centered in the space beside the sidebar rail.
+.admin-dashboard__content-inner {
+  max-width: var(--admin-content-max-width);
+  margin-inline: auto;
 }
 
 // A one-line "what this page is for" description, shown right under a page's
@@ -117,6 +137,12 @@
     top: 56px;
     left: 0;
     height: calc(100vh - 56px);
+    // The nav's own content (`AdminSidebarNav.tsx`'s `variant="mobile"`) has
+    // no height constraint of its own — this is the actual bounded box, so
+    // on a short/landscape screen with enough nav items to exceed it, this
+    // is what needs to scroll rather than let content run past the bottom
+    // edge uncontained.
+    overflow-y: auto;
     z-index: 25;
     width: min(280px, 80vw);
   }

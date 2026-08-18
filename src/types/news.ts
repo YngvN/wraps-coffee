@@ -167,3 +167,25 @@ export interface NewsHeadline {
   /** Byline, when the feed credits one. */
   author?: string
 }
+
+/**
+ * The widths `GET /news/image?w=` is allowed to resolve to, smallest first. A closed set rather than a
+ * free-form number so a caller can't fill the server's cache directory with one file per arbitrary
+ * width, and so a pane resizing by a few pixels never invalidates a cached derivative.
+ *
+ * Shared by the client (which asks for a width based on how large the image actually renders) and the
+ * server (`server/newsImageCache.ts`, which resizes and caches per width) specifically so the two can
+ * never disagree about which sizes exist.
+ */
+export const NEWS_IMAGE_WIDTHS = [320, 480, 800, 1280] as const
+
+/**
+ * The smallest allowed width at or above `renderedWidth`, so a pane needing 500px gets 800 rather than
+ * a visibly softer 480. Returns `undefined` for a non-positive/unknown input, or for anything larger
+ * than the biggest allowed width — both meaning "serve the original bytes", which is also the
+ * behaviour for any caller that doesn't pass a width at all.
+ */
+export function pickNewsImageWidth(renderedWidth: number | undefined): number | undefined {
+  if (!renderedWidth || !Number.isFinite(renderedWidth) || renderedWidth <= 0) return undefined
+  return NEWS_IMAGE_WIDTHS.find((width) => width >= renderedWidth)
+}

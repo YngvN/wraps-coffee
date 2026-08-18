@@ -8,7 +8,7 @@
   // A small gap so the code doesn't touch its pane's own borders — much
   // slimmer than a normal slide's own padding (e.g. `ImageSlide`'s), since
   // the code should still fill as much of the pane as it reasonably can.
-  padding: $spacing-unit * 2;
+  padding: var(--pane-padding, $spacing-unit * 2);
   color: var(--screen-text);
   overflow: hidden;
 }
@@ -37,17 +37,42 @@
 .qr-code-slide__slot {
   position: absolute;
   inset: 0;
+  // Promotes each crossfade slot to its own compositor layer so the 0.4s opacity animation between
+  // two QR codes runs on the compositor instead of repainting them. Without it, both slots' full SVG
+  // paths are re-rasterized into the parent layer every frame of every crossfade — and a `level: 'H'`
+  // code (required whenever a logo excavates the centre, see QrCodeSlide.tsx) is the densest, most
+  // path-heavy variant there is. A QR pane measured 27ms median frame time on the TV, the worst of
+  // any pane kind tested — see QA/Reports/qa-report-stutter-tv-2026-08-11.md.
+  //
+  // Only ever two slots exist, so the extra GPU memory from keeping them promoted is bounded.
+  will-change: opacity;
+}
+
+// Fixed-size rasterisation host — see `QR_FIXED_RASTER` in `QrCodeSlide.tsx` for the full reasoning
+// and the measurement that motivated it. In short: the slot above is already its own compositor
+// layer, but a layer re-rasterises whenever its *layout size* changes, and a QR code is several
+// hundred SVG subpaths to re-rasterise. Laying the code out at a constant `RASTER_PX` square and
+// fitting it with `transform: scale()` keeps the layout size constant, so a pane resize becomes a
+// compositor property change rather than a repaint.
+//
+// Its own `width`/`height`/negative margins come inline from `RASTER_PX` (single source of truth);
+// `top`/`left: 50%` plus those margins centre it, and `transform-origin: center` keeps it centred as
+// it scales.
+.qr-code-slide__raster {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: scale(var(--qr-raster-scale, 1));
+  transform-origin: center;
+  will-change: transform;
 }
 
 .qr-code-slide__code {
   display: block;
   width: 100%;
   height: 100%;
-  // `qrcode.react` sets `preserveAspectRatio="none"` internally, which
-  // would otherwise stretch the code out of square to match a non-square
-  // box; `object-fit: contain` is what overrides that (an SVG's intrinsic
-  // 1:1 ratio, from its own `viewBox`, still applies for CSS sizing
-  // purposes even with that attribute set) and keeps it square, centered
-  // within whatever box it ends up as.
-  object-fit: contain;
+  // No `object-fit` needed: `QrCodeSvg` draws into a square `viewBox` and leaves
+  // `preserveAspectRatio` at its `xMidYMid meet` default, so the code keeps its own 1:1 ratio and
+  // centers itself inside a non-square box. The rule that used to sit here existed only to undo
+  // `qrcode.react`'s own `preserveAspectRatio="none"`, and went away with that library.
 }

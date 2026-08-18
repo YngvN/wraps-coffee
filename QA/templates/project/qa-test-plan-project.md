@@ -63,10 +63,11 @@ The standing fixture is **`AutoDeler`** (a car-parts catalogue: Dekk/Bremser/Mot
 | `settings` | `server/assistant/entities/settings.qa-scenarios.md` | Settings entity (clock/date format, sidebar visibility, etc.) |
 | `mediaLibrary` | `server/assistant/entities/mediaLibrary.qa-scenarios.md` | Media Library rename/delete |
 | `screen` | `server/assistant/entities/screen.qa-scenarios.md` | Screen entity (global settings only, never pane layout/content) |
-| `displayManager` | `server/assistant/entities/displayManager.qa-scenarios.md` | Display machine rename + monitor screen assignment |
+| `displayManager` | `server/assistant/entities/displayManager.qa-scenarios.md` | Display machine rename + monitor screen assignment + per-unit max image resolution |
 | `orders` | `server/assistant/entities/orders.qa-scenarios.md` | Order status changes (website/Wolt/Foodora) |
+| `screenPane` | `server/assistant/entities/screenPane.qa-scenarios.md` | Per-pane custom CSS/HTML (both postures) + full-parity pane content editing (gated by the kebab-menu toggle + posture) |
 
-**As of 2026-08-04, none of these six files have ever been exercised in an actual QA cycle** — all six entities (and the `contactInfo` flag) shipped the same day their scenario banks were written. Don't read their presence here as "already verified."
+**As of 2026-08-04, none of the first six files have ever been exercised in an actual QA cycle** — all six entities (and the `contactInfo` flag) shipped the same day their scenario banks were written. Don't read their presence here as "already verified." `screenPane` (added 2026-08-14) has had two passes as of the same day: an initial full pass (SP.1-19, mixed `qwen3:4b`/`qwen3:8b`) and a same-day follow-up against `qwen3:4b` alone covering SP.1-19 plus 41 of the bank's 22 newly-added SP.20-44 rows (SP.12/20/24 deferred) — see that file's own header for findings, including one shared-hook fix (`useScreens.ts`'s `normalizeSlot`) that affects the human admin editors too, not just this entity, and a new model-behavior finding (short-form content-kind-switch phrasing misrouting into `customCss`/`customHtml`) that makes SP.11 a regression this cycle.
 
 ## Section E: Concurrent-turn safety (standing scenario bank)
 

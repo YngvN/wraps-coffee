@@ -1,16 +1,19 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Button, Checkbox, Input, NumberInput, SlideTransition } from '../../../components'
+import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { useScreens } from '../../../hooks/useScreens'
 import { useScreensaverSchedule } from '../../../hooks/useScreensaverSchedule'
 import { useLanguage, type LanguageCode } from '../../../i18n'
+import { captureScreenPreviews } from '../../screens/screenPreviewCapture'
 import {
   DEFAULT_SCREEN_BACKGROUND_COLOR,
   DEFAULT_TEXT_SIZES,
   type BackgroundImage,
   type DraftableScreenFields,
+  type EditorTargetViewport,
   type LayoutNode,
   type PaneGrowthFallback,
   type PaneId,
@@ -23,18 +26,21 @@ import {
   type StageTimeline,
   type TextSizes,
 } from '../../../types/screen'
+import { DISPLAY_RENDER_WIDTH_OPTIONS, type DisplayRenderWidth } from '../../../types/displayMachine'
 import { findSiblingEventOrdinal } from '../../../utils/eventOrdinals'
 import { generateId } from '../../../utils/id'
 import { cloneSlot, createLeaf, deleteLeaf, emptySlot, listLeaves, splitLeaf } from '../../../utils/layoutTree'
 import { hasOwnTextSizeFields, resolveContentBackgroundImage } from '../../../utils/screenSlots'
 import {
   isResizeToFitConflict,
+  propagateSlotContentToAllStages,
   resolveSlotBackgroundColor,
   resolveSlotBackgroundImage,
   resolveSlotContent,
   resolveSlotLanguage,
   resolveSlotLocked,
   resolveSlotOverflowMode,
+  resolveSlotTextColor,
   resolveSlotTextSizes,
   resolveStageValue,
   writeStageCheckpoint,
@@ -106,6 +112,7 @@ function nextDefaultScreenName(screens: ScreenConfig[], prefix: string): string 
  */
 export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTarget }: ScreenFormProps) {
   const { t } = useLanguage()
+  const { session } = useAdminSession()
   const [screens, setScreens] = useScreens()
   const [screensaverSchedule] = useScreensaverSchedule()
   const [defaultPaneLanguage] = useDefaultPaneLanguage()
@@ -117,6 +124,8 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
   const [direction, setDirection] = useState<1 | -1>(1)
   /** Which physical display shape the "Layout" tab's own live preview is currently sized to — persisted as the screen's own `previewAspectRatio` (see `handleSubmit`). */
   const [previewAspectRatio, setPreviewAspectRatio] = useState<PreviewAspectRatio>(screen?.previewAspectRatio ?? PREVIEW_ASPECT_RATIOS[0].ratio)
+  /** Interim per-screen viewport lock for `ScreenDisplay.tsx`'s fullscreen editor — see `ScreenConfig.editorTargetViewport`. Unlike `previewAspectRatio` above, `undefined` here is a real, meaningful state ("no lock, today's raw-fill behavior") rather than a placeholder for a default, so it's seeded straight from the screen with no fallback. */
+  const [editorTargetViewport, setEditorTargetViewport] = useState<EditorTargetViewport | undefined>(screen?.editorTargetViewport)
   const [liveTextSizes, setLiveTextSizes] = useState<TextSizes>(screen?.textSizes ?? DEFAULT_TEXT_SIZES)
   /** Which stage a pane's own tab is currently showing fields for — shared across every pane tab (switching which pane you're viewing doesn't change it), since stages are a screen-wide sequence, not a per-pane one. */
   const [activeStage, setActiveStage] = useState(1)
@@ -185,6 +194,8 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
           onContentChange={handleContentChange}
           backgroundColor={resolveSlotBackgroundColor(activeSlot, clampedActiveStage)}
           onBackgroundColorChange={handleBackgroundColorChange}
+          textColor={resolveSlotTextColor(activeSlot, clampedActiveStage)}
+          onTextColorChange={handleTextColorChange}
           backgroundImage={backgroundImage}
           onBackgroundImageChange={handleBackgroundImageChange}
           textSizes={liveTextSizes}
@@ -198,6 +209,13 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
           stageCount={stageCount}
           activeStage={clampedActiveStage}
           onActiveStageChange={handleActiveStageChange}
+          customCss={activeSlot.customCss}
+          onCustomCssChange={handleCustomCssChange}
+          customHtml={activeSlot.customHtml}
+          onCustomHtmlChange={handleCustomHtmlChange}
+          customHtmlPlacement={activeSlot.customHtmlPlacement}
+          onCustomHtmlPlacementChange={handleCustomHtmlPlacementChange}
+          onApplyContentToEveryStage={handleApplyContentToEveryStage}
           label={hasMultipleStages ? t('screenDisplay.textSizeEditor.stageTabLabel', { number: clampedActiveStage }) : t('admin.screens.paneLabel', { number: paneIndex + 1 })}
           resizeToFitBlocked={isResizeToFitConflict(
             leaves.map((leaf) => ({ id: leaf.id, slot: draft.paneSlots[leaf.id] })),
@@ -434,6 +452,8 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
 
   /** Changes the active pane's own background color at the currently active stage — same local-draft-only shape as `handleContentChange` (only actually persisted once "Save" is pressed), not the live-write pattern the text-size/layout handlers use. */
   const handleBackgroundColorChange = (color: string | undefined) => updateActiveSlot((slot) => ({ ...slot, backgroundColor: writeStageCheckpoint(slot.backgroundColor, clampedActiveStage, color) }))
+  /** Changes the active pane's own text color at the currently active stage — same local-draft-only shape as `handleBackgroundColorChange`. */
+  const handleTextColorChange = (color: string | undefined) => updateActiveSlot((slot) => ({ ...slot, textColor: writeStageCheckpoint(slot.textColor, clampedActiveStage, color) }))
 
   /** Changes the active pane's own single consolidated background image — to the active stage's own content checkpoint with more than one stage (so each stage's own pane can carry its own distinct image), else to the pane's own shared checkpoint, same split `handleLiveTextSizesChange` already resolves between. Same local-draft-only shape as `handleContentChange`. */
   const handleBackgroundImageChange = (image: BackgroundImage | undefined) => {
@@ -447,6 +467,15 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
 
   /** Changes the active pane's own language override at the currently active stage — `undefined` resets it back to the cafe's own Standard pane language. Same local-draft-only shape as `handleContentChange`. */
   const handleLanguageChange = (language: LanguageCode | undefined) => updateActiveSlot((slot) => ({ ...slot, language: writeStageCheckpoint(slot.language, clampedActiveStage, language) }))
+
+  // `customCss`/`customHtml`/`customHtmlPlacement` are single values across every stage (not
+  // `StageTimeline`s, see `ScreenSlot`'s own doc comment) — no `writeStageCheckpoint` needed, unlike
+  // every handler above.
+  const handleCustomCssChange = (css: string | undefined) => updateActiveSlot((slot) => ({ ...slot, customCss: css }))
+  const handleCustomHtmlChange = (html: string | undefined) => updateActiveSlot((slot) => ({ ...slot, customHtml: html }))
+  const handleCustomHtmlPlacementChange = (placement: 'before' | 'after') => updateActiveSlot((slot) => ({ ...slot, customHtmlPlacement: placement }))
+  /** "Apply to every stage" — pins the active pane's own currently-resolved content into every stage's own checkpoint, see `propagateSlotContentToAllStages`'s own doc comment. */
+  const handleApplyContentToEveryStage = () => updateActiveSlot((slot) => propagateSlotContentToAllStages(slot, clampedActiveStage, stageCount))
 
   /**
    * Writes the active tab's text-size change into this form's own local
@@ -540,7 +569,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     if (!resolvedTree) return
     const { tree, newPaneId } = splitLeaf(resolvedTree, leafId, axis, edge)
     const nextLayout = writeStageCheckpoint(draft.layout, clampedActiveStage, tree)
-    const nextPaneSlots = { ...draft.paneSlots, [newPaneId]: cloneSlot(draft.paneSlots[leafId]) }
+    const nextPaneSlots = { ...draft.paneSlots, [newPaneId]: cloneSlot(draft.paneSlots[leafId], leafId) }
     setDraft({ layout: nextLayout, paneSlots: nextPaneSlots })
     setActiveTab(newPaneId)
     if (screen) applyDraftableScreenPatch({ layout: nextLayout, paneSlots: nextPaneSlots })
@@ -556,9 +585,9 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     const originalSlot = draft.paneSlots[leafId]
     const nextPaneSlots = {
       ...draft.paneSlots,
-      [rightId]: cloneSlot(originalSlot),
-      [bottomLeftId]: cloneSlot(originalSlot),
-      [bottomRightId]: cloneSlot(originalSlot),
+      [rightId]: cloneSlot(originalSlot, leafId),
+      [bottomLeftId]: cloneSlot(originalSlot, leafId),
+      [bottomRightId]: cloneSlot(originalSlot, rightId),
     }
     setDraft({ layout: nextLayout, paneSlots: nextPaneSlots })
     if (screen) applyDraftableScreenPatch({ layout: nextLayout, paneSlots: nextPaneSlots })
@@ -753,7 +782,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
     const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault()
 
-      onSave({
+      const nextScreen: ScreenConfig = {
         // Carries forward fields this form has no controls of its own for
         // (right now, none — kept as a safety net for any screen-level field
         // this form doesn't explicitly track) from the freshest persisted
@@ -772,8 +801,41 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
         hideScrollbar,
         useScreensaver,
         previewAspectRatio,
-      })
+        editorTargetViewport,
+      }
+      onSave(nextScreen)
+
+      // Regenerates the Screens grid's static thumbnail(s) in the
+      // background — doesn't block Save, which stays instant; the card
+      // just keeps showing whatever it had (or falls back to a live render,
+      // see `ScreenCard.tsx`) until this resolves.
+      if (session) {
+        void captureScreenPreviews(nextScreen, session.token, defaultPaneLanguage).then((previewImages) => {
+          if (previewImages) setScreens((current) => current.map((existing) => (existing.screenID === nextScreen.screenID ? { ...existing, previewImages } : existing)))
+        })
+      }
     }
+
+    /**
+     * The same resolution tiers Display Manager offers per unit (`DISPLAY_RENDER_WIDTH_OPTIONS`), so
+     * the editor can preview at the exact CSS width a display actually lays out against.
+     *
+     * Deliberately *aligned* rather than derived: `renderWidthPx` is per-machine while this field is
+     * per-screen, and one screen can run on many machines, so there is no single machine to read it
+     * from. Offering identical tiers is what keeps the two consistent — see `DisplayRenderWidth`.
+     *
+     * `'auto'` is skipped (it means "don't lock" here, which is what unchecking the box already does),
+     * and heights come from the 16:9 the tiers describe; "Custom" below covers anything else.
+     */
+    const EDITOR_TARGET_VIEWPORT_PRESETS: { viewport: EditorTargetViewport; label: string }[] = DISPLAY_RENDER_WIDTH_OPTIONS.filter(
+      (option): option is Exclude<DisplayRenderWidth, 'auto'> => option !== 'auto',
+    ).map((width) => ({
+      viewport: { width, height: Math.round((width * 9) / 16) },
+      label: t(`admin.displayManager.renderWidth${width}`),
+    }))
+    const isCustomEditorTargetViewport = Boolean(
+      editorTargetViewport && !EDITOR_TARGET_VIEWPORT_PRESETS.some((preset) => preset.viewport.width === editorTargetViewport.width && preset.viewport.height === editorTargetViewport.height),
+    )
 
     viewKey = 'main'
     formContent = (
@@ -798,7 +860,11 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
           )}
 
           {/* The live layout editor itself — a pane's own fields (below) are just one click away on whichever pane is clicked here, so the separate per-pane tab-button row (and the "Layout" sub-view that used to hold this) isn't needed anymore. */}
-          <div className="screen-form__layout-picker" role="group" aria-label={t('admin.screens.previewRatioLabel')}>
+          {/* The label was previously `aria-label`-only, so a sighted admin got five bare ratio chips with nothing saying what they set. Rendered visibly now and pointed at by `aria-labelledby`, so both audiences read the same text. */}
+          <p className="screen-form__layout-picker-label" id="screen-form-ratio-label">
+            {t('admin.screens.previewRatioLabel')}
+          </p>
+          <div className="screen-form__layout-picker" role="group" aria-labelledby="screen-form-ratio-label">
             {PREVIEW_ASPECT_RATIOS.map(({ ratio, label }) => (
               <button
                 key={label}
@@ -810,6 +876,63 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
               </button>
             ))}
           </div>
+
+          {/* Locks `ScreenDisplay.tsx`'s fullscreen editor to a real device's own CSS-px viewport instead of the admin's own browser window, so what's shown while editing matches what that device actually renders. The tiers match Display Manager's per-unit "Render resolution" (`DisplayRenderWidth`) — see `EDITOR_TARGET_VIEWPORT_PRESETS` for why this is aligned with that setting rather than derived from it. Deliberately separate from the ratio picker above: that one shapes this inline dashboard preview only and never reaches the real kiosk display. */}
+          <Checkbox
+            id="screen-form-editor-viewport-lock"
+            label={t('admin.screens.editorViewportLockLabel')}
+            checked={editorTargetViewport !== undefined}
+            // Defaults to the 1080p tier (the one Display Manager recommends, and the first that
+            // clears Android's own minimum-font-size clamp) rather than the widest option, which is
+            // what `[0]` would be given the list runs widest-first.
+            onChange={(event) =>
+              setEditorTargetViewport(
+                event.target.checked ? (EDITOR_TARGET_VIEWPORT_PRESETS.find((preset) => preset.viewport.width === 1920) ?? EDITOR_TARGET_VIEWPORT_PRESETS[0]).viewport : undefined,
+              )
+            }
+          />
+          {editorTargetViewport && (
+            <>
+              <div className="screen-form__layout-picker" role="group" aria-label={t('admin.screens.editorViewportLockLabel')}>
+                {EDITOR_TARGET_VIEWPORT_PRESETS.map(({ viewport, label }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className={`screen-form__layout-option${editorTargetViewport.width === viewport.width && editorTargetViewport.height === viewport.height ? ' screen-form__layout-option--active' : ''}`}
+                    onClick={() => setEditorTargetViewport(viewport)}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={`screen-form__layout-option${isCustomEditorTargetViewport ? ' screen-form__layout-option--active' : ''}`}
+                  onClick={() => setEditorTargetViewport({ width: editorTargetViewport.width, height: editorTargetViewport.height })}
+                >
+                  {t('admin.screens.editorViewportCustomLabel')}
+                </button>
+              </div>
+              {isCustomEditorTargetViewport && (
+                <div className="screen-form__editor-viewport-custom">
+                  <NumberInput
+                    id="screen-form-editor-viewport-width"
+                    label={t('admin.screens.editorViewportWidthLabel')}
+                    value={editorTargetViewport.width}
+                    onChange={(value) => setEditorTargetViewport({ width: value, height: editorTargetViewport.height })}
+                    min={1}
+                  />
+                  <NumberInput
+                    id="screen-form-editor-viewport-height"
+                    label={t('admin.screens.editorViewportHeightLabel')}
+                    value={editorTargetViewport.height}
+                    onChange={(value) => setEditorTargetViewport({ width: editorTargetViewport.width, height: value })}
+                    min={1}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
           {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={clampedActiveStage} onActiveStageChange={handleActiveStageChange} />}
           <div className="screen-form__preview">
             <ScaledScreenPreview aspectRatio={previewAspectRatio} fit="contain">

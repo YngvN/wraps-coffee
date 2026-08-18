@@ -12,6 +12,7 @@ import { messageBoardPostEntity } from './entities/messageBoardPost'
 import { ordersEntity } from './entities/orders'
 import { productEntity } from './entities/product'
 import { screenEntity } from './entities/screen'
+import { screenPaneEntity } from './entities/screenPane'
 import { settingsEntity } from './entities/settings'
 import { storeSettingsEntity } from './entities/storeSettings'
 import { themeEntity } from './entities/theme'
@@ -81,6 +82,7 @@ export const ASSISTANT_ENTITIES: AssistantEntity<any>[] = [
   settingsEntity,
   mediaLibraryEntity,
   screenEntity,
+  screenPaneEntity,
   displayManagerEntity,
   ordersEntity,
 ]

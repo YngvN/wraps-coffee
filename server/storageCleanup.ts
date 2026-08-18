@@ -5,33 +5,18 @@ import type { MessageBoardPost } from '../src/types/messageBoard'
 import type { OrderRecord } from '../src/types/order'
 import type { Product } from '../src/types/product'
 import { isPostExpired } from '../src/utils/messageBoard'
+import { collectImageFilenamesFromScreens, extractUploadFilename, isFilenameSnapshotReferenced, type MinimalScreenConfig } from './screensSnapshots'
 import { deleteUploadFiles, listUploads } from './uploads'
 import * as store from './store'
 
-// Deliberately doesn't import `ScreenConfig`/`ScreenSlot`/`ScreenSlotContent`
-// from `../src/types/screen` — that file's own `ScreenSlot.language` field
-// pulls in `LanguageCode` from the `../i18n` barrel, which re-exports a real
-// React component (`LanguageProvider.tsx`, using `window`/`document`) that
-// this project's server-side tsconfig (no DOM lib) can't type-check. Only
-// the handful of fields actually read below are declared here instead — a
-// narrower, read-only view of the same on-disk JSON shape.
-interface MinimalBackgroundImage {
-  imageUrl?: string
-}
-interface MinimalSlotContent {
-  kind?: string
-  imageUrl?: string
-  backgroundImage?: MinimalBackgroundImage
-}
-interface MinimalScreenSlot {
-  backgroundImage: Record<number, MinimalBackgroundImage | undefined>
-  content: Record<number, MinimalSlotContent | undefined>
-}
-interface MinimalScreenConfig {
-  backgroundImage?: MinimalBackgroundImage
-  paneSlots: Record<string, MinimalScreenSlot>
-  draft?: { backgroundImage?: MinimalBackgroundImage; paneSlots?: Record<string, MinimalScreenSlot> }
-}
+// The read-only `MinimalScreenConfig`/`extractUploadFilename`/
+// `collectImageFilenamesFromScreens` this module used to define locally now
+// live in `screensSnapshots.ts` instead (that module needs a richer view of
+// the same shape — `screenID`/`name`/`draft` — than this one ever did, and
+// re-deriving the same DOM-lib-avoidance shape twice was exactly the kind of
+// duplication this repo's CLAUDE.md "reuse before creating" section warns
+// about). See that file's own doc comment for why this shape avoids
+// importing the real `ScreenConfig` type at all.
 
 // Nothing in this module ever deletes anything on its own — it only ever
 // *computes* what's prunable (`computeCleanupPreview`) so an admin can review
@@ -49,29 +34,6 @@ const IMAGE_GRACE_PERIOD_MS = 60 * 60 * 1000
 
 function daysAgo(days: number): number {
   return Date.now() - days * 24 * 60 * 60 * 1000
-}
-
-/** Pulls the `/uploads/<filename>` part out of a stored image URL — stored as a full `http://<host>/uploads/<filename>` (the host varies with whichever device made the upload), so only the path's own filename is ever comparable against what's actually on disk. */
-function extractUploadFilename(url: string | undefined): string | undefined {
-  if (!url) return undefined
-  const match = /\/uploads\/([^/?]+)/.exec(url)
-  return match?.[1]
-}
-
-function collectSlotImageFilenames(slot: MinimalScreenSlot, into: Set<string>) {
-  for (const backgroundImage of Object.values(slot.backgroundImage)) {
-    const filename = extractUploadFilename(backgroundImage?.imageUrl)
-    if (filename) into.add(filename)
-  }
-  for (const content of Object.values(slot.content)) {
-    if (!content) continue
-    const ownBackground = extractUploadFilename(content.backgroundImage?.imageUrl)
-    if (ownBackground) into.add(ownBackground)
-    if (content.kind === 'image') {
-      const filename = extractUploadFilename(content.imageUrl)
-      if (filename) into.add(filename)
-    }
-  }
 }
 
 /** Every upload filename currently referenced by any product photo, event image, message-board post image, or screen/pane background/image slide (live *and* unpublished draft state — a draft an admin hasn't published yet still counts as "in use"). */
@@ -97,15 +59,7 @@ function collectReferencedImageFilenames(): Set<string> {
   }
 
   const screens = (store.get('admin.screens')?.value as MinimalScreenConfig[] | undefined) ?? []
-  for (const screen of screens) {
-    const topLevelBackground = extractUploadFilename(screen.backgroundImage?.imageUrl)
-    if (topLevelBackground) referenced.add(topLevelBackground)
-    const draftBackground = extractUploadFilename(screen.draft?.backgroundImage?.imageUrl)
-    if (draftBackground) referenced.add(draftBackground)
-
-    for (const slot of Object.values(screen.paneSlots)) collectSlotImageFilenames(slot, referenced)
-    for (const slot of Object.values(screen.draft?.paneSlots ?? {})) collectSlotImageFilenames(slot, referenced)
-  }
+  for (const filename of collectImageFilenamesFromScreens(screens)) referenced.add(filename)
 
   return referenced
 }
@@ -211,6 +165,12 @@ export interface CleanupResult {
   deletedMessageBoardPosts: number
   deletedDisplayMachines: number
   deletedImages: number
+  /** Bytes actually reclaimed from disk — excludes any deleted image that was pinned into a retained screens snapshot instead (see `pinnedImageBytes`), since that image's bytes moved into snapshot storage rather than truly leaving the disk. */
+  freedImageBytes: number
+  /** Of `deletedImages`, how many were pinned into at least one retained screens snapshot rather than genuinely freed — see `screensSnapshots.ts`'s own lazy-pinning hook. */
+  pinnedImages: number
+  /** Bytes moved into snapshot storage rather than freed — see `pinnedImages`. */
+  pinnedImageBytes: number
 }
 
 /**
@@ -258,7 +218,23 @@ export function applyCleanup(selection: CleanupSelection, host: string): Cleanup
       !referenced.has(upload.filename) &&
       now - new Date(upload.uploadedAt).getTime() > IMAGE_GRACE_PERIOD_MS,
   )
-  for (const upload of stillOrphaned) deleteUploadFiles(upload.filename)
+  // Checked *before* deleting (deleteUploadFiles itself is what actually pins a still-referenced
+  // image via its own registered hook, see screensSnapshots.ts's `pinIfSnapshotReferenced`) — an
+  // image flagged here has its bytes moved into snapshot storage, not actually freed from disk, so
+  // the byte total below has to distinguish the two rather than silently overstating what "deleting"
+  // these orphans actually reclaimed.
+  let freedBytes = 0
+  let pinnedBytes = 0
+  let pinnedImages = 0
+  for (const upload of stillOrphaned) {
+    if (isFilenameSnapshotReferenced(upload.filename)) {
+      pinnedImages += 1
+      pinnedBytes += upload.sizeBytes
+    } else {
+      freedBytes += upload.sizeBytes
+    }
+    deleteUploadFiles(upload.filename)
+  }
 
   return {
     deletedOrders,
@@ -266,5 +242,8 @@ export function applyCleanup(selection: CleanupSelection, host: string): Cleanup
     deletedMessageBoardPosts,
     deletedDisplayMachines,
     deletedImages: stillOrphaned.length,
+    freedImageBytes: freedBytes,
+    pinnedImages,
+    pinnedImageBytes: pinnedBytes,
   }
 }

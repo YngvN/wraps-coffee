@@ -1,0 +1,127 @@
+{
+  "screenId": "screen-624ebb7c-9fb9-493c-86c5-ac2baa8d5210",
+  "capturedAt": "2026-08-18T12:44:34.912Z",
+  "samples": 20,
+  "panes": {
+    "pane-1a58563b-66c6-4ece-a537-b90beac0bb18@1": {
+      "pane": "pane-1a58563b-66c6-4ece-a537-b90beac0bb18",
+      "stage": "1",
+      "kind": "transit-slide",
+      "scale": 1,
+      "scaleMin": 1,
+      "scaleMax": 1,
+      "worstOverflowH": 0,
+      "worstOverflowW": 0,
+      "slackPct": 0,
+      "n": 2
+    },
+    "pane-1a58563b-66c6-4ece-a537-b90beac0bb18@2": {
+      "pane": "pane-1a58563b-66c6-4ece-a537-b90beac0bb18",
+      "stage": "2",
+      "kind": "transit-slide",
+      "scale": 1,
+      "scaleMin": 1,
+      "scaleMax": 1,
+      "worstOverflowH": 0,
+      "worstOverflowW": 0,
+      "slackPct": 0,
+      "n": 2
+    },
+    "pane-1a58563b-66c6-4ece-a537-b90beac0bb18@3": {
+      "pane": "pane-1a58563b-66c6-4ece-a537-b90beac0bb18",
+      "stage": "3",
+      "kind": "catalogue-slide",
+      "scale": 0.7148,
+      "scaleMin": 0.7148,
+      "scaleMax": 0.7148,
+      "worstOverflowH": 0,
+      "worstOverflowW": 0,
+      "slackPct": 0,
+      "n": 2
+    },
+    "pane-1a58563b-66c6-4ece-a537-b90beac0bb18@4": {
+      "pane": "pane-1a58563b-66c6-4ece-a537-b90beac0bb18",
+      "stage": "4",
+      "kind": "catalogue-slide",
+      "scale": 0.7148,
+      "scaleMin": 0.7148,
+      "scaleMax": 0.7148,
+      "worstOverflowH": 0,
+      "worstOverflowW": 0,
+      "slackPct": 0,
+      "n": 2
+    },
+    "pane-29432426-3ce7-451f-acd2-05329f95bc2b@1": {
+      "pane": "pane-29432426-3ce7-451f-acd2-05329f95bc2b",
+      "stage": "1",
+      "kind": "weather-slide",
+      "scale": 1,
+      "scaleMin": 1,
+      "scaleMax": 1,
+      "worstOverflowH": 0,
+      "worstOverflowW": 0,
+      "slackPct": 0,
+      "n": 2
+    },
+    "pane-29432426-3ce7-451f-acd2-05329f95bc2b@2": {
+      "pane": "pane-29432426-3ce7-451f-acd2-05329f95bc2b",
+      "stage": "2",
+      "kind": "weather-slide",
+      "scale": 1,
+      "scaleMin": 1,
+      "scaleMax": 1,
+      "worstOverflowH": 0,
+      "worstOverflowW": 0,
+      "slackPct": 0,
+      "n": 2
+    },
+    "pane-29432426-3ce7-451f-acd2-05329f95bc2b@3": {
+      "pane": "pane-29432426-3ce7-451f-acd2-05329f95bc2b",
+      "stage": "3",
+      "kind": "weather-slide",
+      "scale": 1,
+      "scaleMin": 1,
+      "scaleMax": 1,
+      "worstOverflowH": 0,
+      "worstOverflowW": 0,
+      "slackPct": 0,
+      "n": 2
+    },
+    "pane-29432426-3ce7-451f-acd2-05329f95bc2b@4": {
+      "pane": "pane-29432426-3ce7-451f-acd2-05329f95bc2b",
+      "stage": "4",
+      "kind": "weather-slide",
+      "scale": 1,
+      "scaleMin": 1,
+      "scaleMax": 1,
+      "worstOverflowH": 0,
+      "worstOverflowW": 0,
+      "slackPct": 0,
+      "n": 2
+    },
+    "pane-30c8f800-9d55-4e48-b43d-24c2eb74ab18@3": {
+      "pane": "pane-30c8f800-9d55-4e48-b43d-24c2eb74ab18",
+      "stage": "3",
+      "kind": "transit-slide",
+      "scale": 1,
+      "scaleMin": 1,
+      "scaleMax": 1,
+      "worstOverflowH": 0,
+      "worstOverflowW": 0,
+      "slackPct": 0,
+      "n": 2
+    },
+    "pane-30c8f800-9d55-4e48-b43d-24c2eb74ab18@4": {
+      "pane": "pane-30c8f800-9d55-4e48-b43d-24c2eb74ab18",
+      "stage": "4",
+      "kind": "transit-slide",
+      "scale": 1,
+      "scaleMin": 1,
+      "scaleMax": 1,
+      "worstOverflowH": 0,
+      "worstOverflowW": 0,
+      "slackPct": 0,
+      "n": 2
+    }
+  }
+}

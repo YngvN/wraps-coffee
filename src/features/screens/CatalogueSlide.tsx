@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { DiscountedPrice } from '../../components'
+import { CatalogueBitmap } from './CatalogueBitmap'
 import { useCatalogues } from '../../hooks/useCatalogues'
 import { useCategoryPrices } from '../../hooks/useCategoryPrices'
 import { useProducts } from '../../hooks/useProducts'
@@ -11,6 +12,25 @@ import { allergenNames, dietaryTagNames } from '../../utils/productLabels'
 import { isProductOutOfStock } from '../../utils/productStock'
 import { getSmallUrl } from '../../utils/responsiveImage'
 import './CatalogueSlide.scss'
+
+/**
+ * **Experiment (2026-08-17) — flip to `Boolean(1)` to render this catalogue as a once-captured bitmap
+ * fitted by `transform: scale()` instead of as live, re-flowing DOM.** See `CatalogueBitmap`'s own
+ * doc comment for the mechanism, the measurement it exists to settle, and the appearance trade-off it
+ * knowingly makes. Never commit as `Boolean(1)`; never write it as a literal `true` (see
+ * `ARM_A_DEFERRED_SEARCH` in `useShrinkToFitFontScale.ts` for why the literal breaks the build in a
+ * way that silently measures the previous arm).
+ */
+const CATALOGUE_AS_BITMAP = Boolean(0)
+
+/**
+ * **Experiment (2026-08-17) — only meaningful while `CATALOGUE_AS_BITMAP` is on.** Flip to
+ * `Boolean(1)` to keep the catalogue as **live DOM** pinned to one fixed layout size and fitted by
+ * transform, instead of capturing it to a bitmap. See `CatalogueBitmap`'s own `liveOnly` prop: this
+ * arm removes the re-layout cost (the expensive half) while keeping text as real glyphs rather than a
+ * photograph of them. Never commit as `Boolean(1)`.
+ */
+const CATALOGUE_FIXED_LAYOUT_ONLY = Boolean(0)
 
 interface CatalogueSlideProps {
   /** Which catalogue to show — omit to fall back to the first one. */
@@ -50,7 +70,7 @@ export function CatalogueSlide({ catalogueId, categories }: CatalogueSlideProps)
     [catalogue, products],
   )
 
-  return (
+  const tree = (
     <div className="catalogue-slide">
       {categoriesWithItems.map(({ category, items }) => {
         const defaultPrice = categoryPrices[category.id] ?? catalogue?.price
@@ -90,6 +110,22 @@ export function CatalogueSlide({ catalogueId, categories }: CatalogueSlideProps)
       )}
     </div>
   )
+
+  if (!CATALOGUE_AS_BITMAP) return tree
+  // Keyed on what actually changes the rendered output — the resolved items and the language they
+  // render in — so a re-capture happens when the menu changes and never merely because a sibling
+  // pane re-rendered. `itemID` plus the fields the rows display is enough; the full product objects
+  // would make this key change on any unrelated admin edit.
+  const captureKey = JSON.stringify({
+    language,
+    categories: categoriesWithItems.map(({ category, items }) => [category.id, items.map((item) => item.itemID)]),
+    noCategory: noCategoryItems.map((item) => item.itemID),
+  })
+  return (
+    <CatalogueBitmap captureKey={captureKey} liveOnly={CATALOGUE_FIXED_LAYOUT_ONLY}>
+      {tree}
+    </CatalogueBitmap>
+  )
 }
 
 interface CatalogueSlideItemProps {
@@ -99,7 +135,7 @@ interface CatalogueSlideItemProps {
   customFields: CustomFieldDefinition[]
 }
 
-/** One product's own line within a `CatalogueSlide` section — name, price (only when it has its own override or a discount), description, allergens/dietary tags, any set custom field values, and an out-of-stock stamp. Extracted since both a real category's own section and the trailing "no category" one render this identically. */
+/** One product's own line within a `CatalogueSlide` section — name, price (only when it has its own override or a discount), description, allergens/dietary tags, any set custom field values, and an out-of-stock stamp. On offer, only the current discounted price is shown (no struck-through old price) — that comparison is useful in the admin Products list where the offer is managed, but just clutter on a screen glanced at from across a room. Extracted since both a real category's own section and the trailing "no category" one render this identically. */
 function CatalogueSlideItem({ item, defaultPrice, customFields }: CatalogueSlideItemProps) {
   const { t, language } = useLanguage()
   const showPrice = item.discount !== undefined || item.price !== undefined
@@ -112,7 +148,7 @@ function CatalogueSlideItem({ item, defaultPrice, customFields }: CatalogueSlide
         <h2>{item.name[language]}</h2>
         {effective && (
           <span className="catalogue-slide__item-price">
-            <DiscountedPrice price={effective.original} discount={item.discount} t={t} />
+            <DiscountedPrice price={effective.original} discount={item.discount} t={t} hideOriginal />
           </span>
         )}
       </div>

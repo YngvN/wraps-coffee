@@ -1,0 +1,366 @@
+[
+  {
+    "index": 24,
+    "fromStage": 2,
+    "toStage": 1,
+    "durationMs": 1722,
+    "frames": 61,
+    "worstMs": 220,
+    "over16_7": 61,
+    "over20": 9,
+    "over33": 8,
+    "meanMs": 28.2,
+    "worstAtMs": 780,
+    "worstPhase": "holding",
+    "holdingDebtMs": 380,
+    "holdingFrames": 4,
+    "debtByPhase": {
+      "exiting": 60,
+      "holding": 380,
+      "idle": 60
+    },
+    "framesByPhase": {
+      "exiting": 24,
+      "holding": 4,
+      "idle": 33
+    }
+  },
+  {
+    "index": 25,
+    "fromStage": 1,
+    "toStage": 2,
+    "durationMs": 1702,
+    "frames": 62,
+    "worstMs": 180,
+    "over16_7": 62,
+    "over20": 9,
+    "over33": 8,
+    "meanMs": 27.4,
+    "worstAtMs": 760,
+    "worstPhase": "holding",
+    "holdingDebtMs": 340,
+    "holdingFrames": 4,
+    "debtByPhase": {
+      "exiting": 40,
+      "holding": 340,
+      "idle": 80
+    },
+    "framesByPhase": {
+      "exiting": 26,
+      "holding": 4,
+      "idle": 32
+    }
+  },
+  {
+    "index": 1,
+    "fromStage": 1,
+    "toStage": 2,
+    "durationMs": 1603,
+    "frames": 67,
+    "worstMs": 100,
+    "over16_7": 67,
+    "over20": 11,
+    "over33": 9,
+    "meanMs": 23.9,
+    "worstAtMs": 660,
+    "worstPhase": "holding",
+    "holdingDebtMs": 160,
+    "holdingFrames": 8,
+    "debtByPhase": {
+      "exiting": 60,
+      "holding": 160,
+      "idle": 40
+    },
+    "framesByPhase": {
+      "exiting": 24,
+      "holding": 8,
+      "idle": 35
+    }
+  },
+  {
+    "index": 2,
+    "fromStage": 2,
+    "toStage": 1,
+    "durationMs": 1622,
+    "frames": 65,
+    "worstMs": 80,
+    "over16_7": 65,
+    "over20": 15,
+    "over33": 11,
+    "meanMs": 24.9,
+    "worstAtMs": 660,
+    "worstPhase": "holding",
+    "holdingDebtMs": 140,
+    "holdingFrames": 8,
+    "debtByPhase": {
+      "exiting": 60,
+      "holding": 140,
+      "idle": 120
+    },
+    "framesByPhase": {
+      "exiting": 25,
+      "holding": 8,
+      "idle": 32
+    }
+  },
+  {
+    "index": 3,
+    "fromStage": 1,
+    "toStage": 2,
+    "durationMs": 1602,
+    "frames": 63,
+    "worstMs": 80,
+    "over16_7": 63,
+    "over20": 12,
+    "over33": 10,
+    "meanMs": 25.4,
+    "worstAtMs": 980,
+    "worstPhase": "idle",
+    "holdingDebtMs": 140,
+    "holdingFrames": 8,
+    "debtByPhase": {
+      "exiting": 120,
+      "holding": 140,
+      "idle": 80
+    },
+    "framesByPhase": {
+      "exiting": 22,
+      "holding": 8,
+      "idle": 33
+    }
+  },
+  {
+    "index": 4,
+    "fromStage": 2,
+    "toStage": 1,
+    "durationMs": 1602,
+    "frames": 67,
+    "worstMs": 60,
+    "over16_7": 67,
+    "over20": 12,
+    "over33": 10,
+    "meanMs": 23.9,
+    "worstAtMs": 160,
+    "worstPhase": "exiting",
+    "holdingDebtMs": 140,
+    "holdingFrames": 9,
+    "debtByPhase": {
+      "exiting": 80,
+      "holding": 140,
+      "idle": 40
+    },
+    "framesByPhase": {
+      "exiting": 24,
+      "holding": 9,
+      "idle": 34
+    }
+  },
+  {
+    "index": 5,
+    "fromStage": 1,
+    "toStage": 2,
+    "durationMs": 1623,
+    "frames": 68,
+    "worstMs": 80,
+    "over16_7": 68,
+    "over20": 15,
+    "over33": 10,
+    "meanMs": 23.8,
+    "worstAtMs": 640,
+    "worstPhase": "holding",
+    "holdingDebtMs": 180,
+    "holdingFrames": 9,
+    "debtByPhase": {
+      "exiting": 80,
+      "holding": 180,
+      "idle": 0
+    },
+    "framesByPhase": {
+      "exiting": 23,
+      "holding": 9,
+      "idle": 36
+    }
+  },
+  {
+    "index": 6,
+    "fromStage": 2,
+    "toStage": 1,
+    "durationMs": 1562,
+    "frames": 64,
+    "worstMs": 80,
+    "over16_7": 64,
+    "over20": 10,
+    "over33": 10,
+    "meanMs": 24.4,
+    "worstAtMs": 940,
+    "worstPhase": "idle",
+    "holdingDebtMs": 140,
+    "holdingFrames": 8,
+    "debtByPhase": {
+      "exiting": 60,
+      "holding": 140,
+      "idle": 80
+    },
+    "framesByPhase": {
+      "exiting": 24,
+      "holding": 8,
+      "idle": 32
+    }
+  },
+  {
+    "index": 7,
+    "fromStage": 1,
+    "toStage": 2,
+    "durationMs": 1562,
+    "frames": 64,
+    "worstMs": 80,
+    "over16_7": 64,
+    "over20": 13,
+    "over33": 10,
+    "meanMs": 24.4,
+    "worstAtMs": 940,
+    "worstPhase": "idle",
+    "holdingDebtMs": 140,
+    "holdingFrames": 8,
+    "debtByPhase": {
+      "exiting": 80,
+      "holding": 140,
+      "idle": 60
+    },
+    "framesByPhase": {
+      "exiting": 23,
+      "holding": 8,
+      "idle": 33
+    }
+  },
+  {
+    "index": 8,
+    "fromStage": 2,
+    "toStage": 1,
+    "durationMs": 1602,
+    "frames": 67,
+    "worstMs": 60,
+    "over16_7": 67,
+    "over20": 16,
+    "over33": 10,
+    "meanMs": 23.9,
+    "worstAtMs": 180,
+    "worstPhase": "exiting",
+    "holdingDebtMs": 120,
+    "holdingFrames": 9,
+    "debtByPhase": {
+      "exiting": 60,
+      "holding": 120,
+      "idle": 80
+    },
+    "framesByPhase": {
+      "exiting": 25,
+      "holding": 9,
+      "idle": 33
+    }
+  },
+  {
+    "index": 9,
+    "fromStage": 1,
+    "toStage": 2,
+    "durationMs": 1562,
+    "frames": 65,
+    "worstMs": 60,
+    "over16_7": 65,
+    "over20": 13,
+    "over33": 10,
+    "meanMs": 24,
+    "worstAtMs": 620,
+    "worstPhase": "holding",
+    "holdingDebtMs": 140,
+    "holdingFrames": 8,
+    "debtByPhase": {
+      "exiting": 80,
+      "holding": 140,
+      "idle": 40
+    },
+    "framesByPhase": {
+      "exiting": 23,
+      "holding": 8,
+      "idle": 34
+    }
+  },
+  {
+    "index": 10,
+    "fromStage": 2,
+    "toStage": 1,
+    "durationMs": 1602,
+    "frames": 67,
+    "worstMs": 60,
+    "over16_7": 67,
+    "over20": 13,
+    "over33": 10,
+    "meanMs": 23.9,
+    "worstAtMs": 960,
+    "worstPhase": "idle",
+    "holdingDebtMs": 120,
+    "holdingFrames": 9,
+    "debtByPhase": {
+      "exiting": 60,
+      "holding": 120,
+      "idle": 80
+    },
+    "framesByPhase": {
+      "exiting": 25,
+      "holding": 9,
+      "idle": 33
+    }
+  },
+  {
+    "index": 11,
+    "fromStage": 1,
+    "toStage": 2,
+    "durationMs": 1562,
+    "frames": 65,
+    "worstMs": 60,
+    "over16_7": 65,
+    "over20": 14,
+    "over33": 10,
+    "meanMs": 24,
+    "worstAtMs": 920,
+    "worstPhase": "idle",
+    "holdingDebtMs": 120,
+    "holdingFrames": 8,
+    "debtByPhase": {
+      "exiting": 80,
+      "holding": 120,
+      "idle": 60
+    },
+    "framesByPhase": {
+      "exiting": 23,
+      "holding": 8,
+      "idle": 34
+    }
+  },
+  {
+    "index": 12,
+    "fromStage": 2,
+    "toStage": 1,
+    "durationMs": 1582,
+    "frames": 63,
+    "worstMs": 80,
+    "over16_7": 63,
+    "over20": 25,
+    "over33": 12,
+    "meanMs": 25.1,
+    "worstAtMs": 940,
+    "worstPhase": "idle",
+    "holdingDebtMs": 140,
+    "holdingFrames": 8,
+    "debtByPhase": {
+      "exiting": 80,
+      "holding": 140,
+      "idle": 100
+    },
+    "framesByPhase": {
+      "exiting": 23,
+      "holding": 8,
+      "idle": 32
+    }
+  }
+]

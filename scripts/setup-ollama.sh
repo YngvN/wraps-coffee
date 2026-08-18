@@ -11,7 +11,7 @@
 set -euo pipefail
 
 VISION_MODEL="${OLLAMA_VISION_MODEL:-qwen2.5vl:3b}"
-THINKING_MODEL="${OLLAMA_THINKING_MODEL:-qwen2.5:3b-instruct}"
+THINKING_MODEL="${OLLAMA_THINKING_MODEL:-qwen3:4b}"
 
 if command -v ollama >/dev/null 2>&1; then
   echo "Ollama is already installed, skipping install step."

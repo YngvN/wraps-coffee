@@ -3,7 +3,12 @@ import { chromium, type Browser, type Page } from 'playwright'
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs'
 import path from 'node:path'
 
-export const BASE_URL = 'http://localhost:5173'
+// Overridable via QA_BASE_URL (set in the shell before invoking, not inside a script — static ES
+// module imports evaluate before any of an importing script's own top-level code runs, so setting
+// process.env here from within a script that imports this module would be too late) — e.g. the
+// 2026-08-14 usage-test harness runs against `npm run preview` (port 4173) instead of `npm run dev`
+// (5173), since only the preview port matches what the TV companion app's WebView loads from.
+export const BASE_URL = process.env.QA_BASE_URL ?? 'http://localhost:5173'
 export const REPO_ROOT = '/Users/yngve/Desktop/GitHub/wraps-coffee'
 // Label the run's own screenshot dir / results file via QA_RUN_LABEL (e.g. "gemma3-4b",
 // "claude-sonnet-4-5") so this same harness can be reused unmodified across a multi-run cycle's own

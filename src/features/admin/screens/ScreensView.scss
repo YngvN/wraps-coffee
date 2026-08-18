@@ -1,3 +1,4 @@
+@use '../../../styles/mixins' as *;
 @use '../../../styles/variables' as *;
 
 .screens-view {
@@ -19,33 +20,23 @@
 .screens-view__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: $spacing-unit * 2;
   flex-wrap: wrap;
 }
 
-.screens-view__header-actions {
-  display: flex;
-  gap: $spacing-unit;
-}
-
-// Houses "+ Add screen" and the "Display Manager" row side by side, above
-// the screen list — matches `.products-view__categories-toolbar` (Products'
-// own "Add category"/"View all products" pairing) exactly: wraps on narrow
-// widths rather than needing its own breakpoint, since neither child has a
-// fixed width to fall back on.
+// Every action on this view, together: "+ Add screen", the "Display Manager"
+// row, and the screen-saver button — which used to sit alone at the far right
+// of the header, roughly 1650px from the other two on a 1920px display.
+// Wraps on narrow widths rather than needing its own breakpoint, since no
+// child has a fixed width to fall back on.
 .screens-view__toolbar {
   display: flex;
+  // Keeps the action cluster together at the left rather than letting it
+  // spread across the full width above the screens grid.
+  max-width: var(--admin-list-max-width);
   align-items: stretch;
   flex-wrap: wrap;
   gap: $spacing-unit;
-
-  // Sized to its own label here, rather than the full-width row it'd be on
-  // its own (see `.screens-view__add-row`'s own comment) — this is the one
-  // spot it shares a row with another control instead of sitting alone.
-  .screens-view__add-row {
-    width: auto;
-  }
 
   .screens-view__display-manager-row {
     flex: 0 0 auto;
@@ -60,9 +51,7 @@
   display: flex;
   align-items: center;
   padding: $spacing-unit calc($spacing-unit * 1.5);
-  border: 1px solid $color-border;
-  border-radius: 8px;
-  background: $color-surface;
+  @include surface('sunken');
 }
 
 .screens-view__display-manager-open {
@@ -84,19 +73,19 @@
   font-weight: 600;
 }
 
-// Matches `.products-view__add-row` (Products' own "Add category"/"Add
-// product" affordance) — a left-aligned ghost button rather than a filled
-// `Button` in the header. Full-width by default; sized to its own label
-// instead inside `.screens-view__toolbar` above, which sits it next to the
-// Display Manager row instead of alone.
-.screens-view__add-row {
+// A left-aligned ghost button, matching `.products-view__add-row` (Products'
+// own "Add category"/"Add product" affordance) rather than a filled `Button`.
+// The shared shape for every toolbar action, so the three no longer render in
+// three different styles (a filled button, a ghost row and a tinted chevron
+// row). The Display Manager row layers its own tint and chevron on top —
+// it's the only one of the three that actually navigates.
+.screens-view__toolbar-action {
   display: flex;
   align-items: center;
   gap: $spacing-unit;
-  width: 100%;
   padding: $spacing-unit calc($spacing-unit * 1.5);
   border: none;
-  border-radius: 8px;
+  border-radius: $radius-md;
   background: none;
   color: $color-text;
   font: inherit;

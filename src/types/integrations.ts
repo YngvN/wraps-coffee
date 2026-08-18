@@ -128,6 +128,14 @@ export interface DepartureInfo {
   lineName?: string
   /** Entur's transport mode string (e.g. `"bus"`, `"rail"`, `"tram"`). */
   mode: string
+  /** Entur's internal id for the authority operating this line (e.g. `"RUT:Authority:Ruter"`), when known. */
+  authorityId?: string
+  /** The authority's display name (e.g. `"Ruter"`, `"Vy"`, `"Flytoget"`), when known. */
+  authorityName?: string
+  /** The line's own real official badge color, straight from Entur's `Line.presentation.colour` (`#`-prefixed hex) — not every line has one (many smaller/regional authorities don't set it). When present, this is more accurate than either `TransitSlideProps.autoLineColors`' hash-based per-authority guess or a manually-typed override, since it's the operator's own real color for this specific line (e.g. Ruter's own regional/500-series buses come back green, `#76a300`, distinct from its usual red city-bus color). */
+  lineColor?: string
+  /** Pairs with `lineColor` — Entur's own `Line.presentation.textColour` (`#`-prefixed hex), the readable text/icon color against `lineColor`'s background. Only meaningful alongside `lineColor`. */
+  lineTextColor?: string
   destination: string
   expectedDepartureTime: string
   /** The static-timetable departure time, before any real-time adjustment — differs from `expectedDepartureTime` when the service is running late/early. */
@@ -139,6 +147,24 @@ export interface DepartureInfo {
   /** Whether Entur has cancelled this specific journey. */
   cancelled: boolean
 }
+
+/**
+ * The local server's own `admin.transitDepartures` synced key — one entry
+ * per Entur stop id currently configured under Ruter's or Entur's own
+ * `selectedStops` (see `IntegrationsConfig`), kept fresh by `transitPoller.ts`
+ * on the server and pushed to every connected display/companion app, rather
+ * than each client fetching independently. Read via `useTransitDepartures`;
+ * never written by a client directly — the poller is the sole writer.
+ */
+export type TransitDeparturesSnapshot = Record<
+  string,
+  {
+    stopName: string
+    departures: DepartureInfo[]
+    /** ISO timestamp of the last successful poll for this stop — used client-side to derive staleness once it's old enough that the poller has plausibly stopped succeeding. */
+    fetchedAt: string
+  }
+>
 
 /** One hour of `GET /integrations/weather`'s forecast, as rendered by `WeatherSlide`. Only `time`/`temperatureC`/`precipitationMm`/`symbolCode` are guaranteed — the rest come from MET's "complete" dataset and are missing where MET itself doesn't report them for that hour (e.g. `uvIndex` outside daylight). */
 export interface WeatherHour {

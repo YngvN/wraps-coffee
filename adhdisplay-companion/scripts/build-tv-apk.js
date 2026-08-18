@@ -77,7 +77,17 @@ function main() {
   console.log(`Building ${versionName} (versionCode ${versionCode})...`)
   writeVersionCode(versionCode)
 
-  execFileSync('npx', ['expo', 'prebuild', '-p', 'android', '--clean'], { cwd: ROOT, stdio: 'inherit' })
+  // On Windows, npx/gradlew resolve to .cmd/.bat files, which execFileSync
+  // can only run with shell: true (Node refuses otherwise, per CVE-2024-27980)
+  // — and the Unix gradlew shell script has no Windows equivalent, so the
+  // wrapper's own gradlew.bat must be used instead there.
+  const isWindows = process.platform === 'win32'
+
+  execFileSync('npx', ['expo', 'prebuild', '-p', 'android', '--clean'], {
+    cwd: ROOT,
+    stdio: 'inherit',
+    shell: isWindows,
+  })
   assertNotTestOnly()
   // -Pandroid.kotlinVersion=1.9.24: expo-modules-core's Compose scaffolding
   // expects this to match whichever Kotlin Gradle Plugin version actually
@@ -85,9 +95,10 @@ function main() {
   // with a Compose-compiler/Kotlin version mismatch. Unrelated to anything
   // in this project's own code; revisit if a future Expo SDK bump changes
   // which Kotlin version actually resolves.
-  execFileSync('./gradlew', ['assembleRelease', '-Pandroid.kotlinVersion=1.9.24'], {
+  execFileSync(isWindows ? 'gradlew.bat' : './gradlew', ['assembleRelease', '-Pandroid.kotlinVersion=1.9.24'], {
     cwd: path.join(ROOT, 'android'),
     stdio: 'inherit',
+    shell: isWindows,
   })
 
   fs.mkdirSync(DIST_DIR, { recursive: true })

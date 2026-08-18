@@ -1,0 +1,13 @@
+{
+  "kind": "cover-probe",
+  "fadeStartedAt": 16266,
+  "blockStartedAt": 16267,
+  "blockedForMs": 10000,
+  "fadeMs": 10000,
+  "imageSize": {
+    "width": 1920,
+    "height": 1080
+  },
+  "decodeMs": 575.6,
+  "spin": 4649713
+}

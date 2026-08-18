@@ -6,6 +6,17 @@
   gap: $spacing-unit * 3;
 }
 
+// Page title plus this page's own primary create action, matching the
+// `__header` row every other list view uses (Products, Users, Events).
+.message-board-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit * 2;
+  flex-wrap: wrap;
+  max-width: var(--admin-list-max-width);
+}
+
 .message-board-view__tabs-header {
   display: flex;
   justify-content: flex-start;
@@ -95,6 +106,21 @@
   @media (hover: hover) {
     &:hover {
       color: $color-text;
+    }
+  }
+}
+
+// Deleting a whole board (and every post on it) is the most destructive
+// action on this view, but sat at the exact weight of the "Edit" link
+// beside it. Colored rather than restyled, so the tab strip's own layout
+// is untouched.
+.message-board-view__tab-manage-btn--danger {
+  color: $color-error;
+
+  @media (hover: hover) {
+    &:hover {
+      color: $color-error;
+      text-decoration-thickness: 2px;
     }
   }
 }

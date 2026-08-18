@@ -1,10 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { BackButton, Button, Card, ImageUploadField, Input, SlideTransition, TranslatedText } from '../../../components'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { BackButton, Card, ImageUploadField, Input, NavRowList, SlideTransition, TranslatedText } from '../../../components'
 import { useLanguage } from '../../../i18n'
-import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
-import { goBack } from '../../../lib/backStack'
 import { AppearanceSettingsView } from './AppearanceSettingsView'
 import { ContactInfoView } from './ContactInfoView'
 import { LogoListEditor } from './LogoListEditor'
@@ -28,66 +26,52 @@ type SubView = 'main' | 'contact' | 'appearance'
 export function StoreSettingsView() {
   const { t } = useLanguage()
   const [storeSettings, setStoreSettings] = useStoreSettings()
-  /** Which sub-view (replacing the main form until its own Back button is pressed) is open, if any. */
-  const [subView, setSubView] = useState<SubView>('main')
+  const navigate = useNavigate()
+  const { subsection } = useParams<{ subsection?: string }>()
+  /**
+   * Which sub-view is open, read off the URL's third segment
+   * (`/admin/dashboard/settings/store/<subsection>`) rather than local state — so Contact
+   * info and Appearance are each their own addressable page, and browser Back closes them
+   * natively instead of via the `useBackLevel` shim this view used to need.
+   */
+  const subView: SubView = subsection === 'contact' || subsection === 'appearance' ? subsection : 'main'
   /** `1` while opening the sub-view (slides in from the right, see `SlideTransition`), `-1` while going back. */
   const [direction, setDirection] = useState<1 | -1>(1)
-  const [searchParams, setSearchParams] = useSearchParams()
-  /** Guards the deep-link effect below so it only opens Appearance once. */
-  const consumedSectionDeepLinkRef = useRef(false)
+  const [searchParams] = useSearchParams()
 
   const openContactInfo = () => {
     setDirection(1)
-    setSubView('contact')
+    navigate('/admin/dashboard/settings/store/contact')
   }
 
   const openAppearance = () => {
     setDirection(1)
-    setSubView('appearance')
+    navigate('/admin/dashboard/settings/store/appearance')
   }
 
   const closeSubView = () => {
     setDirection(-1)
-    setSubView('main')
+    navigate('/admin/dashboard/settings/store')
   }
 
-  /** Registers the open Contact info/Appearance sub-view as its own level of the shared browser-back stack (see `useBackLevel`), so the mouse's back button closes it exactly the way its own Back button does. */
-  useBackLevel(subView !== 'main', closeSubView)
-
   /**
-   * Deep-link support: `?view=store&section=appearance` (the outer `?view=`
-   * is `SettingsView`'s own, opening this view in the first place) opens
-   * straight into the Appearance sub-view — what the global search results
-   * (see `useGlobalSearchIndex`) navigate to.
-   *
-   * The strip is deliberately *not* one-shot and instead keeps retrying on
-   * every `searchParams` change until `section` is actually gone: this view
-   * mounts as `SettingsView`'s own child on the same commit as
-   * `SettingsView`'s own effect that strips its `?view=` param, and since
-   * both effects call `setSearchParams` independently in that same tick,
-   * whichever commits last wins outright — same race `IntegrationsView`'s
-   * own `?integration=` strip guards against, see its doc comment for the
-   * full explanation.
+   * Back-compat for the old `?section=appearance` deep link — redirected once to the real
+   * route. The elaborate strip-and-retry dance this used to need is gone with it: that
+   * existed only because this view and `SettingsView` both raced to rewrite the same query
+   * string in one commit, and neither owns the URL that way anymore.
    */
   useEffect(() => {
     const section = searchParams.get('section')
-    if (!section) return
-    if (!consumedSectionDeepLinkRef.current && section === 'appearance') {
-      consumedSectionDeepLinkRef.current = true
-      queueMicrotask(openAppearance)
-    }
-    setSearchParams((current) => {
-      current.delete('section')
-      return current
-    })
-  }, [searchParams, setSearchParams])
+    if (section !== 'appearance' && section !== 'contact') return
+    navigate(`/admin/dashboard/settings/store/${section}`, { replace: true })
+  }, [searchParams, navigate])
 
   return (
     <SlideTransition viewKey={subView} direction={direction}>
       {subView === 'contact' ? (
         <div className="store-settings-view">
           <div className="store-settings-view__sub-header">
-            <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: t('admin.store.title') })}</BackButton>
+            <BackButton onClick={closeSubView}>{t('admin.common.backTo', { destination: t('admin.store.title') })}</BackButton>
             <TranslatedText as="h1" id="admin.contact.title" />
           </div>
           <ContactInfoView />
@@ -95,7 +79,7 @@ export function StoreSettingsView() {
       ) : subView === 'appearance' ? (
         <div className="store-settings-view">
           <div className="store-settings-view__sub-header">
-            <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: t('admin.store.title') })}</BackButton>
+            <BackButton onClick={closeSubView}>{t('admin.common.backTo', { destination: t('admin.store.title') })}</BackButton>
             <TranslatedText as="h1" id="admin.appearance.title" />
           </div>
           <TranslatedText as="p" id="admin.appearance.description" className="admin-page-description" />
@@ -104,7 +88,7 @@ export function StoreSettingsView() {
       ) : (
         <div className="store-settings-view">
           <div className="store-settings-view__sub-header">
-            <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: t('admin.settings.title') })}</BackButton>
+            <BackButton onClick={closeSubView}>{t('admin.common.backTo', { destination: t('admin.settings.title') })}</BackButton>
             <TranslatedText as="h1" id="admin.store.title" />
           </div>
           <TranslatedText as="p" id="admin.store.description" className="admin-page-description" />
@@ -141,19 +125,13 @@ export function StoreSettingsView() {
             />
           </Card>
 
-          <Card title={t('admin.contact.title')}>
-            <p className="store-settings-view__hint">{t('admin.store.contactHint')}</p>
-            <Button type="button" variant="secondary" onClick={openContactInfo}>
-              {t('admin.store.contactButton')}
-            </Button>
-          </Card>
-
-          <Card title={t('admin.appearance.title')}>
-            <p className="store-settings-view__hint">{t('admin.store.appearanceHint')}</p>
-            <Button type="button" variant="secondary" onClick={openAppearance}>
-              {t('admin.store.appearanceButton')}
-            </Button>
-          </Card>
+          {/* This view's own sub-views, grouped as one menu — same treatment as `SettingsView`'s own row group, so a destination looks the same wherever it's offered. */}
+          <NavRowList
+            items={[
+              { id: 'contact', label: t('admin.contact.title'), onClick: openContactInfo },
+              { id: 'appearance', label: t('admin.appearance.title'), onClick: openAppearance },
+            ]}
+          />
         </div>
       )}
     </SlideTransition>

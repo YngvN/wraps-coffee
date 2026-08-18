@@ -67,17 +67,62 @@
   background: $color-surface;
 }
 
+// `min-height: 0` overrides the flex item default of shrinking no further
+// than its own content size — without it, `.admin-sidebar-nav__rail`'s
+// `justify-content: space-between` can't actually compress this below the
+// nav list's natural height, so on a short-enough window the list spills
+// past this box into the footer/pin-toggle/QR-toggle sitting below it
+// instead of scrolling. Paired with `.admin-sidebar-nav__link`'s own
+// `clamp()`'d height below: rows shrink first, and once they hit their
+// floor, the remainder scrolls here instead of ever overlapping — same
+// `overflow-y: auto` treatment already used on the tier-2/tier-3 flyout
+// panels (`.admin-sidebar-nav__flyout` below).
 .admin-sidebar-nav__top {
   display: flex;
   flex-direction: column;
   gap: $spacing-unit * 2;
+  min-height: 0;
+  overflow-y: auto;
+  // Caps this box's own share of the rail's height, reserving the
+  // pin-toggle/QR-toggle band that floats `position: absolute` below it
+  // (see `.admin-sidebar-nav__icon-button`'s own `bottom` offset, further
+  // down this file) — those buttons paint on top of whatever's beneath
+  // them, and being absolutely positioned they aren't a real flex sibling
+  // competing for space the way `__footer` is, so without an explicit cap
+  // here `justify-content: space-between` has no reason to leave that band
+  // empty once this box's own content (now scrollable, see above) would
+  // otherwise fill it — a trailing `padding-bottom` doesn't work for this,
+  // since a scrolling container's own end-padding only becomes visible by
+  // scrolling *past* the real content, not as a standing reserve at rest.
+  // `100%` here is the rail's own available content height (its
+  // `height: 100%`, itself `calc(100vh - 56px)` minus its own padding —
+  // see `.admin-sidebar-nav__rail`), so this scales with viewport height
+  // rather than being a fixed pixel cap that would wrongly clamp/scroll
+  // this box even on a tall window with plenty of room to spare. `93px` is
+  // the icon-button's own top edge (its `bottom` offset, `$spacing-unit *
+  // 6 + 37px`, plus its own `32px` height) minus the rail's own bottom
+  // padding (`$spacing-unit * 3`, already excluded from `100%` above, so
+  // subtracting the icon-button's offset from `100%` directly would double
+  // count it). This same 93px figure already covers `__footer`'s own
+  // natural height too (see the icon-button's own comment for how its
+  // `bottom` offset accounts for it) — expanded and collapsed states
+  // (`__footer` shown vs. `display: none`) both need the identical cap,
+  // since the icon-button stays visible and fixed in place either way with
+  // no footer around in the collapsed case to already reserve part of this
+  // space on its own.
+  max-height: calc(100% - #{$spacing-unit * 6 + 37px + 32px - $spacing-unit * 3});
 }
 
 .admin-sidebar-nav__list {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: calc($spacing-unit / 2);
+  // Shrinks smoothly as the rail's available height (`100vh`-derived, see
+  // `.admin-sidebar-nav--desktop`) drops, rather than staying fixed at 4px
+  // until the list runs out of room and starts overlapping the chrome
+  // below it — see `.admin-sidebar-nav__link`'s own `height` for the
+  // matching row-height clamp.
+  gap: clamp(2px, 0.6vh, 4px);
   list-style: none;
   margin: 0;
   padding: 0;
@@ -111,7 +156,10 @@
   justify-content: flex-start;
   gap: $spacing-unit;
   width: 100%;
-  height: 44px;
+  // Shrinks smoothly, down to a 28px floor, as the rail's available height
+  // gets short — see `.admin-sidebar-nav__top`'s own `overflow-y: auto` for
+  // what handles whatever this floor still can't fit.
+  height: clamp(28px, 6vh, 44px);
   padding: 0 0 0 calc($spacing-unit * 1.5);
   border: none;
   border-radius: 10px;
@@ -171,6 +219,15 @@
 // Marks a rail item as having a tier-2 flyout (Products/Screens/Settings)
 // — same fade-in treatment as the label next to it, pushed to the row's
 // far right via `margin-left: auto`.
+// The panel-opening tools (Assistant, Search), divided from the navigation
+// destinations below — see `AdminSidebarNav.tsx`'s own note on why they're a
+// separate group rather than interleaved.
+.admin-sidebar-nav__list--tools {
+  margin-bottom: calc($spacing-unit / 2);
+  padding-bottom: calc($spacing-unit / 2);
+  border-bottom: 1px solid $color-border;
+}
+
 .admin-sidebar-nav__link-chevron {
   display: inline-flex;
   flex-shrink: 0;
@@ -432,6 +489,16 @@
   color: $color-text-muted;
 }
 
+// Separates the flyout's *actions and destinations* from the record list above
+// them. Without this the two read as the same kind of row, so "Add screen"
+// looked like one more screen and "Display Manager" like one more destination
+// inside Screens rather than a section of its own.
+.admin-sidebar-nav__flyout-footer {
+  margin-top: calc($spacing-unit / 2);
+  padding-top: calc($spacing-unit / 2);
+  border-top: 1px solid $color-border;
+}
+
 .admin-sidebar-nav__flyout-row {
   display: flex;
   align-items: center;
@@ -459,6 +526,21 @@
     width: 14px;
     height: 14px;
     opacity: 0.6;
+  }
+
+  // A create action, not a destination: leading "+" and left-packed, so it
+  // can't be mistaken for one more record in the list above.
+  &--create {
+    justify-content: flex-start;
+    gap: calc($spacing-unit / 2);
+    color: $color-text-muted;
+    font-weight: 600;
+
+    svg {
+      flex-shrink: 0;
+      width: 14px;
+      height: 14px;
+    }
   }
 }
 

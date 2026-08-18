@@ -13,6 +13,7 @@ import { useScreens } from '../../../hooks/useScreens'
 import { useLanguage } from '../../../i18n'
 import { listUsers, type AdminUserSummary } from '../../../lib/localServer'
 import { NEWS_SOURCES } from '../../../types/news'
+import { resolveBilingualField } from '../../../utils/bilingual'
 import { resolveProductCatalogue } from '../../../utils/productCatalogue'
 import { ENTUR_TAGS, TRANSIT_TAGS, WEATHER_TAGS } from '../integrations/integrationSearchTags'
 import { ADMIN_NAV_ICONS, NAV_ITEMS } from '../layout/adminNavItems'
@@ -64,7 +65,7 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
     const catalogueEntries: SearchResultEntry[] = catalogues.map((catalogue) => ({
       id: `catalogue:${catalogue.id}`,
       type: 'catalogue',
-      title: catalogue.name[language],
+      title: resolveBilingualField(catalogue.name, language),
       subtitle: t('admin.search.types.catalogue'),
       keywords: [],
       url: `/admin/dashboard/products?catalogueId=${catalogue.id}`,
@@ -74,8 +75,8 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
       catalogue.categories.map((category) => ({
         id: `category:${category.id}`,
         type: 'category',
-        title: category.name[language],
-        subtitle: catalogue.name[language],
+        title: resolveBilingualField(category.name, language),
+        subtitle: resolveBilingualField(catalogue.name, language),
         keywords: [],
         url: `/admin/dashboard/products?catalogueId=${catalogue.id}&categoryId=${category.id}`,
       })),
@@ -87,8 +88,8 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
       return {
         id: `product:${product.itemID}`,
         type: 'product',
-        title: product.name[language],
-        subtitle: resolved?.category?.name[language] ?? (resolved ? t('admin.products.noCategoryColumnLabel') : undefined),
+        title: resolveBilingualField(product.name, language),
+        subtitle: resolved?.category ? resolveBilingualField(resolved.category.name, language) : resolved ? t('admin.products.noCategoryColumnLabel') : undefined,
         keywords: [],
         url: resolved ? `/admin/dashboard/products?catalogueId=${resolved.catalogue.id}${categoryParam}&productId=${product.itemID}` : '/admin/dashboard/products',
       }
@@ -120,7 +121,7 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
         title: t('admin.integrations.weatherBrandName'),
         subtitle: integrationTypeLabel,
         keywords: WEATHER_TAGS,
-        url: '/admin/dashboard/settings?view=integrations&integration=weather',
+        url: '/admin/dashboard/settings/integrations?integration=weather',
         icon: <YrLogo />,
       },
       {
@@ -129,7 +130,7 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
         title: t('admin.integrations.transitBrandName'),
         subtitle: integrationTypeLabel,
         keywords: TRANSIT_TAGS,
-        url: '/admin/dashboard/settings?view=integrations&integration=transit',
+        url: '/admin/dashboard/settings/integrations?integration=transit',
         icon: <FetchedLogo slug="ruter" label={t('admin.integrations.transitBrandName')} />,
       },
       {
@@ -138,7 +139,7 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
         title: t('admin.integrations.enturBrandName'),
         subtitle: integrationTypeLabel,
         keywords: ENTUR_TAGS,
-        url: '/admin/dashboard/settings?view=integrations&integration=entur',
+        url: '/admin/dashboard/settings/integrations?integration=entur',
         icon: <FetchedLogo slug="entur" label={t('admin.integrations.enturBrandName')} className="logo-chip" />,
       },
       {
@@ -147,7 +148,7 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
         title: t('admin.integrations.newsBrandName'),
         subtitle: integrationTypeLabel,
         keywords: ['nyheter', 'news', 'rss'],
-        url: '/admin/dashboard/settings?view=integrations&integration=news',
+        url: '/admin/dashboard/settings/integrations?integration=news',
         icon: <FetchedLogo slug="rss" label={t('admin.integrations.newsBrandName')} />,
       },
       {
@@ -156,7 +157,7 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
         title: t('admin.integrations.woltBrandName'),
         subtitle: integrationTypeLabel,
         keywords: WOLT_TAGS,
-        url: '/admin/dashboard/settings?view=integrations&integration=wolt',
+        url: '/admin/dashboard/settings/integrations?integration=wolt',
         icon: <FetchedLogo slug="wolt" label={t('admin.integrations.woltBrandName')} />,
       },
       {
@@ -165,7 +166,7 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
         title: t('admin.integrations.foodoraBrandName'),
         subtitle: integrationTypeLabel,
         keywords: FOODORA_TAGS,
-        url: '/admin/dashboard/settings?view=integrations&integration=foodora',
+        url: '/admin/dashboard/settings/integrations?integration=foodora',
         icon: <FetchedLogo slug="foodora" label={t('admin.integrations.foodoraBrandName')} />,
       },
       {
@@ -174,7 +175,7 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
         title: 'Claude',
         subtitle: integrationTypeLabel,
         keywords: ASSISTANT_TAGS,
-        url: '/admin/dashboard/settings?view=integrations&integration=anthropic',
+        url: '/admin/dashboard/settings/integrations?integration=anthropic',
         icon: <FetchedLogo slug="claude" label="Claude" />,
       },
     ]
@@ -186,7 +187,7 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
       title: source.name,
       subtitle: newsSourceTypeLabel,
       keywords: [],
-      url: `/admin/dashboard/settings?view=integrations&integration=news&newsSource=${source.id}`,
+      url: `/admin/dashboard/settings/integrations?integration=news&newsSource=${source.id}`,
       icon: <FetchedLogo slug={source.logoSlug} label={source.name} />,
     }))
 
@@ -227,7 +228,7 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
       title: request.label,
       subtitle: t('admin.displayManager.pendingBadge'),
       keywords: [],
-      url: `/admin/dashboard/screens?displayManager=1&pendingMachineId=${request.machineID}`,
+      url: `/admin/dashboard/displays?pendingMachineId=${request.machineID}`,
     }))
 
     // Findable by name (its own self-reported label, or an admin's rename) and lands on the
@@ -240,7 +241,7 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
       title: machine.customLabel ?? machine.label,
       subtitle: t(connectionBadgeId(machine.connectionType)),
       keywords: [],
-      url: `/admin/dashboard/screens?displayManager=1&updateMachineId=${machine.machineID}`,
+      url: `/admin/dashboard/displays?updateMachineId=${machine.machineID}`,
     }))
 
     const navSectionEntries: SearchResultEntry[] = NAV_ITEMS.filter((item) => !item.adminOnly || session?.role !== 'limited').map((item) => {
@@ -257,14 +258,22 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
 
     const settingsTypeLabel = t('admin.search.types.settingsPage')
     const settingsPageEntries: SearchResultEntry[] = [
-      { id: 'settingsPage:store', type: 'settingsPage', title: t('admin.store.title'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings?view=store' },
+      { id: 'settingsPage:store', type: 'settingsPage', title: t('admin.store.title'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings/store' },
       {
         id: 'settingsPage:appearance',
         type: 'settingsPage',
         title: t('admin.appearance.title'),
         subtitle: settingsTypeLabel,
         keywords: [],
-        url: '/admin/dashboard/settings?view=store&section=appearance',
+        url: '/admin/dashboard/settings/store/appearance',
+      },
+      {
+        id: 'settingsPage:contact',
+        type: 'settingsPage',
+        title: t('admin.contact.title'),
+        subtitle: settingsTypeLabel,
+        keywords: [],
+        url: '/admin/dashboard/settings/store/contact',
       },
       {
         id: 'settingsPage:integrations',
@@ -272,14 +281,14 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
         title: t('admin.settings.integrations.title'),
         subtitle: settingsTypeLabel,
         keywords: [],
-        url: '/admin/dashboard/settings?view=integrations',
+        url: '/admin/dashboard/settings/integrations',
       },
-      { id: 'settingsPage:developers', type: 'settingsPage', title: t('admin.settings.developersTitle'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings?view=developers' },
+      { id: 'settingsPage:developers', type: 'settingsPage', title: t('admin.settings.developersTitle'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings/developers' },
       ...(session?.role !== 'limited'
         ? [
-            { id: 'settingsPage:advanced', type: 'settingsPage' as const, title: t('admin.settings.advanced.title'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings?view=advanced' },
-            { id: 'settingsPage:backup', type: 'settingsPage' as const, title: t('admin.settings.backup.title'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings?view=backup' },
-            { id: 'settingsPage:testing', type: 'settingsPage' as const, title: t('admin.settings.testing.title'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings?view=testing' },
+            { id: 'settingsPage:advanced', type: 'settingsPage' as const, title: t('admin.settings.advanced.title'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings/advanced' },
+            { id: 'settingsPage:backup', type: 'settingsPage' as const, title: t('admin.settings.backup.title'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings/backup' },
+            { id: 'settingsPage:testing', type: 'settingsPage' as const, title: t('admin.settings.testing.title'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings/testing' },
           ]
         : []),
     ]

@@ -1,7 +1,8 @@
 import type { LanguageCode } from '../i18n'
 import { DEFAULT_TEXT_SIZES, type BackgroundImage, type LayoutNode, type PaneId, type ScreenConfig, type ScreenSlot, type ScreenSlotContent, type StageTimeline, type TextSizes } from '../types/screen'
 import { listLeaves } from './layoutTree'
-import { isResizeToFitContent } from './screenSlots'
+import { hasOwnTextSizeFields, isResizeToFitContent, resolveContentBackgroundImage } from './screenSlots'
+import { resolveContentTextSizes } from './textSizeVars'
 
 /**
  * Which stage number actually supplies a timeline's effective value at
@@ -39,6 +40,11 @@ export function resolveSlotBackgroundImage(slot: ScreenSlot, stage: number): Bac
   return resolveStageValue(slot.backgroundImage, stage)
 }
 
+/** This slot's own text color override at `stage`, if any — `undefined` means "use the automatic contrast-computed color" (see `getScreenColorVars`). */
+export function resolveSlotTextColor(slot: ScreenSlot, stage: number): string | undefined {
+  return resolveStageValue(slot.textColor, stage)
+}
+
 export function resolveSlotTextSizes(slot: ScreenSlot, stage: number): TextSizes | undefined {
   return resolveStageValue(slot.textSizes, stage)
 }
@@ -57,6 +63,35 @@ export function getPersistedSlotTextSizes(screen: ScreenConfig, leafId: PaneId, 
 /** This slot's own language override at `stage` — `undefined` means "use the cafe's own Standard pane language" (see `useDefaultPaneLanguage`), whether because nothing was ever set or because it was explicitly reset back to it. */
 export function resolveSlotLanguage(slot: ScreenSlot, stage: number): LanguageCode | undefined {
   return resolveStageValue(slot.language, stage)
+}
+
+/**
+ * A pane's own resolved identity at `stage` — every field a stage transition's crossfade (see
+ * `useCrossfadeSlot`'s own key in `LayoutPane.tsx`) treats as "this is genuinely different content" for
+ * this pane, folded into a single comparable string. Shared between that crossfade key and
+ * `SplitLayout.tsx`'s own stage-transition "did this pane actually change between the old and new stage"
+ * check, so the two can never disagree about what counts as a change.
+ *
+ * A content kind's own optional `textSizes` (see `hasOwnTextSizeFields`) is normalized to its *effective*
+ * value (`resolveContentTextSizes`, the same resolution the real render path uses) before hashing, rather
+ * than compared raw — otherwise a checkpoint that never bothered setting its own `textSizes` (falling
+ * back to the slot's/default's identical numbers) reads as "different" from a checkpoint that happens to
+ * set the same numbers explicitly, even though nothing about how the pane actually renders differs. Falls
+ * back to `DEFAULT_TEXT_SIZES` rather than the screen's own `textSizes` (see `getPersistedSlotTextSizes`)
+ * — a deliberate simplification: reaching the screen-level fallback requires a pane with no `textSizes`
+ * override at either the content *or* slot level at this exact stage, which combined with a non-default
+ * screen-level `textSizes` is a narrower case than this function is actually meant to catch.
+ */
+export function resolvePaneIdentitySignature(slot: ScreenSlot, stage: number, defaultPaneLanguage: LanguageCode): string {
+  const content = resolveSlotContent(slot, stage)
+  const backgroundColor = resolveSlotBackgroundColor(slot, stage)
+  const backgroundImage = resolveContentBackgroundImage(content, resolveSlotBackgroundImage(slot, stage))
+  const language = resolveSlotLanguage(slot, stage) ?? defaultPaneLanguage
+  const textColor = resolveSlotTextColor(slot, stage)
+  const normalizedContent = hasOwnTextSizeFields(content)
+    ? { ...content, textSizes: resolveContentTextSizes(content, resolveSlotTextSizes(slot, stage) ?? DEFAULT_TEXT_SIZES) }
+    : content
+  return JSON.stringify({ content: normalizedContent, backgroundColor, backgroundImage, overlay: backgroundImage?.overlay, language, textColor })
 }
 
 /** Whether this pane is locked at `stage` — `false` (unlocked) whenever nothing was ever set, exactly like every other stage-checkpointed field's own carry-forward behavior (see `resolveStageValue`). */
@@ -130,4 +165,22 @@ export function isResizeToFitConflict(leaves: { id: PaneId; slot: ScreenSlot }[]
 /** Whether a slot has any content to show at all, at any stage. */
 export function isSlotActive(slot: ScreenSlot): boolean {
   return Object.values(slot.content).some((content) => content.kind !== 'none')
+}
+
+/**
+ * Writes `slot`'s own currently-resolved content (at `stage`) into every stage's own `content`
+ * checkpoint (1 through `stageCount`) — "pin this pane so it stops varying by stage," e.g. keeping a
+ * transit pane showing the same stop no matter what the rest of the screen rotates through. Shared by
+ * both `PaneEditor.tsx`'s own "Apply to every stage" control (the human-editor half of this capability)
+ * and the assistant's own `applyToAllStages` field (`server/assistant/entities/screenPane.ts`), so a
+ * human dragging this button and the assistant doing the same thing via chat can never produce subtly
+ * different results. Only `content` is propagated — `backgroundColor`/`backgroundImage`/`textSizes`/etc
+ * are untouched, matching this feature's own "the pane's content stays the same" framing, not "every
+ * one of the pane's own fields becomes stage-invariant."
+ */
+export function propagateSlotContentToAllStages(slot: ScreenSlot, stage: number, stageCount: number): ScreenSlot {
+  const resolvedContent = resolveSlotContent(slot, stage)
+  const content: StageTimeline<ScreenSlotContent> = {}
+  for (let s = 1; s <= stageCount; s++) content[s] = resolvedContent
+  return { ...slot, content }
 }

@@ -1,14 +1,15 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { NewsSlotSettings } from '../../hooks/useCurrentNewsHeadline'
 import type { LanguageCode } from '../../i18n'
-import type { BackgroundImage, LayoutNode, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SplitDirection, TextSizes } from '../../types/screen'
+import type { LayoutNode, PaneId, ScreenConfig, ScreenSlot, ScreenSlotContent, SplitDirection, TextSizes } from '../../types/screen'
 import type { Divider, Rect } from '../../utils/layoutGeometry'
 import { listLeaves } from '../../utils/layoutTree'
-import type { PaneGrowthOrigin } from '../../utils/paneGrowth'
-import { nodeGridTemplate, paneDefaultSlideDirection, pathKey, resolveRatio, type NodePath, type RatioPatch } from '../../utils/screenLayout'
+import { paneDefaultSlideDirection, type PaneGrowthOrigin } from '../../utils/paneGrowth'
+import { gapAwareTracks, nodeGridTemplate, pathKey, resolveRatio, type NodePath, type RatioPatch } from '../../utils/screenLayout'
 import { resolveSlotBackgroundColor, resolveSlotLocked, subtreeGroupId, subtreeHasLockedLeaf } from '../../utils/screenStages'
 import { LayoutPane } from './LayoutPane'
 import { PaneCornerHandle } from './PaneCornerHandle'
+import { SLOT_BORDER_THICKNESS_PX, SplitBorderLine } from './SplitBorderLine'
 import { SplitLayoutDivider } from './SplitLayoutDivider'
 
 /** How close (in ratio percentage points) a `split` node's two qualifying children's own ratios need to be before they're treated as visually aligned into a true "+" — see this file's own doc comment — and merged into a single combined `PaneCornerHandle` instead of two separate ones. Slightly looser than `layoutGeometry.ts`'s pure-geometry `EPSILON`, since this is a UX affordance (when to show one merged handle vs two) rather than a correctness check. */
@@ -16,6 +17,8 @@ const CORNER_ALIGN_EPSILON = 0.5
 
 interface LayoutTreeProps {
   node: LayoutNode
+  /** This screen's own id — threaded down to `LayoutPane`'s own default `data-pane-scope` (screen-qualified, since a `PaneId` is not actually globally unique across screens, e.g. "Duplicate screen" — see `LayoutPane.tsx`'s own doc comment). */
+  screenID: string
   /** This node's own path from the tree root — `[]` for the root itself. */
   path: NodePath
   /** This node's own current box, in the same 0-100 percentage space `computeLayoutGeometry` uses (`FULL_BOX` for the root) — lets this node convert `allDividers`' absolute screen-space positions into a ratio local to its own container (see `snapTargets` below), since a divider's live-drag position is always read relative to its own immediate container, not the whole screen. */
@@ -33,13 +36,17 @@ interface LayoutTreeProps {
   transitionDuration: number
   /** Threaded straight through to every `LayoutPane`'s own prop of the same name — see `SplitLayout`'s own `contentPhase` state for what each phase drives. */
   contentPhase: 'idle' | 'exiting' | 'holding'
+  /** Every leaf id this stage transition doesn't actually affect — either a persisting pane with unchanged content, or a newly-split-off pane whose `splitFromPaneId` lineage matches a pane that was already showing this same content (see `SplitLayout.tsx`'s own `computeStageStaticSets`) — threaded straight through to each matching `LayoutPane`'s own `stageStatic` prop. */
+  stageStaticLeafIds: Set<PaneId>
+  /** Same content-identity test as `stageStaticLeafIds`, but the leaf's own box changed shape enough that it was moved here instead — threaded through to each matching `LayoutPane`'s own `reflowHide` prop. See `SplitLayout.tsx`'s own `computeStageStaticSets` for the full reasoning. */
+  reflowHideLeafIds: Set<PaneId>
+  /** Every split node's own `pathKey` with at least one side (its own `first` or `second`) whose leaf set is unchanged by this stage transition (see `computeStageStaticSets`) — such a divider stays visible through `'exiting'` instead of shrinking away, and gets `stableResizeGridTransition` instead of `gridTransition` so a ratio change there (if any) glides smoothly rather than snapping behind a blanked screen. Covers a persisting pane resizing alongside a sibling region that's genuinely gaining/losing panes, not just a split where nothing changes anywhere below it. */
+  stableSplitPaths: Set<string>
+  /** The subset of `stableSplitPaths` whose divider moves too little between the two stages to be worth animating (see `SplitLayout.tsx`'s own `negligibleMoveSplitPaths`) — such a split keeps its border visible through `'exiting'` like any other stable split, but takes its new ratio on the commit rather than gliding to it. */
+  negligibleMoveSplitPaths: Set<string>
+  /** A brand-new split node's own `pathKey` → which side (`'first'`/`'second'`) its newly-created, lineage-matched leaf is on (see `SplitLayout.tsx`'s own `computeStageStaticSets`) — such a split animates its own grid track from a synthetic starting ratio (as if that side were still zero-width) to its real target ratio, instead of the ordinary instant snap every other genuinely-new divider gets. Always empty when `ENABLE_STAGE_STRUCTURAL_GROWTH` is off. */
+  growingSplitPaths: Map<string, 'first' | 'second'>
   reducedMotion: boolean | null
-  /** The screen's own whole-screen background image, if any — threaded down to every leaf so it can render its own "window" onto it (see `LayoutPane.tsx`'s own `screenBackgroundWindow`) whenever it has neither its own background color nor image, together looking like one continuous image behind the whole arrangement rather than each independently cropped. */
-  screenBackgroundImage?: BackgroundImage
-  /** `.split-layout`'s own measured pixel size (see `SplitLayout.tsx`'s `containerSize`) — combined with a leaf's own `box` (this node's percentage rect) to work out exactly which slice of `screenBackgroundImage` that leaf's own window should show. `{ width: 0, height: 0 }` before the very first `ResizeObserver` callback fires; leaves skip rendering their own window until then rather than dividing by zero. */
-  containerSize: { width: number; height: number }
-  /** Where `screenBackgroundImage` would actually be drawn (in the same pixel space as `containerSize`) if it were sized with a plain `background-size: cover` against the whole screen — computed once in `SplitLayout.tsx` from the image's own natural dimensions, so every leaf's own window (see `screenBackgroundWindow` below) crops a properly aspect-ratio-preserving fit instead of a stretched one, while still lining up seamlessly across pane boundaries. `undefined` until the image's natural size has loaded — leaves skip rendering their own window until then, same as an unmeasured `containerSize`. */
-  screenBackgroundCoverRect?: { left: number; top: number; width: number; height: number }
   /** Omit to render every divider read-only (no drag handles at all) — e.g. while the screen is locked. */
   onLiveChange?: (path: NodePath, ratio: number) => void
   onCommit?: (path: NodePath, ratio: number) => void
@@ -51,6 +58,10 @@ interface LayoutTreeProps {
   /** Threaded straight through to every `SplitLayoutDivider`'s own prop of the same name — a plain click (not a drag) on any border opens the screen-wide border settings, since the setting itself isn't specific to any one divider. Omit together with `onLiveChange`/`onCommit` to disable entirely. */
   onBorderClick?: () => void
   gridTransition: string | false
+  /** Applied instead of `gridTransition` to a split whose own path is in `stableSplitPaths` — see `SplitLayout.tsx`'s own doc comment on the prop of the same name for why such a split still animates smoothly even mid-stage-transition. */
+  stableResizeGridTransition: string | false
+  /** Whether this screen draws lines between its panes at all (`ScreenConfig.showSlotBorders`) — when false the split's own `gap` is closed by CSS and no `SplitBorderLine` is rendered, so there's nothing to animate either. */
+  showSlotBorders: boolean
   /** Draws a persistent highlight ring around this one pane, if any — see `SplitLayout`'s own doc comment. */
   selectedLeafId?: PaneId
   /** See `SplitLayout`'s own prop of the same name. */
@@ -76,6 +87,8 @@ interface LayoutTreeProps {
   onToggleChecked?: (leafId: PaneId) => void
   /** Threaded straight through to every `LayoutPane`'s own prop of the same name — see `SplitLayout`'s own doc comment. */
   onRequestStageAdvance?: () => void
+  /** Threaded straight through to every `LayoutPane`'s own prop of the same name — see `SplitLayout`'s own doc comment. */
+  captureMode?: boolean
 }
 
 /**
@@ -102,6 +115,7 @@ interface LayoutTreeProps {
  */
 export function LayoutTree({
   node,
+  screenID,
   path,
   box,
   root,
@@ -115,10 +129,12 @@ export function LayoutTree({
   editingFocus,
   transitionDuration,
   contentPhase,
+  stageStaticLeafIds,
+  reflowHideLeafIds,
+  stableSplitPaths,
+  negligibleMoveSplitPaths,
+  growingSplitPaths,
   reducedMotion,
-  screenBackgroundImage,
-  containerSize,
-  screenBackgroundCoverRect,
   onLiveChange,
   onCommit,
   onLiveChangeMulti,
@@ -126,6 +142,8 @@ export function LayoutTree({
   allDividers,
   onBorderClick,
   gridTransition,
+  stableResizeGridTransition,
+  showSlotBorders,
   selectedLeafId,
   dimUnselectedPanes,
   onSplitPane,
@@ -141,28 +159,87 @@ export function LayoutTree({
   selectedLeafIds,
   onToggleChecked,
   onRequestStageAdvance,
+  captureMode,
 }: LayoutTreeProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  /**
+   * For a brand-new divider directly housing a newly-created leaf grown from an existing pane (see
+   * `SplitLayout.tsx`'s own `growingSplitPaths`) — which side that new leaf is on, if any. `undefined` for
+   * every ordinary split. Read unconditionally, ahead of the leaf/split branch below, since the hooks
+   * right after it must run in the same order on every render regardless of which branch this instance
+   * ultimately takes.
+   *
+   * The `node.type === 'split'` guard is load-bearing, not defensive: `growingSplitPaths` is computed once
+   * at the *start* of a stage transition (`SplitLayout.tsx`'s own `prevEffectiveStage` block), but the tree
+   * itself doesn't actually change until the exit phase ends ~0.5s later — so without this, the instance
+   * at this path sees a truthy `growingSide` for that whole window while it's still rendering the *old*
+   * leaf, settles its own growth a frame later against that leaf, and has nothing left to animate by the
+   * time the real split finally arrives (confirmed live on "Testing some more": the divider's transition
+   * was correctly active, yet the pane still jumped straight to its target). Gating on the node genuinely
+   * being a split now is what makes `growingSide` flip from `undefined` on the exact commit the new
+   * divider first renders — which is precisely when the reset below needs to fire.
+   */
+  const growingSide = node.type === 'split' ? growingSplitPaths.get(pathKey(path)) : undefined
+  /**
+   * Two-phase mount for a `growingSide` split: the *first* commit paints at a synthetic ratio matching
+   * wherever the origin pane's old edge already was (`0` if the new leaf is `'first'`, `100` if
+   * `'second'`), deliberately with no `transition` set — same "must actually be painted once before
+   * animating" reasoning as `LayoutPane.tsx`'s own `growthInitial`/Framer Motion `initial`, just done as a
+   * plain two-commit state flip here since `grid-template-columns`/`-rows` is driven by an ordinary CSS
+   * `transition` (matching `stableResizeGridTransition`'s own already-proven approach), not a Framer
+   * Motion value. The `requestAnimationFrame` (rather than calling `setState` straight from the effect
+   * body, which this codebase's own `react-hooks/set-state-in-effect` rule forbids as a likely derived-
+   * state anti-pattern) still only ever fires *after* the first paint, which is what guarantees the
+   * browser has a genuine "from" value to glide away from once the real target ratio takes over.
+   *
+   * `hasSettledGrowth`'s own `useState` initializer only runs at this component instance's *true* first
+   * mount — but this exact `LayoutTree` instance (same component, same tree position) is what was already
+   * rendering `path`'s own *previous* node a moment ago, whether that was a leaf or an ordinary split;
+   * React reuses it (same element type at the same position, no `key` differentiating old vs new shape),
+   * carrying every hook's existing state forward rather than re-initializing it. Confirmed live: without
+   * the `prevGrowingSide` check below, a position that goes from "a leaf" to "a growing split" in one
+   * stage transition inherits whatever `hasSettledGrowth` this instance already settled to (typically
+   * `true`, from long before), so the very first render of the new split skips the synthetic ratio
+   * entirely and paints straight at the target — the exact "still snaps" symptom this hook exists to
+   * avoid. Resetting `hasSettledGrowth` synchronously (the same "adjust state when a prop changes" idiom
+   * `SplitLayout.tsx`'s own `diffBase`/`prevTree` use) the moment `growingSide` itself changes to a new
+   * truthy value is what makes the *very same* render that first sees this growth also see it unsettled.
+   */
+  const [prevGrowingSide, setPrevGrowingSide] = useState(growingSide)
+  const [hasSettledGrowth, setHasSettledGrowth] = useState(!growingSide || Boolean(reducedMotion))
+  if (growingSide !== prevGrowingSide) {
+    setPrevGrowingSide(growingSide)
+    if (growingSide && !reducedMotion) setHasSettledGrowth(false)
+  }
+  // Double `requestAnimationFrame`, not one: a single rAF scheduled from an effect runs at the *start* of
+  // the next frame's rendering work, before that frame is actually painted — so flipping the ratio there
+  // lands in the very same paint as the synthetic value, and the browser sees one value, never two, with
+  // nothing to interpolate between (confirmed live on "Testing some more": the divider's transition was
+  // correctly active, yet the pane still jumped straight to its target). The inner rAF runs a full frame
+  // later, after the synthetic ratio has genuinely been painted once, which is what gives the CSS
+  // transition a real "from" to glide away from.
+  useEffect(() => {
+    if (hasSettledGrowth) return
+    let inner = 0
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setHasSettledGrowth(true))
+    })
+    return () => {
+      cancelAnimationFrame(outer)
+      if (inner) cancelAnimationFrame(inner)
+    }
+  }, [hasSettledGrowth])
 
   if (node.type === 'leaf') {
     const slot = paneSlots[node.id]
     if (!slot) return null
     const slideDirection = paneDefaultSlideDirection(root, node.id)
     const locked = resolveSlotLocked(slot, stage)
-    /** This leaf's own "window" onto `screenBackgroundImage` — `box` is already this exact leaf's own rect (0-100 percentage space), converted to pixels against `containerSize`, then re-based onto `screenBackgroundCoverRect`'s own top-left (not the container's) so `LayoutPane`'s `background-position`/`background-size` ends up cropping the image's own *cover*-fitted placement rather than stretching it to the container's raw pixel size. `undefined` until both the container's real pixel size and the image's own natural size (via `screenBackgroundCoverRect`) are known (skips rendering for the handful of frames before either is measured). */
-    const screenBackgroundWindow =
-      containerSize.width > 0 && containerSize.height > 0 && screenBackgroundCoverRect
-        ? {
-            left: (box.x / 100) * containerSize.width - screenBackgroundCoverRect.left,
-            top: (box.y / 100) * containerSize.height - screenBackgroundCoverRect.top,
-            screenWidth: screenBackgroundCoverRect.width,
-            screenHeight: screenBackgroundCoverRect.height,
-          }
-        : undefined
     return (
       <LayoutPane
         key={node.id}
         leafId={node.id}
+        screenID={screenID}
         slot={slot}
         stage={stage}
         transitionStyle={transitionStyle}
@@ -174,9 +251,9 @@ export function LayoutTree({
         editingFocus={editingFocus}
         transitionDuration={transitionDuration}
         contentPhase={contentPhase}
+        stageStatic={stageStaticLeafIds.has(node.id)}
+        reflowHide={reflowHideLeafIds.has(node.id)}
         reducedMotion={reducedMotion}
-        screenBackgroundImage={screenBackgroundImage}
-        screenBackgroundWindow={screenBackgroundWindow}
         selected={node.id === selectedLeafId}
         dimmed={Boolean(dimUnselectedPanes && selectedLeafId !== undefined && node.id !== selectedLeafId)}
         onSplitPane={locked ? undefined : onSplitPane}
@@ -193,11 +270,55 @@ export function LayoutTree({
         onRequestStageAdvance={onRequestStageAdvance}
         checked={selectedLeafIds?.has(node.id)}
         onToggleChecked={locked ? undefined : onToggleChecked ? () => onToggleChecked(node.id) : undefined}
+        captureMode={captureMode}
       />
     )
   }
 
-  const gridTemplate = { ...nodeGridTemplate(node), ...(!reducedMotion && gridTransition ? { transition: gridTransition } : {}) }
+  const isGrowingUnsettled = Boolean(growingSide) && !hasSettledGrowth
+  const effectiveRatio = isGrowingUnsettled ? (growingSide === 'first' ? 0 : 100) : resolveRatio(node)
+  /** Whether at least one of this exact split's own two sides is unaffected by the current stage transition — see `SplitLayout.tsx`'s own `stableSplitPaths` doc comment. Drives both `gridTemplate`'s own choice of transition below and `bordersVisible` further down. */
+  const isStableSplit = stableSplitPaths.has(pathKey(path))
+  /** Whether this stable split's divider moves so little between the two stages that gliding it would cost a full animation's worth of layout passes for motion nobody can see — see `SplitLayout.tsx`'s own `negligibleMoveSplitPaths`. Deliberately only consulted for the `isStableSplit` branch: a `growingSide` split is opening from zero by construction, which is never a negligible move. */
+  const isNegligibleMove = negligibleMoveSplitPaths.has(pathKey(path))
+  const effectiveGridTransition = growingSide
+    ? isGrowingUnsettled
+      ? false
+      : stableResizeGridTransition
+    : isStableSplit
+      ? isNegligibleMove
+        ? false
+        : stableResizeGridTransition
+      : gridTransition
+  /** This divider's own shared group color, if *both* sides fully resolve to the same "Group" at this stage (see `subtreeGroupId`) — the divider then paints to match instead of the screen's ordinary border color, and its own `gap` shrinks to 0 so the seam actually disappears rather than just changing color. `undefined` (the ordinary case) leaves this node's CSS untouched. */
+  const firstGroupId = subtreeGroupId(node.first, paneSlots, stage)
+  const secondGroupId = subtreeGroupId(node.second, paneSlots, stage)
+  const sharedGroupId = firstGroupId && firstGroupId === secondGroupId ? firstGroupId : undefined
+  const groupColor = sharedGroupId ? resolveSlotBackgroundColor(paneSlots[listLeaves(node.first)[0].id], stage) : undefined
+
+  /** This split's own visible line thickness, in px — `0` (draw nothing) whenever the gap it would fill is itself closed: borders turned off screen-wide, or a grouped split deliberately hiding its own seam. */
+  const borderThickness = showSlotBorders && !sharedGroupId ? SLOT_BORDER_THICKNESS_PX : 0
+
+  /**
+   * The synthetic starting frame deliberately bypasses `nodeGridTemplate`, which resolves its ratio
+   * through `resolveRatio`'s own `MIN_RATIO`/`MAX_RATIO` clamp — correct for a real, draggable ratio
+   * (never let a pane collapse to nothing), wrong for a start value whose whole purpose is to be zero.
+   * Clamping it silently painted the track at 10% while `SplitBorderLine` below drew at the raw
+   * `effectiveRatio` (0%), so the divider line and the track boundary it's supposed to sit exactly on
+   * disagreed by ~140px at the start of the glide and only converged at the end — measured, and exactly
+   * the "border lagging" symptom. Building the track straight from `effectiveRatio` here keeps both on
+   * the identical number throughout, and lets the new pane genuinely open from zero width. Every other
+   * case still goes through `nodeGridTemplate` unchanged.
+   */
+  const syntheticTrack = gapAwareTracks(effectiveRatio, borderThickness)
+  const gridTemplate = {
+    ...(isGrowingUnsettled
+      ? node.direction === 'row'
+        ? { gridTemplateColumns: syntheticTrack }
+        : { gridTemplateRows: syntheticTrack }
+      : nodeGridTemplate(node, borderThickness)),
+    ...(!reducedMotion && effectiveGridTransition ? { transition: effectiveGridTransition } : {}),
+  }
   const orientation = node.direction === 'row' ? 'vertical' : 'horizontal'
   const axis = node.direction === 'row' ? 'x' : 'y'
   const axisStart = node.direction === 'row' ? box.x : box.y
@@ -210,7 +331,7 @@ export function LayoutTree({
           .map((divider) => ((divider.position - axisStart) / axisSize) * 100)
       : []
 
-  const share = resolveRatio(node) / 100
+  const share = effectiveRatio / 100
   const firstBox: Rect = node.direction === 'row' ? { ...box, width: box.width * share } : { ...box, height: box.height * share }
   const secondBox: Rect =
     node.direction === 'row'
@@ -226,11 +347,29 @@ export function LayoutTree({
   /** Whether resizing this node's own divider would resize a locked pane on either side — if so, neither the plain divider nor any `PaneCornerHandle` at this node renders at all, since both always move this node's own ratio (which affects both sides) alongside whatever else they touch. */
   const dividerLocked = subtreeHasLockedLeaf(node.first, paneSlots, stage) || subtreeHasLockedLeaf(node.second, paneSlots, stage)
 
-  /** This divider's own shared group color, if *both* sides fully resolve to the same "Group" at this stage (see `subtreeGroupId`) — the divider then paints to match instead of the screen's ordinary border color, and its own `gap` shrinks to 0 so the seam actually disappears rather than just changing color. `undefined` (the ordinary case) leaves this node's CSS untouched. */
-  const firstGroupId = subtreeGroupId(node.first, paneSlots, stage)
-  const secondGroupId = subtreeGroupId(node.second, paneSlots, stage)
-  const sharedGroupId = firstGroupId && firstGroupId === secondGroupId ? firstGroupId : undefined
-  const groupColor = sharedGroupId ? resolveSlotBackgroundColor(paneSlots[listLeaves(node.first)[0].id], stage) : undefined
+  /**
+   * Hidden only while the old content is leaving; grown back during
+   * `'holding'`, which is the phase whose entire job is now "the borders
+   * arrive at their new positions". That ordering is deliberate and is the
+   * whole shape of the sequence: content out (borders shrinking) → geometry
+   * snaps → borders grow into their new places → new content slides in.
+   *
+   * The snap and this grow-back begin on the *same* commit, which is
+   * precisely why nothing is seen jumping: the line is still at zero
+   * thickness on the frame the grid reflows, and only then expands, already
+   * at its new position.
+   *
+   * Also stays visible regardless of `contentPhase` whenever `isStableSplit`
+   * is true — at least one of this divider's own two sides isn't
+   * gaining/losing a pane, so from that side's perspective there's no
+   * disruptive reflow at this divider to hide in the first place, even if the
+   * *other* side is (which gets its own blank-behind-a-snap treatment,
+   * scoped to whichever of its own nested split paths that applies to). A
+   * ratio change here (if any) instead glides smoothly via
+   * `stableResizeGridTransition` above, with the border staying put the
+   * whole time, however much content changes deeper inside either side.
+   */
+  const bordersVisible = contentPhase !== 'exiting' || isStableSplit
 
   /** Builds one `PaneCornerHandle`'s props: `childPaths` is one path (a single T-junction corner) or two (a merged "+", both kept equal through the drag). */
   const cornerHandle = (key: string, childRatio: number, childPaths: NodePath[]) => {
@@ -265,8 +404,27 @@ export function LayoutTree({
         ...(!reducedMotion ? { transition: [gridTemplate.transition, 'background-color 0.3s ease', 'gap 0.3s ease'].filter(Boolean).join(', ') } : {}),
       }}
     >
+      {/*
+        Rendered before the children purely for readability — it's absolutely
+        positioned and `pointer-events: none`, so its DOM order affects
+        neither layout nor hit-testing. Skipped entirely at zero thickness
+        (borders turned off screen-wide, or a grouped split whose seam is
+        meant to disappear), so there's no invisible element left animating
+        for something that will never be seen.
+      */}
+      {borderThickness > 0 && (
+        <SplitBorderLine
+          direction={node.direction}
+          share={effectiveRatio}
+          thickness={borderThickness}
+          visible={bordersVisible}
+          reducedMotion={Boolean(reducedMotion)}
+          glide={Boolean(effectiveGridTransition)}
+        />
+      )}
       <LayoutTree
         node={node.first}
+        screenID={screenID}
         path={[...path, 'first']}
         box={firstBox}
         root={root}
@@ -280,10 +438,12 @@ export function LayoutTree({
         editingFocus={editingFocus}
         transitionDuration={transitionDuration}
         contentPhase={contentPhase}
+        stageStaticLeafIds={stageStaticLeafIds}
+        reflowHideLeafIds={reflowHideLeafIds}
+        stableSplitPaths={stableSplitPaths}
+        negligibleMoveSplitPaths={negligibleMoveSplitPaths}
+        growingSplitPaths={growingSplitPaths}
         reducedMotion={reducedMotion}
-        screenBackgroundImage={screenBackgroundImage}
-        containerSize={containerSize}
-        screenBackgroundCoverRect={screenBackgroundCoverRect}
         onLiveChange={onLiveChange}
         onCommit={onCommit}
         onLiveChangeMulti={onLiveChangeMulti}
@@ -291,6 +451,8 @@ export function LayoutTree({
         allDividers={allDividers}
         onBorderClick={onBorderClick}
         gridTransition={gridTransition}
+        stableResizeGridTransition={stableResizeGridTransition}
+        showSlotBorders={showSlotBorders}
         selectedLeafId={selectedLeafId}
         dimUnselectedPanes={dimUnselectedPanes}
         onSplitPane={onSplitPane}
@@ -306,9 +468,11 @@ export function LayoutTree({
         onRequestStageAdvance={onRequestStageAdvance}
         selectedLeafIds={selectedLeafIds}
         onToggleChecked={onToggleChecked}
+        captureMode={captureMode}
       />
       <LayoutTree
         node={node.second}
+        screenID={screenID}
         path={[...path, 'second']}
         box={secondBox}
         root={root}
@@ -322,10 +486,12 @@ export function LayoutTree({
         editingFocus={editingFocus}
         transitionDuration={transitionDuration}
         contentPhase={contentPhase}
+        stageStaticLeafIds={stageStaticLeafIds}
+        reflowHideLeafIds={reflowHideLeafIds}
+        stableSplitPaths={stableSplitPaths}
+        negligibleMoveSplitPaths={negligibleMoveSplitPaths}
+        growingSplitPaths={growingSplitPaths}
         reducedMotion={reducedMotion}
-        screenBackgroundImage={screenBackgroundImage}
-        containerSize={containerSize}
-        screenBackgroundCoverRect={screenBackgroundCoverRect}
         onLiveChange={onLiveChange}
         onCommit={onCommit}
         onLiveChangeMulti={onLiveChangeMulti}
@@ -333,6 +499,8 @@ export function LayoutTree({
         allDividers={allDividers}
         onBorderClick={onBorderClick}
         gridTransition={gridTransition}
+        stableResizeGridTransition={stableResizeGridTransition}
+        showSlotBorders={showSlotBorders}
         selectedLeafId={selectedLeafId}
         dimUnselectedPanes={dimUnselectedPanes}
         onSplitPane={onSplitPane}
@@ -348,6 +516,7 @@ export function LayoutTree({
         onRequestStageAdvance={onRequestStageAdvance}
         selectedLeafIds={selectedLeafIds}
         onToggleChecked={onToggleChecked}
+        captureMode={captureMode}
       />
       {onLiveChange && onCommit && !dividerLocked && (
         <SplitLayoutDivider

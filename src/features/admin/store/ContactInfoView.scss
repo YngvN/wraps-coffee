@@ -1,3 +1,4 @@
+@use '../../../styles/mixins' as *;
 @use '../../../styles/variables' as *;
 
 .contact-info-view {
@@ -17,7 +18,7 @@
   flex-direction: column;
   gap: $spacing-unit;
   padding: $spacing-unit * 1.5;
-  border: 1px solid $color-border;
+  @include surface('raised');
   border-radius: 8px;
 }
 

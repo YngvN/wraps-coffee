@@ -1,7 +1,16 @@
 import { useLanguage, type LanguageCode } from '../../i18n'
 import type { BackgroundImage, ScreenSlot, ScreenSlotContent, TextSizes } from '../../types/screen'
 import { resolveContentBackgroundImage } from '../../utils/screenSlots'
-import { resolveSlotBackgroundColor, resolveSlotBackgroundImage, resolveSlotContent, resolveSlotLanguage, resolveSlotOverflowMode, writeStageCheckpoint } from '../../utils/screenStages'
+import {
+  propagateSlotContentToAllStages,
+  resolveSlotBackgroundColor,
+  resolveSlotBackgroundImage,
+  resolveSlotContent,
+  resolveSlotLanguage,
+  resolveSlotOverflowMode,
+  resolveSlotTextColor,
+  writeStageCheckpoint,
+} from '../../utils/screenStages'
 import { PaneEditor } from './PaneEditor'
 
 interface SlotEditorProps {
@@ -72,18 +81,27 @@ export function SlotEditor({
   const hasMultipleStages = useStages && stageCount > 1
   const content = resolveSlotContent(slot, activeStage)
   const backgroundColor = resolveSlotBackgroundColor(slot, activeStage)
+  const textColor = resolveSlotTextColor(slot, activeStage)
   const backgroundImage = resolveContentBackgroundImage(content, resolveSlotBackgroundImage(slot, activeStage))
   const language = resolveSlotLanguage(slot, activeStage)
   const overflowMode = resolveSlotOverflowMode(slot, activeStage)
 
   const setContent = (nextContent: ScreenSlotContent) => onSlotChange({ ...slot, content: writeStageCheckpoint(slot.content, activeStage, nextContent) })
   const setBackgroundColor = (nextColor: string | undefined) => onSlotChange({ ...slot, backgroundColor: writeStageCheckpoint(slot.backgroundColor, activeStage, nextColor) })
+  const setTextColor = (nextColor: string | undefined) => onSlotChange({ ...slot, textColor: writeStageCheckpoint(slot.textColor, activeStage, nextColor) })
   const setLanguage = (next: LanguageCode | undefined) => onSlotChange({ ...slot, language: writeStageCheckpoint(slot.language, activeStage, next) })
   const setOverflowMode = (mode: 'shrink' | 'scroll') => onSlotChange({ ...slot, overflowMode: writeStageCheckpoint(slot.overflowMode, activeStage, mode) })
 
   /** Writes the single consolidated background-image field: to the active stage's own content checkpoint with more than one stage (so each stage's own pane can carry its own distinct image), else to the slot's own shared checkpoint — same split `textSizes` already resolves between, since with just one stage there's nothing for a per-content override to meaningfully differ from. */
   const setBackgroundImage = (next: BackgroundImage | undefined) =>
     hasMultipleStages ? setContent({ ...content, backgroundImage: next }) : onSlotChange({ ...slot, backgroundImage: writeStageCheckpoint(slot.backgroundImage, activeStage, next) })
+
+  // Single values across every stage (not `StageTimeline`s, see `ScreenSlot`'s own doc comment) — no
+  // `writeStageCheckpoint` needed, unlike every setter above.
+  const setCustomCss = (css: string | undefined) => onSlotChange({ ...slot, customCss: css })
+  const setCustomHtml = (html: string | undefined) => onSlotChange({ ...slot, customHtml: html })
+  const setCustomHtmlPlacement = (placement: 'before' | 'after') => onSlotChange({ ...slot, customHtmlPlacement: placement })
+  const applyContentToEveryStage = () => onSlotChange(propagateSlotContentToAllStages(slot, activeStage, stageCount))
 
   return (
     <PaneEditor
@@ -92,6 +110,8 @@ export function SlotEditor({
       onContentChange={setContent}
       backgroundColor={backgroundColor}
       onBackgroundColorChange={setBackgroundColor}
+      textColor={textColor}
+      onTextColorChange={setTextColor}
       backgroundImage={backgroundImage}
       onBackgroundImageChange={setBackgroundImage}
       textSizes={hasMultipleStages ? textSizes : slotTextSizes}
@@ -105,6 +125,13 @@ export function SlotEditor({
       stageCount={stageCount}
       activeStage={activeStage}
       onActiveStageChange={onActiveStageChange}
+      customCss={slot.customCss}
+      onCustomCssChange={setCustomCss}
+      customHtml={slot.customHtml}
+      onCustomHtmlChange={setCustomHtml}
+      customHtmlPlacement={slot.customHtmlPlacement}
+      onCustomHtmlPlacementChange={setCustomHtmlPlacement}
+      onApplyContentToEveryStage={applyContentToEveryStage}
       label={hasMultipleStages ? t('screenDisplay.textSizeEditor.stageTabLabel', { number: activeStage }) : t('screenDisplay.textSizeEditor.slotContentLabel')}
       resizeToFitBlocked={resizeToFitBlocked}
       suggestedEventOrdinal={suggestedEventOrdinal}

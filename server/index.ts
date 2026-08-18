@@ -5,18 +5,21 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import type { DisplayMachine, DisplayMonitor, DisplayPairingRequest, DisplayScreenOverride, DisplayUpdateProgress } from '../src/types/displayMachine'
 import type { OrderRecord, OrderStatus } from '../src/types/order'
 import type { Product } from '../src/types/product'
-import type { ScreenConfig } from '../src/types/screen'
+import type { PaneId, ScreenConfig, ScreenSlot } from '../src/types/screen'
 import type { ScreenAddressSettings } from '../src/types/screenAddress'
 import type { WindowLaunchSettings } from '../src/types/windowLaunch'
 import type { StoreSettings } from '../src/types/storeSettings'
 import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
 import { logProductNameFoldedCollisions, withRecomputedNameFolded } from '../src/lib/productNameFold'
+import { PANE_CUSTOM_CSS_POLICY_VERSION, validatePaneCustomCss } from '../src/utils/paneCustomCss'
+import { PANE_CUSTOM_HTML_POLICY_VERSION, sanitizePaneCustomHtml, validatePaneCustomHtml } from '../src/utils/paneCustomHtml'
 import { sanitizeDisplayName } from '../src/utils/sanitizeDisplayName'
 import * as assistantSteps from './assistant/steps'
 import type { LookupQueryFilterInput } from './assistant/lookupQuery'
 import { deleteOllamaModel, ensureOllamaRunning, listOllamaModels, pullOllamaModel, testOllamaConnection } from './assistant/ollamaClient'
 import { AssistantLocalProviderError, AssistantNotConfiguredError, type AssistantActionName } from './assistant/types'
 import * as backup from './backup'
+import * as screensSnapshots from './screensSnapshots'
 import { handleDepartures, handleLookup, handleStopSearch, handleWeather } from './integrations'
 import { handleHeadlines } from './news'
 import { handleNewsImage, startNewsImageCacheSweep } from './newsImageCache'
@@ -39,6 +42,7 @@ import { handleDeleteUpload, handleRenameUpload, handleServeUpload, handleStorag
 import { handleVideoRetry, handleVideoUpload, startAbandonedVideoUploadSweep } from './videoUploads'
 import * as foodoraAdapter from './foodoraAdapter'
 import * as foodoraPoller from './foodoraPoller'
+import * as transitPoller from './transitPoller'
 import * as woltAdapter from './woltAdapter'
 import * as woltPoller from './woltPoller'
 
@@ -110,9 +114,12 @@ function reAdvertiseServerPresenceIfStoreNameChanged() {
 /**
  * Upserts one machine's heartbeat into the stored `admin.displayMachines`
  * array, preserving each existing monitor's own `assignedScreenID` (matched
- * by monitor `id`) and the machine's own admin-set `customLabel` (see
- * `DisplayMachine`'s own doc comment) rather than wiping admin-made
- * assignments/renames on every heartbeat. Deliberately synchronous
+ * by monitor `id`) and the machine's own admin-set fields — `customLabel` and
+ * `maxImagePx` (see `DisplayMachine`'s own doc comment) — rather than wiping
+ * admin-made assignments/renames/caps on every heartbeat. Any future
+ * admin-set field must be added to that carry-over list too; a field left
+ * out fails quietly, resetting itself once per heartbeat interval.
+ * Deliberately synchronous
  * end-to-end (reads current state, computes the merged array, and the
  * caller writes it back all within one `readJsonBody(req).then(...)`
  * callback with no further `await` in between) — two heartbeats arriving
@@ -146,6 +153,13 @@ function mergeDisplayMachineHeartbeat(
     machineID: heartbeat.machineID,
     label: heartbeat.label,
     customLabel: existing?.customLabel ?? null,
+    // Admin-set in Display Manager and never reported by a heartbeat, so it is carried over from
+    // `existing` for exactly the same reason `customLabel` is — without this line a heartbeat would
+    // silently reset the cap to `'auto'` every 20 seconds.
+    maxImagePx: existing?.maxImagePx,
+    // Carried over for exactly the same reason as `maxImagePx` directly above — also admin-set in
+    // Display Manager, also never reported by a heartbeat. See `DisplayRenderWidth`.
+    renderWidthPx: existing?.renderWidthPx,
     connectionType: heartbeat.connectionType,
     monitors,
     lastSeenAt: new Date().toISOString(),
@@ -325,7 +339,32 @@ const httpServer = createServer((req, res) => {
         // yields null here rather than pushing a blank name down (see this route's own callers for why that
         // matters — a device should never have its stored name silently blanked by this route).
         const customLabel = mine?.customLabel ? sanitizeDisplayName(mine.customLabel, 60) || null : null
-        sendJson(res, 200, { ok: true, monitors: mine?.monitors ?? [], customLabel })
+        // `maxImagePx` rides the heartbeat response for the same reason `customLabel` does: it is
+        // admin-set state the *device* needs to act on, and this response is the device's own
+        // once-per-20s source of truth. The kiosk page can't look it up itself — that page is
+        // unauthenticated while `admin.displayMachines` is gated to the `displaymanager` section
+        // (see this file's own key/section map) — so the companion passes it into the WebView URL
+        // instead (see `useDisplayImageCap`).
+        // `effectiveScreenID` (override ?? assignment, see `resolveEffectiveScreen`'s own doc
+        // comment) rides the same "admin-set state the device needs to act on" reasoning as
+        // `customLabel`/`maxImagePx` just above — it is the hub's own single source of truth for
+        // what a `mobile` device should be showing, and the raw `monitors[].assignedScreenID` above
+        // is *not* it (that's the assignment alone, before any standing remote-nav override). The
+        // companion feeds this into `remoteNav.syncEffectiveScreenId` so a dropped `effective-screen`
+        // WS push self-heals toward the right value within one heartbeat interval instead of toward
+        // the assignment, which would fight a live override every 20s.
+        sendJson(res, 200, {
+          ok: true,
+          monitors: mine?.monitors ?? [],
+          customLabel,
+          maxImagePx: mine?.maxImagePx ?? 'auto',
+          // Rides the response for the same reason `maxImagePx` does (see the comment above): the
+          // kiosk page is unauthenticated and cannot look this up, so the companion is the only
+          // component that knows both which machine it is and what the server says about it, and it
+          // forwards this into the WebView URL (see `useDisplayRenderWidth`).
+          renderWidthPx: mine?.renderWidthPx ?? 'auto',
+          effectiveScreenID: resolveEffectiveScreen(machineID),
+        })
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
     return
@@ -510,7 +549,9 @@ const httpServer = createServer((req, res) => {
     const filename = url.pathname === '/uploads' ? null : url.pathname.slice('/uploads/'.length)
 
     if (req.method === 'GET' && filename) {
-      handleServeUpload(res, filename, url.searchParams.get('size'))
+      // `void`-ed rather than awaited, same as `/news/image` — this handler is async only because a
+      // missing size variant is generated on first request (see `generateMissingVariant`).
+      void handleServeUpload(req, res, filename, url.searchParams.get('size'))
       return
     }
 
@@ -521,7 +562,10 @@ const httpServer = createServer((req, res) => {
     }
 
     if (req.method === 'POST' && !filename) {
-      void handleUpload(req, res, host)
+      // `?purpose=screen-preview` marks an auto-captured screen thumbnail, which is stored
+      // under its own filename prefix so it never shows up as browsable media (see
+      // `SCREEN_PREVIEW_FILENAME_PREFIX`). Anything else is a normal upload.
+      void handleUpload(req, res, host, url.searchParams.get('purpose') === 'screen-preview')
       return
     }
 
@@ -531,7 +575,13 @@ const httpServer = createServer((req, res) => {
     }
 
     if (req.method === 'GET' && !filename) {
-      sendJson(res, 200, listUploads(host))
+      // Auto-captured screen previews are filtered out here (and only here) — they're
+      // generated artifacts rather than media anyone chose to upload, so they'd otherwise
+      // fill the Media Library, the "Use stored image" picker and the assistant's own
+      // picker with near-identical screenshots. They stay on disk, still count toward
+      // storage usage, and are still visible to the orphan sweep — see
+      // `collectScreenPreviewFilenames`.
+      sendJson(res, 200, listUploads(host, { legacyFilenames: screensSnapshots.collectScreenPreviewFilenames() }))
       return
     }
   }
@@ -696,7 +746,7 @@ const httpServer = createServer((req, res) => {
   // own hosting directly on every rotation — same public, unauthenticated
   // posture as `/news/headlines`.
   if (req.method === 'GET' && url.pathname === '/news/image') {
-    void handleNewsImage(res, url.searchParams.get('src'))
+    void handleNewsImage(res, url.searchParams.get('src'), url.searchParams.get('w'))
     return
   }
 
@@ -1378,7 +1428,26 @@ const httpServer = createServer((req, res) => {
     res.on('close', () => { if (!res.writableEnded) abortController.abort() })
     readJsonBody(req)
       .then(async (body) => {
-        const { entity, action, itemID, message, uiLanguage, priorDraft, image, resolvedFields, model, history, historyContext, provider, localModel, localVisionModel, posture, conversationId, turnVersion } = body as {
+        const {
+          entity,
+          action,
+          itemID,
+          message,
+          uiLanguage,
+          priorDraft,
+          image,
+          resolvedFields,
+          model,
+          history,
+          historyContext,
+          provider,
+          localModel,
+          localVisionModel,
+          posture,
+          conversationId,
+          turnVersion,
+          allowPaneContentEditing,
+        } = body as {
           entity?: string
           action?: AssistantActionName
           itemID?: string
@@ -1396,6 +1465,7 @@ const httpServer = createServer((req, res) => {
           posture?: assistantSteps.AssistantIngestionPosture
           conversationId?: string
           turnVersion?: number
+          allowPaneContentEditing?: boolean
         }
         if (!entity || !action || !message || (uiLanguage !== 'no' && uiLanguage !== 'en')) {
           sendJson(res, 400, { error: 'Missing entity, action, message, or uiLanguage' })
@@ -1420,6 +1490,7 @@ const httpServer = createServer((req, res) => {
                 historyContext: typeof historyContext === 'string' ? historyContext : undefined,
                 conversationId: typeof conversationId === 'string' ? conversationId : undefined,
                 signal: abortController.signal,
+                allowPaneContentEditing: typeof allowPaneContentEditing === 'boolean' ? allowPaneContentEditing : undefined,
               }),
               typeof turnVersion === 'number' ? turnVersion : undefined,
             ),
@@ -1940,6 +2011,129 @@ const httpServer = createServer((req, res) => {
     return
   }
 
+  // Screens snapshot history (Settings → Backup → "Screens history", and
+  // each ScreenCard's own per-screen restore button) — admin/subadmin only,
+  // same posture as the backup/storage-cleanup routes above. See
+  // server/screensSnapshots.ts for the actual capture/rotation/pinning
+  // logic; this block is just auth + response plumbing, matching this
+  // file's own convention.
+  if (req.method === 'GET' && url.pathname === '/screens-snapshots') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view screens snapshot history' })
+      return
+    }
+    sendJson(res, 200, { snapshots: screensSnapshots.listSnapshots() })
+    return
+  }
+
+  if (req.method === 'GET' && url.pathname === '/screens-snapshots/for-screen') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view screens snapshot history' })
+      return
+    }
+    const screenID = url.searchParams.get('screenID')
+    if (!screenID) {
+      sendJson(res, 400, { error: 'Missing screenID' })
+      return
+    }
+    sendJson(res, 200, { snapshots: screensSnapshots.listSnapshotsForScreen(screenID) })
+    return
+  }
+
+  const snapshotDiffMatch = /^\/screens-snapshots\/(daily|weekly)\/([^/]+)\/diff$/.exec(url.pathname)
+  if (req.method === 'GET' && snapshotDiffMatch) {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can view screens snapshot history' })
+      return
+    }
+    const [, tier, id] = snapshotDiffMatch
+    const diff = screensSnapshots.diffScreensAgainstLive(tier as screensSnapshots.SnapshotTier, decodeURIComponent(id))
+    if (!diff) {
+      sendJson(res, 404, { error: 'Snapshot not found' })
+      return
+    }
+    sendJson(res, 200, { diff })
+    return
+  }
+
+  const snapshotRestoreMatch = /^\/screens-snapshots\/(daily|weekly)\/([^/]+)\/restore$/.exec(url.pathname)
+  if (req.method === 'POST' && snapshotRestoreMatch) {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can restore a screens snapshot' })
+      return
+    }
+    const [, tier, id] = snapshotRestoreMatch
+    const decodedId = decodeURIComponent(id)
+    const tierValue = tier as screensSnapshots.SnapshotTier
+    const screens = screensSnapshots.screensForWholeRestore(tierValue, decodedId)
+    if (!screens) {
+      sendJson(res, 404, { error: 'Snapshot not found' })
+      return
+    }
+    screensSnapshots.copySnapshotImagesToUploads(tierValue, decodedId)
+    applyUpdate('admin.screens', screens)
+    console.log(`[screens-snapshots] ${session.username} restored the whole admin.screens array from ${tier}/${decodedId}`)
+    sendJson(res, 200, { ok: true })
+    return
+  }
+
+  const snapshotRestoreScreenMatch = /^\/screens-snapshots\/(daily|weekly)\/([^/]+)\/restore-screen\/([^/]+)$/.exec(url.pathname)
+  if (req.method === 'POST' && snapshotRestoreScreenMatch) {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can restore a screens snapshot' })
+      return
+    }
+    const [, tier, id, screenID] = snapshotRestoreScreenMatch
+    const decodedId = decodeURIComponent(id)
+    const decodedScreenID = decodeURIComponent(screenID)
+    const tierValue = tier as screensSnapshots.SnapshotTier
+    const liveScreensArray = (store.get('admin.screens')?.value as screensSnapshots.MinimalScreenConfig[] | undefined) ?? []
+    const target = liveScreensArray.find((screen) => screen.screenID === decodedScreenID)
+    // A non-empty `draft` on the target screen is either a human's own in-progress `ScreenDisplay`
+    // edit, or (once the screenPane assistant entity lands) an assistant-staged change — either way,
+    // restoring here would silently clobber unpublished work with no warning unless the caller
+    // explicitly confirms via `?force=1` after being shown what's there.
+    if (target?.draft && Object.keys(target.draft).length > 0 && url.searchParams.get('force') !== '1') {
+      sendJson(res, 409, { error: 'This screen has unpublished changes (a draft) that restoring would discard.', hasDraft: true })
+      return
+    }
+    const updatedScreens = screensSnapshots.screensForSingleScreenRestore(tierValue, decodedId, decodedScreenID, liveScreensArray)
+    if (!updatedScreens) {
+      sendJson(res, 404, { error: 'Snapshot (or this screen within it) not found' })
+      return
+    }
+    screensSnapshots.copySnapshotImagesToUploads(tierValue, decodedId, [decodedScreenID])
+    applyUpdate('admin.screens', updatedScreens)
+    console.log(`[screens-snapshots] ${session.username} restored screen ${decodedScreenID} from ${tier}/${decodedId}`)
+    sendJson(res, 200, { ok: true })
+    return
+  }
+
   // Account management (the admin dashboard's own "Users" tab) —
   // admin/subadmin only, same posture as the developer API key/Neon URL
   // routes above. Three extra rules beyond the plain role gate, enforced
@@ -2204,16 +2398,49 @@ function startUpdateFailureSweep() {
 }
 
 /**
+ * Reduces one of this server's own upload URLs (stored absolute, baked to whichever origin the
+ * uploader happened to reach the server on — see `handleUpload`'s own `http://${host}/uploads/...`)
+ * to a path+query relative to that origin, so a client that reached the hub a different way (a
+ * companion device's own `syncOrigin`, a kiosk on a different LAN IP) can prefix it correctly instead
+ * of following the stale baked-in host — same problem `isOwnUploadUrl`/`normalizeUploadUrl`
+ * (`src/lib/localServer.ts`) solve client-side, needed here because this one crosses to the
+ * companion's native layer rather than another browser tab. `size` overrides any existing `?size=`
+ * query (a stored `previewImages` URL has none — see `screenPreviewCapture.ts`'s own `uploadImage`
+ * call — but this stays robust if that ever changes). Any non-`/uploads/` URL is returned unchanged.
+ */
+function toRelativeUploadUrl(url: string, size?: string): string {
+  try {
+    const parsed = new URL(url)
+    if (!parsed.pathname.startsWith('/uploads/')) return url
+    if (size) parsed.searchParams.set('size', size)
+    return `${parsed.pathname}${parsed.search}`
+  } catch {
+    return url
+  }
+}
+
+/**
  * Every screen a companion device is currently allowed to browse to (Remote
  * Screen Navigation spec) — every published screen, hub-decided (never
  * client-enumerated) so a café unit can never browse to another venue's
  * screen or an unpublished draft. A screen's own top-level `name`/`screenID`
  * only — never `.draft`, which isn't a separate browsable screen, just a
  * pending edit to an existing one.
+ *
+ * `previewImage` is that screen's own stage-1 `previewImages` entry (see `ScreenConfig`'s own doc
+ * comment), reduced to a relative `?size=medium` path via `toRelativeUploadUrl` — what the companion's
+ * remote-browse HUD shows as a still image instead of live-navigating the WebView per keypress (see
+ * `RemoteNavPreview.tsx`/`previewCache.ts`). `null` for a screen that has never been saved/published
+ * since screenshots shipped, or whose capture failed — the companion falls back to a plain dark
+ * backdrop for those, same as `ScreenCard.tsx`'s own live-render fallback does on the admin side.
  */
-function buildNavigableSet(): { screenId: string; name: string }[] {
+function buildNavigableSet(): { screenId: string; name: string; previewImage: string | null }[] {
   const screens = (store.get('admin.screens')?.value as ScreenConfig[] | undefined) ?? []
-  return screens.map((screen) => ({ screenId: screen.screenID, name: screen.name }))
+  return screens.map((screen) => ({
+    screenId: screen.screenID,
+    name: screen.name,
+    previewImage: screen.previewImages?.[0] ? toRelativeUploadUrl(screen.previewImages[0], 'medium') : null,
+  }))
 }
 
 /**
@@ -2252,52 +2479,92 @@ function pushEffectiveScreen(machineID: string) {
   pushToDevice(machineID, { type: 'effective-screen', screenId: resolveEffectiveScreen(machineID) })
 }
 
-/** Persists a synced-key write and broadcasts it to every interested LAN client — the one path both a client's own WS `write` and the Neon bridge's own pulls go through, so neither has to duplicate the other's plumbing. */
+/** Validates/sanitizes one pane's own `customCss`/`customHtml` (against the *admin* posture — see `applyUpdate`'s own `admin.screens` branch for why) in place, returning a new slot only if something needed stripping, else the exact same object reference (so an unaffected pane never gets a needless new identity). */
+function sanitizeIncomingSlotCustomContent(slot: ScreenSlot, screenID: string, paneId: PaneId): ScreenSlot {
+  let next = slot
+  if (slot.customCss !== undefined) {
+    if (validatePaneCustomCss(slot.customCss, 'admin').length > 0) {
+      console.warn(`[screens] stripped invalid customCss on screen ${screenID} pane ${paneId}`)
+      next = { ...next, customCss: undefined, customCssPolicyVersion: undefined }
+    } else if (slot.customCssPolicyVersion !== PANE_CUSTOM_CSS_POLICY_VERSION) {
+      next = { ...next, customCssPolicyVersion: PANE_CUSTOM_CSS_POLICY_VERSION }
+    }
+  }
+  if (slot.customHtml !== undefined) {
+    if (validatePaneCustomHtml(slot.customHtml, 'admin').length > 0) {
+      console.warn(`[screens] stripped invalid customHtml on screen ${screenID} pane ${paneId}`)
+      next = { ...next, customHtml: undefined, customHtmlPolicyVersion: undefined }
+    } else {
+      // Re-sanitized (not just validated) so whatever's actually persisted is always the canonical
+      // normalized form (forced `rel`, host-stripped own-upload `img.src` — see
+      // `sanitizePaneCustomHtml`'s own doc comment) regardless of what a given write path sent,
+      // rather than only ever trusting the client to have already done this itself.
+      const sanitized = sanitizePaneCustomHtml(slot.customHtml, 'admin')
+      if (sanitized !== next.customHtml || next.customHtmlPolicyVersion !== PANE_CUSTOM_HTML_POLICY_VERSION) {
+        next = { ...next, customHtml: sanitized, customHtmlPolicyVersion: PANE_CUSTOM_HTML_POLICY_VERSION }
+      }
+    }
+  }
+  return next
+}
+
+function sanitizePaneSlotsRecord(paneSlots: Record<PaneId, ScreenSlot> | undefined, screenID: string): Record<PaneId, ScreenSlot> | undefined {
+  if (!paneSlots) return paneSlots
+  let changed = false
+  const next: Record<PaneId, ScreenSlot> = {}
+  for (const [paneId, slot] of Object.entries(paneSlots)) {
+    const sanitized = sanitizeIncomingSlotCustomContent(slot, screenID, paneId)
+    if (sanitized !== slot) changed = true
+    next[paneId] = sanitized
+  }
+  return changed ? next : paneSlots
+}
+
+/** The real server-side gate for `ScreenSlot.customCss`/`customHtml` — see `applyUpdate`'s own `admin.screens` branch. Covers both a screen's live `paneSlots` and its own unpublished `draft.paneSlots` (a staged edit still eventually gets published, so it needs the same gate). */
+function sanitizeIncomingScreensCustomContent(screens: ScreenConfig[]): ScreenConfig[] {
+  let anyChanged = false
+  const result = screens.map((screen) => {
+    const sanitizedPaneSlots = sanitizePaneSlotsRecord(screen.paneSlots, screen.screenID)
+    const sanitizedDraftPaneSlots = screen.draft ? sanitizePaneSlotsRecord(screen.draft.paneSlots, screen.screenID) : undefined
+    if (sanitizedPaneSlots === screen.paneSlots && sanitizedDraftPaneSlots === screen.draft?.paneSlots) return screen
+    anyChanged = true
+    return {
+      ...screen,
+      paneSlots: sanitizedPaneSlots ?? screen.paneSlots,
+      ...(screen.draft ? { draft: { ...screen.draft, paneSlots: sanitizedDraftPaneSlots } } : {}),
+    }
+  })
+  return anyChanged ? result : screens
+}
+
+/**
+ * Persists a synced-key write and broadcasts it to every interested LAN client — the one path both a
+ * client's own WS `write` and the Neon bridge's own pulls go through, so neither has to duplicate the
+ * other's plumbing.
+ *
+ * **Ordering invariant, load-bearing:** this function has three phases, and which one a side effect
+ * belongs in is not a style choice.
+ *
+ * 1. *Pre-write* — anything that has to compare against the state this write is about to replace
+ *    (`store.get(key)` still returns the old value here), or that rewrites `value` itself.
+ * 2. *Write* — `store.set` + `broadcastUpdate`.
+ * 3. *Post-write* — anything that **builds a push by reading the store back**
+ *    (`buildNavigableSet`, `resolveEffectiveScreen`/`pushEffectiveScreen`). These used to sit above
+ *    the `store.set` and therefore pushed every device a value computed from the *pre-write* state:
+ *    a remote-nav commit persisted the new override correctly but immediately told the device to go
+ *    back to the screen it was already on, an admin reassignment pushed the old assignment, Display
+ *    Manager's "Return to assigned" pushed the very override it was clearing, and a screen
+ *    rename/create pushed a `navigable-set` without it. Every diff those pushes need is computed in
+ *    phase 1 into a local instead, so moving them down loses nothing.
+ */
 function applyUpdate(key: SyncedKey, value: unknown) {
+  // --- Phase 1: pre-write (reads the outgoing state, or rewrites `value`) ---
+
   if (key === 'admin.orders') {
     reconcileStockForOrders((store.get('admin.orders')?.value as OrderRecord[] | undefined) ?? [], value as OrderRecord[])
   }
   if (key === 'admin.displayUpdateState') {
     pushUpdateTriggersForNewEntries((store.get('admin.displayUpdateState')?.value as DisplayUpdateProgress[] | undefined) ?? [], value as DisplayUpdateProgress[])
-  }
-  if (key === 'admin.screens') {
-    // Every connected device's own browsable set is affected, not just one — see
-    // pushToAllDevices's own doc comment.
-    pushToAllDevices({ type: 'navigable-set', screens: buildNavigableSet() })
-  }
-  if (key === 'admin.displayMachines') {
-    // Only an *admin's own* assignment write ever actually changes monitors[0].assignedScreenID —
-    // mergeDisplayMachineHeartbeat (the heartbeat route's own merge, called far more often)
-    // deliberately preserves it unconditionally, so this diff naturally never fires on a plain
-    // heartbeat write, no need to special-case which caller this is.
-    const previous = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
-    const previousAssignmentByID = new Map(previous.map((machine) => [machine.machineID, machine.monitors[0]?.assignedScreenID ?? null]))
-    for (const machine of value as DisplayMachine[]) {
-      if (machine.connectionType !== 'mobile') continue
-      const assignedScreenID = machine.monitors[0]?.assignedScreenID ?? null
-      if (previousAssignmentByID.get(machine.machineID) === assignedScreenID) continue
-      const overrides = (store.get('admin.displayScreenOverride')?.value as DisplayScreenOverride[] | undefined) ?? []
-      if (overrides.some((entry) => entry.machineID === machine.machineID)) {
-        // Deliberate/explicit (this admin assignment write) beats local/older (a standing
-        // remote-nav override) — spec §D1's writer precedence. The recursive write below hits the
-        // admin.displayScreenOverride branch just below, which pushes effective-screen for this
-        // machine on its own — no separate push needed here too.
-        applyUpdate(
-          'admin.displayScreenOverride',
-          overrides.filter((entry) => entry.machineID !== machine.machineID),
-        )
-      } else {
-        pushEffectiveScreen(machine.machineID)
-      }
-    }
-  }
-  if (key === 'admin.displayScreenOverride') {
-    const previous = (store.get('admin.displayScreenOverride')?.value as DisplayScreenOverride[] | undefined) ?? []
-    const previousByID = new Map(previous.map((entry) => [entry.machineID, entry.screenId]))
-    const incoming = value as DisplayScreenOverride[]
-    const incomingByID = new Map(incoming.map((entry) => [entry.machineID, entry.screenId]))
-    const changedMachineIDs = new Set([...previousByID.keys(), ...incomingByID.keys()].filter((machineID) => previousByID.get(machineID) !== incomingByID.get(machineID)))
-    for (const machineID of changedMachineIDs) pushEffectiveScreen(machineID)
   }
   if (key === 'admin.products') {
     // Kept current on every write (both a real client edit and a Neon-bridge
@@ -2307,8 +2574,84 @@ function applyUpdate(key: SyncedKey, value: unknown) {
     value = recomputed
     logProductNameFoldedCollisions(recomputed)
   }
+  if (key === 'admin.screens') {
+    // The real server-side gate for `customCss`/`customHtml` (see `src/utils/paneCustomContent.ts`)
+    // — the live editors already validate client-side before allowing Save, but nothing enforces
+    // those constants server-side otherwise, so a direct WS write bypassing the UI must still be
+    // caught here. Always validated against the *admin* posture regardless of whether this write
+    // actually originated from a human or from a confirmed assistant draft (the assistant's own,
+    // narrower posture is already enforced earlier, in `screenPane.validate()`, before the admin ever
+    // sees a draft to confirm — by the time any write reaches this generic path there's no reliable
+    // way to tell the two apart, and admin-authored content must never be rejected by its own gate).
+    // Never aborts the whole write over one bad field — strips just that field (matching this
+    // module's own restore-time posture) and logs a warning, since dropping the *entire* incoming
+    // `admin.screens` write here (as the `limited`-role section check above does) would also silently
+    // discard every *other*, unrelated, perfectly valid edit bundled into the same write.
+    value = sanitizeIncomingScreensCustomContent(value as ScreenConfig[])
+  }
+
+  // Machines whose effective screen this write changes, split by which of the two ways it changes —
+  // both consumed in phase 3. Computed here because both diffs are against the *outgoing* store.
+  const machinesToPush: string[] = []
+  const machinesToClearOverrideFor: string[] = []
+
+  if (key === 'admin.displayMachines') {
+    // Only an *admin's own* assignment write ever actually changes monitors[0].assignedScreenID —
+    // mergeDisplayMachineHeartbeat (the heartbeat route's own merge, called far more often)
+    // deliberately preserves it unconditionally, so this diff naturally never fires on a plain
+    // heartbeat write, no need to special-case which caller this is.
+    const previous = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
+    const previousAssignmentByID = new Map(previous.map((machine) => [machine.machineID, machine.monitors[0]?.assignedScreenID ?? null]))
+    const overrides = (store.get('admin.displayScreenOverride')?.value as DisplayScreenOverride[] | undefined) ?? []
+    for (const machine of value as DisplayMachine[]) {
+      if (machine.connectionType !== 'mobile') continue
+      // A monitor-less entry is never a real assignment change — it's a malformed heartbeat (the
+      // route's own body check only asserts `Array.isArray(monitors)`, so an empty array gets
+      // through). Without this guard `monitors[0]?.assignedScreenID` reads as null, which is
+      // indistinguishable from "the admin just cleared the assignment" and would silently wipe this
+      // machine's standing remote-nav override below.
+      if (machine.monitors.length === 0) continue
+      const assignedScreenID = machine.monitors[0]?.assignedScreenID ?? null
+      if (previousAssignmentByID.get(machine.machineID) === assignedScreenID) continue
+      // Deliberate/explicit (this admin assignment write) beats local/older (a standing remote-nav
+      // override) — spec §D1's writer precedence. Clearing the override is itself a synced-key
+      // write, so it's deferred to phase 3 and batched into one; that recursive call's own
+      // admin.displayScreenOverride branch pushes effective-screen for these machines, so they
+      // deliberately don't also go into `machinesToPush`.
+      if (overrides.some((entry) => entry.machineID === machine.machineID)) machinesToClearOverrideFor.push(machine.machineID)
+      else machinesToPush.push(machine.machineID)
+    }
+  }
+  if (key === 'admin.displayScreenOverride') {
+    const previous = (store.get('admin.displayScreenOverride')?.value as DisplayScreenOverride[] | undefined) ?? []
+    const previousByID = new Map(previous.map((entry) => [entry.machineID, entry.screenId]))
+    const incoming = value as DisplayScreenOverride[]
+    const incomingByID = new Map(incoming.map((entry) => [entry.machineID, entry.screenId]))
+    for (const machineID of new Set([...previousByID.keys(), ...incomingByID.keys()])) {
+      if (previousByID.get(machineID) !== incomingByID.get(machineID)) machinesToPush.push(machineID)
+    }
+  }
+
+  // --- Phase 2: the write itself ---
+
   store.set(key, value)
   broadcastUpdate(key, value)
+
+  // --- Phase 3: post-write pushes (every one of these reads the store back) ---
+
+  if (key === 'admin.screens') {
+    // Every connected device's own browsable set is affected, not just one — see
+    // pushToAllDevices's own doc comment.
+    pushToAllDevices({ type: 'navigable-set', screens: buildNavigableSet() })
+  }
+  for (const machineID of machinesToPush) pushEffectiveScreen(machineID)
+  if (machinesToClearOverrideFor.length > 0) {
+    const overrides = (store.get('admin.displayScreenOverride')?.value as DisplayScreenOverride[] | undefined) ?? []
+    applyUpdate(
+      'admin.displayScreenOverride',
+      overrides.filter((entry) => !machinesToClearOverrideFor.includes(entry.machineID)),
+    )
+  }
 }
 
 wss.on('connection', (socket) => {
@@ -2392,6 +2735,9 @@ wss.on('connection', (socket) => {
       // the card's status dot to reflect the change.
       if (key === 'admin.woltConfig') woltPoller.restart()
       if (key === 'admin.foodoraConfig') foodoraPoller.restart()
+      // Adding/removing a stop in Integrations should populate/clear its
+      // departures promptly, rather than waiting up to `POLL_INTERVAL_MS`.
+      if (key === 'admin.integrations') transitPoller.restart()
       console.log(`[ws] ${session.username} wrote ${key}`)
       return
     }
@@ -2446,6 +2792,7 @@ function shutdown(signal: NodeJS.Signals) {
   console.log(`[server] received ${signal}, shutting down...`)
   woltPoller.stop()
   foodoraPoller.stop()
+  transitPoller.stop()
   neonBridge.stop()
   mdns.stop()
   wss.close()
@@ -2462,10 +2809,15 @@ void ensureOllamaRunning()
 neonBridge.start(applyUpdate, broadcastError)
 woltPoller.start(applyUpdate)
 foodoraPoller.start(applyUpdate)
+transitPoller.start(applyUpdate)
 startNewsImageCacheSweep()
 startAbandonedVideoUploadSweep()
 startUpdateFailureSweep()
 updates.sweepUpdatesDirForBackup()
+// After store.load() — snapshot capture reads store.get('admin.screens'), and this also registers
+// the lazy-pinning hook against uploads.ts's own delete path (see screensSnapshots.ts's own doc
+// comment on `startScreensSnapshotScheduler`).
+screensSnapshots.startScreensSnapshotScheduler()
 mdns.apply(store.getScreenAddressSettings(), currentStoreName())
 // Always on, regardless of the opt-in hostname mode above — see
 // advertiseServerPresence's own doc comment for why this needs to be a

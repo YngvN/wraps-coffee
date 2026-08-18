@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Button, Modal } from '../../../components'
+import { useDisplayName } from '../../../hooks/useDisplayName'
 import { useLanguage } from '../../../i18n'
 import type { Catalogue } from '../../../types/category'
 import type { Product } from '../../../types/product'
@@ -21,7 +22,8 @@ interface MoveToCatalogueModalProps {
  * open the full edit form just to move something.
  */
 export function MoveToCatalogueModal({ product, catalogues, onMove, onCancel }: MoveToCatalogueModalProps) {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
+  const displayName = useDisplayName()
   const current = resolveProductCatalogue(product, catalogues)
   const [catalogueId, setCatalogueId] = useState(current?.catalogue.id ?? catalogues[0]?.id ?? '')
   const [categoryId, setCategoryId] = useState(current?.category?.id ?? '')
@@ -45,7 +47,7 @@ export function MoveToCatalogueModal({ product, catalogues, onMove, onCancel }: 
           <select value={catalogueId} onChange={(event) => handleSelectCatalogue(event.target.value)}>
             {catalogues.map((catalogue) => (
               <option key={catalogue.id} value={catalogue.id}>
-                {catalogue.name[language]}
+                {displayName(catalogue.name)}
               </option>
             ))}
           </select>
@@ -57,7 +59,7 @@ export function MoveToCatalogueModal({ product, catalogues, onMove, onCancel }: 
             <option value="">{t('admin.products.noCategoryOption')}</option>
             {targetCatalogue?.categories.map((category) => (
               <option key={category.id} value={category.id}>
-                {category.name[language]}
+                {displayName(category.name)}
               </option>
             ))}
           </select>

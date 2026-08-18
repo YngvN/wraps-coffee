@@ -66,15 +66,25 @@ export function useShrinkToFitScale(
   enabled: boolean,
   deps: readonly unknown[],
   /**
-   * Set `false` to stop attaching the `ResizeObserver` — only that trigger
-   * is skipped; `enabled`, the `MutationObserver`, the poll, and the initial
-   * measurement are all unaffected. For a `LayoutPane` crossfade slot that's
-   * no longer the active one (fading out, frozen content), there's nothing
-   * left worth spending a forced-layout remeasure on — but *also* no reason
-   * to strip its already-correct scale back to full size the way `enabled:
-   * false` deliberately does (see its own doc comment above), which would
-   * cause a visible pop right as the slot starts fading. This lets a caller
-   * freeze a slot's last-good scale in place instead.
+   * Set `false` to stop attaching *all three* live-update triggers — the
+   * `ResizeObserver`, the `MutationObserver`, and the periodic poll alike.
+   * `enabled` and the initial measurement are unaffected. For a `LayoutPane`
+   * crossfade slot that's no longer the active one (fading out, frozen
+   * content), there's nothing left worth spending a forced-layout remeasure
+   * on — but *also* no reason to strip its already-correct scale back to
+   * full size the way `enabled: false` deliberately does (see its own doc
+   * comment above), which would cause a visible pop right as the slot starts
+   * fading. This lets a caller freeze a slot's last-good scale in place
+   * instead.
+   *
+   * Keeping the mutation observer and poll running on an invisible slot was
+   * a real cost, not a theoretical one: an inactive slot's own content keeps
+   * updating on its own timers (a `WeatherSlide` left holding a checkpoint
+   * still polls its forecast), so both kept firing forced-layout remeasures
+   * indefinitely, for as long as the kiosk stayed up. Nothing is lost by
+   * dropping them — this effect re-runs on `trackResize` (see its dep array
+   * below), so a slot becoming active again measures fresh, synchronously,
+   * before it paints.
    */
   trackResize = true,
 ) {
@@ -106,22 +116,24 @@ export function useShrinkToFitScale(
     if (!enabled) return
 
     let resizeObserver: ResizeObserver | undefined
+    let mutationObserver: MutationObserver | undefined
+    let pollInterval: ReturnType<typeof setInterval> | undefined
     if (trackResize) {
       resizeObserver = new ResizeObserver(() => scheduler.scheduleMeasureAfterSettle(RESIZE_SETTLE_MS))
       resizeObserver.observe(outer)
+
+      // Deliberately doesn't watch `attributes` — this hook's own
+      // `inner.style.transform` write would otherwise re-trigger itself.
+      mutationObserver = new MutationObserver(() => scheduler.scheduleMeasureAfterSettle(MUTATION_SETTLE_MS))
+      mutationObserver.observe(inner, { childList: true, subtree: true, characterData: true })
+
+      pollInterval = setInterval(scheduler.scheduleMeasure, POLL_INTERVAL_MS)
     }
-
-    // Deliberately doesn't watch `attributes` — this hook's own
-    // `inner.style.transform` write would otherwise re-trigger itself.
-    const mutationObserver = new MutationObserver(() => scheduler.scheduleMeasureAfterSettle(MUTATION_SETTLE_MS))
-    mutationObserver.observe(inner, { childList: true, subtree: true, characterData: true })
-
-    const pollInterval = setInterval(scheduler.scheduleMeasure, POLL_INTERVAL_MS)
 
     return () => {
       resizeObserver?.disconnect()
-      mutationObserver.disconnect()
-      clearInterval(pollInterval)
+      mutationObserver?.disconnect()
+      if (pollInterval !== undefined) clearInterval(pollInterval)
       scheduler.cancel()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measures on every entry in `deps` (content identity) in addition to `enabled`/`trackResize`, not just when the refs themselves change.

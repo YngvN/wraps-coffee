@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { Button, FontPicker, Input } from '../../../components'
-import { useGoogleFontLoader } from '../../../hooks/useGoogleFontLoader'
 import { useLanguage } from '../../../i18n'
 import { LOCKED_APPEARANCE_COLORS, type AppearanceTheme, type AppearanceThemeFonts } from '../../../types/appearanceTheme'
+import { generateId } from '../../../utils/id'
 import { ThemeColorListEditor } from './ThemeColorListEditor'
 import './ThemeEditorForm.scss'
 
@@ -29,11 +29,10 @@ export function ThemeEditorForm({ theme, onSave, onCancel }: ThemeEditorFormProp
   const [fonts, setFonts] = useState(theme?.fonts ?? BLANK_FONTS)
   const [colors, setColors] = useState(theme?.colors ?? LOCKED_APPEARANCE_COLORS)
 
-  useGoogleFontLoader([fonts.body, fonts.heading, fonts.subheading])
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    onSave({ id: theme?.id ?? crypto.randomUUID(), name, fonts, colors })
+    onSave({ id: theme?.id ?? generateId(), name, fonts, colors })
   }
 
   return (

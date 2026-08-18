@@ -99,3 +99,28 @@
   flex-direction: column;
   gap: calc($spacing-unit / 4);
 }
+
+.backup-settings__snapshot-list {
+  padding-left: 0;
+  list-style: none;
+}
+
+.backup-settings__snapshot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit;
+  flex-wrap: wrap;
+}
+
+.backup-settings__restore-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+}
+
+.backup-settings__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-unit;
+}

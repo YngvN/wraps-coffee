@@ -4,11 +4,38 @@
  * The seeded screen variants — the first four per the plan's "P2.2 needs FOUR seeded screens" design
  * decision, plus `human` (see `buildHumanScenarioScreen`'s own doc comment): a 5th scenario added once
  * the original four turned out to structurally miss the real "Human testing" screen's worst case (a
- * per-stage content-KIND change compounding two concurrent `useShrinkToFitFontScale` searches).
+ * per-stage content-KIND change compounding two concurrent `useShrinkToFitFontScale` searches), plus
+ * `imagepane` (see `buildImagePaneScenarioScreen`): a 6th added because all five of the others are
+ * text-only, so none of them can exercise image *decode/paint* cost at all — the remaining suspect
+ * once the layout cost was fixed (Layout count median 770 -> 30) while paint+composite barely moved
+ * (6.01ms -> 4.81ms).
  */
-export type ScenarioVariant = 'as-is' | 'emptycatalogue' | 'textblock' | 'emptied' | 'human'
+export type ScenarioVariant =
+  | 'as-is'
+  | 'emptycatalogue'
+  | 'textblock'
+  | 'emptied'
+  | 'human'
+  | 'imagepane'
+  | 'imagepanectl'
+  | 'solonews'
+  | 'soloweather'
+  | 'soloqr'
+  | 'solotransit'
 
-export const SCENARIO_VARIANTS: ScenarioVariant[] = ['as-is', 'emptycatalogue', 'textblock', 'emptied', 'human']
+export const SCENARIO_VARIANTS: ScenarioVariant[] = [
+  'as-is',
+  'emptycatalogue',
+  'textblock',
+  'emptied',
+  'human',
+  'imagepane',
+  'imagepanectl',
+  'solonews',
+  'soloweather',
+  'soloqr',
+  'solotransit',
+]
 
 /** Which environment a capture ran against — one row group per target in the final report. */
 export type CaptureTarget = 'chromium' | 'firefox' | 'electron' | 'tv-webview'

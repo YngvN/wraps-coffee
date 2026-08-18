@@ -7,13 +7,52 @@
 ; Before compiling, download the Node.js LTS Windows x64 installer from
 ; https://nodejs.org/en/download and place it next to this file renamed to
 ; node-lts-x64.msi (not committed to the repo — it's a large third-party binary).
-; Ollama's own installer is NOT bundled the same way — it's downloaded to {tmp}
-; at install time instead (see CurStepChanged), since embedding it in [Files]
-; would ship it inside ADHDisplaySetup.exe for every downloader regardless of
-; whether the "Install Ollama" task ends up selected.
+; Same for Ollama's own Windows installer: download it from
+; https://ollama.com/download/OllamaSetup.exe and place it next to this file
+; as OllamaSetup.exe (also not committed — see .gitignore). Bundling it this
+; way (rather than downloading it at install time, as this used to do) means
+; a machine with a slow connection isn't stuck waiting on it mid-install; the
+; [Files] entry below is still gated on the "Install Ollama" task so it's
+; only extracted onto machines that actually selected it. build-installer.yml
+; downloads a fresh copy of both installers right before every CI build, so
+; a CI-built ADHDisplaySetup.exe always bundles the current Ollama release;
+; a local build via build-with-apk.ps1 uses whatever copy was manually placed
+; here, same as node-lts-x64.msi today.
+;
+; The AI assistant's default text model (qwen3:4b, ~2.5 GB) is bundled too, as
+; a pre-seeded copy of Ollama's own model store under ollama-models\ - run
+; `npm run ollama:fetch` (scripts\fetch-ollama-model.mts) before compiling, or
+; let build-installer.yml / build-with-apk.ps1 do it, exactly as they do for
+; public\fonts. Not committed either (see .gitignore). Without it a fresh kiosk
+; can't use the assistant until an admin finds Settings -> Integrations ->
+; Ollama and waits out the same download over the cafe's connection. The vision
+; model (qwen2.5vl:3b) is deliberately NOT bundled: both together exceed Inno's
+; 4,200,000,000-byte single-file limit and would force DiskSpanning, splitting
+; ADHDisplaySetup.exe into .exe plus .bin slices that must stay together.
+;
+; The [Files] section below also embeds the Companion app's Android TV APK
+; (built from ../adhdisplay-companion via `npm run build:tv`, then committed
+; straight into ../adhdisplay-companion/dist — see that project's own
+; .gitignore and README "Building a release APK for Android TV" section) so
+; it ships inside the {app}\android-apk folder, ready to copy to a USB stick
+; per ../docs/INSTALL-TV.md. Committed rather than built by ISCC's own callers
+; (build-installer.yml, build-with-apk.ps1) because a full Android/Gradle
+; build is slow — a full Android SDK/JDK toolchain is only needed when the
+; Companion app itself changes and its committed APK needs regenerating, not
+; on every installer compile. Since Inno resolves that [Files] glob at
+; compile time, whatever APK is currently committed there is what ships —
+; keep it in sync with adhdisplay-companion's own version.
 
 #define AppName "ADHDisplay"
 #define AppExeName "start-adhdisplay.bat"
+; The model bundled under ollama-models\ (see the header comment above), split
+; the way Ollama's own store path does (library\qwen3\4b) and joined as
+; "qwen3:4b" for display - the same tag server\store.ts's DEFAULT_OLLAMA_CONFIG
+; names as thinkingModel. Declared once since the [Files] entries, the detection
+; page and the uninstaller all have to talk about the same model.
+#define BundledModelName "qwen3"
+#define BundledModelTag "4b"
+#define BundledModelRef BundledModelName + ":" + BundledModelTag
 
 [Setup]
 ; Fixed GUID (not the app name) so the uninstall registry key stays the same
@@ -28,7 +67,7 @@ AppName={#AppName}
 ; Must stay in sync with the root package.json's own "version" field (see
 ; CLAUDE.md's Versioning rule) - bumped together, in the same change, on
 ; every completed change.
-AppVersion=0.2.32
+AppVersion=0.2.88
 AppPublisher=ADHDisplay
 DefaultDirName=C:\ADHDisplay
 DisableDirPage=no
@@ -42,14 +81,25 @@ SolidCompression=yes
 WizardStyle=modern
 SetupIconFile=adhdisplay.ico
 UninstallDisplayIcon={uninstallexe}
-; ~1.5 GB on top of the source files Inno's own estimate already covers, for
+; ~1.54 GB on top of the source files Inno's own estimate already covers, for
 ; node_modules + dist (neither is shipped in [Files] - both are generated on
 ; the target machine by npm install / npm run build below).
-ExtraDiskSpaceRequired=1610612736
+; Includes a further ~40 MB because `npm run build` copies public\fonts into
+; dist\fonts: Inno's own estimate covers the [Files] copy under {app}\public,
+; but not the second copy Vite makes at build time on the target machine.
+ExtraDiskSpaceRequired=1652555776
 
 [Files]
 Source: "..\src\*"; DestDir: "{app}\src"; Flags: recursesubdirs ignoreversion
 Source: "..\server\*"; DestDir: "{app}\server"; Flags: recursesubdirs ignoreversion; Excludes: "data\*,uploads\*"
+; Also carries public\fonts - ~36 MB of self-hosted Google Fonts woff2 plus the
+; generated stylesheet, covering every family in src\data\googleFonts.json (see
+; scripts\fetch-google-fonts.mts). Not committed to the repo: build-installer.yml
+; runs `npm run fonts:fetch` before ISCC, exactly as it downloads the Node.js and
+; Ollama installers, and build-with-apk.ps1 does the same for a local build. This
+; glob picks up whatever is on disk at compile time, so a build that skipped that
+; step still succeeds - it just produces an installer whose displays fall back to
+; system fonts, which is why both build paths run the fetch for you.
 Source: "..\public\*"; DestDir: "{app}\public"; Flags: recursesubdirs ignoreversion
 Source: "..\electron\*"; DestDir: "{app}\electron"; Flags: recursesubdirs ignoreversion
 Source: "..\package.json"; DestDir: "{app}"; Flags: ignoreversion
@@ -70,6 +120,45 @@ Source: "pull-ollama-models.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "tray-helper.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "adhdisplay.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "node-lts-x64.msi"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: not NodeIsInstalled
+; Gated on the task rather than on "not already installed" (unlike the msi
+; line above) - CurStepChanged below always runs this installer when the
+; task is selected, even over an existing Ollama, so an outdated install
+; gets updated rather than silently left alone. See the header comment for
+; where this file comes from.
+Source: "OllamaSetup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: WizardIsTaskSelected('installOllama')
+; The pre-seeded Ollama model store (see the header comment). Written straight
+; into Ollama's own default location rather than staged under {app} and copied
+; afterwards, which would mean 2.5 GB on disk twice and a multi-minute copy.
+;
+; {%USERPROFILE} resolves to whoever ran Setup - the same assumption the Ollama
+; install step and the uninstaller below already make (Ollama's own installer is
+; per-user, into {localappdata}), so this adds no new limitation. An admin who
+; elevates with a *different* account than the kiosk user seeds the wrong
+; profile; the wizard page below is what makes that visible rather than silent.
+;
+; onlyifdoesntexist is safe precisely because blobs are content-addressed - a
+; file named sha256-<hex> is byte-identical to any other file of that name, by
+; definition - so an upgrade, a re-run, or a machine where the admin already
+; pulled qwen3:4b by hand keeps the copy that's there rather than rewriting
+; 2.5 GB. (INFERRED that this also saves the *decompression*: SolidCompression
+; above makes the payload one sequential stream, so Setup may still have to read
+; through it either way. Confirm by timing a second install over the first.)
+;
+; nocompression skips compressing an already-quantised GGUF, which buys a percent
+; or two at best for a long compile. INFERRED that it still applies under
+; SolidCompression=yes - Inno's docs don't state how the two interact, and being
+; wrong here costs only compile time, not correctness.
+;
+; Follows the public\fonts precedent rather than the APK one below: no
+; skipifsourcedoesntexist needed since these are globs, so a build that skipped
+; `npm run ollama:fetch` still compiles - it just produces an installer whose
+; kiosks fall back to the existing on-demand download in Settings.
+Source: "ollama-models\blobs\*"; DestDir: "{code:OllamaStoreDir}\blobs"; Flags: onlyifdoesntexist nocompression; Check: ShouldInstallBundledModel
+Source: "ollama-models\manifests\*"; DestDir: "{code:OllamaStoreDir}\manifests"; Flags: recursesubdirs ignoreversion; Check: ShouldInstallBundledModel
+; Read back by CurUninstallStepChanged to remove exactly what was seeded, and
+; shipped because Apache-2.0 requires the licence to travel with the weights.
+Source: "ollama-models\seeded-files.txt"; DestDir: "{app}"; Flags: ignoreversion; Check: ShouldInstallBundledModel
+Source: "ollama-models\LICENSES.md"; DestDir: "{app}"; DestName: "OLLAMA-MODEL-LICENSES.md"; Flags: ignoreversion; Check: ShouldInstallBundledModel
 ; Two entries for the same source: the {app} copy is what the batch watchdog
 ; and tray helper call at runtime once installed; the {tmp}/dontcopy one is
 ; pulled on demand via ExtractTemporaryFile from [Code] at CurStepChanged's
@@ -79,6 +168,12 @@ Source: "node-lts-x64.msi"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: 
 ; call to actually run.
 Source: "adhdisplay-control.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "adhdisplay-control.ps1"; DestDir: "{tmp}"; Flags: dontcopy
+; Signed release build, glob-matched since the filename embeds the exact
+; version/versionCode (see adhdisplay-companion/scripts/build-tv-apk.js) - not
+; committed to the repo, must be built locally first (see the header comment
+; above and build-with-apk.ps1). Deliberately no skipifsourcedoesntexist: a
+; missing APK should fail this compile loudly, not silently ship without it.
+Source: "..\adhdisplay-companion\dist\adhdisplay-companion-*.apk"; DestDir: "{app}\android-apk"; Flags: ignoreversion
 
 ; Ensure these exist even though their gitignored contents are excluded above —
 ; the local server writes into them on first boot (see server/store.ts / uploads.ts).
@@ -101,6 +196,7 @@ var
   PriorInstallDetected: Boolean;
   PriorDisplayVersion: String;
   UpdateChoicePage: TInputOptionWizardPage;
+  OllamaStatusPage: TOutputMsgMemoWizardPage;
 
 function NodeIsInstalled: Boolean;
 begin
@@ -146,6 +242,88 @@ end;
 function OllamaWasInstalledByADHDisplay: Boolean;
 begin
   Result := FileExists(ExpandConstant('{app}\.ollama-installed-by-adhdisplay'));
+end;
+
+// Ollama's own default model store. Referenced from [Files] above as
+// {code:OllamaStoreDir} so the seeded blobs, the detection page below and the
+// uninstaller can never drift apart onto different paths. Takes the unused
+// Param the {code:...} constant syntax requires (same as NodeBinDir above).
+//
+// Deliberately not overridden with OLLAMA_MODELS: setting that machine-wide
+// would relocate the store for everything on the box, making any model an
+// admin had already pulled into the default location appear to vanish.
+function OllamaStoreDir(Param: String): String;
+begin
+  Result := ExpandConstant('{%USERPROFILE}') + '\.ollama\models';
+end;
+
+// Lists what Ollama already has, as newline-separated "model:tag" entries.
+//
+// Reads the store's own manifests directory rather than shelling out to
+// `ollama list`: that command talks to the Ollama HTTP daemon, which may well
+// not be running during Setup (and on a machine where Ollama isn't installed
+// at all there is nothing to ask), plus Inno's Exec cannot capture stdout
+// without redirecting to a temp file first. The directory layout is
+// manifests\<registry>\<namespace>\<model>\<tag>, confirmed byte-for-byte
+// against a real `ollama pull` store - which is exactly the layout [Files]
+// seeds, so this function and the seeding cannot disagree about what "installed"
+// means.
+function InstalledOllamaModels: String;
+var
+  LibraryDir: String;
+  ModelRec: TFindRec;
+  TagRec: TFindRec;
+begin
+  Result := '';
+  // Only the default registry/namespace is enumerated - a model pulled from
+  // somewhere else still works, it just isn't listed here, which is acceptable
+  // for an informational page.
+  LibraryDir := OllamaStoreDir('') + '\manifests\registry.ollama.ai\library';
+  if not DirExists(LibraryDir) then
+    Exit;
+
+  if FindFirst(LibraryDir + '\*', ModelRec) then
+  begin
+    try
+      repeat
+        if ((ModelRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0) and (ModelRec.Name <> '.') and (ModelRec.Name <> '..') then
+        begin
+          // Each file inside a model's folder is one tag, named after the tag
+          // itself with no extension.
+          if FindFirst(LibraryDir + '\' + ModelRec.Name + '\*', TagRec) then
+          begin
+            try
+              repeat
+                if (TagRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) = 0 then
+                  Result := Result + ModelRec.Name + ':' + TagRec.Name + #13#10;
+              until not FindNext(TagRec);
+            finally
+              FindClose(TagRec);
+            end;
+          end;
+        end;
+      until not FindNext(ModelRec);
+    finally
+      FindClose(ModelRec);
+    end;
+  end;
+end;
+
+// True when a model:tag is already in the store - i.e. when the bundled copy
+// would be skipped by its onlyifdoesntexist flag. The surrounding CRLFs make
+// this an exact whole-entry match, so "qwen3:4b" is never satisfied by
+// "qwen3:4b-instruct".
+function OllamaModelIsInstalled(Reference: String): Boolean;
+begin
+  Result := Pos(#13#10 + Reference + #13#10, #13#10 + InstalledOllamaModels) > 0;
+end;
+
+// Both tasks, ANDed - which the [Files] "Tasks:" parameter cannot express,
+// since listing two task names there ORs them. Nothing about the bundled model
+// makes sense on a machine that declined Ollama itself.
+function ShouldInstallBundledModel: Boolean;
+begin
+  Result := WizardIsTaskSelected('installOllama') and WizardIsTaskSelected('bundledModel');
 end;
 
 // Best-effort reachability probe so a machine with no internet connection
@@ -229,8 +407,9 @@ begin
   end;
 
   if Result and not HasInternetConnection() and not WizardSilent() then
-    MsgBox('No internet connection was detected. ADHDisplay needs internet access during installation to download Node.js and its dependencies' + #13#10 + #13#10 +
-      '(and, if selected, Ollama and its AI models). Setup will continue, but may fail partway through if the connection isn''t restored.',
+    MsgBox('No internet connection was detected. ADHDisplay needs internet access during installation to download Node.js and its dependencies. ' +
+      'Ollama and the assistant''s text model ({#BundledModelRef}) are both bundled in this installer and don''t need a connection; only the image-reading model (qwen2.5vl:3b) is still downloaded separately later, on demand, from Settings -> Integrations -> Ollama.' + #13#10 + #13#10 +
+      'Setup will continue, but may fail partway through if the connection isn''t restored.',
       mbInformation, MB_OK);
 end;
 
@@ -243,6 +422,9 @@ end;
 // "repair" task, now driven by this page's own selection - see
 // WantsCleanReinstall below).
 procedure InitializeWizard();
+var
+  Models: String;
+  Summary: String;
 begin
   UpdateChoicePage := CreateInputOptionPage(wpSelectDir,
     'Existing Installation Found',
@@ -252,6 +434,47 @@ begin
   UpdateChoicePage.Add('Update (recommended) - keep your data, refresh the app files');
   UpdateChoicePage.Add('Clean reinstall - also rebuild node_modules and dist from scratch');
   UpdateChoicePage.SelectedValueIndex := 0;
+
+  // Setup used to decide everything about Ollama silently, so an admin had no
+  // way to tell what was already on the machine or what the ~2.5 GB bundled
+  // model would actually do here. Created after UpdateChoicePage (custom pages
+  // are ordered by creation, and both anchor to wpSelectDir) so it lands second
+  // - and still ahead of wpSelectTasks, which is the point: it informs the
+  // "Include the offline AI model" checkbox rather than trailing it.
+  //
+  // Read-only: it reports state, it doesn't ask anything. The choices it feeds
+  // are the tasks page's own checkboxes.
+  //
+  // Content is computed once, here, rather than in CurPageChanged - nothing can
+  // install or remove Ollama between now and the tasks page.
+  Models := InstalledOllamaModels;
+  if not OllamaIsInstalled then
+    Summary := 'Ollama is not installed on this machine.' + #13#10 + #13#10 +
+      'Setup will install it, together with the AI model "{#BundledModelRef}" that is bundled inside ' +
+      'this installer - so the assistant works straight away, with no download and no internet connection.'
+  else if Models = '' then
+    Summary := 'Ollama is already installed on this machine, but has no AI models yet.' + #13#10 + #13#10 +
+      'Setup will add the bundled model "{#BundledModelRef}" to it, and will re-run Ollama''s own installer ' +
+      'so an outdated copy is updated in place.'
+  else
+  begin
+    Summary := 'Ollama is already installed on this machine, with these AI models:' + #13#10 + #13#10 + Models + #13#10;
+    if OllamaModelIsInstalled('{#BundledModelRef}') then
+      Summary := Summary + 'The bundled model "{#BundledModelRef}" is already among them, so Setup will keep the ' +
+        'copy you already have - nothing is downloaded, and nothing is overwritten.'
+    else
+      Summary := Summary + 'Setup will add the bundled model "{#BundledModelRef}" alongside these. Your existing ' +
+        'models are left untouched.';
+  end;
+  Summary := Summary + #13#10 + #13#10 +
+    'The assistant''s image-reading model (qwen2.5vl:3b) is not bundled and is still downloaded on demand, ' +
+    'from Settings -> Integrations -> Ollama inside the app.';
+
+  OllamaStatusPage := CreateOutputMsgMemoPage(wpSelectDir,
+    'AI Assistant',
+    'What is already installed on this machine',
+    'Setup checked this machine for Ollama and its AI models. You can change what gets installed on the next page.',
+    Summary);
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
@@ -263,6 +486,11 @@ begin
     // input it can't provide - matching Finding 7's original diagnosis, now
     // relocated onto this page instead of the old MsgBox.
     Result := (not PriorInstallDetected) or WizardSilent();
+  // Purely informational, so there is nobody to inform during a scripted/fleet
+  // redeploy - same guard as above rather than relying on silent mode never
+  // showing custom pages.
+  if PageID = OllamaStatusPage.ID then
+    Result := WizardSilent();
 end;
 
 // The "repair" task (see [Tasks] below) still exists for /TASKS="repair"
@@ -290,7 +518,6 @@ var
   ResultCode: Integer;
   NpmCmd: String;
   ControlScriptTemp: String;
-  OllamaSetupPath: String;
   OllamaWasInstalled: Boolean;
 begin
   if CurStep = ssInstall then
@@ -311,12 +538,6 @@ begin
   end
   else if CurStep = ssPostInstall then
   begin
-    if WizardIsTaskSelected('installOllama') and WizardIsTaskSelected('restart') then
-      MsgBox('Both "Install Ollama and its models" and "Restart Windows when finished" are selected.' + #13#10 + #13#10 +
-        'Model downloads continue in the background after Setup finishes and can take a while - restarting Windows now will interrupt them. ' +
-        'You can re-download them later from Settings -> Integrations -> Ollama if that happens.',
-        mbInformation, MB_OK);
-
     if not NodeIsInstalled then
     begin
       WizardForm.StatusLabel.Caption := 'Installing Node.js...';
@@ -369,51 +590,45 @@ begin
       Abort;
     end;
 
-    // Opt-in (see [Tasks] below), checked by default. Ollama itself is
-    // downloaded to {tmp} at install time rather than bundled in [Files] -
-    // see the header comment - so a machine that never selects this task
-    // never downloads it at all. Model pulls run in the background (via
-    // pull-ollama-models.bat, hidden through run-hidden.vbs) rather than
-    // blocking here, since two ~3B models is a multi-GB download that would
-    // otherwise freeze the wizard for a long, unpredictable time with no
-    // progress or cancel.
+    // Opt-in (see [Tasks] below), checked by default. Ollama's own installer
+    // is bundled in [Files] (OllamaSetup.exe, only extracted to {tmp} when
+    // this task is selected - see the header comment for where it comes
+    // from) rather than downloaded here, so this step has no network
+    // dependency and takes only as long as running the installer itself.
+    // Run unconditionally (even over an already-installed Ollama) rather
+    // than only "if not installed" - Ollama's own installer is, per its
+    // public behaviour, also Inno-Setup-based, and silently re-running an
+    // Inno installer over an existing install is how those normally update
+    // in place (same as this app's own installer does on re-run), so this
+    // is what keeps an outdated existing install current rather than
+    // leaving it alone. Deliberately does NOT pull any models over the
+    // network - that used to happen automatically here (a multi-GB
+    // background download). The default text model is instead seeded
+    // straight into Ollama's store by the [Files] entries above, from a copy
+    // bundled inside this installer, and the vision model is pulled on
+    // demand from Settings -> Integrations -> Ollama, so nothing in this
+    // step ever waits on a connection.
     if WizardIsTaskSelected('installOllama') then
     begin
       OllamaWasInstalled := OllamaIsInstalled;
-      if not OllamaWasInstalled then
-      begin
-        WizardForm.StatusLabel.Caption := 'Downloading Ollama...';
-        OllamaSetupPath := ExpandConstant('{tmp}\OllamaSetup.exe');
-        Exec('powershell.exe',
-          '-NoProfile -Command "try { Invoke-WebRequest -Uri ''https://ollama.com/download/OllamaSetup.exe'' -OutFile ''' + OllamaSetupPath + ''' -UseBasicParsing; exit 0 } catch { exit 1 }"',
-          '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-        if (ResultCode = 0) and FileExists(OllamaSetupPath) then
-        begin
-          WizardForm.StatusLabel.Caption := 'Installing Ollama...';
-          // INFERRED silent-install flags (Ollama's Windows installer is,
-          // per its own public behaviour, also Inno-Setup-based) - confirm
-          // against a real download during implementation/testing.
-          if not Exec(OllamaSetupPath, '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-            MsgBox('Installing Ollama failed (exit code ' + IntToStr(ResultCode) + '). ADHDisplay will still work, just without local AI models. You can install Ollama manually later from ollama.com.',
-              mbInformation, MB_OK);
-        end
-        else
-          MsgBox('Downloading Ollama failed. ADHDisplay will still work, just without local AI models. You can install Ollama manually later from ollama.com.',
-            mbInformation, MB_OK);
+      WizardForm.StatusLabel.Caption := 'Installing Ollama...';
+      // INFERRED silent-install flags (confirm against a real download
+      // during implementation/testing) and INFERRED that re-running this
+      // silently over an existing install is safe/updates in place rather
+      // than erroring or reinstalling from scratch - confirm during
+      // implementation/testing and fall back to only running when
+      // "not OllamaWasInstalled" here if it turns out not to be.
+      if not Exec(ExpandConstant('{tmp}\OllamaSetup.exe'), '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+        MsgBox('Installing Ollama failed (exit code ' + IntToStr(ResultCode) + '). ADHDisplay will still work, just without local AI models. You can install Ollama manually later from ollama.com.',
+          mbInformation, MB_OK);
 
-        // Only written when we're the one who installed it - uninstall reads
-        // this back to decide whether it's safe to offer removing Ollama too
-        // (never touching a copy that was already there independently).
-        if OllamaIsInstalled then
-          SaveStringToFile(ExpandConstant('{app}\.ollama-installed-by-adhdisplay'), 'installed by ADHDisplay setup', False);
-      end;
-
-      if OllamaIsInstalled then
-      begin
-        WizardForm.StatusLabel.Caption := 'Starting the AI model download in the background (check Settings -> Integrations -> Ollama for progress)...';
-        Exec('wscript.exe', '//B "' + ExpandConstant('{app}\run-hidden.vbs') + '" "' + ExpandConstant('{app}\pull-ollama-models.bat') + '"',
-          ExpandConstant('{app}'), SW_HIDE, ewNoWait, ResultCode);
-      end;
+      // Only written when we're the one who newly installed it (wasn't
+      // present before, is present now) - uninstall reads this back to
+      // decide whether it's safe to offer removing Ollama too (never
+      // touching a copy that was already there independently, including one
+      // this step merely updated rather than installed from scratch).
+      if not OllamaWasInstalled and OllamaIsInstalled then
+        SaveStringToFile(ExpandConstant('{app}\.ollama-installed-by-adhdisplay'), 'installed by ADHDisplay setup', False);
     end;
 
     // See [Tasks] below - "autostart" is checked by default (it's the whole
@@ -426,6 +641,94 @@ begin
         MsgBox('Could not register the auto-start task (exit code ' + IntToStr(ResultCode) + '). ' +
           'ADHDisplay is installed and can still be launched manually, but won''t start automatically on restart.',
           mbInformation, MB_OK);
+    end;
+  end;
+end;
+
+// Inno's own StringChangeEx mutates its argument and returns a count, so this
+// wraps it as an ordinary expression for use inline below.
+function ReplaceAll(Value, FromStr, ToStr: String): String;
+begin
+  Result := Value;
+  StringChangeEx(Result, FromStr, ToStr, True);
+end;
+
+// Concatenates every manifest still present under Dir (recursing into the
+// registry/namespace/model folders). Each manifest names the blob digests it
+// needs, so a substring search over the result answers "is any model still
+// using this blob?" without parsing JSON in Pascal.
+procedure AppendManifestText(Dir: String; var Accumulated: String);
+var
+  Rec: TFindRec;
+  Lines: TArrayOfString;
+  I: Integer;
+begin
+  if not FindFirst(Dir + '\*', Rec) then
+    Exit;
+  try
+    repeat
+      if (Rec.Name <> '.') and (Rec.Name <> '..') then
+      begin
+        if (Rec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
+          AppendManifestText(Dir + '\' + Rec.Name, Accumulated)
+        else if LoadStringsFromFile(Dir + '\' + Rec.Name, Lines) then
+          for I := 0 to GetArrayLength(Lines) - 1 do
+            Accumulated := Accumulated + Lines[I];
+      end;
+    until not FindNext(Rec);
+  finally
+    FindClose(Rec);
+  end;
+end;
+
+// Deletes exactly the files [Files] seeded into Ollama's model store, reading
+// the list scripts\fetch-ollama-model.mts generated at build time.
+//
+// A blob is only removed once no *other* manifest still references it: Ollama
+// deduplicates blobs by content, so a machine that also has, say, qwen3:8b can
+// legitimately share a layer with the bundled qwen3:4b. At these sizes a plain
+// "delete everything we listed" would be a data-loss bug on exactly the
+// machines that use the assistant most.
+procedure RemoveSeededOllamaModels;
+var
+  ListPath, StoreDir, ManifestText, RelativePath, Digest: String;
+  Lines: TArrayOfString;
+  I: Integer;
+begin
+  ListPath := ExpandConstant('{app}\seeded-files.txt');
+  if not FileExists(ListPath) then
+    Exit;
+  if not LoadStringsFromFile(ListPath, Lines) then
+    Exit;
+
+  if MsgBox('ADHDisplay installed an AI model ({#BundledModelRef}, about 2.5 GB) into Ollama''s model folder.' + #13#10 + #13#10 +
+    'Remove it? Ollama itself, and any other models you''ve downloaded, are kept either way.', mbConfirmation, MB_YESNO) <> IDYES then
+    Exit;
+
+  StoreDir := OllamaStoreDir('');
+
+  // Manifests first, so the blob pass below reads a store that no longer claims
+  // to contain the model being removed - otherwise every one of its blobs would
+  // look "still referenced" by its own manifest and nothing would be freed.
+  for I := 0 to GetArrayLength(Lines) - 1 do
+  begin
+    RelativePath := Trim(Lines[I]);
+    if (RelativePath <> '') and (Pos('manifests/', RelativePath) = 1) then
+      DeleteFile(StoreDir + '\' + ReplaceAll(RelativePath, '/', '\'));
+  end;
+
+  ManifestText := '';
+  AppendManifestText(StoreDir + '\manifests', ManifestText);
+
+  for I := 0 to GetArrayLength(Lines) - 1 do
+  begin
+    RelativePath := Trim(Lines[I]);
+    if (RelativePath <> '') and (Pos('blobs/', RelativePath) = 1) then
+    begin
+      // blobs\sha256-<hex> on disk is written "sha256:<hex>" inside a manifest.
+      Digest := ReplaceAll(Copy(RelativePath, Length('blobs/') + 1, Length(RelativePath)), 'sha256-', 'sha256:');
+      if Pos(Digest, ManifestText) = 0 then
+        DeleteFile(StoreDir + '\' + ReplaceAll(RelativePath, '/', '\'));
     end;
   end;
 end;
@@ -452,7 +755,10 @@ begin
     // that was already on this machine independently.
     if OllamaWasInstalledByADHDisplay then
     begin
-      if MsgBox('Also remove Ollama and its downloaded models (roughly 4 GB)?', mbConfirmation, MB_YESNO) = IDYES then
+      // No fixed size claim here - the bundled model is a known ~2.5 GB, but
+      // how much this frees up in total also depends on whatever the admin has
+      // pulled from Settings since install.
+      if MsgBox('Also remove Ollama and its AI models (including the one bundled with ADHDisplay)?', mbConfirmation, MB_YESNO) = IDYES then
       begin
         // INFERRED uninstall path for Ollama's own Windows installer -
         // confirm the exact location during implementation/testing.
@@ -461,7 +767,15 @@ begin
         DelTree(ExpandConstant('{localappdata}') + '\Programs\Ollama', True, True, True);
         DelTree(ExpandConstant('{%USERPROFILE}') + '\.ollama', True, True, True);
       end;
-    end;
+    end
+    // The other case: Ollama was already here independently, so the branch
+    // above (rightly) won't touch it - but this installer still seeded ~2.5 GB
+    // of weights into its store, and leaving that orphaned after an uninstall
+    // is exactly the kind of thing nobody ever finds again. Removes only the
+    // files it put there, listed by scripts\fetch-ollama-model.mts at build
+    // time, so an admin's own models are never at risk.
+    else
+      RemoveSeededOllamaModels;
   end
   else if CurUninstallStep = usPostUninstall then
   begin
@@ -529,7 +843,14 @@ Type: files; Name: "{app}\.ollama-installed-by-adhdisplay"
 Name: "autostart"; Description: "Launch automatically when Windows starts (recommended)"; GroupDescription: "Additional shortcuts:"
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 Name: "restart"; Description: "Restart Windows when finished"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
-Name: "installOllama"; Description: "Install Ollama and the AI assistant's local models (recommended)"; GroupDescription: "AI features:"
+Name: "installOllama"; Description: "Install Ollama, which runs the AI assistant's local/offline models (recommended)"; GroupDescription: "AI features:"
+; Also checked by default: the whole point of bundling the weights is that a new
+; kiosk works offline without anyone waiting on a 2.5 GB download. Unticking
+; saves that space on this machine, not download size - the model is inside this
+; installer either way - and leaves the model to be fetched on demand from
+; Settings -> Integrations -> Ollama instead. Has no effect unless "Install
+; Ollama" above is also ticked (see ShouldInstallBundledModel).
+Name: "bundledModel"; Description: "Include the bundled AI model ({#BundledModelRef}, ~2.5 GB) so no download is needed"; GroupDescription: "AI features:"
 Name: "defenderexclusion"; Description: "Add a Windows Defender exclusion for the install folder (helps avoid install failures caused by antivirus interference, e.g. ""corrupted tarball"" errors during npm install)"; GroupDescription: "Troubleshooting:"; Flags: unchecked
 ; No longer shown on this page interactively - the new "Existing Installation
 ; Found" wizard page above covers the same Update-vs-Clean-reinstall decision

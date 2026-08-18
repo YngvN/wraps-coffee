@@ -63,6 +63,8 @@ export interface AssistantReplyList {
 export interface AssistantFillContext {
   uiLanguage: 'no' | 'en'
   session: AssistantSession
+  /** The requesting device's own kebab-menu "Allow pane editing" toggle (see `AssistantPanel.tsx`) — a self-chosen per-device preference, not a security boundary (same posture as `modelOverride`/`ingestionPosture`), threaded through from `steps.ts`'s own `fillFields` options. Only `screenPane.fillFieldsSchema` ever consults this; every other entity ignores it. `undefined` (not explicitly sent, or an entity that doesn't care) is treated as off. */
+  allowPaneContentEditing?: boolean
 }
 
 /**

@@ -1,6 +1,6 @@
 import type { DisplayConnectionType } from '../types/displayMachine'
 import type { FoodoraCredentials, WoltCredentials } from '../types/delivery'
-import type { DepartureInfo, NearbyStop, WeatherHour } from '../types/integrations'
+import type { NearbyStop, WeatherHour } from '../types/integrations'
 import type { NewsHeadline } from '../types/news'
 import type { OrderStatus } from '../types/order'
 import type { ScreenAddressSettings } from '../types/screenAddress'
@@ -168,9 +168,20 @@ function xhrUpload(url: string, file: File, token: string, onProgress?: (fractio
   })
 }
 
-/** Uploads an image file, which the server also compresses into `-small`/`-thumb` companion variants. Returns the original's URL — same shape whether or not compression succeeded. `onProgress` (0-1) reports network-transfer progress only. */
-export async function uploadImage(file: File, token: string, onProgress?: (fraction: number) => void): Promise<string> {
-  const { status, body } = await xhrUpload(`${serverBaseUrl()}/uploads`, file, token, onProgress)
+/**
+ * Uploads an image file, which the server also compresses into `-small`/`-thumb`
+ * companion variants. Returns the original's URL — same shape whether or not
+ * compression succeeded. `onProgress` (0-1) reports network-transfer progress only.
+ *
+ * Pass `purpose: 'screen-preview'` for an auto-captured screen thumbnail (see
+ * `src/features/screens/screenPreviewCapture.ts`). Those are stored under their own
+ * filename prefix so they never appear as browsable media in the Media Library or
+ * either image picker — they're generated artifacts, re-captured on every screen
+ * save, not something anyone chose to add.
+ */
+export async function uploadImage(file: File, token: string, onProgress?: (fraction: number) => void, options?: { purpose?: 'screen-preview' }): Promise<string> {
+  const query = options?.purpose ? `?purpose=${options.purpose}` : ''
+  const { status, body } = await xhrUpload(`${serverBaseUrl()}/uploads${query}`, file, token, onProgress)
   if (status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (status < 200 || status >= 300) throw new UploadError((body as { error?: string }).error ?? 'Upload failed')
   return (body as { url: string }).url
@@ -292,9 +303,72 @@ export async function listUploads(token: string): Promise<UploadedMedia[]> {
   return response.json() as Promise<UploadedMedia[]>
 }
 
-/** True if `url` was served by this same local server's `/uploads/` — the only URLs it's safe to try compressing/deleting via this server's own endpoints. */
+/**
+ * Whether `hostname` is somewhere this app's own server could actually be
+ * running: loopback, an mDNS `.local` name (see `server/mdns.ts`), or a
+ * private LAN range. Never a public host — this server is LAN-only by
+ * design, so treating a public origin as "ours" could only ever be a false
+ * positive, and `normalizeUploadUrl` below would then rewrite a genuinely
+ * external image URL to point at our own server and break it.
+ */
+function isLocalServerHostname(hostname: string): boolean {
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]') return true
+  if (hostname.endsWith('.local')) return true
+  if (/^10\./.test(hostname)) return true
+  if (/^192\.168\./.test(hostname)) return true
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) return true
+  return false
+}
+
+/**
+ * True if `url` points at *some* instance of this local server's `/uploads/`
+ * — the only URLs it's safe to try compressing/deleting via this server's
+ * own endpoints, or to request a `?size=` variant of.
+ *
+ * Deliberately matches on the path plus a LAN-local hostname rather than an
+ * exact `serverBaseUrl()` prefix. The server mints each upload URL from the
+ * *uploading admin's* own `Host` header (`server/uploads.ts`), so an image
+ * uploaded from `http://localhost:5173` is stored forever as
+ * `http://localhost:4000/uploads/...` — which no longer prefix-matches on
+ * any other client (a kiosk TV reaching the hub by LAN IP, another admin on
+ * a `.local` name). That mismatch used to make this return `false` and
+ * silently downgrade every caller: variant selection fell through to the
+ * full-resolution original, pane backgrounds stopped requesting their
+ * pre-blurred `?size=blur` file, and `deleteUpload` skipped the request
+ * entirely so replaced images orphaned their file on disk. Pair with
+ * `normalizeUploadUrl` to actually load such a URL.
+ */
 export function isOwnUploadUrl(url: string): boolean {
-  return url.startsWith(`${serverBaseUrl()}/uploads/`)
+  if (!url) return false
+  try {
+    const parsed = new URL(url, window.location.href)
+    return parsed.pathname.startsWith('/uploads/') && isLocalServerHostname(parsed.hostname)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Rewrites one of this server's own upload URLs to whatever origin *this*
+ * client actually reached the app on, leaving its path and query (e.g. an
+ * already-applied `?size=small`) intact. Any other URL — external, or
+ * unparseable — is returned exactly as given.
+ *
+ * This is what makes a stored `http://localhost:4000/uploads/x.jpg` load on
+ * a kiosk TV, where `localhost` is the TV itself rather than the hub. Done
+ * at render time rather than as a one-off migration of the stored data on
+ * purpose: the hub's own LAN IP changes with its DHCP lease, and an admin
+ * may legitimately keep uploading from `localhost`, so a migrated value
+ * would go stale again immediately.
+ */
+export function normalizeUploadUrl(url: string): string {
+  if (!isOwnUploadUrl(url)) return url
+  try {
+    const parsed = new URL(url, window.location.href)
+    return `${serverBaseUrl()}${parsed.pathname}${parsed.search}`
+  } catch {
+    return url
+  }
 }
 
 /** Geocodes `address` and finds nearby transit stops — backs the Integrations tab's "Look up address" action. No auth needed (public proxy of public data); throws a plain `Error` if the server or Entur is unreachable. */
@@ -310,13 +384,6 @@ export async function searchStops(query: string): Promise<NearbyStop[]> {
   if (!response.ok) throw new Error('Could not search for stops')
   const { stops } = (await response.json()) as { stops: NearbyStop[] }
   return stops
-}
-
-/** Fetches Entur's own much-larger buffer of upcoming departures for `stopId` (`count` only hints a floor — see `handleDepartures`'s `TRANSIT_FETCH_BUFFER` doc comment in `server/integrations.ts`; the response isn't trimmed to `count`), used by `TransitSlide`'s polling hook, which is what actually slices it down to `count` for display. No auth needed — public proxy, same posture as image reads. */
-export async function fetchDepartures(stopId: string, count: number): Promise<{ stopName: string; departures: DepartureInfo[] }> {
-  const response = await fetch(`${serverBaseUrl()}/integrations/departures?stopId=${encodeURIComponent(stopId)}&count=${count}`)
-  if (!response.ok) throw new Error('Could not fetch departures')
-  return response.json() as Promise<{ stopName: string; departures: DepartureInfo[] }>
 }
 
 /** Fetches MET's entire multi-day hourly forecast for `(lat, lon)` (the response isn't trimmed to `hours` — see `handleWeather`'s own doc comment in `server/integrations.ts`), plus today's overall low/high (computed server-side from that same full timeseries) — used by `WeatherSlide`'s polling hook, which is what actually slices `hourly` down to `hours` for display. */
@@ -335,9 +402,23 @@ export async function fetchNewsHeadlines(sourceIds: string[], count: number): Pr
   return headlines
 }
 
-/** Proxies a headline's own `imageUrl` through this server's own disk cache (`server/newsImageCache.ts`) instead of hitting the source outlet's own hosting on every view — same origin as every other local-server-served image, so `NewsSlide`'s `<img src>` just points here directly. Not a `fetch`-and-return-blob helper like the others in this file, since an `<img>` tag needs a plain URL string, not a promise. */
-export function newsImageProxyUrl(src: string): string {
-  return `${serverBaseUrl()}/news/image?src=${encodeURIComponent(src)}`
+/**
+ * Proxies a headline's own `imageUrl` through this server's own disk cache (`server/newsImageCache.ts`)
+ * instead of hitting the source outlet's own hosting on every view — same origin as every other
+ * local-server-served image, so `NewsSlide`'s `<img src>` just points here directly. Not a
+ * `fetch`-and-return-blob helper like the others in this file, since an `<img>` tag needs a plain URL
+ * string, not a promise.
+ *
+ * `renderedWidth` (CSS px, already multiplied by DPR by the caller) asks the server for a downscaled
+ * copy instead of the upstream original. Press images are routinely 2048x1152 and larger while a news
+ * pane renders a few hundred px wide, and that decode cost is the single largest contributor to
+ * measured frame jank on the TV — see `QA/Reports/qa-report-stutter-tv-2026-08-11.md`. Omitted, the
+ * server serves the original bytes exactly as it always has.
+ */
+export function newsImageProxyUrl(src: string, renderedWidth?: number): string {
+  const base = `${serverBaseUrl()}/news/image?src=${encodeURIComponent(src)}`
+  if (!renderedWidth || !Number.isFinite(renderedWidth) || renderedWidth <= 0) return base
+  return `${base}&w=${Math.round(renderedWidth)}`
 }
 
 /** The current developer API key (see "For developers" in Settings), or `null` if none has been generated yet. */
@@ -704,6 +785,8 @@ export async function assistantFillFields(
     posture?: AssistantIngestionPosture
     conversationId?: string
     turnVersion?: number
+    /** The kebab menu's own "Allow pane editing" toggle — see `AssistantPanel`'s kebab menu and `server/assistant/entities/screenPane.ts`'s own doc comment. Ignored by every entity except `screenPane`. */
+    allowPaneContentEditing?: boolean
   },
   signal?: AbortSignal,
 ): Promise<AssistantFillFieldsResult> {
@@ -1219,6 +1302,12 @@ export interface CleanupResult {
   deletedMessageBoardPosts: number
   deletedDisplayMachines: number
   deletedImages: number
+  /** Bytes actually reclaimed from disk — excludes a deleted image pinned into a retained screens snapshot instead (see `pinnedImageBytes`). */
+  freedImageBytes: number
+  /** Of `deletedImages`, how many were pinned into at least one retained screens snapshot rather than genuinely freed. */
+  pinnedImages: number
+  /** Bytes moved into snapshot storage rather than freed — see `pinnedImages`. */
+  pinnedImageBytes: number
 }
 
 /** Everything currently prunable (old orders/messages, expired message-board posts, stale display machines, orphaned uploaded images) — read-only, deletes nothing. `admin`/`subadmin` only. See `server/storageCleanup.ts`. */
@@ -1241,4 +1330,85 @@ export async function applyCleanup(token: string, selection: CleanupSelection): 
   if (response.status === 403) throw new Error('Only admin/subadmin accounts can apply storage cleanup')
   if (!response.ok) throw new Error('Could not apply storage cleanup')
   return response.json() as Promise<CleanupResult>
+}
+
+// --- Screens snapshot history (Settings → Backup → "Screens history", and each ScreenCard's own
+// per-screen restore button) --------------------------------------------------
+
+export type ScreensSnapshotTier = 'daily' | 'weekly'
+
+export interface ScreensSnapshotInfo {
+  tier: ScreensSnapshotTier
+  id: string
+  /** Real capture timestamp — restore UIs list/label by this, not by the tier id's own date/week, since a scheduler tick can land well after the calendar boundary it's actually for (see `server/screensSnapshots.ts`). */
+  capturedAt: string
+  screenCount: number
+}
+
+/** Every retained daily/weekly screens snapshot, newest-first. `admin`/`subadmin` only. */
+export async function getScreensSnapshots(token: string): Promise<ScreensSnapshotInfo[]> {
+  const response = await fetch(`${serverBaseUrl()}/screens-snapshots`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 403) throw new Error('Only admin/subadmin accounts can view screens snapshot history')
+  if (!response.ok) throw new Error('Could not load screens snapshot history')
+  const { snapshots } = (await response.json()) as { snapshots: ScreensSnapshotInfo[] }
+  return snapshots
+}
+
+/** Only the snapshots in which `screenID`'s own entry genuinely differs from its current live state — powers `ScreenCard`'s own per-screen restore picker. `admin`/`subadmin` only. */
+export async function getScreensSnapshotsForScreen(token: string, screenID: string): Promise<ScreensSnapshotInfo[]> {
+  const response = await fetch(`${serverBaseUrl()}/screens-snapshots/for-screen?screenID=${encodeURIComponent(screenID)}`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 403) throw new Error('Only admin/subadmin accounts can view screens snapshot history')
+  if (!response.ok) throw new Error('Could not load screens snapshot history for this screen')
+  const { snapshots } = (await response.json()) as { snapshots: ScreensSnapshotInfo[] }
+  return snapshots
+}
+
+export type ScreenDiffStatus = 'changed' | 'onlyInSnapshot' | 'onlyInLive'
+
+export interface ScreenDiffEntry {
+  screenID: string
+  name: string
+  status: ScreenDiffStatus
+}
+
+/** Which screens actually differ between the live store and one snapshot — shown in the whole-array restore's own confirm dialog before it overwrites every screen, not just the one the admin meant to fix. `admin`/`subadmin` only. */
+export async function getScreensSnapshotDiff(token: string, tier: ScreensSnapshotTier, id: string): Promise<ScreenDiffEntry[]> {
+  const response = await fetch(`${serverBaseUrl()}/screens-snapshots/${tier}/${encodeURIComponent(id)}/diff`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) throw new Error('Could not compare this snapshot against the live screens')
+  const { diff } = (await response.json()) as { diff: ScreenDiffEntry[] }
+  return diff
+}
+
+/** Overwrites the entire live `admin.screens` array with this snapshot's own version, applied immediately (no draft/preview staging) — copies back any of its own pinned images not already present in `server/uploads/`. `admin`/`subadmin` only. */
+export async function restoreScreensSnapshot(token: string, tier: ScreensSnapshotTier, id: string): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/screens-snapshots/${tier}/${encodeURIComponent(id)}/restore`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not restore this snapshot')
+  }
+}
+
+/** Thrown by `restoreScreensSnapshotForScreen` when the target screen currently has an unpublished draft that the caller hasn't yet confirmed discarding — re-call with `force: true` once the admin has confirmed, naming what's there. */
+export class ScreensSnapshotDraftConflictError extends Error {}
+
+/** Overwrites just one screen's own entry in the live `admin.screens` array with this snapshot's version — every other screen is untouched. `force` confirms discarding that one screen's own unpublished draft, if it has one (see `ScreensSnapshotDraftConflictError`). `admin`/`subadmin` only. */
+export async function restoreScreensSnapshotForScreen(token: string, tier: ScreensSnapshotTier, id: string, screenID: string, force?: boolean): Promise<void> {
+  const params = force ? '?force=1' : ''
+  const response = await fetch(`${serverBaseUrl()}/screens-snapshots/${tier}/${encodeURIComponent(id)}/restore-screen/${encodeURIComponent(screenID)}${params}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (response.status === 409) throw new ScreensSnapshotDraftConflictError('This screen has unpublished changes that restoring would discard.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not restore this screen from the snapshot')
+  }
 }

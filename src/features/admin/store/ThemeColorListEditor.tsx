@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { LockIcon, PlusIcon, TrashIcon } from '../../../components'
 import { useLanguage } from '../../../i18n'
 import type { AppearanceThemeColor } from '../../../types/appearanceTheme'
+import { generateId } from '../../../utils/id'
 import './ThemeColorListEditor.scss'
 
 interface ThemeColorListEditorProps {
@@ -31,7 +32,7 @@ export function ThemeColorListEditor({ colors, onChange }: ThemeColorListEditorP
 
   const removeCustomColor = (id: string) => onChange(colors.filter((color) => color.id !== id))
 
-  const addCustomColor = () => onChange([...colors, { id: crypto.randomUUID(), hex: NEW_CUSTOM_COLOR_HEX }])
+  const addCustomColor = () => onChange([...colors, { id: generateId(), hex: NEW_CUSTOM_COLOR_HEX }])
 
   return (
     <div className="theme-color-list-editor">

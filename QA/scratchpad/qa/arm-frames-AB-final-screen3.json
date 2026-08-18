@@ -1,0 +1,72 @@
+{
+  "screenId": "1783715372380",
+  "capturedAt": "2026-08-16T20:19:28.463Z",
+  "overall": {
+    "n": 49,
+    "worst": 20,
+    "debt": 0,
+    "debtRange": [
+      0,
+      110
+    ]
+  },
+  "groups": [
+    {
+      "key": "1 -> 2",
+      "n": 17,
+      "worst": 20,
+      "worstRange": [
+        11,
+        40
+      ],
+      "debt": 0,
+      "debtRange": [
+        0,
+        20
+      ],
+      "debtByPhase": {
+        "exiting": 0,
+        "holding": 0,
+        "idle": 0
+      }
+    },
+    {
+      "key": "2 -> 3",
+      "n": 16,
+      "worst": 20,
+      "worstRange": [
+        11,
+        51
+      ],
+      "debt": 0,
+      "debtRange": [
+        0,
+        41
+      ],
+      "debtByPhase": {
+        "exiting": 0,
+        "holding": 0,
+        "idle": 0
+      }
+    },
+    {
+      "key": "3 -> 1",
+      "n": 16,
+      "worst": 40,
+      "worstRange": [
+        19,
+        120
+      ],
+      "debt": 20,
+      "debtRange": [
+        0,
+        110
+      ],
+      "debtByPhase": {
+        "exiting": 0,
+        "holding": 0,
+        "idle": 20
+      }
+    }
+  ]
+}

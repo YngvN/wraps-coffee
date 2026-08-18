@@ -1,3 +1,4 @@
+@use '../../../styles/mixins' as *;
 @use '../../../styles/variables' as *;
 
 .integrations-view {
@@ -127,8 +128,7 @@
   align-items: flex-end;
   gap: $spacing-unit;
   padding: $spacing-unit;
-  border: 1px solid $color-border;
-  border-radius: 8px;
+  @include surface('raised');
 
   .input-field {
     flex: 1 1 160px;
@@ -145,8 +145,7 @@
   flex-direction: column;
   gap: calc($spacing-unit / 4);
   padding: $spacing-unit;
-  border: 1px solid $color-border;
-  border-radius: 8px;
+  @include surface('raised');
   font-size: 0.875rem;
 }
 
@@ -173,8 +172,7 @@
 }
 
 .integration-submenu {
-  border: 1px solid $color-border;
-  border-radius: 8px;
+  @include surface('raised');
   overflow: hidden;
 
   &__summary {
@@ -266,8 +264,7 @@
   gap: $spacing-unit;
   margin: 0;
   padding: $spacing-unit calc($spacing-unit * 1.5);
-  border: 1px solid $color-border;
-  border-radius: 8px;
+  @include surface('raised');
 
   legend {
     padding: 0 calc($spacing-unit / 2);
@@ -333,8 +330,7 @@
 // doesn't reuse — that one's bold 1.125rem summary/thick border is sized for a top-level card, not
 // a sub-section already inside one) for the Ollama card's own model manager.
 .integrations-view__model-manager {
-  border: 1px solid $color-border;
-  border-radius: 8px;
+  @include surface('sunken');
   overflow: hidden;
 }
 
@@ -390,8 +386,7 @@
   align-items: center;
   gap: $spacing-unit;
   padding: calc($spacing-unit / 2) $spacing-unit;
-  border: 1px solid $color-border;
-  border-radius: 6px;
+  @include surface('sunken', $radius-sm);
   font-size: 0.875rem;
 }
 

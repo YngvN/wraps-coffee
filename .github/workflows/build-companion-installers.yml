@@ -4,20 +4,20 @@ name: Build ADHDisplay Companion installers
 # Run workflow). Separate from build-installer.yml (the main app's own
 # Windows installer) since adhdisplay-companion/ is a fully independent
 # package with its own release cadence - see that app's own README's
-# "Windows & Linux" and "Building an APK" sections. Produces one
-# ADHDisplayCompanionInstallers.zip containing the Companion app's Windows
-# installer (an Electron kiosk shell wrapping its Expo web export) and its
-# Android APK (signed release build via `npm run build:tv`, for direct
-# sideloading) - split across two build jobs so the Windows-only tooling
-# (Inno Setup) and the Android-only tooling (JDK/Android SDK) each run on the
-# runner best suited for them, then zipped together in a final job.
+# "Windows & Linux" and "Building an APK" sections. Builds only the Companion
+# app's own Windows installer (an Electron kiosk shell wrapping its Expo web
+# export) - uploaded directly as this workflow's one artifact.
 #
-# The Android job must produce a release build, not debug: a debug build has
-# no JS bundled in and expects a Metro dev server reachable at localhost on
-# the device itself, so it just shows a black screen forever on any TV that
-# isn't USB-tethered to a running `expo start` - see `npm run build:tv`
-# (scripts/build-tv-apk.js) for the actual release build/signing steps this
-# job runs.
+# The Android TV release APK used to be built here too, then zipped together
+# with this installer by a third `package` job - removed after GitHub's
+# Ubuntu runner started failing that build with a Kotlin/Compose-compiler
+# version mismatch in expo-modules-core:compileReleaseKotlin that doesn't
+# reproduce on a real dev machine (same `npm run build:tv`, same
+# -Pandroid.kotlinVersion flag, builds clean locally - runner-environment-
+# specific, not a code issue). Rather than fight that in CI, the APK is now
+# just built locally (`npm run build:tv`) and the compiled release APK
+# committed straight into adhdisplay-companion/dist/ - see installer/
+# adhdisplay.iss and installer/build-with-apk.ps1.
 on:
   workflow_dispatch: {}
 
@@ -49,76 +49,3 @@ jobs:
         with:
           name: windows-installer
           path: installer/Output/ADHDisplayCompanionSetup.exe
-
-  build-android-apk:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Set up JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Companion dependencies
-        working-directory: adhdisplay-companion
-        run: |
-          npm install
-          npx expo install --fix
-
-      - name: Build release APK
-        working-directory: adhdisplay-companion
-        run: npm run build:tv
-
-      - name: Upload Android APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-apk
-          path: adhdisplay-companion/dist/*.apk
-
-  package:
-    needs: [build-windows-installer, build-android-apk]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Windows installer
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-installer
-          path: installers
-
-      - name: Download Android APK
-        uses: actions/download-artifact@v4
-        with:
-          name: android-apk
-          path: installers
-
-      - name: Rename APK for clarity alongside the .exe installer
-        # build:tv names the APK adhdisplay-companion-<version>-<versionCode>.apk
-        # (see scripts/build-tv-apk.js) - matched by glob since the exact
-        # version/versionCode varies per run.
-        run: mv installers/adhdisplay-companion-*.apk installers/ADHDisplayCompanionSetup.apk
-
-      # No manual `zip` step here - actions/upload-artifact already zips
-      # whatever files it's given for download. Zipping them ourselves first
-      # and uploading *that* zip (the previous approach) meant GitHub zipped
-      # a zip, so downloading gave you a zip containing another zip of the
-      # same name instead of the files directly - listing both files
-      # straight in `path:` (same as the windows-installer/android-apk
-      # artifacts above) avoids that double-zip nesting entirely.
-      - name: Upload installers artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ADHDisplayCompanionInstallers
-          path: |
-            installers/ADHDisplayCompanionSetup.exe
-            installers/ADHDisplayCompanionSetup.apk

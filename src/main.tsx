@@ -4,6 +4,7 @@ import { createBrowserRouter, Navigate, Outlet, RouterProvider } from 'react-rou
 import { AdminLayout } from './features/admin/layout/AdminLayout'
 import { AdminDashboard } from './features/admin/layout/AdminDashboard'
 import { AdminLogin } from './features/admin/login/AdminLogin'
+import { DisplayManagerView } from './features/admin/displayManager/DisplayManagerView'
 import { OverviewView } from './features/admin/overview/OverviewView'
 import { MessagesView } from './features/admin/messages/MessagesView'
 import { ProductsView } from './features/admin/products/ProductsView'
@@ -57,7 +58,19 @@ const router = createBrowserRouter([
               { path: 'messageboard', element: <MessageBoardView /> },
               { path: 'media', element: <MediaLibraryView /> },
               { path: 'users', element: <UsersView /> },
+              // Displays (the physical machines) is its own top-level section rather than a
+              // row buried inside Screens — the two are different concepts (a Screen is a
+              // saved content configuration; a Display is hardware showing one), and the
+              // whole device surface previously had no presence in the nav at all.
+              { path: 'displays', element: <DisplayManagerView /> },
+              // Every Settings sub-view is a real, addressable route rather than local state
+              // behind a stripped `?view=` param, so each one can be bookmarked, shared and
+              // refreshed into, and the browser's own Back works without a hand-rolled shim.
+              // `:section` covers Store/Integrations/Advanced/Backup/Developers/Testing;
+              // `:subsection` covers Store's own Contact info and Appearance editors.
               { path: 'settings', element: <SettingsView /> },
+              { path: 'settings/:section', element: <SettingsView /> },
+              { path: 'settings/:section/:subsection', element: <SettingsView /> },
               { path: '*', element: <NotFoundView /> },
             ],
           },

@@ -85,7 +85,7 @@ export function AssistantProviderSection() {
       {provider === 'claude' && !hasKey && (
         <Alert variant="warning">
           {t('admin.settings.advanced.assistantProviderNoKey')}{' '}
-          <Button type="button" variant="secondary" onClick={() => navigate('/admin/dashboard/settings?view=integrations')}>
+          <Button type="button" variant="secondary" onClick={() => navigate('/admin/dashboard/settings/integrations')}>
             {t('admin.assistant.configureButton')}
           </Button>
         </Alert>

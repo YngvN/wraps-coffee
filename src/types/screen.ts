@@ -14,9 +14,19 @@ export interface BackgroundImage {
   blur?: boolean
 }
 
-/** Shared by every `ScreenSlotContent` variant: lets one slide opt out of its slot's own `backgroundImage` and use its own instead — set, simply by providing one, no separate opt-in flag needed. */
+/** Shared by every `ScreenSlotContent` variant: lets one slide opt out of its slot's own `backgroundImage` and use its own instead — set, simply by providing one, no separate opt-in flag needed. Also carries `padding` (see its own doc comment below) — both fields deliberately live here, on the content itself, rather than on `ScreenSlot`, so a content-kind switch (see `optionValueToContent` in `SlideFields.tsx`) drops them the same way it drops every other kind-specific field, instead of one kind's styling bleeding into the next kind shown in the same pane. */
 interface OwnBackgroundImageFields {
   backgroundImage?: BackgroundImage
+  /**
+   * This content's own inner padding, in `cqmin` units (same convention as
+   * `TextSizes` — 1cqmin = 1% of the pane's own smaller dimension, see its
+   * doc comment) — falls back to whichever fixed value that slide kind's own
+   * `.scss` hardcodes (via `padding: var(--pane-padding, <original value>)`)
+   * when unset, so existing screens keep their current look until an admin
+   * actually drags the slider. Set as an inline `--pane-padding` custom
+   * property in `LayoutPane.tsx`.
+   */
+  padding?: number
 }
 
 /**
@@ -177,12 +187,18 @@ export type ScreenSlotContent =
       showPlatform?: boolean
       /** Show the line's full name (e.g. "Ekebergbanen") instead of just its public code (e.g. "18"). Falls back to `false`. */
       showLineName?: boolean
-      /** Hide schedule-only departures Entur hasn't started tracking live yet, keeping only `realtime: true` ones. Falls back to `false`. */
-      realtimeOnly?: boolean
+      /** Which departures to show: `'realtime'` keeps only live-tracked ones (`realtime: true`), `'schedule'` keeps only ones Entur hasn't started live-tracking yet (`realtime: false`), `'both'` shows everything unfiltered. Ignored while the pane's own data has gone stale (see `useTransitDepartures`'s own `stale`) — there's no live/vs/schedule distinction left to make once every departure shown is already a scheduled fallback. Falls back to `DEFAULT_TRANSIT_DEPARTURE_MODE`. */
+      departureMode?: TransitDepartureMode
       /** Transport modes (matching `NearbyStop['modes']`, e.g. `"bus"`, `"rail"`) to include — empty/unset means every mode at the stop is shown, unfiltered. */
       modeFilter?: string[]
       /** Which icon set the mode icons next to each departure are drawn from — see `TransitIconPack`. Falls back to `DEFAULT_TRANSIT_ICON_PACK`. */
       iconPack?: TransitIconPack
+      /** Per-operator line-badge color overrides, keyed by the operator's own display name as Entur reports it (e.g. `"Vy"`, `"Flytoget"`) — matched against `DepartureInfo['authorityName']` case-insensitively/trimmed. A departure whose authority has no matching entry (including Ruter itself, which normally isn't listed here) keeps the pane's default badge styling. Ignored while `autoLineColors` is on, and superseded by `useRealLineColors` for any specific line Entur has a real color for. */
+      lineColors?: { id: string; authority: string; hex: string }[]
+      /** Assigns each operator a distinct color automatically, generated deterministically from its own name — no manual setup needed. `brand`'s own native operator (e.g. Ruter on a Ruter# pane) is excluded and keeps its real brand-theme color instead. Takes precedence over `lineColors` (unused while this is on), but is itself superseded by `useRealLineColors` for any specific line Entur has a real color for. Falls back to `true`. */
+      autoLineColors?: boolean
+      /** Uses each line's own real official badge color (`DepartureInfo['lineColor']`/`lineTextColor`, straight from Entur's `Line.presentation`) whenever Entur reports one for that specific line — taking priority over both `autoLineColors`' hash guess and a manual `lineColors` override, and even over `brand`'s own flat brand-theme color (e.g. a Ruter pane's own buses show their real red/green instead of one uniform red). Falls back to a line with no real color to whichever of `autoLineColors`/`lineColors`/the brand theme would otherwise apply. Falls back to `true`. */
+      useRealLineColors?: boolean
       /** Overrides the pane's own background/font/text colors with a look-alike of whichever brand this pane is (see `brand`) instead of the screen's normal styling. Falls back to `true`. */
       useBrandTheme?: boolean
       /** Shows the pane's own brand's logo in its top-left corner. Only relevant while `useBrandTheme` is on. Falls back to `true`. */
@@ -332,6 +348,12 @@ export const DEFAULT_WEATHER_FORECAST_HOURS = 6
 /** Used when a `'transit'` slide's own `departureCount` is unset. */
 export const DEFAULT_TRANSIT_DEPARTURE_COUNT = 5
 
+/** Which departures a `'transit'` slide shows — see its own `departureMode` doc comment. */
+export type TransitDepartureMode = 'realtime' | 'schedule' | 'both'
+
+/** Used when a `'transit'` slide's own `departureMode` is unset. */
+export const DEFAULT_TRANSIT_DEPARTURE_MODE: TransitDepartureMode = 'realtime'
+
 /**
  * Which built-in icon set a `'transit'` slide's mode icons are drawn from
  * (see `TransitModeIcon`). `'standard'` is a familiar, widely-recognized
@@ -362,6 +384,26 @@ export const DEFAULT_QR_CODE_SIZE = 100
 
 /** Smallest percentage a `'qrcode'` slide's own `size` can be dragged down to. */
 export const MIN_QR_CODE_SIZE = 10
+
+/**
+ * The Padding slider's own initial displayed position while a content's own
+ * `padding` is unset — purely cosmetic (it never gets written until the
+ * admin actually moves the slider, see `OwnBackgroundImageFields.padding`),
+ * chosen close to the majority of slide kinds' own hardcoded default
+ * (`$spacing-unit * 6`, 3rem ≈ 9.6cqmin at this rework's reference pane
+ * size — see `TextSizes`' own doc comment for that calibration) so the
+ * slider doesn't visually jump when first touched.
+ */
+export const DEFAULT_PANE_PADDING = 10
+
+/** Largest value the Padding slider can be dragged up to. */
+export const MAX_PANE_PADDING = 25
+
+/** Hard cap on a pane's own `customCss`, enforced client-side (live counter, blocks Save past it) and server-side (the real gate — see `src/utils/paneCustomContent.ts`). Generous enough for real styling, small enough to keep a screen's own JSON payload bounded across several panes at once. */
+export const MAX_PANE_CUSTOM_CSS_LENGTH = 4000
+
+/** Same purpose as `MAX_PANE_CUSTOM_CSS_LENGTH`, for a pane's own `customHtml`. */
+export const MAX_PANE_CUSTOM_HTML_LENGTH = 4000
 
 /**
  * A sparse per-stage "checkpoint" map for one field's value — only stages
@@ -415,6 +457,60 @@ export interface ScreenSlot {
    * mode — see `LayoutPane.tsx`/`useShrinkToFitScale`.
    */
   overflowMode?: StageTimeline<'shrink' | 'scroll' | undefined>
+  /** This slot's own text color (hex, from the store's active appearance theme) timeline, overriding the automatic contrast-computed default (see `getScreenColorVars`) at a given stage. Optional (like `language`) since it's a newer field — a slot with none set at all uses the automatic color everywhere. An entry's value may itself be `undefined` (explicitly "use the automatic color" at that stage), distinct from no entry at all (inherit from an earlier stage's own override). */
+  textColor?: StageTimeline<string | undefined>
+  /**
+   * Admin/AI-authored CSS applied to this pane's own content box (see
+   * `src/utils/paneCustomContent.ts`'s `scopePaneCustomCss`) — a single
+   * value across every stage, deliberately **not** a `StageTimeline` like
+   * every other field here (see `src/utils/paneCustomContent.ts`'s own
+   * module doc comment for why). Validated/sanitized once at write time
+   * against an explicit property allowlist (stricter for the assistant than
+   * the admin) — the render path trusts this string as already clean and
+   * never re-validates it. Optional — a slot with none set renders no
+   * `<style>` at all.
+   */
+  customCss?: string
+  /**
+   * Admin/AI-authored HTML, sanitized to a small rich-text tag subset (see
+   * `src/utils/paneCustomContent.ts`) — same "single value across every
+   * stage" posture as `customCss`. Rendered as a sibling of this pane's
+   * normal content (`SlotContent`), positioned by `customHtmlPlacement`,
+   * never merged into it — see `LayoutPane.tsx`/`PaneVisual.tsx`. Unlike
+   * every other admin-authored text field in this app, this is **not**
+   * translated per-language — same posture as the `'announcement'` content
+   * kind's own `title`/`description`, see that kind's own doc comment.
+   */
+  customHtml?: string
+  /** Whether `customHtml` renders before or after this pane's normal content, inside the same content box. Falls back to `'after'` when unset. Irrelevant while `customHtml` itself is unset. */
+  customHtmlPlacement?: 'before' | 'after'
+  /**
+   * Which version of the CSS property allowlist `customCss` was validated
+   * against at write time — bumped (see `PANE_CUSTOM_CSS_POLICY_VERSION` in
+   * `src/utils/paneCustomContent.ts`) whenever that allowlist changes.
+   * `customCss` itself is never blocked from rendering just because this is
+   * older than the current version (that would break existing screens on a
+   * routine app update) — a stale version is instead surfaced as a
+   * "written under an older ruleset" warning in the editor, and gets a real
+   * revalidation pass (stripping the field on failure, never aborting the
+   * whole operation) during backup/snapshot restore and zip import. Absent
+   * entirely on a pane saved before this versioning existed — treated the
+   * same as "version 0", always older than current.
+   */
+  customCssPolicyVersion?: number
+  /** Same purpose as `customCssPolicyVersion`, for `customHtml`'s own tag/attribute allowlist. */
+  customHtmlPolicyVersion?: number
+  /**
+   * The `PaneId` this pane was split off of, if it was created via "Split pane"/"Split into 4"
+   * (`splitLeaf`, `src/utils/layoutTree.ts`) rather than seeded fresh (`createLeaf`) — a single fixed
+   * fact about how this pane came to exist, set once at split time and never updated afterward, same
+   * "single value across every stage" posture as `customCss`. Lets a stage transition recognize a
+   * newly-appeared leaf as a continuation of a pane that existed in the previous stage (see
+   * `SplitLayout.tsx`'s own `computeStageStaticSets`) instead of always playing its entrance animation —
+   * content-signature equality against the source pane is still checked at that point, so a stale or
+   * since-diverged lineage never forces a false match, it only says *which* pane to compare against.
+   */
+  splitFromPaneId?: PaneId
 }
 
 /** How a screen's panes are arranged along their split axis: side by side, or stacked. */
@@ -461,6 +557,13 @@ export interface PreviewAspectRatio {
 /** Used when a screen has no `previewAspectRatio` of its own yet — a standard landscape display. */
 export const DEFAULT_PREVIEW_ASPECT_RATIO: PreviewAspectRatio = { width: 16, height: 9 }
 
+/** A device's fixed CSS-px layout viewport that `ScreenDisplay.tsx`'s fullscreen editor can lock to — see `ScreenConfig.editorTargetViewport`. `dpr` is stored for fleet-identification/documentation only; the size-lock mechanism (`ScaledScreenPreview`'s `referenceSize`) consumes only `width`/`height`. */
+export interface EditorTargetViewport {
+  width: number
+  height: number
+  dpr?: number
+}
+
 /**
  * Font sizes for the text roles shared by every slide, adjustable per screen
  * via the in-display text size editor. Each number is a percentage of the
@@ -500,8 +603,9 @@ export const DEFAULT_TEXT_SIZES: TextSizes = {
  * The subset of `ScreenConfig` fields that determine what a screen actually
  * renders, and can therefore be staged privately in `ScreenConfig.draft`
  * before publishing. Excludes identity/metadata (`screenID`, `name`,
- * `previewAspectRatio`) and ephemeral live-signal fields (`useScreensaver`,
- * `screensaverTestActive`, `editingFocus`), which are always live.
+ * `previewAspectRatio`, `editorTargetViewport`) and ephemeral live-signal
+ * fields (`useScreensaver`, `screensaverTestActive`, `editingFocus`), which
+ * are always live.
  */
 export type DraftableScreenFields = Pick<
   ScreenConfig,
@@ -583,6 +687,40 @@ export interface ScreenConfig {
   backgroundImage?: BackgroundImage
   /** Which physical display shape this screen is meant for — purely a sanity-check/preview aid (the "Layout" tab's own live preview, and each screen's card in the admin Screens list), never affects the real kiosk display itself (`ScreenDisplay` always fills whatever the actual browser/device window's own shape is). Falls back to `DEFAULT_PREVIEW_ASPECT_RATIO` (16:9) when absent. */
   previewAspectRatio?: PreviewAspectRatio
+  /**
+   * Locks `ScreenDisplay.tsx`'s fullscreen in-place editor
+   * (`/screens/editor/:screenId` only — see `isEditorRoute`) to render
+   * `SplitLayout` at this exact CSS-px viewport, then transform-scales the
+   * result to fill however large the admin's actual browser window happens
+   * to be — see `ScaledScreenPreview`'s `referenceSize` prop. Unlike
+   * `previewAspectRatio` above, this DOES affect what the real editor
+   * renders — that's the point: reproducing a real kiosk device's own fixed
+   * CSS-px layout viewport (e.g. 960×540 at devicePixelRatio 2 for this
+   * fleet's `MiTV_AZFU0` units — see
+   * `QA/Reports/kiosk-performance-consolidated-2026-08-16.md` §11) so what
+   * an admin sees while editing matches what the TV actually shows. Falls
+   * back to today's behavior (raw, unscaled fill of the browser's own
+   * viewport, no lock) when absent, so every existing screen is unaffected
+   * until explicitly opted in. Never read on the real kiosk route
+   * (`/screens/:screenId`), which always renders at its own true viewport
+   * regardless — it isn't being "faked" to look like a device there, it IS
+   * the device.
+   */
+  editorTargetViewport?: EditorTargetViewport
+  /**
+   * Static screenshot(s) of this screen's own rendered appearance, one per
+   * stage (`previewImages[stage - 1]`) — regenerated wholesale on every save
+   * (`ScreenForm.tsx`) or publish (`ScreenDisplay.tsx`), replacing every
+   * previous entry regardless of which fields actually changed (see
+   * `screenPreviewCapture.ts`). What `ScreenCard.tsx`'s grid thumbnail
+   * renders instead of mounting a live `SplitLayout`, so N screens in the
+   * admin Screens grid don't each independently run their own clocks/
+   * polling/video playback at once. Own-server upload URLs (see
+   * `server/uploads.ts`) — a card falls back to live-rendering itself
+   * whenever this is absent or shorter than `stageCount` (a screen saved
+   * before this field existed, or a capture that failed).
+   */
+  previewImages?: string[]
   /** Whether this screen goes black during the shared screensaver schedule's own window (set once, for every screen, from the admin dashboard's "Screen saver" button — see `useScreensaverSchedule`). A whole-screen effect, not per-slot. Has no effect at all — and its own checkbox stays hidden — until a schedule's actually been set. Falls back to `false` (never) when absent. */
   useScreensaver?: boolean
   /** Live-toggled preview of the screensaver ("Test screensaver"), independent of the actual schedule — shows the same black overlay immediately regardless of the time of day (or whether `useScreensaver` is even on), on this screen and any other open tab of it. Manually turned back off the same way; falls back to `false` when absent. */
@@ -608,9 +746,27 @@ export interface ScreenConfig {
    * `DraftableScreenFields`, invisible to every other viewer (including a
    * *different* editable viewer who still has Live editing on) until
    * "Publish" merges it onto this screen's own top-level fields and clears
-   * it back to `undefined`. Absent means no pending draft.
+   * it back to `undefined`. Absent means no pending draft. Also the
+   * destination for a confirmed assistant `screenPane` content-kind change
+   * (see `server/assistant/entities/screenPane.ts`) — `draft` is one single
+   * field, not per-author, so `stagedBy` (below) is what lets the UI tell a
+   * human's own in-progress edit apart from one the assistant just staged.
    */
-  draft?: Partial<DraftableScreenFields>
+  draft?: Partial<DraftableScreenFields> & {
+    /**
+     * Who most recently staged the content currently sitting in `draft` — `'admin'` for a human's own
+     * `ScreenDisplay` "Live editing" off session, `'assistant'` for a confirmed `screenPane` chat
+     * commit. `ScreenDisplay.tsx`'s own draft UI surfaces "staged by the assistant on [date]" when this
+     * isn't the viewing admin's own session-local draft; `AssistantPanel.tsx`'s own `saveScreenPane`
+     * only hard-blocks a second staged commit when this is `'admin'` (a human's real in-progress work)
+     * — a second assistant-staged change merges into the existing assistant-authored draft instead of
+     * being refused. Absent on a draft written before this field existed — treated as `'admin'` (the
+     * more conservative assumption, since blocking a same-source merge is a false-negative annoyance,
+     * while silently overwriting a human's real unpublished work is the outcome actually worth
+     * avoiding).
+     */
+    stagedBy?: { source: 'admin' | 'assistant'; at: string }
+  }
 }
 
 /** A named, reusable set of text sizes, saved from one screen's editor and applicable to any screen. */

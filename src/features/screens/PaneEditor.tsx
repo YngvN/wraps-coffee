@@ -1,10 +1,11 @@
 import { Button, CollapsibleSection } from '../../components'
 import { useLanguage, type LanguageCode } from '../../i18n'
-import type { BackgroundImage, ScreenSlotContent, TextSizes } from '../../types/screen'
+import { DEFAULT_PANE_PADDING, MAX_PANE_PADDING, type BackgroundImage, type ScreenSlotContent, type TextSizes } from '../../types/screen'
 import { hasOwnTextSizeFields } from '../../utils/screenSlots'
 import { BackgroundColorPicker } from './BackgroundColorPicker'
 import { BackgroundImagePicker } from './BackgroundImagePicker'
 import './PaneEditor.scss'
+import { PaneCustomContentFields } from './PaneCustomContentFields'
 import { PaneLanguagePicker } from './PaneLanguagePicker'
 import { SlideFields } from './SlideFields'
 import { StageTabs } from './StageTabs'
@@ -17,6 +18,9 @@ interface PaneEditorProps {
   onContentChange: (content: ScreenSlotContent) => void
   backgroundColor: string | undefined
   onBackgroundColorChange: (color: string | undefined) => void
+  /** `undefined` means "use the automatic contrast-based color" (see `getScreenColorVars`) — the caller's own `onTextColorChange` decides where an explicit override is written back to. */
+  textColor: string | undefined
+  onTextColorChange: (color: string | undefined) => void
   /** Already resolved by the caller: the content's own override if it has one, else the pane's shared one (see `resolveContentBackgroundImage`) — edited here as a single field regardless of which of those two it actually lives on; the caller's own `onBackgroundImageChange` decides where a change is written back to. */
   backgroundImage: BackgroundImage | undefined
   onBackgroundImageChange: (image: BackgroundImage | undefined) => void
@@ -34,6 +38,14 @@ interface PaneEditorProps {
   stageCount: number
   activeStage: number
   onActiveStageChange: (stage: number) => void
+  customCss: string | undefined
+  onCustomCssChange: (css: string | undefined) => void
+  customHtml: string | undefined
+  onCustomHtmlChange: (html: string | undefined) => void
+  customHtmlPlacement: 'before' | 'after' | undefined
+  onCustomHtmlPlacementChange: (placement: 'before' | 'after') => void
+  /** Writes this pane's own currently-resolved content into every stage's own checkpoint — see `propagateSlotContentToAllStages`'s own doc comment. Only shown (alongside `StageTabs`) while `useStages && stageCount > 1`. */
+  onApplyContentToEveryStage: () => void
   /** Accessible label for the content-kind selector. */
   label: string
   resizeToFitBlocked?: boolean
@@ -79,6 +91,8 @@ export function PaneEditor({
   onContentChange,
   backgroundColor,
   onBackgroundColorChange,
+  textColor,
+  onTextColorChange,
   backgroundImage,
   onBackgroundImageChange,
   textSizes,
@@ -92,6 +106,13 @@ export function PaneEditor({
   stageCount,
   activeStage,
   onActiveStageChange,
+  customCss,
+  onCustomCssChange,
+  customHtml,
+  onCustomHtmlChange,
+  customHtmlPlacement,
+  onCustomHtmlPlacementChange,
+  onApplyContentToEveryStage,
   label,
   resizeToFitBlocked,
   suggestedEventOrdinal,
@@ -104,7 +125,14 @@ export function PaneEditor({
 
   return (
     <div className="pane-editor">
-      {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={activeStage} onActiveStageChange={onActiveStageChange} />}
+      {hasMultipleStages && (
+        <div className="pane-editor__stage-row">
+          <StageTabs stageCount={stageCount} activeStage={activeStage} onActiveStageChange={onActiveStageChange} />
+          <Button type="button" variant="secondary" onClick={onApplyContentToEveryStage}>
+            {t('admin.screens.applyToEveryStageButton')}
+          </Button>
+        </div>
+      )}
 
       <SlideFields id={id} content={content} onChange={onContentChange} label={label} resizeToFitBlocked={resizeToFitBlocked} suggestedEventOrdinal={suggestedEventOrdinal} />
 
@@ -113,6 +141,34 @@ export function PaneEditor({
           <TextSizeEditor textSizes={textSizes} onChange={onTextSizesChange} overflowMode={overflowMode} onOverflowModeChange={onOverflowModeChange} />
         </CollapsibleSection>
       )}
+
+      {hasOwnTextSizeFields(content) && (
+        <CollapsibleSection label={t('admin.screens.textColorLabel')}>
+          <BackgroundColorPicker
+            backgroundColor={textColor}
+            onChange={onTextColorChange}
+            allowTransparent
+            label={t('admin.screens.textColorLabel')}
+            transparentLabel={t('screenDisplay.textSizeEditor.autoTextColorLabel')}
+          />
+        </CollapsibleSection>
+      )}
+
+      <CollapsibleSection label={t('admin.screens.paddingLabel')}>
+        <label className="pane-editor__slider">
+          <span>
+            {t('admin.screens.paddingLabel')} — {(content.padding ?? DEFAULT_PANE_PADDING).toFixed(1)}%
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={MAX_PANE_PADDING}
+            step={0.5}
+            value={content.padding ?? DEFAULT_PANE_PADDING}
+            onChange={(event) => onContentChange({ ...content, padding: Number(event.target.value) })}
+          />
+        </label>
+      </CollapsibleSection>
 
       <CollapsibleSection label={t('admin.screens.backgroundLabel')}>
         <BackgroundColorPicker backgroundColor={backgroundColor} onChange={onBackgroundColorChange} allowTransparent />
@@ -123,6 +179,15 @@ export function PaneEditor({
       <CollapsibleSection label={t('admin.screens.languageLabel')}>
         <PaneLanguagePicker language={language} onChange={onLanguageChange} defaultLanguage={defaultLanguage} />
       </CollapsibleSection>
+
+      <PaneCustomContentFields
+        customCss={customCss}
+        onCustomCssChange={onCustomCssChange}
+        customHtml={customHtml}
+        onCustomHtmlChange={onCustomHtmlChange}
+        customHtmlPlacement={customHtmlPlacement}
+        onCustomHtmlPlacementChange={onCustomHtmlPlacementChange}
+      />
 
       {(onClearPane || onDeletePane) && (
         <div className="pane-editor__pane-section">

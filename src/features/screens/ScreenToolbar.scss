@@ -28,6 +28,17 @@
   white-space: nowrap;
 }
 
+.screen-toolbar__staged-note {
+  padding: calc($spacing-unit / 2) $spacing-unit * 1.5;
+  border: 1px solid $color-accent;
+  border-radius: 999px;
+  background: $color-surface;
+  color: $color-accent;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .screen-toolbar__button {
   padding: calc($spacing-unit / 2) $spacing-unit * 1.5;
   border: 1px solid $color-border;

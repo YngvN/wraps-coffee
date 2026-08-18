@@ -87,6 +87,38 @@ export interface HeartbeatResult {
   needsPairing?: boolean
   /** This machine's own `customLabel` as currently configured on the server that answered this heartbeat (sanitized server-side), or `null` if none is set — see `getStoredDeviceLabel`'s own doc comment for what this app does with it. */
   customLabel: string | null
+  /**
+   * This unit's own admin-set image-resolution ceiling (Display Manager's "Max image resolution"
+   * field — `DisplayMachine.maxImagePx`), or `'auto'` when unset or when answered by a server too old
+   * to send it.
+   *
+   * Passed straight into the WebView URL by `DisplayScreen`, because the kiosk page cannot read it
+   * itself: that page is unauthenticated, while `admin.displayMachines` is a permissioned synced key.
+   * The companion is the only component that knows both which machine it is and what the server says
+   * about it.
+   */
+  maxImagePx?: 'auto' | number
+  /**
+   * This unit's own admin-set CSS layout width (Display Manager's "Render resolution" field —
+   * `DisplayMachine.renderWidthPx`), or `'auto'` when unset or when answered by a server too old to
+   * send it.
+   *
+   * Forwarded into the WebView URL by `DisplayScreen` for exactly the same reason `maxImagePx` above
+   * is: the kiosk page is unauthenticated and cannot read `admin.displayMachines` itself. See that
+   * type's own doc comment for why this setting exists (Android's 8px minimum-font-size clamp).
+   */
+  renderWidthPx?: 'auto' | number
+  /**
+   * The hub's own single resolved answer to "what should this device actually be showing right now" —
+   * `admin.displayScreenOverride`'s own entry for this machine if a remote-nav override is standing,
+   * else `monitors[0].assignedScreenID`, else `null` (see `resolveEffectiveScreen` server-side, the
+   * only place that precedence is decided). Distinct from `monitors[].assignedScreenID` above, which
+   * is the *assignment alone* — feeding that into `remoteNav.syncEffectiveScreenId` instead of this
+   * would drag the display back to the assignment every heartbeat even while a live override is
+   * standing. `undefined` (never explicitly `null`) when answered by a server too old to send it —
+   * `App.tsx` falls back to the plain assignment in that case, same as before this field existed.
+   */
+  effectiveScreenID?: string | null
 }
 
 /**
@@ -133,7 +165,7 @@ export async function sendHeartbeat(connection: ServerConnection, machineID: str
       updateTier,
     }),
   })
-  if (response.status === 409) return { ok: false, monitors: [], needsPairing: true, customLabel: null }
+  if (response.status === 409) return { ok: false, monitors: [], needsPairing: true, customLabel: null, maxImagePx: 'auto', renderWidthPx: 'auto' }
   if (!response.ok) throw new Error(`Heartbeat failed (${response.status})`)
   return response.json() as Promise<HeartbeatResult>
 }

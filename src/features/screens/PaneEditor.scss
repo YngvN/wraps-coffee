@@ -11,11 +11,33 @@
   min-width: 0;
 }
 
+.pane-editor__stage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit;
+  flex-wrap: wrap;
+}
+
 // Matches `.background-color-picker`'s own label styling immediately above
 // it, so the two read as a matched pair of field labels.
 .pane-editor__label {
   font-size: 0.875rem;
   font-weight: 600;
+}
+
+// Matches `.text-size-editor__slider`'s own look (`TextSizeEditor.scss`) so
+// this slider reads as part of the same family of controls.
+.pane-editor__slider {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  font-size: 0.875rem;
+  font-weight: 600;
+
+  input[type='range'] {
+    width: 100%;
+  }
 }
 
 // Always visible (not a `CollapsibleSection`, unlike every other group in

@@ -11,6 +11,62 @@ export interface DisplayMonitor {
 /** A `mobile` (ADHDisplay Companion) machine's own reported update mechanism: `1` (OTA-only, the default until device-owner status is known), `2` (silent APK install, device-owner provisioned), `3` (prompted APK install, "install unknown apps" granted). See the Update Channel spec §5.2/§1. */
 export type DisplayUpdateTier = 1 | 2 | 3
 
+/**
+ * An admin-set ceiling on how large an image this display is allowed to request, in pixels of width.
+ * `'auto'` (the default) lets the page pick purely from how large the image actually renders.
+ *
+ * Exists because a fleet is not uniform: the same screen shown on a current mini-PC and on a cheap
+ * Android TV stick are very different workloads, and only an admin knows which units are weak. A cap
+ * is a per-*unit* property (it describes the hardware) rather than a per-screen one, which is why it
+ * lives here rather than on `ScreenConfig`.
+ *
+ * Values map onto the derivative ladder `server/uploads.ts` generates (`UPLOAD_VARIANT_SUFFIXES`) —
+ * a cap picks the largest variant at or below it, so `480` resolves to `-tiny`, `1920` to `-medium`
+ * (1600px, the largest derivative), and `3840` allows the untouched original.
+ */
+export type DisplayMaxImagePx = 'auto' | 3840 | 1920 | 800 | 480
+
+/** The `DisplayMaxImagePx` options in the order Display Manager offers them, widest first. `1920` is what the UI recommends: it matches a 1080p panel, the most common display in a fleet. */
+export const DISPLAY_MAX_IMAGE_PX_OPTIONS: DisplayMaxImagePx[] = ['auto', 3840, 1920, 800, 480]
+
+/**
+ * An admin-set **CSS layout width** for this display, in px — the viewport the kiosk page lays itself
+ * out against, independent of how many physical pixels the panel actually has. `'auto'` (the default)
+ * keeps `index.html`'s own `width=device-width`, i.e. exactly today's behavior.
+ *
+ * **Why this exists (measured on hardware, 2026-08-18).** Android's WebView enforces a **minimum font
+ * size of 8 CSS px**. This fleet's TV reports a 960x540 CSS viewport, where a dense catalogue pane
+ * (313x268 CSS px) needs roughly 5.3px text to fit — below the clamp. So `useShrinkToFitFontScale`
+ * keeps shrinking the CSS value while the *rendered* size stays pinned at 8px, never fits, and bottoms
+ * out at `MIN_SCALE` with the content still overflowing. Desktop has no such clamp, which is why the
+ * same screen looked different there.
+ *
+ * The clamp is expressed in CSS px, so widening the CSS viewport shrinks the fraction of a pane it
+ * covers. Forcing 1920 on that same TV moved the pane to 629 CSS px and resolved a scale of 0.71 at a
+ * rendered 21px with zero overflow — comfortably above `MIN_LEGIBLE_SCALE`, i.e. the regime the
+ * shrink-to-fit design was actually built for.
+ *
+ * **This is not the panel's resolution and does not change raster cost.** On the test unit
+ * `devicePixelRatio` is 2 because Android's *density* is 320 (320/160), not because there are more
+ * pixels; the drawing surface stays whatever `wm size` says. Widening the CSS viewport changes the
+ * units layout is computed in, not the number of pixels painted.
+ *
+ * **Every offered tier cleared the clamp on the pane above when measured** — 1280 resolved 0.64 at a
+ * rendered 12.5px, 1920 resolved 0.71 at 21.0px. (An earlier estimate here predicted 1280 would fail;
+ * that was wrong because it assumed the required *scale* is constant across viewports. It is not: a
+ * wider pane fits more text per line, so fewer lines are needed and a higher scale fits. Only measure
+ * this, never derive it.) Headroom above the clamp still grows with the tier, so a denser pane than
+ * the one tested can plausibly still clamp at 1280 while clearing at 1920 — which is why `1920` is
+ * what the UI recommends.
+ *
+ * A per-*unit* property for the same reason `DisplayMaxImagePx` is: it describes the hardware, so it
+ * belongs here rather than on `ScreenConfig`.
+ */
+export type DisplayRenderWidth = 'auto' | 3840 | 2560 | 1920 | 1280
+
+/** The `DisplayRenderWidth` options in the order Display Manager offers them, widest first — 4K, 1440p, 1080p, 720p. `1920` is what the UI recommends; see `DisplayRenderWidth` for why `1280` is deliberately not a fix for font clamping. */
+export const DISPLAY_RENDER_WIDTH_OPTIONS: DisplayRenderWidth[] = ['auto', 3840, 2560, 1920, 1280]
+
 /** A machine (or browser tab) that has heartbeated itself in at least once — see `POST /display-machines/heartbeat` in `server/index.ts`. `machineID` is generated once and persisted (see `display-role.json` for Electron, `localStorage` for a `url` connection) so the same physical device/tab keeps being recognized across restarts/reloads. */
 export interface DisplayMachine {
   machineID: string
@@ -41,6 +97,24 @@ export interface DisplayMachine {
   /** `Updates.isEmbeddedLaunch` — distinguishes "no OTA applied yet" from "an OTA bundle is running." */
   isEmbeddedLaunch?: boolean
   updateTier?: DisplayUpdateTier
+  /**
+   * Admin-set image-resolution ceiling for this unit — see `DisplayMaxImagePx`. Absent means
+   * `'auto'`.
+   *
+   * Same "survives the heartbeat" semantics as `customLabel`: this is typed by an admin in Display
+   * Manager, so it must live in a field `mergeDisplayMachineHeartbeat` never overwrites, unlike
+   * `label`/`versionName`/`updateTier` which every heartbeat re-reports.
+   */
+  maxImagePx?: DisplayMaxImagePx
+  /**
+   * Admin-set CSS layout width for this unit — see `DisplayRenderWidth` for what it does and the
+   * measurement that motivated it. Absent means `'auto'` (today's `width=device-width`), so an
+   * existing unit is unaffected until an admin opts it in.
+   *
+   * Same "survives the heartbeat" semantics as `customLabel`/`maxImagePx`: an admin types this in
+   * Display Manager, so it must live in a field `mergeDisplayMachineHeartbeat` never overwrites.
+   */
+  renderWidthPx?: DisplayRenderWidth
 }
 
 /**

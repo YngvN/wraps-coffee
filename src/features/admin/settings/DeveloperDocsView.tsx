@@ -33,6 +33,7 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.displayUpdateState', descKey: 'admin.settings.developerDocs.keyDisplayUpdateState' },
   { key: 'admin.displayScreenOverride', descKey: 'admin.settings.developerDocs.keyDisplayScreenOverride' },
   { key: 'admin.integrations', descKey: 'admin.settings.developerDocs.keyIntegrations' },
+  { key: 'admin.transitDepartures', descKey: 'admin.settings.developerDocs.keyTransitDepartures' },
   { key: 'admin.sidebarSettings', descKey: 'admin.settings.developerDocs.keySidebarSettings' },
   { key: 'admin.orders', descKey: 'admin.settings.developerDocs.keyOrders' },
   { key: 'admin.messageBoards', descKey: 'admin.settings.developerDocs.keyMessageBoards' },
@@ -244,8 +245,9 @@ POST /users/<id>/password         (Authorization: Bearer <token>, admin/subadmin
       <Card title={t('admin.settings.developerDocs.uploadsTitle')}>
         <p>{t('admin.settings.developerDocs.uploadsIntro')}</p>
         <pre>
-          <code>{`POST /uploads                     (Authorization: Bearer <token>, Content-Type: image/*, body = raw file bytes, max 10MB)
+          <code>{`POST /uploads                     (Authorization: Bearer <token>, body = raw file bytes, max 25MB — format is sniffed from the bytes, not the Content-Type header; HEIC/HEIF/TIFF/AVIF are accepted and converted to JPEG)
 → 201 { "url": "http://.../uploads/<uuid>.<ext>" }
+POST /uploads?purpose=screen-preview   (same, but stored as "screen-preview-<uuid>.<ext>" and hidden from GET /uploads below)
 
 POST /uploads/video                (Authorization: Bearer <token>, body = raw file bytes, any format, max 500MB)
 → 202 { "id", "filename": "<uuid>.mp4", "url", "status": "processing" }
@@ -256,11 +258,19 @@ POST /uploads/video/<id>/retry     (Authorization: Bearer <token>)
 → 404   (staged source already gone — succeeded, deleted, or swept after 48h abandoned)
 
 GET /uploads/<filename>           (public — no token needed)
-GET /uploads/<filename>?size=small   (800px WebP, images only, if it exists)
 GET /uploads/<filename>?size=thumb   (240px WebP — an image's thumbnail, or a video's poster frame, if it exists)
+GET /uploads/<filename>?size=tiny    (480px WebP, images only, if it exists)
+GET /uploads/<filename>?size=small   (800px WebP, images only, if it exists)
+GET /uploads/<filename>?size=medium  (1600px WebP, images only, if it exists)
+GET /uploads/<filename>?size=blur    (480px WebP, pre-blurred, images only, if it exists)
+   (any missing variant falls back to the original — e.g. an upload saved before that size existed)
 
 GET /uploads                      (Authorization: Bearer <token> — lists every original, image or video)
 → 200 [{ "filename", "url", "thumbUrl", "sizeBytes", "uploadedAt", "kind": "image" | "video", "status"?: "processing" | "failed", "errorMessage"?, "displayName"? }, ...]
+   (excludes auto-captured screen previews — files named "screen-preview-<uuid>.<ext>", plus any
+    captured before that prefix existed. They still exist, are still served by GET /uploads/<filename>,
+    and still count toward /uploads/storage; they're just not offered as browsable media. Read them
+    from a screen's own previewImages instead.)
 
 PATCH /uploads/<filename>/name     (Authorization: Bearer <token>, body = { "displayName": string })
 → 200 { "displayName" }   (empty string clears it)
@@ -280,7 +290,9 @@ DELETE /uploads/<filename>        (Authorization: Bearer <token>)
 { "machineID": "...", "label": "...", "connectionType": "electron" | "url" | "mobile", "monitors": [{ "id": "...", "label": "..." }],
   "versionCode"?: number, "versionName"?: string, "runtimeVersion"?: string, "updateId"?: string | null,
   "isEmbeddedLaunch"?: boolean, "updateTier"?: 1 | 2 | 3 }
-→ 200 { "ok": true, "monitors": [{ "id", "label", "assignedScreenID" }], "customLabel": "..." | null }
+→ 200 { "ok": true, "monitors": [{ "id", "label", "assignedScreenID" }], "customLabel": "..." | null,
+        "maxImagePx": "auto" | 3840 | 1920 | 800 | 480,
+        "renderWidthPx": "auto" | 3840 | 2560 | 1920 | 1280, "effectiveScreenID": "..." | null }
 → 400 { "error": "..." }   (malformed body)
 → 409 { "error": "not paired", "needsPairing": true }   ("mobile" only, machineID isn't an approved admin.displayMachines entry yet)
 
@@ -290,9 +302,33 @@ on every heartbeat, same as "label"; absent stays absent rather than falling bac
 a display that stops reporting these (or never did) is visibly "unknown" in Display Manager rather than
 looking current — see resolveDisplayUpdateState in src/utils/displayUpdateState.ts.
 
+"maxImagePx" is an admin-set-going-down field: it caps how large an image this display may
+request, and exists because the kiosk page itself can't read it (that page is unauthenticated,
+while admin.displayMachines is gated to the "displaymanager" section). The Companion forwards it
+into the page URL as ?maxImagePx=. "auto" means "decide from how large the image actually renders".
+
+"renderWidthPx" is admin-set the same way and forwarded the same way (?renderWidthPx=), and is the
+CSS layout width the kiosk page rewrites its own viewport meta to before its bundle ever runs (see
+the inline script in index.html). It is NOT the panel's resolution and does not change how many
+pixels get drawn — it changes the units layout is computed in. It exists because Android's WebView
+refuses to render text below 8 CSS px: on a 960x540 CSS viewport a dense pane can need ~5px text,
+so shrink-to-fit can never make it fit, while a 1920 viewport puts the same layout comfortably above
+the clamp. "auto" keeps index.html's own width=device-width. Measured on the fleet TV, every tier
+cleared that clamp for the pane tested (1280 → 12.5px rendered, 1920 → 21.0px), but headroom grows
+with the tier, so 1920 is the recommended default.
+
+"effectiveScreenID" is the hub's own single resolved answer to "what should this device actually be
+showing right now" — a standing admin.displayScreenOverride entry for this machine (see Remote
+Screen Navigation below) if one exists, else "monitors[0].assignedScreenID" above, else null (shows
+the standby screensaver). Deliberately not the same value as the plain assignment: ADHDisplay
+Companion feeds this into its own remote-nav state on every heartbeat so a dropped "effective-screen"
+WS push self-heals within one heartbeat interval, rather than fighting a live override every 20s by
+healing toward the raw assignment instead.
+
 Upserts by machineID into admin.displayMachines (a regular synced key, see Live data above) —
 preserves each existing monitor's own assignedScreenID (matched by monitor id) and the machine's
-own customLabel (an admin's rename, set via Display Manager) rather than overwriting them — every
+own admin-set fields, customLabel (a rename), maxImagePx (the image cap) and renderWidthPx (the
+layout width), rather than overwriting them — every
 heartbeat's own "label" is that machine's self-reported name (e.g. "Display 3"), always
 overwritten as-is, so an admin-typed rename has to live in this separate field to actually stick.
 Actually assigning a Screen or renaming a machine is a normal authenticated write to that same key
@@ -447,10 +483,17 @@ Device → hub:
 Hub → device:
 { "type": "check-update" }                       (Tier 1 — see the mechanism-dispatch note above)
 { "type": "install-update", "mechanism": "apk" }  (Tier 2/3 — see the mechanism-dispatch note above)
-{ "type": "navigable-set", "screens": [{ "screenId", "name" }, ...] }
+{ "type": "navigable-set", "screens": [{ "screenId", "name", "previewImage": "..." | null }, ...] }
   Every published screen this device may browse to — hub-decided, never client-enumerated (so a
   café unit can't browse to another venue's screen or an unpublished draft). Pushed on device-hello
   and again whenever admin.screens itself changes, to every currently-connected device.
+  "previewImage" is that screen's own stage-1 previewImages entry (see the Screens section above),
+  reduced to a path+query relative to this server's own origin (e.g. "/uploads/x.webp?size=medium")
+  rather than the absolute URL stored server-side, since that URL is baked to whichever origin the
+  screenshot happened to be uploaded from — meaningless to a device reaching this server a different
+  way. null for a screen with no screenshot yet. ADHDisplay Companion downloads and caches these
+  on-device (see its own README) and shows the cached copy instead of live-loading the real kiosk
+  page while browsing with the remote — only committing (OK) ever triggers a real page load.
 { "type": "effective-screen", "screenId": "..." | null }
   What this device should actually be showing right now — admin.displayScreenOverride's own entry
   for this machine if one exists, else its normal admin.displayMachines assignment, else null (shows
@@ -508,6 +551,47 @@ skipped rather than deleted anyway.`}</code>
         </pre>
       </Card>
 
+      <Card title={t('admin.settings.developerDocs.screensSnapshotsTitle')}>
+        <p>{t('admin.settings.developerDocs.screensSnapshotsIntro')}</p>
+        <pre>
+          <code>{`GET /screens-snapshots                                    (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "snapshots": [{ "tier": "daily"|"weekly", "id": string, "capturedAt": string, "screenCount": number }] }
+Every retained snapshot across both tiers, newest-first by its real capture timestamp (not the
+tier id's own date/week, which can lag it — see server/screensSnapshots.ts).
+
+GET /screens-snapshots/for-screen?screenID=<id>           (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "snapshots": [...] }
+Same shape, filtered to snapshots where this one screen's own entry genuinely differs from live.
+
+GET /screens-snapshots/:tier/:id/diff                      (Authorization: Bearer <token>, admin/subadmin only)
+→ 200 { "diff": [{ "screenID", "name", "status": "changed"|"onlyInSnapshot"|"onlyInLive" }] }
+→ 404 { "error": "..." }   (snapshot not found)
+Which screens actually differ between the live store and this snapshot — shown before a whole-array
+restore commits to overwriting every screen.
+
+POST /screens-snapshots/:tier/:id/restore                  (Authorization: Bearer <token>, admin/subadmin only, no body)
+→ 200 { "ok": true }
+→ 404 { "error": "..." }
+Overwrites the entire live admin.screens array with this snapshot's own version, applied
+immediately (no draft/preview staging) — copies back any of its own pinned images not already
+present in server/uploads/.
+
+POST /screens-snapshots/:tier/:id/restore-screen/:screenID[?force=1]  (Authorization: Bearer <token>, admin/subadmin only, no body)
+→ 200 { "ok": true }
+→ 404 { "error": "..." }   (snapshot, or this screen within it, not found)
+→ 409 { "error": "...", "hasDraft": true }   (this screen has an unpublished draft — retry with ?force=1 once confirmed)
+Overwrites just this one screen's own entry — every other screen is untouched.
+
+Snapshots are captured automatically (daily, keeping the last 7; weekly, keeping the last 8) by an
+in-process scheduler, calendar-boundary checked so a missed boundary (server offline) self-heals on
+the next check rather than being silently skipped. Referenced images are pinned lazily — only copied
+into a snapshot the moment the live original would otherwise be deleted, capped at 4096px on the
+longer side (best-effort, off the synchronous delete path) — never proactively copied at capture
+time. Included whole in the regular backup zip (server/data/screens-snapshots/ is just another
+subfolder under server/data, which the zip export/import already walks generically).`}</code>
+        </pre>
+      </Card>
+
       <Card title={t('admin.settings.developerDocs.integrationsTitle')}>
         <p>{t('admin.settings.developerDocs.integrationsIntro')}</p>
         <pre>
@@ -519,7 +603,8 @@ GET /integrations/stops/search?query=<text>
    (searches stop places by name anywhere, not just near a given address)
 
 GET /integrations/departures?stopId=<id>&count=<n>
-→ 200 { "stopName", "departures": [{ "line", "lineName"?, "mode", "destination", "expectedDepartureTime", "aimedDepartureTime", "realtime", "platform"?, "cancelled" }] }
+→ 200 { "stopName", "departures": [{ "line", "lineName"?, "mode", "authorityId"?, "authorityName"?, "lineColor"?, "lineTextColor"?, "destination", "expectedDepartureTime", "aimedDepartureTime", "realtime", "platform"?, "cancelled" }] }
+   (on-demand only — the transit pane itself reads the "admin.transitDepartures" synced key instead, kept fresh by the local server's own background poller; see Live data below)
 
 GET /integrations/weather?lat=<lat>&lon=<lon>&hours=<n>
 → 200 { "hourly": [{ "time", "temperatureC", "precipitationMm", "symbolCode", "windSpeedMs"?, "windFromDirectionDeg"?, "humidityPercent"?, "precipitationProbabilityPercent"?, "uvIndex"?, "pressureHpa"? }] }
@@ -534,10 +619,12 @@ GET /integrations/weather?lat=<lat>&lon=<lon>&hours=<n>
 → 200 { "headlines": [{ "sourceId", "title", "link", "publishedAt"?, "description"?, "imageUrl"?, "categories"?, "author"? }] }
    ("count" is a per-source cap — each requested source contributes up to its own "count" newest headlines, merged and sorted newest-first)
 
-GET /news/image?src=<url>
+GET /news/image?src=<url>[&w=<px>]
 → 200, the image, served from this server's own disk cache (refreshed at most once per hour)
 → 400 { "error": "..." }   (missing/invalid "src")
-→ 502 { "error": "..." }   (couldn't fetch it, and no cached copy exists yet either)`}</code>
+→ 502 { "error": "..." }   (couldn't fetch it, and no cached copy exists yet either)
+   ("w" downscales to the nearest allowed width at or above it — 320, 480, 800 or 1280 — and caches
+    that size as its own file; omitted, or larger than 1280, serves the original bytes unchanged)`}</code>
         </pre>
       </Card>
 
@@ -644,7 +731,7 @@ GET /assistant/ollama-config       (Authorization: Bearer <token>, admin/subadmi
 → 200 { "baseUrl": string, "visionModel": string, "thinkingModel": string }   (nothing secret in here, unlike the Claude key above, but still admin/subadmin-gated since it configures the same feature)
 
 POST /assistant/ollama-config      (Authorization: Bearer <token>, admin/subadmin only)
-{ "baseUrl"?: string, "visionModel"?: string, "thinkingModel"?: string }   (any field independently updatable; defaults to "http://localhost:11434" / "qwen2.5vl:3b" / "qwen2.5:3b-instruct" until changed)
+{ "baseUrl"?: string, "visionModel"?: string, "thinkingModel"?: string }   (any field independently updatable; defaults to "http://localhost:11434" / "qwen2.5vl:3b" / "qwen3:4b" until changed)
 → 200 { "baseUrl": string, "visionModel": string, "thinkingModel": string }
 
 POST /assistant/ollama-test        (Authorization: Bearer <token>, admin/subadmin only)
@@ -655,7 +742,7 @@ POST /assistant/ollama-test        (Authorization: Bearer <token>, admin/subadmi
 POST /assistant/ollama-pull        (Authorization: Bearer <token>, admin/subadmin only)
 { "tag": string }
 → 200 { "ok": true }
-→ 502 { "ok": false, "error": string }   (pulls a model tag onto the configured Ollama host via its own /api/pull endpoint — backs the Integrations page's "Download missing model" button and its own model manager's "Add a model" field; first pulls are a one-time few-GB download and can take several minutes)
+→ 502 { "ok": false, "error": string }   (pulls a model tag onto the configured Ollama host via its own /api/pull endpoint — backs the Integrations page's "Download missing model" button and its own model manager's "Add a model" field; first pulls are a one-time few-GB download and can take several minutes. On Windows this normally only comes up for the vision model: the Windows installer already seeds the default thinking model (qwen3:4b) straight into Ollama's model store from a copy bundled inside it, so /assistant/ollama-test reports it installed and the "Download missing model" button never renders for it — see scripts/fetch-ollama-model.mts and installer/adhdisplay.iss)
 
 GET /assistant/ollama-models       (Authorization: Bearer <token>, admin/subadmin only)
 → 200 { "ok": true, "models": [{ "name": string, "size": number }] }   ("size" in raw bytes; every tag actually pulled on the host, not just the two configured vision/thinking roles — backs the Integrations page's own model manager submenu)

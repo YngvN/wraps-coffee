@@ -8,8 +8,11 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
-dist-ssr
+# Anchored to the repo root's own Vite build output - a bare "dist" would
+# also match adhdisplay-companion/dist, which is deliberately NOT ignored
+# (its own .gitignore) since it holds the committed release APK.
+/dist
+/dist-ssr
 *.local
 
 # Local LAN sync server's own persisted state (users/sessions/synced keys) —
@@ -37,10 +40,29 @@ server/news-image-cache/*
 *.sln
 *.sw?
 
-# Inno Setup installer build: compiled output and the third-party Node.js
-# installer the developer downloads and drops in installer/ before compiling.
+# Inno Setup installer build: compiled output and the third-party Node.js/
+# Ollama installers the developer downloads and drops in installer/ before
+# compiling (see adhdisplay.iss's own header comment) - both are fetched
+# fresh by build-installer.yml when building via CI instead.
 installer/Output
 installer/node-lts-x64.msi
+installer/OllamaSetup.exe
+
+# The pre-seeded Ollama model store the installer bundles (~2.5 GB, qwen3:4b),
+# downloaded by scripts/fetch-ollama-model.mts. Third-party weights, re-fetchable
+# at any time, so treated exactly like the two installers above: fetched fresh by
+# build-installer.yml in CI, and produced locally by `npm run ollama:fetch`
+# before compiling by hand.
+installer/ollama-models
+
+# Self-hosted Google Fonts (woff2 + the generated stylesheet), downloaded by
+# scripts/fetch-google-fonts.mts. ~36 MB across ~2000 files covering all 999
+# families in src/data/googleFonts.json - re-fetchable at any time, so it's
+# treated exactly like the Node.js/Ollama installers above: fetched fresh by
+# build-installer.yml when building via CI, and produced locally by
+# `npm run fonts:fetch` before compiling the installer by hand. The installer
+# ships whatever is on disk via its existing "..\public\*" entry.
+public/fonts
 
 # Expo CLI's own cache directory (adhdisplay-companion/), created by
 # `expo start`/`expo export`.

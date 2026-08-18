@@ -5,6 +5,9 @@ import './PaneCornerHandle.scss'
 /** Width/height (px) of the invisible drag hit-area, centered on the corner point — same sizing convention as `SplitLayoutDivider`'s own `HANDLE_THICKNESS`. */
 const HANDLE_SIZE = 24
 
+// Same `--scaled-screen-preview-scale` compensation as `SplitLayoutDivider`'s `HANDLE_THICKNESS_EXPR` — see its comment.
+const HANDLE_SIZE_EXPR = `${HANDLE_SIZE}px / var(--scaled-screen-preview-scale, 1)`
+
 interface PaneCornerHandleProps {
   /** This corner's own current position, as a percentage of `containerRef`'s own box on each axis. */
   x: number
@@ -59,10 +62,10 @@ export function PaneCornerHandle({ x, y, containerRef, onLiveChange, onCommit }:
   }
 
   const style: CSSProperties = {
-    left: `calc(${x}% - ${HANDLE_SIZE / 2}px)`,
-    top: `calc(${y}% - ${HANDLE_SIZE / 2}px)`,
-    width: HANDLE_SIZE,
-    height: HANDLE_SIZE,
+    left: `calc(${x}% - (${HANDLE_SIZE_EXPR}) / 2)`,
+    top: `calc(${y}% - (${HANDLE_SIZE_EXPR}) / 2)`,
+    width: `calc(${HANDLE_SIZE_EXPR})`,
+    height: `calc(${HANDLE_SIZE_EXPR})`,
   }
 
   return (

@@ -1,0 +1,132 @@
+[
+  {
+    "index": 36,
+    "fromStage": 3,
+    "toStage": 1,
+    "durationMs": 1502,
+    "frames": 73,
+    "worstMs": 40,
+    "over16_7": 73,
+    "over20": 6,
+    "over33": 2,
+    "meanMs": 20.5,
+    "worstAtMs": 1240,
+    "worstPhase": "idle",
+    "holdingDebtMs": 20,
+    "holdingFrames": 12,
+    "debtByPhase": {
+      "exiting": 0,
+      "holding": 20,
+      "idle": 20
+    },
+    "framesByPhase": {
+      "exiting": 26,
+      "holding": 12,
+      "idle": 35
+    }
+  },
+  {
+    "index": 1,
+    "fromStage": 1,
+    "toStage": 2,
+    "durationMs": 1943,
+    "frames": 59,
+    "worstMs": 220,
+    "over16_7": 59,
+    "over20": 11,
+    "over33": 8,
+    "meanMs": 32.9,
+    "worstAtMs": 800,
+    "worstPhase": "holding",
+    "holdingDebtMs": 380,
+    "holdingFrames": 7,
+    "debtByPhase": {
+      "exiting": 40,
+      "holding": 380,
+      "idle": 340
+    },
+    "framesByPhase": {
+      "exiting": 26,
+      "holding": 7,
+      "idle": 26
+    }
+  },
+  {
+    "index": 1,
+    "fromStage": 1,
+    "toStage": 2,
+    "durationMs": 1903,
+    "frames": 59,
+    "worstMs": 220,
+    "over16_7": 59,
+    "over20": 10,
+    "over33": 7,
+    "meanMs": 32.2,
+    "worstAtMs": 800,
+    "worstPhase": "holding",
+    "holdingDebtMs": 360,
+    "holdingFrames": 7,
+    "debtByPhase": {
+      "exiting": 40,
+      "holding": 360,
+      "idle": 320
+    },
+    "framesByPhase": {
+      "exiting": 26,
+      "holding": 7,
+      "idle": 26
+    }
+  },
+  {
+    "index": 2,
+    "fromStage": 2,
+    "toStage": 1,
+    "durationMs": 1862,
+    "frames": 62,
+    "worstMs": 320,
+    "over16_7": 62,
+    "over20": 8,
+    "over33": 7,
+    "meanMs": 30,
+    "worstAtMs": 940,
+    "worstPhase": "holding",
+    "holdingDebtMs": 380,
+    "holdingFrames": 6,
+    "debtByPhase": {
+      "exiting": 60,
+      "holding": 380,
+      "idle": 180
+    },
+    "framesByPhase": {
+      "exiting": 27,
+      "holding": 6,
+      "idle": 29
+    }
+  },
+  {
+    "index": 3,
+    "fromStage": 1,
+    "toStage": 2,
+    "durationMs": 1922,
+    "frames": 56,
+    "worstMs": 380,
+    "over16_7": 56,
+    "over20": 9,
+    "over33": 8,
+    "meanMs": 34.3,
+    "worstAtMs": 1000,
+    "worstPhase": "holding",
+    "holdingDebtMs": 460,
+    "holdingFrames": 5,
+    "debtByPhase": {
+      "exiting": 160,
+      "holding": 460,
+      "idle": 180
+    },
+    "framesByPhase": {
+      "exiting": 22,
+      "holding": 5,
+      "idle": 29
+    }
+  }
+]

@@ -1,5 +1,5 @@
 import type { ServerResponse } from 'node:http'
-import type { NearbyStop } from '../src/types/integrations'
+import type { DepartureInfo, NearbyStop } from '../src/types/integrations'
 import { sendJson } from './http'
 
 /** Identifies this app to Entur's APIs, per their usage terms — no personal/secret info needed, just a stable `<company>-<application>` string. */
@@ -115,13 +115,26 @@ interface EstimatedCall {
   cancellation: boolean
   destinationDisplay: { frontText: string }
   quay: { publicCode: string | null } | null
-  serviceJourney: { line: { publicCode: string; name: string | null; transportMode: string } }
+  serviceJourney: {
+    line: {
+      publicCode: string
+      name: string | null
+      transportMode: string
+      authority: { id: string; name: string } | null
+      presentation: { colour: string | null; textColour: string | null } | null
+    }
+  }
 }
 interface StopPlaceDeparturesResponse {
   data: { stopPlace: { name: string; estimatedCalls: EstimatedCall[] } | null }
 }
 
-const departuresCache = new Map<string, CacheEntry<{ stopName: string; departures: unknown[] }>>()
+interface StopDepartures {
+  stopName: string
+  departures: DepartureInfo[]
+}
+
+const departuresCache = new Map<string, CacheEntry<StopDepartures>>()
 
 /**
  * Always fetched from Entur regardless of how many departures a slide is
@@ -146,40 +159,55 @@ const DEPARTURES_QUERY = `
         cancellation
         destinationDisplay { frontText }
         quay { publicCode }
-        serviceJourney { line { publicCode name transportMode } }
+        serviceJourney { line { publicCode name transportMode authority { id name } presentation { colour textColour } } }
       }
     }
   }
 `
 
-/** Fetches the next `TRANSIT_FETCH_BUFFER` real-time departures from stop `stopId` (regardless of `count` — see its own doc comment), cached briefly per `stopId` so several open kiosk/admin tabs (even ones configured with a different display `count`) don't each hit Entur independently. Returns the full buffered list; the caller/client is responsible for only *displaying* `count` of them. */
+/** Entur returns `presentation.colour`/`textColour` as bare hex (e.g. `"76A300"`) — prefixes it with `#` to match this app's own `lineColors[].hex` convention (`TransitLineColorListEditor.tsx`), so the client can use it directly as a CSS value with no further normalizing. */
+function normalizeHex(value: string | null | undefined): string | undefined {
+  if (!value) return undefined
+  return value.startsWith('#') ? value : `#${value}`
+}
+
+/** Fetches the next `TRANSIT_FETCH_BUFFER` departures from stop `stopId` (regardless of `count` — see its own doc comment), cached briefly per `stopId` so several concurrent callers (the poller, an on-demand HTTP request) don't each hit Entur independently. Returns the full buffered list; the caller is responsible for only *displaying* `count` of them. Shared by `handleDepartures` (the on-demand HTTP route) and `transitPoller.ts` (the background poller that owns `admin.transitDepartures`). */
+export async function fetchStopDepartures(stopId: string, count: number): Promise<StopDepartures> {
+  return cached(departuresCache, stopId, DEPARTURES_CACHE_MS, async () => {
+    const response = await fetch('https://api.entur.io/journey-planner/v3/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'ET-Client-Name': ENTUR_CLIENT_NAME },
+      body: JSON.stringify({ query: DEPARTURES_QUERY, variables: { id: stopId, numberOfDepartures: Math.max(count, TRANSIT_FETCH_BUFFER) } }),
+    })
+    if (!response.ok) throw new Error(`journey planner failed: ${response.status}`)
+    const body = (await response.json()) as StopPlaceDeparturesResponse
+    if (!body.data.stopPlace) throw new Error(`unknown stop place: ${stopId}`)
+
+    return {
+      stopName: body.data.stopPlace.name,
+      departures: body.data.stopPlace.estimatedCalls.map((call) => ({
+        line: call.serviceJourney.line.publicCode,
+        lineName: call.serviceJourney.line.name ?? undefined,
+        mode: call.serviceJourney.line.transportMode,
+        authorityId: call.serviceJourney.line.authority?.id ?? undefined,
+        authorityName: call.serviceJourney.line.authority?.name ?? undefined,
+        lineColor: normalizeHex(call.serviceJourney.line.presentation?.colour),
+        lineTextColor: normalizeHex(call.serviceJourney.line.presentation?.textColour),
+        destination: call.destinationDisplay.frontText,
+        expectedDepartureTime: call.expectedDepartureTime,
+        aimedDepartureTime: call.aimedDepartureTime,
+        realtime: call.realtime,
+        platform: call.quay?.publicCode ?? undefined,
+        cancelled: call.cancellation,
+      })),
+    }
+  })
+}
+
+/** The on-demand HTTP route — kept for manual/debugging use even though the transit pane itself now reads `admin.transitDepartures` (kept fresh server-side by `transitPoller.ts`) instead of calling this directly. */
 export async function handleDepartures(res: ServerResponse, stopId: string, count: number) {
   try {
-    const result = await cached(departuresCache, stopId, DEPARTURES_CACHE_MS, async () => {
-      const response = await fetch('https://api.entur.io/journey-planner/v3/graphql', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'ET-Client-Name': ENTUR_CLIENT_NAME },
-        body: JSON.stringify({ query: DEPARTURES_QUERY, variables: { id: stopId, numberOfDepartures: Math.max(count, TRANSIT_FETCH_BUFFER) } }),
-      })
-      if (!response.ok) throw new Error(`journey planner failed: ${response.status}`)
-      const body = (await response.json()) as StopPlaceDeparturesResponse
-      if (!body.data.stopPlace) throw new Error(`unknown stop place: ${stopId}`)
-
-      return {
-        stopName: body.data.stopPlace.name,
-        departures: body.data.stopPlace.estimatedCalls.map((call) => ({
-          line: call.serviceJourney.line.publicCode,
-          lineName: call.serviceJourney.line.name ?? undefined,
-          mode: call.serviceJourney.line.transportMode,
-          destination: call.destinationDisplay.frontText,
-          expectedDepartureTime: call.expectedDepartureTime,
-          aimedDepartureTime: call.aimedDepartureTime,
-          realtime: call.realtime,
-          platform: call.quay?.publicCode ?? undefined,
-          cancelled: call.cancellation,
-        })),
-      }
-    })
+    const result = await fetchStopDepartures(stopId, count)
     sendJson(res, 200, result)
   } catch (error) {
     console.error('[integrations] departures lookup failed:', error)

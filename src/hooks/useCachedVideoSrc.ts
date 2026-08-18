@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { normalizeUploadUrl } from '../lib/localServer'
 
 /** Shared with the pre-warm/eviction pass in `ScreenDisplay.tsx`, which needs the same cache name to prune entries this hook isn't actively resolving right now. */
 export const VIDEO_CACHE_NAME = 'adhdisplay-video-cache-v1'
@@ -33,7 +34,17 @@ async function fetchAndCache(cache: Cache, url: string): Promise<Blob> {
  * (`DisplayConnectionType`'s `'electron'`/`'url'`) since it's pure
  * web-standard Cache API, no Electron-specific code.
  */
-export function useCachedVideoSrc(videoUrl: string | undefined): string | undefined {
+export function useCachedVideoSrc(rawVideoUrl: string | undefined): string | undefined {
+  // A stored upload URL carries whichever `Host` the *uploading admin*
+  // happened to use (see `normalizeUploadUrl`), which the device actually
+  // playing it may not be able to reach at all — a kiosk TV can't fetch
+  // `http://localhost:4000/...`, since there `localhost` is the TV. Resolved
+  // to this client's own origin up front so the fetch, the cache key, and
+  // the value handed back to `VideoSlide` are all the same single URL.
+  // `prewarmVideoCache`/`evictUnusedVideoCache` below normalize identically,
+  // so a pre-warmed entry is still a cache hit here rather than being stored
+  // twice under two different origins.
+  const videoUrl = rawVideoUrl ? normalizeUploadUrl(rawVideoUrl) : undefined
   // Only the current `videoUrl`'s resolution is ever kept — anything else
   // would mean each pane accumulates one blob URL (and its full underlying
   // video `Blob`) per distinct video it's ever shown, for as long as the
@@ -123,7 +134,9 @@ export async function prewarmVideoCache(urls: string[]): Promise<void> {
   if (typeof caches === 'undefined' || urls.length === 0) return
   const cache = await caches.open(VIDEO_CACHE_NAME)
   await Promise.all(
-    urls.map(async (url) => {
+    // Same origin normalization `useCachedVideoSrc` applies, so what's
+    // pre-warmed here is keyed identically to what it later looks up.
+    urls.map(normalizeUploadUrl).map(async (url) => {
       if (await cache.match(url)) return
       await fetchAndCache(cache, url).catch(() => {
         // Best-effort — see doc comment. `useCachedVideoSrc` retries on its
@@ -137,7 +150,10 @@ export async function prewarmVideoCache(urls: string[]): Promise<void> {
 export async function evictUnusedVideoCache(activeUrls: string[]): Promise<void> {
   if (typeof caches === 'undefined') return
   const cache = await caches.open(VIDEO_CACHE_NAME)
-  const activeSet = new Set(activeUrls)
+  // Normalized to match how entries were actually keyed when stored — a raw
+  // stored URL would miss every entry here and evict the whole cache on
+  // every pass.
+  const activeSet = new Set(activeUrls.map(normalizeUploadUrl))
   const requests = await cache.keys()
   await Promise.all(requests.filter((request) => !activeSet.has(request.url)).map((request) => cache.delete(request)))
 }

@@ -12,6 +12,9 @@ under FAT32's 4GB-per-file limit, so that limit doesn't practically matter here)
 
 Copy the built file (e.g. `adhdisplay-companion-0.2.5-205.apk` from
 `adhdisplay-companion/dist/`, see that project's own `npm run build:tv`) onto the stick.
+The same file also ships inside the main ADHDisplay installer — if a PC already has
+ADHDisplay installed, it's sitting at `C:\ADHDisplay\android-apk\` on that machine too,
+useful for provisioning a TV straight from an installed PC rather than a dev checkout.
 
 Before unplugging, verify the copy on the stick matches the build output exactly — a
 truncated or corrupted copy is the most common cause of a TV-side "parse error":

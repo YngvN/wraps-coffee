@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { BackButton, ChevronRightIcon, EditDeleteButtons, Modal, PlusIcon, TranslatedText } from '../../../components'
 import { useCatalogues } from '../../../hooks/useCatalogues'
+import { useDisplayName } from '../../../hooks/useDisplayName'
 import { useCategoryPrices } from '../../../hooks/useCategoryPrices'
 import { useProducts } from '../../../hooks/useProducts'
 import { useScrollToAndHighlight } from '../../../hooks/useScrollToAndHighlight'
@@ -67,7 +68,8 @@ function columnIdFor(catalogue: Catalogue, product: Product): string | null {
  * not here.
  */
 export function CategoriesView({ catalogue, onSaveCatalogue, onOpenAllProducts, initialExpandCategoryId, initialEditProductId, onConsumeInitialDeepLink }: CategoriesViewProps) {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
+  const displayName = useDisplayName()
   const [products, setProducts] = useProducts()
   const [catalogues] = useCatalogues()
   const [categoryPrices, setCategoryPrices] = useCategoryPrices()
@@ -246,7 +248,7 @@ export function CategoriesView({ catalogue, onSaveCatalogue, onOpenAllProducts, 
     <div className="products-view">
       <div className="products-view__sub-header">
         <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: t('admin.products.title') })}</BackButton>
-        <h1>{catalogue.name[language]}</h1>
+        <h1>{displayName(catalogue.name)}</h1>
       </div>
       <TranslatedText as="p" id="admin.products.categoriesDescription" className="admin-page-description" />
 
@@ -321,7 +323,7 @@ export function CategoriesView({ catalogue, onSaveCatalogue, onOpenAllProducts, 
           ) : activeCategory ? (
             <div className="products-view__item">
               {activeCategory.image && <img className="products-view__item-thumb" src={getThumbnailUrl(activeCategory.image)} alt="" />}
-              <span className="products-view__item-name">{activeCategory.name[language]}</span>
+              <span className="products-view__item-name">{displayName(activeCategory.name)}</span>
             </div>
           ) : null}
         </DragOverlay>
@@ -391,7 +393,8 @@ function CategorySection({
   onStockQuantityChange,
   onMoveProduct,
 }: CategorySectionProps) {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
+  const displayName = useDisplayName()
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: `column:${category.id}` })
   const { attributes, listeners, setNodeRef: setSortableRef, transform, transition, isDragging } = useSortable({ id: category.id })
 
@@ -413,7 +416,7 @@ function CategorySection({
         </button>
         <button type="button" className="products-view__item-open" onClick={onToggle}>
           {category.image && <img className="products-view__item-thumb" src={getThumbnailUrl(category.image)} alt="" />}
-          <span className="products-view__item-name">{category.name[language]}</span>
+          <span className="products-view__item-name">{displayName(category.name)}</span>
           <span className="product-column__count">{items.length}</span>
           <span className={`product-column__chevron${isExpanded ? ' product-column__chevron--open' : ''}`} aria-hidden="true">
             <ChevronRightIcon />

@@ -6,7 +6,7 @@
   justify-content: center;
   height: 100%;
   width: 100%;
-  padding: 0.5em;
+  padding: var(--pane-padding, 0.5em);
   overflow: hidden;
 
   span {

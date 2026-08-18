@@ -27,7 +27,7 @@ function liveCategoryPrices(): CategoryPrices {
 /**
  * A product's real, already-computed current price — reusing the exact same
  * `getEffectivePrice`/`applyDiscount` logic (`src/utils/price.ts`) the actual
- * kiosk display uses, rather than leaving price/discount arithmetic to the
+ * display uses, rather than leaving price/discount arithmetic to the
  * assistant model itself. Real testing showed even a simple percentage
  * discount gets miscalculated (a model confidently answered "60 kr" for a
  * product whose real price was 149/159 kr with no discount at all) — since

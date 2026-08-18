@@ -13,10 +13,14 @@
   gap: calc($spacing-unit / 2);
 }
 
+// Capped so a short value like a store name doesn't sit in an input stretched
+// across the whole card — the field's own size should hint at the length of
+// input expected (see `--admin-field-max-width` in `AdminDashboard.scss`).
 .store-settings-view__fields {
   display: flex;
   flex-direction: column;
   gap: $spacing-unit;
+  max-width: var(--admin-field-max-width);
 }
 
 .store-settings-view__hint {

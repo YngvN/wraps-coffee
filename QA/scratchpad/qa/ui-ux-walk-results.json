@@ -1,0 +1,716 @@
+{
+  "records": [
+    {
+      "id": "overview",
+      "label": "Overview",
+      "url": "http://localhost:4173/admin/dashboard/overview",
+      "screenshot": "01-overview.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [],
+        "termHits": {
+          "screens": 1
+        },
+        "headings": [
+          "Overview"
+        ]
+      }
+    },
+    {
+      "id": "messages",
+      "label": "Messages",
+      "url": "http://localhost:4173/admin/dashboard/messages",
+      "screenshot": "02-messages.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [],
+        "termHits": {
+          "screens": 1
+        },
+        "headings": [
+          "Messages"
+        ]
+      }
+    },
+    {
+      "id": "products",
+      "label": "Products",
+      "url": "http://localhost:4173/admin/dashboard/products",
+      "screenshot": "03-products.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [
+          "Add catalogue"
+        ],
+        "termHits": {
+          "screens": 1
+        },
+        "headings": [
+          "Products"
+        ]
+      }
+    },
+    {
+      "id": "events",
+      "label": "Events",
+      "url": "http://localhost:4173/admin/dashboard/events",
+      "screenshot": "04-events.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [
+          "Add event"
+        ],
+        "termHits": {
+          "screens": 1
+        },
+        "headings": [
+          "Events"
+        ]
+      }
+    },
+    {
+      "id": "orders",
+      "label": "Orders",
+      "url": "http://localhost:4173/admin/dashboard/orders",
+      "screenshot": "05-orders.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [],
+        "termHits": {
+          "screens": 1
+        },
+        "headings": [
+          "Orders"
+        ]
+      }
+    },
+    {
+      "id": "screens",
+      "label": "Screens",
+      "url": "http://localhost:4173/admin/dashboard/screens",
+      "screenshot": "06-screens.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [
+          "Add screen"
+        ],
+        "termHits": {
+          "kiosk display": 1,
+          "kiosk displays": 1,
+          "display manager": 1,
+          "displays": 1,
+          "screens": 7
+        },
+        "headings": [
+          "Screens",
+          "Se Elfsborg - Västerås på 25 minutter",
+          "DJ-en i Haaland-drakt fikk publikum til å ro. Det burde ikke vært et høydepunkt",
+          "– Det er viktigere enn selve opplevelsen",
+          "Ellevilt Rosenborg-drama: – Ubeskrivelig",
+          "Nachos",
+          "Kylling Fajitas",
+          "Kylling"
+        ]
+      }
+    },
+    {
+      "id": "messageboard",
+      "label": "Message board",
+      "url": "http://localhost:4173/admin/dashboard/messageboard",
+      "screenshot": "07-messageboard.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [
+          "New board",
+          "New post"
+        ],
+        "termHits": {
+          "kiosk screen": 1,
+          "kiosk screens": 1,
+          "screens": 2
+        },
+        "headings": [
+          "Message board"
+        ]
+      }
+    },
+    {
+      "id": "media",
+      "label": "Images / Media library",
+      "url": "http://localhost:4173/admin/dashboard/media",
+      "screenshot": "08-media.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [],
+        "termHits": {
+          "screens": 1
+        },
+        "headings": [
+          "Media library"
+        ]
+      }
+    },
+    {
+      "id": "users",
+      "label": "Users",
+      "url": "http://localhost:4173/admin/dashboard/users",
+      "screenshot": "09-users.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [
+          "Add user"
+        ],
+        "termHits": {
+          "screens": 1
+        },
+        "headings": [
+          "Users"
+        ]
+      }
+    },
+    {
+      "id": "settings",
+      "label": "Settings",
+      "url": "http://localhost:4173/admin/dashboard/settings",
+      "screenshot": "10-settings.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [],
+        "termHits": {
+          "kiosk screen": 1,
+          "kiosk screens": 1,
+          "screens": 6
+        },
+        "headings": [
+          "Settings"
+        ]
+      }
+    },
+    {
+      "id": "settings-store",
+      "label": "Settings → Store settings",
+      "url": "http://localhost:4173/admin/dashboard/settings?view=store",
+      "screenshot": "11-settings-store.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [
+          "Add logo"
+        ],
+        "termHits": {
+          "kiosk screen": 1,
+          "kiosk screens": 1,
+          "screens": 2
+        },
+        "headings": [
+          "Store settings"
+        ]
+      }
+    },
+    {
+      "id": "settings-integrations",
+      "label": "Settings → Integrations",
+      "url": "http://localhost:4173/admin/dashboard/settings?view=integrations",
+      "screenshot": "12-settings-integrations.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [],
+        "termHits": {
+          "kiosk screen": 1,
+          "kiosk screens": 1,
+          "screens": 4
+        },
+        "headings": [
+          "Integrations",
+          "Activated",
+          "Available",
+          "Coming soon"
+        ]
+      }
+    },
+    {
+      "id": "settings-advanced",
+      "label": "Settings → Advanced",
+      "url": "http://localhost:4173/admin/dashboard/settings?view=advanced",
+      "screenshot": "13-settings-advanced.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [],
+        "termHits": {
+          "screens": 2,
+          "TV": 1
+        },
+        "headings": [
+          "Advanced"
+        ]
+      }
+    },
+    {
+      "id": "settings-backup",
+      "label": "Settings → Backup",
+      "url": "http://localhost:4173/admin/dashboard/settings?view=backup",
+      "screenshot": "14-settings-backup.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [
+          "Create backup"
+        ],
+        "termHits": {
+          "kiosk screen": 1,
+          "kiosk screens": 1,
+          "screens": 3
+        },
+        "headings": [
+          "Backup",
+          "Create backup",
+          "Restore",
+          "Storage cleanup",
+          "Screens history"
+        ]
+      }
+    },
+    {
+      "id": "settings-developers",
+      "label": "Settings → For developers",
+      "url": "http://localhost:4173/admin/dashboard/settings?view=developers",
+      "screenshot": "15-settings-developers.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [
+          "Add"
+        ],
+        "termHits": {
+          "kiosk display": 2,
+          "kiosk screen": 1,
+          "display manager": 17,
+          "displays": 5,
+          "screens": 31,
+          "TV": 2
+        },
+        "headings": [
+          "For developers"
+        ]
+      }
+    },
+    {
+      "id": "screens-displaymanager",
+      "label": "Screens → Display Manager",
+      "url": "http://localhost:4173/admin/dashboard/screens?displayManager=1",
+      "screenshot": "16-screens-displaymanager.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [
+          "Add display"
+        ],
+        "termHits": {
+          "display manager": 2,
+          "screens": 8,
+          "TV": 1
+        },
+        "headings": [
+          "Display Manager"
+        ]
+      }
+    },
+    {
+      "id": "screens-new",
+      "label": "Screens → new screen form",
+      "url": "http://localhost:4173/admin/dashboard/screens?new=1",
+      "screenshot": "17-screens-new.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [],
+        "termHits": {
+          "screens": 2
+        },
+        "headings": [
+          "Add screen"
+        ]
+      }
+    },
+    {
+      "id": "products-all",
+      "label": "Products → all products",
+      "url": "http://localhost:4173/admin/dashboard/products?catalogueId=food-menu&allProducts=1",
+      "screenshot": "18-products-all.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [],
+        "termHits": {
+          "screens": 1
+        },
+        "headings": [
+          "All products"
+        ]
+      }
+    },
+    {
+      "id": "screen-tab-global",
+      "label": "Screen → Text size (global)",
+      "url": "http://localhost:4173/admin/dashboard/screens?screenId=screen-8ec76ce7-2a6d-4677-ae66-f5eb5a74e91a&tab=global",
+      "screenshot": "19-screen-tab-global.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [],
+        "termHits": {
+          "screens": 2
+        },
+        "headings": [
+          "Edit screen - Edit text size"
+        ]
+      }
+    },
+    {
+      "id": "screen-tab-background",
+      "label": "Screen → Background",
+      "url": "http://localhost:4173/admin/dashboard/screens?screenId=screen-8ec76ce7-2a6d-4677-ae66-f5eb5a74e91a&tab=background",
+      "screenshot": "20-screen-tab-background.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [],
+        "termHits": {
+          "screens": 2
+        },
+        "headings": [
+          "Edit screen - Background"
+        ]
+      }
+    },
+    {
+      "id": "screen-tab-stages",
+      "label": "Screen → Stages",
+      "url": "http://localhost:4173/admin/dashboard/screens?screenId=screen-8ec76ce7-2a6d-4677-ae66-f5eb5a74e91a&tab=stages",
+      "screenshot": "21-screen-tab-stages.png",
+      "measurement": {
+        "viewportWidth": 1920,
+        "containerInnerWidth": 1784,
+        "contentUsedWidth": 1784,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1784,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1920,
+        "docClientWidth": 1920,
+        "buttonLabels": [],
+        "termHits": {
+          "screens": 2
+        },
+        "headings": [
+          "Edit screen - Steps"
+        ]
+      }
+    },
+    {
+      "id": "products-1280",
+      "label": "Products @1280px",
+      "url": "http://localhost:4173/admin/dashboard/products",
+      "screenshot": "26-products-1280.png",
+      "measurement": {
+        "viewportWidth": 1280,
+        "containerInnerWidth": 1144,
+        "contentUsedWidth": 1144,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 1144,
+        "horizontalOverflow": false,
+        "docScrollWidth": 1280,
+        "docClientWidth": 1280,
+        "buttonLabels": [
+          "Add catalogue"
+        ],
+        "termHits": {
+          "screens": 1
+        },
+        "headings": [
+          "Products"
+        ]
+      }
+    },
+    {
+      "id": "products-2560",
+      "label": "Products @2560px",
+      "url": "http://localhost:4173/admin/dashboard/products",
+      "screenshot": "27-products-2560.png",
+      "measurement": {
+        "viewportWidth": 2560,
+        "containerInnerWidth": 2424,
+        "contentUsedWidth": 2424,
+        "contentUsedPct": 100,
+        "containerMaxWidth": "none",
+        "viewRootClass": "",
+        "viewRootMaxWidth": "none",
+        "viewRootWidth": 2424,
+        "horizontalOverflow": false,
+        "docScrollWidth": 2560,
+        "docClientWidth": 2560,
+        "buttonLabels": [
+          "Add catalogue"
+        ],
+        "termHits": {
+          "screens": 1
+        },
+        "headings": [
+          "Products"
+        ]
+      }
+    }
+  ],
+  "flyouts": [
+    {
+      "railItem": "products",
+      "rows": [
+        "View all products",
+        "Nachos",
+        "Salads",
+        "Wraps",
+        "Baguettes",
+        "Pizza",
+        "Coffee & Drinks",
+        "Smoothies"
+      ],
+      "screenshot": "22-flyout-products.png"
+    },
+    {
+      "railItem": "screens",
+      "rows": [
+        "Display Manager",
+        "Screen 2",
+        "Screen 3 (verify)",
+        "Test screen",
+        "Skjerm 1",
+        "[usage test] all panes (3)",
+        "Add screen",
+        "Skjerm 1"
+      ],
+      "screenshot": "23-flyout-screens.png"
+    },
+    {
+      "railItem": "settings",
+      "rows": [
+        "Store settings",
+        "Integrations",
+        "Advanced",
+        "Backup",
+        "For developers"
+      ],
+      "screenshot": "24-flyout-settings.png"
+    },
+    {
+      "railItem": "screens-tier3",
+      "rows": [
+        "Edit text size",
+        "Borders",
+        "Background",
+        "Steps",
+        "Transitions",
+        "Screen saver",
+        "Other settings"
+      ],
+      "screenshot": "25-flyout-screens-tier3.png"
+    }
+  ],
+  "capturedAt": "2026-08-14T19:26:47.127Z"
+}

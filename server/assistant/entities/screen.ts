@@ -110,7 +110,7 @@ export const screenEntity: AssistantEntity<ScreenConfig> = {
       type: 'object',
       properties: {
         name: nullable({ type: 'string', description: "The screen's own display name, shown in the admin Screens list." }),
-        previewAspectRatio: nullable({ type: 'string', enum: PREVIEW_ASPECT_RATIO_LABELS, description: 'Which physical display shape this screen is meant for — purely a preview/thumbnail aid, never affects the real kiosk display itself.' }),
+        previewAspectRatio: nullable({ type: 'string', enum: PREVIEW_ASPECT_RATIO_LABELS, description: 'Which physical display shape this screen is meant for — purely a preview/thumbnail aid, never affects the real display itself.' }),
         useStages: nullable({ type: 'boolean', description: 'Whether every pane advances through a shared sequence of numbered stages together.' }),
         stageCount: nullable({ type: 'number', description: 'Total number of shared stages, 1 and up — only meaningful while useStages is true.' }),
         slideDurationSeconds: nullable({ type: 'number', description: 'Seconds each stage is shown before advancing to the next.' }),

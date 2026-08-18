@@ -1,0 +1,21 @@
+@use '../../../styles/variables' as *;
+
+.screen-pane-preview {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  flex: 1;
+  min-width: 0;
+}
+
+.screen-pane-preview__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: $color-text-muted;
+}
+
+.screen-pane-preview__box {
+  height: 140px;
+  border-radius: 8px;
+  border: 1px solid $color-border;
+}

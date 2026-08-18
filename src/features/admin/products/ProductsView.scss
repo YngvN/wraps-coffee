@@ -1,3 +1,4 @@
+@use '../../../styles/mixins' as *;
 @use '../../../styles/variables' as *;
 
 .products-view {
@@ -7,6 +8,9 @@
 }
 
 .products-view__header {
+  // Capped to match the list below it, so the page's own primary action
+  // lines up with the list's right edge instead of floating past it.
+  max-width: var(--admin-list-max-width);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -76,10 +80,15 @@
 // row like any other, just tinted so it doesn't read as one more (deletable,
 // reorderable) category among the rest below it.
 .products-view__view-all-products {
-  background: $color-surface;
+  background: $color-surface-sunken;
 }
 
 .products-view__list {
+  // Capped so a row's name (left) and its action buttons (right) stay within
+  // reading distance of each other. Uncapped, that gap grew with the monitor
+  // — measured at 831px/1471px/2111px on a 1280/1920/2560 display, i.e. a
+  // bigger screen made the list harder to scan, not easier.
+  max-width: var(--admin-list-max-width);
   display: flex;
   flex-direction: column;
   gap: calc($spacing-unit / 2);
@@ -95,18 +104,20 @@
   flex-wrap: wrap;
   gap: $spacing-unit;
   padding: $spacing-unit calc($spacing-unit * 1.5);
-  border: 1px solid $color-border;
-  border-radius: 8px;
+  @include surface('raised');
 
-  // A discounted product gets a visible gold border plus a soft outward
+  // A discounted product gets a visible gold ring plus a soft outward
   // shadow for depth — theme-invariant so it reads the same regardless of
   // light/dark mode, and an outward glow rather than the inset `:active`
   // "pressed" convention (see `Button.scss`), so it doesn't look like it's
   // currently being clicked.
+  // Drawn as an inset ring rather than a border: the row itself is
+  // borderless now (see `surface`), so a `border-color` override would have
+  // nothing to color and the discount marker would silently disappear.
   &--discounted {
-    border-color: $color-gold;
-    border-width: 2px;
-    box-shadow: 0 4px 10px $color-shadow;
+    box-shadow:
+      inset 0 0 0 2px $color-gold,
+      0 4px 10px $color-shadow;
   }
 
   // Greyed out (not hidden — it's still `available`, just temporarily

@@ -1,0 +1,21 @@
+// Covers the pane — see `SlideBitmapLayer.tsx` and `LayoutPane.tsx`'s own `showsBitmap`. Sits above the
+// (hidden) live content and below every editor affordance, which all declare their own z-index of 5 and
+// up (see `LayoutPane.tsx`'s layering comment).
+.slide-bitmap-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  // Clips rather than deforms: the image is drawn at the size it was captured at, so a pane mid-resize
+  // shows more or less of the picture instead of a squashed one. See the component's own doc comment.
+  overflow: hidden;
+  pointer-events: none;
+  // Promoted so the layer's own animated transform/opacity never re-rasters the image underneath it —
+  // the same promotion `QrCodeSlide.scss` relies on for its fixed raster.
+  will-change: transform, opacity;
+}
+
+.slide-bitmap-layer__image {
+  display: block;
+  // Deliberately no transform of its own. The captured pixels are presented 1:1; the *layer* above is
+  // what the screen's transition moves.
+}

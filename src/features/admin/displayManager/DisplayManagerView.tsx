@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Alert, BackButton, Badge, Button, Card, CloseIcon, CollapsibleSection, Input, PlusIcon, Spinner, TranslatedText } from '../../../components'
+import { Alert, Badge, Button, Card, CloseIcon, CollapsibleSection, Input, PlusIcon, Spinner, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useDisplayMachineCloseRequests } from '../../../hooks/useDisplayMachineCloseRequests'
 import { useDisplayMachines } from '../../../hooks/useDisplayMachines'
@@ -10,9 +10,16 @@ import { useDisplayUpdateState } from '../../../hooks/useDisplayUpdateState'
 import { useScreens } from '../../../hooks/useScreens'
 import { useScrollToAndHighlight } from '../../../hooks/useScrollToAndHighlight'
 import { useLanguage } from '../../../i18n'
-import { goBack } from '../../../lib/backStack'
 import { approveDisplayPairing, getUpdatesStatus, setUpdateRollback } from '../../../lib/localServer'
-import type { DisplayMachine, DisplayUpdateProgressStatus, DisplayUpdateTier } from '../../../types/displayMachine'
+import {
+  DISPLAY_MAX_IMAGE_PX_OPTIONS,
+  DISPLAY_RENDER_WIDTH_OPTIONS,
+  type DisplayMachine,
+  type DisplayMaxImagePx,
+  type DisplayRenderWidth,
+  type DisplayUpdateProgressStatus,
+  type DisplayUpdateTier,
+} from '../../../types/displayMachine'
 import { resolveDisplayUpdateState, type DisplayUpdateState, type UpdatesHubStatus } from '../../../utils/displayUpdateState'
 import { connectionBadgeId } from './connectionBadge'
 import { PublishApkControl } from './PublishApkControl'
@@ -217,7 +224,7 @@ export function DisplayManagerView() {
   /**
    * Deep-link support: `?pendingMachineId=<id>` scrolls to and highlights that pending card — reached via the
    * notification bell (`NotificationsDropdown`) or global search (`useGlobalSearchIndex`), both of which build a
-   * URL of the form `/admin/dashboard/screens?displayManager=1&pendingMachineId=<id>`. `ScreensView`'s own effect
+   * URL of the form `/admin/dashboard/displays?pendingMachineId=<id>`. `ScreensView`'s own effect
    * consumes `displayManager` and opens this view; this effect only ever touches `pendingMachineId`, the same
    * "each view strips only its own param" convention every other deep-linkable view follows. If the request was
    * already approved or expired by the time this runs, it's simply never found — same accepted behavior every
@@ -263,6 +270,18 @@ export function DisplayManagerView() {
   /** Writes to `customLabel`, never `label` itself — `label` is this machine's own self-reported name, silently overwritten by its own next heartbeat (see `DisplayMachine`'s own doc comment), so a rename typed here has to live somewhere the heartbeat never touches to actually stick. */
   const handleLabelChange = (machineID: string, customLabel: string) => {
     updateMachine(machineID, (machine) => ({ ...machine, customLabel }))
+  }
+
+  /** Writes this unit's own image-resolution ceiling. Same "lives where the heartbeat can't reach it" reasoning as `handleLabelChange` — see `mergeDisplayMachineHeartbeat` in `server/index.ts`, which carries `maxImagePx` over explicitly. The `<select>` yields strings, so the numeric tiers are parsed back before storing; `'auto'` stays a string. */
+  const handleMaxImagePxChange = (machineID: string, value: string) => {
+    const maxImagePx = (value === 'auto' ? 'auto' : Number(value)) as DisplayMaxImagePx
+    updateMachine(machineID, (machine) => ({ ...machine, maxImagePx }))
+  }
+
+  /** Writes this unit's own CSS layout width. Same "lives where the heartbeat can't reach it" reasoning (and same string-to-number parsing) as `handleMaxImagePxChange` directly above — `mergeDisplayMachineHeartbeat` carries `renderWidthPx` over explicitly too. */
+  const handleRenderWidthPxChange = (machineID: string, value: string) => {
+    const renderWidthPx = (value === 'auto' ? 'auto' : Number(value)) as DisplayRenderWidth
+    updateMachine(machineID, (machine) => ({ ...machine, renderWidthPx }))
   }
 
   const handleAssign = (machineID: string, monitorId: string, screenId: string) => {
@@ -331,8 +350,8 @@ export function DisplayManagerView() {
 
   return (
     <div className="display-manager-view">
+      {/* No Back button: this is a top-level section of its own now, not a sub-view reached from Screens. */}
       <div className="display-manager-view__header">
-        <BackButton onClick={goBack}>{t('admin.common.backTo', { destination: t('admin.screens.title') })}</BackButton>
         <TranslatedText as="h1" id="admin.displayManager.title" />
       </div>
       <TranslatedText as="p" id="admin.displayManager.description" className="admin-page-description" />
@@ -497,6 +516,44 @@ export function DisplayManagerView() {
                   </li>
                 ))}
               </ul>
+
+              <div className="display-manager-view__image-cap">
+                <label className="display-manager-view__image-cap-label" htmlFor={`machine-max-image-${machine.machineID}`}>
+                  {t('admin.displayManager.maxImagePxLabel')}
+                </label>
+                <select
+                  id={`machine-max-image-${machine.machineID}`}
+                  className="display-manager-view__monitor-select"
+                  value={String(machine.maxImagePx ?? 'auto')}
+                  onChange={(event) => handleMaxImagePxChange(machine.machineID, event.target.value)}
+                >
+                  {DISPLAY_MAX_IMAGE_PX_OPTIONS.map((option) => (
+                    <option key={String(option)} value={String(option)}>
+                      {option === 'auto' ? t('admin.displayManager.maxImagePxAuto') : t('admin.displayManager.maxImagePxValue', { px: String(option) })}
+                    </option>
+                  ))}
+                </select>
+                <p className="display-manager-view__image-cap-hint">{t('admin.displayManager.maxImagePxHint')}</p>
+              </div>
+
+              <div className="display-manager-view__image-cap">
+                <label className="display-manager-view__image-cap-label" htmlFor={`machine-render-width-${machine.machineID}`}>
+                  {t('admin.displayManager.renderWidthLabel')}
+                </label>
+                <select
+                  id={`machine-render-width-${machine.machineID}`}
+                  className="display-manager-view__monitor-select"
+                  value={String(machine.renderWidthPx ?? 'auto')}
+                  onChange={(event) => handleRenderWidthPxChange(machine.machineID, event.target.value)}
+                >
+                  {DISPLAY_RENDER_WIDTH_OPTIONS.map((option) => (
+                    <option key={String(option)} value={String(option)}>
+                      {option === 'auto' ? t('admin.displayManager.renderWidthAuto') : t(`admin.displayManager.renderWidth${option}`)}
+                    </option>
+                  ))}
+                </select>
+                <p className="display-manager-view__image-cap-hint">{t('admin.displayManager.renderWidthHint')}</p>
+              </div>
               {machine.connectionType === 'mobile' &&
                 (() => {
                   const override = screenOverrides.find((entry) => entry.machineID === machine.machineID)

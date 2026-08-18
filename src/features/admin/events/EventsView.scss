@@ -7,6 +7,9 @@
 }
 
 .events-view__header {
+  // Capped to match the list below it, so the page's own primary action
+  // lines up with the list's right edge instead of floating past it.
+  max-width: var(--admin-list-max-width);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -14,6 +17,11 @@
 }
 
 .events-view__group {
+  // Capped so a row's name (left) and its action buttons (right) stay within
+  // reading distance of each other. Uncapped, that gap grew with the monitor
+  // — measured at 831px/1471px/2111px on a 1280/1920/2560 display, i.e. a
+  // bigger screen made the list harder to scan, not easier.
+  max-width: var(--admin-list-max-width);
   display: flex;
   flex-direction: column;
   gap: $spacing-unit;

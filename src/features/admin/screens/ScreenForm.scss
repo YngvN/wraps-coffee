@@ -97,6 +97,15 @@
   }
 }
 
+// Visible caption for the ratio chips below it — see `ScreenForm.tsx`'s own
+// note on why this stopped being an `aria-label`.
+.screen-form__layout-picker-label {
+  margin: 0 0 calc($spacing-unit / 2);
+  color: $color-text-muted;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
 .screen-form__layout-picker {
   display: flex;
   gap: $spacing-unit;
@@ -134,6 +143,12 @@
     color: $color-text;
     background: $color-surface;
   }
+}
+
+.screen-form__editor-viewport-custom {
+  display: flex;
+  gap: $spacing-unit;
+  max-width: 20rem;
 }
 
 // A 3x3 "D-pad": one arrow button per direction, in its own compass

@@ -55,7 +55,7 @@ import type { MessageBoard, MessageBoardPost } from '../../../types/messageBoard
 import { NEWS_SOURCES } from '../../../types/news'
 import type { OrderRecord } from '../../../types/order'
 import type { Price, Product } from '../../../types/product'
-import type { ScreenConfig } from '../../../types/screen'
+import type { ScreenConfig, ScreenSlot } from '../../../types/screen'
 import type { ToggleableSidebarItem } from '../../../types/sidebarSettings'
 import type { StoreSettings } from '../../../types/storeSettings'
 import type { AdminRole, DashboardSection } from '../../../types/sync'
@@ -64,6 +64,19 @@ import { copyToClipboard } from '../../../utils/clipboard'
 import { formatDateTime } from '../../../utils/clockFormat'
 import { formatPrice } from '../../../utils/price'
 import { resolveProductCatalogue } from '../../../utils/productCatalogue'
+import { hasOwnTextSizeFields, resolveContentBackgroundImage } from '../../../utils/screenSlots'
+import {
+  effectiveStageCount,
+  getPersistedSlotTextSizes,
+  propagateSlotContentToAllStages,
+  resolveSlotBackgroundColor,
+  resolveSlotBackgroundImage,
+  resolveSlotContent,
+  resolveSlotLanguage,
+  resolveSlotOverflowMode,
+  resolveSlotTextColor,
+  writeStageCheckpoint,
+} from '../../../utils/screenStages'
 import { EventForm } from '../events/EventForm'
 import { NAV_ITEMS } from '../layout/adminNavItems'
 import { AdminRightPanel } from '../layout/AdminRightPanel'
@@ -72,6 +85,7 @@ import { CatalogueForm } from '../products/CatalogueForm'
 import { CategoryForm } from '../products/CategoryForm'
 import { CustomFieldListEditor } from '../products/CustomFieldListEditor'
 import { ProductForm } from '../products/ProductForm'
+import { PaneEditor } from '../../screens/PaneEditor'
 import { ScreenForm } from '../screens/ScreenForm'
 import { LogoListEditor } from '../store/LogoListEditor'
 import { ThemeColorListEditor } from '../store/ThemeColorListEditor'
@@ -99,14 +113,17 @@ import {
   buildOrdersChangeRows,
   buildProductChangeRows,
   buildScreenChangeRows,
+  buildScreenPaneChangeRows,
   buildSettingsChangeRows,
   buildStoreSettingsChangeRows,
   buildThemeChangeRows,
   type DisplayManagerDraft,
   type MediaLibraryDraft,
   type ReviewChangeRow,
+  type ScreenPaneDraft,
   type SettingsDraft,
 } from './reviewChangeRows'
+import { ScreenPanePreview } from './ScreenPanePreview'
 import { type AssistantEntityKey, type AssistantImageMode, formatReplyListAsText, type TranscriptLine, useAssistantFlow } from './useAssistantFlow'
 import './AssistantPanel.scss'
 
@@ -251,6 +268,15 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   // "use the active provider's own default" (full schema + verify for Claude, stripped schema + no
   // verify for local) — `'safe'`/`'full'` force one or the other regardless of provider.
   const [ingestionPosture, setIngestionPosture] = useLocalStorage<AssistantIngestionPosture>('admin.assistantIngestionPosture', 'auto')
+  // Off by default — the highest-blast-radius capability this assistant has (it can change what's
+  // literally showing on a live kiosk display), so an admin never has the AI touching pane content
+  // unless they've explicitly opted in on *this* device. Per-device, never synced — same posture as
+  // every other kebab-menu setting above, not a permission boundary (the real, server-authoritative
+  // gate is still `sessionCanUseEntity`/the `screens` section — see `screenPane.ts`'s own doc comment).
+  // Only ever gates `screenPane`'s own `content`/`applyToAllStages` fields — its `customCss`/
+  // `customHtml` stay available whenever the `screens` section itself is allowed, same as any other
+  // entity's own fields.
+  const [allowPaneContentEditing, setAllowPaneContentEditing] = useLocalStorage<boolean>('admin.assistantAllowPaneContentEditing', false)
   const flow = useAssistantFlow(
     modelOverride ?? undefined,
     chunkSizePreference,
@@ -259,6 +285,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
     providerOverride ?? undefined,
     localModelOverride?.trim() ? localModelOverride : undefined,
     localVisionModelOverride?.trim() ? localVisionModelOverride : undefined,
+    allowPaneContentEditing,
   )
   const [clockFormat, setClockFormat] = useClockFormatPreference()
   const [dateFormat, setDateFormat] = useDateFormatPreference()
@@ -370,6 +397,21 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   // clarification-resolved retry of the same one) always starts back on the gate rather than
   // staying dismissed from whatever the previous draft's own dismissal left behind.
   const [gateDismissed, setGateDismissed] = useState(false)
+  // Local override for the `screenPane` entity's own "Edit" flow — unlike every other entity here
+  // (whose own edit-fallback form commits directly on save), the plan for this one specifically wants
+  // "adjust the slider, land back on the before/after summary for a real final confirm" — so edits
+  // accumulate here instead of committing immediately, and the summary view reads from this when set
+  // instead of the assistant's own original `draft`. Reset alongside `isEditingDraft` below.
+  const [screenPaneEditOverride, setScreenPaneEditOverride] = useState<ScreenPaneDraft | null>(null)
+  // Which stage the "Edit" view's own `StageTabs` currently has selected — `null` until the admin
+  // actually clicks a different tab, defaulting to the assistant's own targeted stage until then (see
+  // where this is consumed, `paneDraft.stage` is the fallback). A top-level hook, not declared inside
+  // the `screenPane` branch itself — this render function has many `if (entity === X)` branches, and
+  // React's rules of hooks require every hook call site to be unconditional.
+  const [screenPaneEditActiveStage, setScreenPaneEditActiveStage] = useState<number | null>(null)
+  // Set when `saveScreenPane` finds a human's own already-staged draft (`stagedBy.source === 'admin'`)
+  // and refuses to overwrite it — cleared on the next attempt/new draft, same reset timing as above.
+  const [screenPaneDraftBlocked, setScreenPaneDraftBlocked] = useState<{ at: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const tracked = useUpload(uploadId)
@@ -391,6 +433,9 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
       setConfirmPhrase('')
       setIsEditingDraft(false)
       setGateDismissed(false)
+      setScreenPaneEditOverride(null)
+      setScreenPaneDraftBlocked(null)
+      setScreenPaneEditActiveStage(null)
     })
   }, [flow.state.status])
 
@@ -621,6 +666,151 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
           <>
             {renderIssues(issues)}
             <ScreenForm screen={screenDraft} onSave={saveScreen} onCancel={flow.cancel} />
+          </>
+        )
+      }
+
+      if (entity === 'screenPane') {
+        const paneDraft = (screenPaneEditOverride ?? (draft as ScreenPaneDraft)) as ScreenPaneDraft
+        const liveScreen = screens.find((existing) => existing.screenID === paneDraft.screen.screenID) ?? null
+        // The "Before" side of the preview/summary — the real live screen, not the draft's own frozen
+        // copy of it (which could itself be stale if something else changed the screen in the
+        // meantime). Falls back to the draft's own screen only if the screen has since been deleted
+        // entirely (rare — `flow.cancel` is really the only sane action then, but this avoids a crash).
+        const currentDraft: ScreenPaneDraft = { screen: liveScreen ?? paneDraft.screen, paneId: paneDraft.paneId, stage: paneDraft.stage }
+
+        const saveScreenPane = (nextDraft: ScreenPaneDraft) => {
+          const target = screens.find((existing) => existing.screenID === nextDraft.screen.screenID)
+          if (!target) return
+          const liveSlot = target.paneSlots[nextDraft.paneId]
+          const nextSlot = nextDraft.screen.paneSlots[nextDraft.paneId]
+          const contentChanged = JSON.stringify(liveSlot?.content ?? {}) !== JSON.stringify(nextSlot.content)
+
+          if (!contentChanged) {
+            // Pure styling (customCss/customHtml/customHtmlPlacement) — writes live directly, the same
+            // commit path any other confirmed entity change already uses.
+            const updatedScreen: ScreenConfig = {
+              ...target,
+              paneSlots: {
+                ...target.paneSlots,
+                [nextDraft.paneId]: { ...liveSlot, customCss: nextSlot.customCss, customHtml: nextSlot.customHtml, customHtmlPlacement: nextSlot.customHtmlPlacement },
+              },
+            }
+            setScreens(screens.map((existing) => (existing.screenID === updatedScreen.screenID ? updatedScreen : existing)))
+            flow.onCommitted()
+            return
+          }
+
+          // Content changed (whether alone, or bundled with a styling change in the same confirmed
+          // message) — the *entire* commit stages into `screen.draft` together, never split, so the
+          // live kiosk display can never end up showing a state matching neither the "Before" nor the
+          // "After" preview the admin actually confirmed.
+          const existingDraft = target.draft
+          if (existingDraft && Object.keys(existingDraft).length > 0 && (existingDraft.stagedBy?.source ?? 'admin') === 'admin') {
+            setScreenPaneDraftBlocked({ at: existingDraft.stagedBy?.at ?? new Date().toISOString() })
+            return
+          }
+          const basePaneSlots = existingDraft?.paneSlots ?? target.paneSlots
+          const updatedScreen: ScreenConfig = {
+            ...target,
+            draft: { ...existingDraft, paneSlots: { ...basePaneSlots, [nextDraft.paneId]: nextSlot }, stagedBy: { source: 'assistant', at: new Date().toISOString() } },
+          }
+          setScreens(screens.map((existing) => (existing.screenID === updatedScreen.screenID ? updatedScreen : existing)))
+          flow.onCommitted()
+        }
+
+        if (!isEditingDraft) {
+          const nextSlot = paneDraft.screen.paneSlots[paneDraft.paneId]
+          const contentChanged = JSON.stringify(currentDraft.screen.paneSlots[paneDraft.paneId]?.content ?? {}) !== JSON.stringify(nextSlot.content)
+          return (
+            <>
+              {renderIssues(issues)}
+              {screenPaneDraftBlocked && (
+                <Alert variant="error">{t('admin.assistant.screenPane.draftBlocked', { date: new Date(screenPaneDraftBlocked.at).toLocaleString() })}</Alert>
+              )}
+              <div className="assistant-panel__pane-preview-row">
+                <ScreenPanePreview
+                  screen={currentDraft.screen}
+                  paneId={currentDraft.paneId}
+                  stage={currentDraft.stage}
+                  scopeId={`${currentDraft.paneId}:before`}
+                  defaultPaneLanguage={defaultPaneLanguage}
+                  label={t('admin.assistant.screenPane.beforeLabel')}
+                />
+                <ScreenPanePreview
+                  screen={paneDraft.screen}
+                  paneId={paneDraft.paneId}
+                  stage={paneDraft.stage}
+                  scopeId={`${paneDraft.paneId}:after`}
+                  defaultPaneLanguage={defaultPaneLanguage}
+                  label={t('admin.assistant.screenPane.afterLabel')}
+                />
+              </div>
+              <p className="assistant-panel__pane-preview-note">{t(contentChanged ? 'admin.assistant.screenPane.willStageNote' : 'admin.assistant.screenPane.willApplyLiveNote')}</p>
+              <AssistantReviewSummary
+                rows={buildScreenPaneChangeRows(t, currentDraft, paneDraft)}
+                onConfirm={() => saveScreenPane(paneDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
+
+        const editSlot = paneDraft.screen.paneSlots[paneDraft.paneId]
+        const editStageCount = effectiveStageCount(paneDraft.screen)
+        const editStage = screenPaneEditActiveStage ?? paneDraft.stage
+        const updateEditSlot = (updater: (slot: ScreenSlot) => ScreenSlot) => {
+          const nextSlot = updater(editSlot)
+          const nextScreen: ScreenConfig = { ...paneDraft.screen, paneSlots: { ...paneDraft.screen.paneSlots, [paneDraft.paneId]: nextSlot } }
+          setScreenPaneEditOverride({ ...paneDraft, screen: nextScreen })
+        }
+        return (
+          <>
+            {renderIssues(issues)}
+            <PaneEditor
+              id={paneDraft.paneId}
+              content={resolveSlotContent(editSlot, editStage)}
+              onContentChange={(content) => updateEditSlot((slot) => ({ ...slot, content: writeStageCheckpoint(slot.content, editStage, content) }))}
+              backgroundColor={resolveSlotBackgroundColor(editSlot, editStage)}
+              onBackgroundColorChange={(color) => updateEditSlot((slot) => ({ ...slot, backgroundColor: writeStageCheckpoint(slot.backgroundColor, editStage, color) }))}
+              textColor={resolveSlotTextColor(editSlot, editStage)}
+              onTextColorChange={(color) => updateEditSlot((slot) => ({ ...slot, textColor: writeStageCheckpoint(slot.textColor, editStage, color) }))}
+              backgroundImage={resolveContentBackgroundImage(resolveSlotContent(editSlot, editStage), resolveSlotBackgroundImage(editSlot, editStage))}
+              onBackgroundImageChange={(image) => updateEditSlot((slot) => ({ ...slot, backgroundImage: writeStageCheckpoint(slot.backgroundImage, editStage, image) }))}
+              textSizes={getPersistedSlotTextSizes(paneDraft.screen, paneDraft.paneId, editStage)}
+              onTextSizesChange={(sizes) =>
+                updateEditSlot((slot) => {
+                  if (!(Boolean(paneDraft.screen.useStages) && editStageCount > 1)) return { ...slot, textSizes: writeStageCheckpoint(slot.textSizes, editStage, sizes) }
+                  const currentContent = resolveSlotContent(slot, editStage)
+                  if (!hasOwnTextSizeFields(currentContent)) return slot
+                  return { ...slot, content: writeStageCheckpoint(slot.content, editStage, { ...currentContent, textSizes: sizes }) }
+                })
+              }
+              overflowMode={resolveSlotOverflowMode(editSlot, editStage)}
+              onOverflowModeChange={(mode) => updateEditSlot((slot) => ({ ...slot, overflowMode: writeStageCheckpoint(slot.overflowMode, editStage, mode) }))}
+              language={resolveSlotLanguage(editSlot, editStage)}
+              onLanguageChange={(nextLanguage) => updateEditSlot((slot) => ({ ...slot, language: writeStageCheckpoint(slot.language, editStage, nextLanguage) }))}
+              defaultLanguage={defaultPaneLanguage}
+              useStages={Boolean(paneDraft.screen.useStages)}
+              stageCount={editStageCount}
+              activeStage={editStage}
+              onActiveStageChange={setScreenPaneEditActiveStage}
+              customCss={editSlot.customCss}
+              onCustomCssChange={(css) => updateEditSlot((slot) => ({ ...slot, customCss: css }))}
+              customHtml={editSlot.customHtml}
+              onCustomHtmlChange={(html) => updateEditSlot((slot) => ({ ...slot, customHtml: html }))}
+              customHtmlPlacement={editSlot.customHtmlPlacement}
+              onCustomHtmlPlacementChange={(placement) => updateEditSlot((slot) => ({ ...slot, customHtmlPlacement: placement }))}
+              onApplyContentToEveryStage={() => updateEditSlot((slot) => propagateSlotContentToAllStages(slot, editStage, editStageCount))}
+              label={t('admin.assistant.screenPane.editingLabel')}
+              suggestedEventOrdinal={1}
+            />
+            <div className="assistant-panel__pane-edit-actions">
+              <Button type="button" onClick={() => setIsEditingDraft(false)}>
+                {t('admin.common.done')}
+              </Button>
+            </div>
           </>
         )
       }
@@ -1050,12 +1240,26 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
           monitorLabel: displayDraft.monitorLabel,
           machineLabel: currentMachine?.customLabel ?? currentMachine?.label ?? displayDraft.machineLabel,
           assignedScreenID: currentMonitor?.assignedScreenID ?? null,
+          // Both machine-level settings belong in `currentDraft` so the review's own before/after rows
+          // compare against what is actually stored. Omitting them (as this did for `maxImagePx`
+          // before 2026-08-18) made every review claim the current value was the `'auto'` default.
+          maxImagePx: currentMachine?.maxImagePx ?? 'auto',
+          renderWidthPx: currentMachine?.renderWidthPx ?? 'auto',
         }
         const saveDisplayManager = (next: DisplayManagerDraft) => {
           setDisplayMachines(
             displayMachines.map((machine) =>
               machine.machineID === next.machineID
-                ? { ...machine, customLabel: next.machineLabel, monitors: machine.monitors.map((monitor) => (monitor.id === next.monitorId ? { ...monitor, assignedScreenID: next.assignedScreenID } : monitor)) }
+                ? {
+                    ...machine,
+                    customLabel: next.machineLabel,
+                    // Persisted alongside the rename/assignment — without these the entity's own
+                    // `mergeDraft` result for them was shown in the review and then silently dropped
+                    // on confirm (a real bug for `maxImagePx` before 2026-08-18, fixed here).
+                    maxImagePx: next.maxImagePx,
+                    renderWidthPx: next.renderWidthPx,
+                    monitors: machine.monitors.map((monitor) => (monitor.id === next.monitorId ? { ...monitor, assignedScreenID: next.assignedScreenID } : monitor)),
+                  }
                 : machine,
             ),
           )
@@ -1658,6 +1862,18 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                     ))}
                   </select>
                 </div>
+
+                <div className="assistant-panel__log-entry-header">
+                  <span className="assistant-panel__log-title">{t('admin.assistant.allowPaneContentEditingTitle')}</span>
+                </div>
+                <p className="assistant-panel__model-menu-description">{t('admin.assistant.allowPaneContentEditingDescription')}</p>
+                <Checkbox
+                  id="assistant-allow-pane-content-editing"
+                  label={t('admin.assistant.allowPaneContentEditingLabel')}
+                  checked={allowPaneContentEditing}
+                  onChange={(event) => setAllowPaneContentEditing(event.target.checked)}
+                />
+
                 {session?.role === 'admin' && (
                   <>
                     <div className="assistant-panel__log-entry-header">

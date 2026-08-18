@@ -1,3 +1,4 @@
+@use '../../../styles/mixins' as *;
 @use '../../../styles/variables' as *;
 
 .custom-field-list-editor__label {
@@ -25,8 +26,7 @@
   flex-direction: column;
   gap: calc($spacing-unit / 2);
   padding: $spacing-unit;
-  border: 1px solid $color-border;
-  border-radius: 8px;
+  @include surface('sunken');
 }
 
 .custom-field-list-editor__row {

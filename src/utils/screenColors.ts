@@ -1,7 +1,7 @@
 import type { BackgroundImageOverlay } from '../types/screen'
 
 /** Parses a "#rrggbb" hex color into 0-255 [r, g, b] components. */
-function hexToRgb(hex: string): [number, number, number] {
+export function hexToRgb(hex: string): [number, number, number] {
   const value = parseInt(hex.replace('#', ''), 16)
   return [(value >> 16) & 255, (value >> 8) & 255, value & 255]
 }
@@ -13,6 +13,12 @@ function relativeLuminance([r, g, b]: [number, number, number]): number {
     return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
   }
   return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+}
+
+/** Picks a readable black or white text color for a given hex background, by the same WCAG-luminance threshold `getScreenColorVars` uses. */
+export function getContrastTextColor(backgroundHex: string): string {
+  const isLight = relativeLuminance(hexToRgb(backgroundHex)) > 0.4
+  return isLight ? '#111111' : '#f5f5f5'
 }
 
 /**
@@ -44,6 +50,19 @@ export function getScreenColorVars(backgroundHex: string): Record<string, string
 export function slotBackgroundColorStyle(backgroundColor: string | undefined): Record<string, string> {
   if (!backgroundColor) return {}
   return { ...getScreenColorVars(backgroundColor), background: 'var(--screen-bg)' }
+}
+
+/**
+ * Overrides `--screen-text`/`--screen-text-muted` (normally an automatic
+ * contrast-based color, see `getScreenColorVars`) with a pane's own fixed
+ * text color — `undefined` leaves the automatic one in place. Applied after
+ * `slotBackgroundColorStyle`/`backgroundImageTextStyle` so an explicit
+ * override always wins over the derived default.
+ */
+export function slotTextColorStyle(textColor: string | undefined): Record<string, string> {
+  if (!textColor) return {}
+  const [r, g, b] = hexToRgb(textColor)
+  return { '--screen-text': textColor, '--screen-text-muted': `rgba(${r}, ${g}, ${b}, 0.7)`, color: 'var(--screen-text)' }
 }
 
 /** Overrides `--screen-border` (normally an automatic contrast-based color, see `getScreenColorVars`) with a fixed color — `undefined` leaves the automatic one in place. */

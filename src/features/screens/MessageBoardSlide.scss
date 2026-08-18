@@ -3,7 +3,7 @@
 
 .message-board-slide {
   height: 100%;
-  padding: $spacing-unit * 6;
+  padding: var(--pane-padding, $spacing-unit * 6);
   overflow-y: hidden;
   overflow-x: hidden;
 

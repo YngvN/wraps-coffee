@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Button, ChevronRightIcon, EditDeleteButtons, Modal, SlideTransition, TranslatedText } from '../../../components'
 import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useCatalogues } from '../../../hooks/useCatalogues'
+import { useDisplayName } from '../../../hooks/useDisplayName'
 import { useRecentlyOpened } from '../../../hooks/useRecentlyOpened'
 import { useLanguage } from '../../../i18n'
 import type { Catalogue } from '../../../types/category'
@@ -14,7 +15,8 @@ import './ProductsView.scss'
 
 /** Admin view for the Products hierarchy: catalogues (e.g. "Food menu", a separate "Merch" catalogue for non-food items) → each catalogue's own categories, each expandable inline to show (and drag-and-drop reorganize) its own products — see `CategoriesView`, which owns that whole board; there's no separate per-category page anymore. Edits show up live on the kiosk display. */
 export function ProductsView() {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
+  const displayName = useDisplayName()
   const [catalogues, setCatalogues] = useCatalogues()
   const { record: recordRecentlyOpened } = useRecentlyOpened()
   const [editingCatalogue, setEditingCatalogue] = useState<Catalogue | null | undefined>(undefined)
@@ -59,7 +61,7 @@ export function ProductsView() {
       setOpenCatalogueId(catalogue.id)
       if (category) {
         setPendingCategoryId(category.id)
-        recordRecentlyOpened('category', category.id, category.name[language])
+        recordRecentlyOpened('category', category.id, displayName(category.name))
       } else if (wantsAllProducts) {
         setShowAllProducts(true)
       }
@@ -72,7 +74,7 @@ export function ProductsView() {
       current.delete('productId')
       return current
     })
-  }, [catalogues, searchParams, setSearchParams, language, recordRecentlyOpened])
+  }, [catalogues, searchParams, setSearchParams, displayName, recordRecentlyOpened])
 
   const isFormOpen = editingCatalogue !== undefined
   const closeForm = () => setEditingCatalogue(undefined)
@@ -163,7 +165,7 @@ export function ProductsView() {
                       transition={{ duration: 0.15 }}
                     >
                       <button type="button" className="products-view__item-open" onClick={() => handleOpenCatalogue(catalogue.id)}>
-                        <span className="products-view__item-name">{catalogue.name[language]}</span>
+                        <span className="products-view__item-name">{displayName(catalogue.name)}</span>
                         <ChevronRightIcon />
                       </button>
                       <div className="products-view__item-actions">

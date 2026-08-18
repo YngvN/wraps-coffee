@@ -1,3 +1,4 @@
+@use '../../../styles/mixins' as *;
 @use '../../../styles/variables' as *;
 
 .appearance-settings-view {
@@ -28,8 +29,7 @@
   flex-direction: column;
   gap: $spacing-unit;
   padding: $spacing-unit * 1.5;
-  border: 1px solid $color-border;
-  border-radius: 8px;
+  @include surface('raised');
   background: $color-bg;
 }
 
@@ -112,8 +112,7 @@
   flex-direction: column;
   gap: calc($spacing-unit / 4);
   padding: $spacing-unit;
-  border: 1px solid $color-border;
-  border-radius: 8px;
+  @include surface('sunken');
   overflow: hidden;
 }
 

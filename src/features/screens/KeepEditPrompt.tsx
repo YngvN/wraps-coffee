@@ -8,10 +8,14 @@ export interface SlotEditChanges {
   textSizes: boolean
   backgroundColor: boolean
   backgroundImage: boolean
+  /** Whether a pane's own text color override changed. */
+  textColor: boolean
   /** Whether a pane's own language override changed. */
   language: boolean
   /** Whether a pane divider was dragged to a new position — set outside of any slot editor session, since resizing happens directly on the live view (see `ScreenDisplay`'s resize fallback prompt). */
   layout: boolean
+  /** Whether `customCss`/`customHtml`/`customHtmlPlacement` changed — purely informational here, unlike every field above: these are single values across every stage (not per-stage checkpoints, see `ScreenSlot`'s own doc comment), so `onKeepForNextSteps`'s own "also overwrite every later stage" doesn't apply to them at all — they're already the same everywhere by construction. */
+  customContent: boolean
 }
 
 interface KeepEditPromptProps {
@@ -40,8 +44,10 @@ export function KeepEditPrompt({ changes, onKeepHere, onKeepForNextSteps, onRemo
     changes.textSizes && t('screenDisplay.keepEditPrompt.summaryTextSize'),
     changes.backgroundColor && t('screenDisplay.keepEditPrompt.summaryBackgroundColor'),
     changes.backgroundImage && t('screenDisplay.keepEditPrompt.summaryBackgroundImage'),
+    changes.textColor && t('screenDisplay.keepEditPrompt.summaryTextColor'),
     changes.language && t('screenDisplay.keepEditPrompt.summaryLanguage'),
     changes.layout && t('screenDisplay.keepEditPrompt.summaryLayout'),
+    changes.customContent && t('screenDisplay.keepEditPrompt.summaryCustomContent'),
   ].filter((item): item is string => Boolean(item))
 
   return (

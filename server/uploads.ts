@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, statfsSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, statfsSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { basename, dirname, extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -18,13 +18,22 @@ mkdirSync(UPLOADS_DIR, { recursive: true })
 export const VIDEO_PENDING_DIR = join(UPLOADS_DIR, '.pending')
 mkdirSync(VIDEO_PENDING_DIR, { recursive: true })
 
-const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
-const CONTENT_TYPE_TO_EXT: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/gif': 'gif',
+/**
+ * `sharp`'s own decoded-format string for every format that's already safe to store and serve
+ * as-is (every browser's own `<img>` can render it) — anything `sharp` can decode that *isn't* in
+ * this map (HEIC/HEIF, TIFF, AVIF, ...) still gets accepted, just converted to JPEG first, see
+ * `handleUpload`. Kept as a format→ext map (rather than reusing the old Content-Type allowlist)
+ * because the format is now sniffed from the file's own bytes, not trusted from the browser-supplied
+ * `Content-Type` header — iOS WebKit routinely sends an unreliable header (an empty `file.type` on
+ * the client becomes a generic `application/octet-stream` on the wire) for Photo Library assets.
+ */
+const SHARP_FORMAT_TO_EXT: Record<string, string> = {
+  jpeg: 'jpg',
+  png: 'png',
+  webp: 'webp',
+  gif: 'gif',
 }
 
 const EXT_TO_CONTENT_TYPE: Record<string, string> = {
@@ -47,75 +56,189 @@ async function readBody(req: IncomingMessage, maxBytes: number): Promise<Buffer>
   return Buffer.concat(chunks)
 }
 
-/** The filename's stem without its extension — used to derive `<stem>-small.webp`/`<stem>-thumb.webp` companion filenames. */
-function stemOf(filename: string): string {
+/** The filename's stem without its extension — used to derive `<stem>-small.webp`/`<stem>-thumb.webp` companion filenames. Exported for `screensSnapshots.ts`'s own lazy-pinning hook, which needs to locate an original's existing variant files on disk. */
+export function stemOf(filename: string): string {
   const ext = extname(filename)
   return ext ? filename.slice(0, -ext.length) : filename
 }
 
 /**
- * Saves the uploaded original, then generates three compressed WebP
- * companions alongside it (`-small` for mobile/slow-connection viewers,
- * `-thumb` for small-image contexts like the Image Library grid, `-blur`
- * pre-blurred and downsized for a pane's own blurred backdrop — see
- * "Responsive image variants" in the sync-server plan. A compression
- * failure (e.g. a corrupt image) still leaves the original saved and
- * usable, just without the smaller variants.
+ * Every size suffix `handleUpload` generates a `.webp` companion for, and the single list all three
+ * consumers derive from: `handleServeUpload`'s own `?size=` allowlist, `deleteUploadFiles` (so a
+ * delete never leaves an orphaned derivative behind), and `listUploads` (so a derivative is never
+ * listed as if it were an upload of its own).
+ *
+ * Kept as one exported constant specifically because those three used to spell the suffixes out
+ * separately — adding a size meant remembering all three, and missing one fails quietly rather than
+ * loudly (an orphan on disk, or a phantom entry in the Media Library).
  */
-export async function handleUpload(req: IncomingMessage, res: ServerResponse, host: string) {
-  const contentType = req.headers['content-type'] ?? ''
-  const ext = CONTENT_TYPE_TO_EXT[contentType]
-  if (!ext) {
-    sendJson(res, 415, { error: 'Unsupported content type — expected an image/* upload' })
-    return
-  }
+export const UPLOAD_VARIANT_SUFFIXES = ['small', 'thumb', 'blur', 'medium', 'tiny'] as const
 
+/**
+ * Filename prefix marking an upload as an auto-captured screen preview
+ * (`ScreenConfig.previewImages`, see `src/features/screens/screenPreviewCapture.ts`)
+ * rather than media anyone chose to add. `listUploads` hides these from the
+ * browsable library.
+ *
+ * A *filename* marker rather than a lookup against the live screens array,
+ * because the two fail differently: once a screen is deleted, its previews are
+ * no longer referenced by anything, so a reference-based check would let them
+ * reappear in the Media Library as ordinary images right when they've become
+ * pure garbage. The prefix survives that. (A reference-based check still runs
+ * alongside this one — see `collectScreenPreviewFilenames` — to cover previews
+ * captured before this prefix existed.)
+ *
+ * Part of the stem, so `stemOf`/`variantFilenames`/`isVariantFilename` all keep
+ * working unchanged: a preview's own `-thumb.webp` companion is named from the
+ * prefixed stem and is filtered as a variant exactly like any other.
+ */
+export const SCREEN_PREVIEW_FILENAME_PREFIX = 'screen-preview-'
+
+/** Every derivative filename for an upload's own stem, e.g. `<stem>-small.webp`. */
+function variantFilenames(stem: string): string[] {
+  return UPLOAD_VARIANT_SUFFIXES.map((suffix) => `${stem}-${suffix}.webp`)
+}
+
+/** Whether `name` is one of an upload's generated derivatives rather than an original. */
+function isVariantFilename(name: string): boolean {
+  return UPLOAD_VARIANT_SUFFIXES.some((suffix) => name.endsWith(`-${suffix}.webp`))
+}
+
+/**
+ * Saves the uploaded original, then generates a compressed WebP companion at each width in
+ * `UPLOAD_VARIANT_SUFFIXES` alongside it: `-thumb` (240px) for small-image contexts like the Image
+ * Library grid, `-tiny` (480px) for a display explicitly capped to the lowest tier, `-small` (800px)
+ * for narrow viewports and small live previews, `-medium` (1600px) for a full-bleed pane on a 1080p
+ * or larger display, and `-blur` (480px, pre-blurred) for a pane's own blurred backdrop — see
+ * "Responsive image variants" in the sync-server plan. A compression failure (e.g. a corrupt image)
+ * still leaves the original saved and usable, just without the smaller variants.
+ *
+ * The original is deliberately stored at its native resolution with no dimension cap (only
+ * `MAX_UPLOAD_BYTES` bounds it), so it stays the archival source every derivative can be regenerated
+ * from. Protecting a weak display from an oversized decode is the *serving* side's job — see
+ * `pickImageVariant` and `DisplayMachine.maxImagePx`.
+ */
+export async function handleUpload(req: IncomingMessage, res: ServerResponse, host: string, isScreenPreview = false) {
   let buffer: Buffer
   try {
     buffer = await readBody(req, MAX_UPLOAD_BYTES)
   } catch {
-    sendJson(res, 413, { error: 'File too large (10MB limit)' })
+    sendJson(res, 413, { error: 'File too large (25MB limit)' })
     return
   }
 
+  // Sniffed from the file's own bytes rather than trusted from the `Content-Type` header — see
+  // `SHARP_FORMAT_TO_EXT`'s own doc comment for why the header alone isn't reliable enough here.
+  let format: string | undefined
+  try {
+    format = (await sharp(buffer).metadata()).format
+  } catch {
+    // Not decodable as an image at all.
+  }
+  if (!format) {
+    sendJson(res, 415, { error: 'Unsupported file — expected a decodable image' })
+    return
+  }
+  let ext = SHARP_FORMAT_TO_EXT[format]
+  if (!ext) {
+    // A real image `sharp` can read but that isn't safe to store/serve as-is (HEIC/HEIF, TIFF,
+    // AVIF, ...) — re-encode it to a JPEG every browser can render directly.
+    try {
+      buffer = await sharp(buffer).jpeg({ quality: 90 }).toBuffer()
+    } catch {
+      sendJson(res, 415, { error: 'Unsupported file — expected a decodable image' })
+      return
+    }
+    ext = 'jpg'
+  }
+
   const id = randomUUID()
-  const filename = `${id}.${ext}`
+  const filename = `${isScreenPreview ? SCREEN_PREVIEW_FILENAME_PREFIX : ''}${id}.${ext}`
   const originalPath = join(UPLOADS_DIR, filename)
   writeFileSync(originalPath, buffer)
   mirrorFile(originalPath)
 
-  try {
-    const small = await sharp(buffer).resize({ width: 800, withoutEnlargement: true }).webp({ quality: 70 }).toBuffer()
-    const smallPath = join(UPLOADS_DIR, `${id}-small.webp`)
-    writeFileSync(smallPath, small)
-    mirrorFile(smallPath)
-    const thumb = await sharp(buffer).resize({ width: 240, withoutEnlargement: true }).webp({ quality: 50 }).toBuffer()
-    const thumbPath = join(UPLOADS_DIR, `${id}-thumb.webp`)
-    writeFileSync(thumbPath, thumb)
-    mirrorFile(thumbPath)
-    // Downsized before blurring — blurred content has no fine detail to lose,
-    // so this is both a faster sharp pass and a much smaller file than
-    // blurring the full-resolution original live in the browser every frame.
-    const blurred = await sharp(buffer).resize({ width: 480, withoutEnlargement: true }).blur(20).webp({ quality: 60 }).toBuffer()
-    const blurPath = join(UPLOADS_DIR, `${id}-blur.webp`)
-    writeFileSync(blurPath, blurred)
-    mirrorFile(blurPath)
-  } catch (error) {
-    console.error('[uploads] compression failed, original still saved:', error)
+  // Every size comes from the one shared `VARIANT_RECIPES` table, so a variant generated here and the
+  // same variant generated later on demand (`generateMissingVariant`) can never end up at different
+  // widths or qualities.
+  for (const suffix of UPLOAD_VARIANT_SUFFIXES) {
+    try {
+      const variantPath = join(UPLOADS_DIR, `${id}-${suffix}.webp`)
+      writeFileSync(variantPath, await VARIANT_RECIPES[suffix](sharp(buffer)).toBuffer())
+      mirrorFile(variantPath)
+    } catch (error) {
+      // Per-variant rather than one try around all of them: a failure on one size shouldn't cost the
+      // others. Any that fail here are regenerated on first request anyway.
+      console.error(`[uploads] ${suffix} compression failed, original still saved:`, error)
+    }
   }
 
   console.log(`[uploads] saved ${filename} (${buffer.length} bytes)`)
   sendJson(res, 201, { url: `http://${host}/uploads/${filename}` })
 }
 
-/** Serves the original, or (with `?size=small|thumb|blur`) its compressed companion if one exists — falls back to the original if the requested variant is missing (e.g. an upload saved before that variant existed). */
-export function handleServeUpload(res: ServerResponse, requestedFilename: string, size: string | null) {
+/** The sharp pipeline behind each variant suffix — the single definition `handleUpload` and the lazy backfill in `handleServeUpload` both use, so a size can never be generated at one width on upload and a different one on demand. */
+const VARIANT_RECIPES: Record<(typeof UPLOAD_VARIANT_SUFFIXES)[number], (input: sharp.Sharp) => sharp.Sharp> = {
+  thumb: (input) => input.resize({ width: 240, withoutEnlargement: true }).webp({ quality: 50 }),
+  tiny: (input) => input.resize({ width: 480, withoutEnlargement: true }).webp({ quality: 60 }),
+  small: (input) => input.resize({ width: 800, withoutEnlargement: true }).webp({ quality: 70 }),
+  medium: (input) => input.resize({ width: 1600, withoutEnlargement: true }).webp({ quality: 75 }),
+  // Downsized before blurring — blurred content has no fine detail to lose, so this is both a faster
+  // sharp pass and a much smaller file than blurring the full-resolution original in the browser.
+  blur: (input) => input.resize({ width: 480, withoutEnlargement: true }).blur(20).webp({ quality: 60 }),
+}
+
+/**
+ * Generates one missing variant from an upload's own original, on demand, and caches it to disk.
+ *
+ * Exists because variants are otherwise only ever written at upload time, so adding a new size to
+ * `UPLOAD_VARIANT_SUFFIXES` would apply to *future* uploads only — every image already in the library
+ * would silently keep falling back to its full-size original, and any feature built on the new size
+ * (a display's own `maxImagePx` cap, rendered-size variant picking) would do nothing at all on real
+ * existing data. Doing it here rather than as a one-off migration means it also self-heals a variant
+ * lost to a failed `sharp` pass at upload time, or to a partial backup restore.
+ *
+ * Best-effort and non-fatal: a failure returns `undefined` and the caller serves the original, which
+ * is exactly the pre-existing behaviour. Returns the generated filename on success.
+ */
+async function generateMissingVariant(originalName: string, size: (typeof UPLOAD_VARIANT_SUFFIXES)[number]): Promise<string | undefined> {
+  const originalPath = join(UPLOADS_DIR, originalName)
+  // Videos share this directory and are served through the same route; only images have variants.
+  if (!existsSync(originalPath) || extname(originalName).slice(1) === 'mp4') return undefined
+  try {
+    const variantName = `${stemOf(originalName)}-${size}.webp`
+    const variantPath = join(UPLOADS_DIR, variantName)
+    const output = await VARIANT_RECIPES[size](sharp(readFileSync(originalPath))).toBuffer()
+    writeFileSync(variantPath, output)
+    mirrorFile(variantPath)
+    console.log(`[uploads] generated missing ${size} variant for ${originalName}`)
+    return variantName
+  } catch (error) {
+    console.error(`[uploads] could not generate ${size} variant for ${originalName}:`, error)
+    return undefined
+  }
+}
+
+/**
+ * Serves the original, or (with `?size=tiny|thumb|small|medium|blur`, see `UPLOAD_VARIANT_SUFFIXES`)
+ * its compressed companion — generating that companion on first request if it doesn't exist yet (see
+ * `generateMissingVariant`), and falling back to the original if it can't be produced at all.
+ *
+ * Honors a `Range` request header with a real `206 Partial Content` response when present — required
+ * for `<video>` playback on iOS WebKit (Safari, and Firefox-on-iOS since it's WKWebView-based too),
+ * which refuses to play any video from a server that only ever returns a full `200` response, with no
+ * visible error. A plain request (no `Range` header, the common case for an `<img>`) still gets the
+ * previous full-file `200` response, just now advertising `Accept-Ranges` up front.
+ */
+export async function handleServeUpload(req: IncomingMessage, res: ServerResponse, requestedFilename: string, size: string | null) {
   const safeName = basename(requestedFilename)
   let targetName = safeName
 
-  if (size === 'small' || size === 'thumb' || size === 'blur') {
-    const variantName = `${stemOf(safeName)}-${size}.webp`
+  if (size !== null && (UPLOAD_VARIANT_SUFFIXES as readonly string[]).includes(size)) {
+    const variantSize = size as (typeof UPLOAD_VARIANT_SUFFIXES)[number]
+    const variantName = `${stemOf(safeName)}-${variantSize}.webp`
     if (existsSync(join(UPLOADS_DIR, variantName))) targetName = variantName
+    else targetName = (await generateMissingVariant(safeName, variantSize)) ?? safeName
   }
 
   const filePath = join(UPLOADS_DIR, targetName)
@@ -125,26 +248,77 @@ export function handleServeUpload(res: ServerResponse, requestedFilename: string
   }
 
   const ext = extname(targetName).slice(1)
+  const contentType = EXT_TO_CONTENT_TYPE[ext] ?? 'application/octet-stream'
+  // Safe because every filename is unique-per-upload and never mutated in
+  // place — a replace always creates a new file and deletes the old.
+  const cacheControl = 'public, max-age=31536000, immutable'
+  const fileSize = statSync(filePath).size
+
+  const rangeHeader = req.headers.range
+  const rangeMatch = rangeHeader?.match(/^bytes=(\d*)-(\d*)$/)
+  if (rangeMatch) {
+    const start = rangeMatch[1] ? Number(rangeMatch[1]) : 0
+    const end = rangeMatch[2] ? Number(rangeMatch[2]) : fileSize - 1
+    if (start >= fileSize || end >= fileSize || start > end) {
+      res.writeHead(416, { 'Content-Range': `bytes */${fileSize}`, ...CORS_HEADERS })
+      res.end()
+      return
+    }
+    res.writeHead(206, {
+      'Content-Type': contentType,
+      'Content-Length': end - start + 1,
+      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': cacheControl,
+      ...CORS_HEADERS,
+    })
+    createReadStream(filePath, { start, end }).pipe(res)
+    return
+  }
+
   res.writeHead(200, {
-    'Content-Type': EXT_TO_CONTENT_TYPE[ext] ?? 'application/octet-stream',
-    // Safe because every filename is unique-per-upload and never mutated in
-    // place — a replace always creates a new file and deletes the old.
-    'Cache-Control': 'public, max-age=31536000, immutable',
+    'Content-Type': contentType,
+    'Content-Length': fileSize,
+    'Accept-Ranges': 'bytes',
+    'Cache-Control': cacheControl,
     ...CORS_HEADERS,
   })
   res.end(readFileSync(filePath))
 }
 
-/** Removes the original and all of its `-small`/`-thumb`/`-blur` companions and status/name markers, if present, plus (for a video whose transcode never finished) its still-staged source. Idempotent — always succeeds even if nothing existed. Shared by `handleDeleteUpload` (the Media Library's own manual delete) and `server/storageCleanup.ts` (the admin-confirmed orphaned-image sweep), so both go through the exact same on-disk + backup-mirroring behavior. */
+/**
+ * Callbacks invoked with an original upload's own filename right before
+ * `deleteUploadFiles` unlinks anything, while every one of its files (the
+ * original + every generated variant) is still intact on disk. Registered
+ * via `registerBeforeUploadDeleteHook` rather than a static import of
+ * whichever module needs this — `screensSnapshots.ts` is the one real user
+ * today (lazily pinning an image into any retained snapshot that still
+ * references it, see that file's own `pinIfSnapshotReferenced`), and it
+ * already needs to import this module's own `UPLOADS_DIR`/`stemOf`/
+ * `UPLOAD_VARIANT_SUFFIXES` for that; a static import back from here to
+ * there would be circular (this codebase deliberately avoids that pattern —
+ * see `backup.ts`'s own module doc comment for the same reasoning applied
+ * to `store.ts`/`uploads.ts`).
+ */
+type BeforeUploadDeleteHook = (originalFilename: string) => void
+const beforeUploadDeleteHooks: BeforeUploadDeleteHook[] = []
+
+export function registerBeforeUploadDeleteHook(hook: BeforeUploadDeleteHook) {
+  beforeUploadDeleteHooks.push(hook)
+}
+
+/** Removes the original and all of its generated size companions (see `UPLOAD_VARIANT_SUFFIXES`) and status/name markers, if present, plus (for a video whose transcode never finished) its still-staged source. Idempotent — always succeeds even if nothing existed. Shared by `handleDeleteUpload` (the Media Library's own manual delete) and `server/storageCleanup.ts` (the admin-confirmed orphaned-image sweep), so both go through the exact same on-disk + backup-mirroring behavior — and, via the hooks above, the same lazy-pinning check, regardless of which caller triggered the delete. */
 export function deleteUploadFiles(requestedFilename: string) {
   const safeName = basename(requestedFilename)
   const stem = stemOf(safeName)
 
+  // Run before anything is unlinked — a hook needs every file (original +
+  // variants) still present to actually pin a copy of them.
+  for (const hook of beforeUploadDeleteHooks) hook(safeName)
+
   for (const name of [
     safeName,
-    `${stem}-small.webp`,
-    `${stem}-thumb.webp`,
-    `${stem}-blur.webp`,
+    ...variantFilenames(stem),
     `${safeName}.processing`,
     `${safeName}.error`,
     `${safeName}.name`,
@@ -199,12 +373,28 @@ function readDisplayName(filename: string): string | undefined {
   return existsSync(namePath) ? readFileSync(namePath, 'utf-8') : undefined
 }
 
-/** Lists every original upload (excluding `-small`/`-thumb`/`-blur` companions and status/name marker files, so each upload appears once), newest first. */
-export function listUploads(host: string): UploadListEntry[] {
+/**
+ * Lists every original upload (excluding generated size companions, see
+ * `UPLOAD_VARIANT_SUFFIXES`, and status/name marker files, so each upload
+ * appears once), newest first.
+ *
+ * Pass `hideScreenPreviews` to drop the auto-captured screen previews the
+ * *browsable* library shouldn't offer — by prefix
+ * (`SCREEN_PREVIEW_FILENAME_PREFIX`) plus `legacyFilenames` for previews
+ * captured before that prefix existed (see `collectScreenPreviewFilenames`).
+ *
+ * Omitting it lists everything, deliberately: `storageCleanup.ts`'s orphan
+ * sweep calls this to decide what's deletable, so hiding previews from it by
+ * default would make a whole category of upload permanently un-sweepable —
+ * precisely the files most likely to become garbage, since a deleted screen
+ * orphans every preview it had.
+ */
+export function listUploads(host: string, hideScreenPreviews?: { legacyFilenames: ReadonlySet<string> }): UploadListEntry[] {
   const files = readdirSync(UPLOADS_DIR).filter((name) => {
     if (name === '.gitkeep' || name === '.pending') return false
-    if (name.endsWith('-small.webp') || name.endsWith('-thumb.webp') || name.endsWith('-blur.webp')) return false
+    if (isVariantFilename(name)) return false
     if (name.endsWith('.processing') || name.endsWith('.error') || name.endsWith('.name')) return false
+    if (hideScreenPreviews && (name.startsWith(SCREEN_PREVIEW_FILENAME_PREFIX) || hideScreenPreviews.legacyFilenames.has(name))) return false
     return true
   })
 

@@ -1,11 +1,15 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FetchedLogo } from '../../components'
 import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
+import { useFitItemCount } from '../../hooks/useFitItemCount'
 import { useTransitDepartures } from '../../hooks/useTransitDepartures'
 import { useLanguage } from '../../i18n'
-import { DEFAULT_TRANSIT_DEPARTURE_COUNT, type TransitIconPack } from '../../types/screen'
+import { DEFAULT_TRANSIT_DEPARTURE_COUNT, DEFAULT_TRANSIT_DEPARTURE_MODE, type TransitDepartureMode, type TransitIconPack } from '../../types/screen'
 import type { DepartureInfo } from '../../types/integrations'
+import { getAutoLineColor } from '../../utils/transitLineColors'
+import { getContrastTextColor } from '../../utils/screenColors'
+import { SLIDE_LAYOUT_FADE_VARIANTS, slideLayoutFadeTransition } from './slideLayoutFade'
 import { TransitModeIcon } from './TransitModeIcon'
 import './TransitSlide.scss'
 
@@ -20,8 +24,8 @@ interface TransitSlideProps {
   showPlatform?: boolean
   /** Show the line's full name instead of just its public code. Falls back to `false`. */
   showLineName?: boolean
-  /** Hide schedule-only departures, keeping only `realtime: true` ones. Falls back to `false`. */
-  realtimeOnly?: boolean
+  /** Which departures to show — see `ScreenSlotContent`'s `'transit'` variant. Falls back to `DEFAULT_TRANSIT_DEPARTURE_MODE`. */
+  departureMode?: TransitDepartureMode
   /** Transport modes to include — empty/unset means every mode at the stop is shown. */
   modeFilter?: string[]
   /** Which icon set the mode icons next to each departure are drawn from — see `TransitIconPack`. Falls back to `DEFAULT_TRANSIT_ICON_PACK`. */
@@ -30,6 +34,29 @@ interface TransitSlideProps {
   useBrandTheme?: boolean
   /** Shows `brand`'s own logo in the pane's top-left corner. Only relevant while `useBrandTheme` is on. Falls back to `true`. */
   showBrandLogo?: boolean
+  /** Per-operator line-badge color overrides, keyed by operator display name — see `ScreenSlotContent`'s `'transit'` variant. Ignored while `autoLineColors` is on. */
+  lineColors?: { id: string; authority: string; hex: string }[]
+  /** Assigns each operator a distinct, automatically generated color instead of `lineColors` — except `brand`'s own native operator (e.g. Ruter on a Ruter# pane), which keeps its real brand-theme color, same as today. Falls back to `true`. */
+  autoLineColors?: boolean
+  /** Uses a departure's own real official line color from Entur (`DepartureInfo.lineColor`/`lineTextColor`) whenever one is reported, ahead of `autoLineColors`/`lineColors`/the brand theme — see `ScreenSlotContent`'s `'transit'` variant. Falls back to `true`. */
+  useRealLineColors?: boolean
+}
+
+/** Looks up `lineColors`' entry for `authorityName`, matching case-insensitively/trimmed since Entur's own casing/whitespace isn't guaranteed to match what an admin typed. Returns `undefined` when unset, unmatched, or the departure has no known authority. */
+function findLineColorHex(lineColors: TransitSlideProps['lineColors'], authorityName: string | undefined): string | undefined {
+  if (!authorityName) return undefined
+  const normalized = authorityName.trim().toLowerCase()
+  return lineColors?.find((color) => color.authority.trim().toLowerCase() === normalized)?.hex
+}
+
+/** Entur's own authority display name for a brand's native network, so that brand's own departures keep their brand-theme color even with `autoLineColors` on — real Ruter buses are red, so a Ruter pane's own Ruter departures shouldn't get a random hash color instead. `'entur'` has no single native operator (it's a multi-operator journey planner, not a bus company of its own), so nothing is excluded there. */
+const BRAND_HOME_AUTHORITY: Partial<Record<NonNullable<TransitSlideProps['brand']>, string>> = { ruter: 'Ruter' }
+
+/** Whether `authorityName` is `brand`'s own native operator — see `BRAND_HOME_AUTHORITY`. */
+function isBrandHomeAuthority(brand: TransitSlideProps['brand'], authorityName: string | undefined): boolean {
+  const home = brand ? BRAND_HOME_AUTHORITY[brand] : undefined
+  if (!home || !authorityName) return false
+  return authorityName.trim().toLowerCase() === home.toLowerCase()
 }
 
 /**
@@ -91,12 +118,8 @@ const transitItemTransition = { duration: 0.4, ease: 'easeInOut' as const }
 // 3+ columns: a left/right slide would visually cross over a neighboring
 // column's own content (there's no longer a full pane's width, or even half
 // of it, for either half to travel across), so a row instead fades in/out
-// while its own `max-height` collapses/expands — contained entirely within
-// its own column, never spilling into the one next to it. `4em` is a
-// generous upper bound (comfortably taller than one row ever actually
-// needs, at any text size) rather than a measured value — `max-height`
-// only needs to reach *at least* the row's real height for the
-// collapse/expand to read correctly; it doesn't need to match it exactly.
+// while its own height collapses/expands — contained entirely within its own
+// column, never spilling into the one next to it.
 // Deliberately no `layout` prop beyond `"position"` for reordering within a
 // column (see its own use below) — the collapse/expand is a real box
 // shrinking/growing in normal document flow (this AnimatePresence is *not*
@@ -104,10 +127,33 @@ const transitItemTransition = { duration: 0.4, ease: 'easeInOut' as const }
 // up/down smoothly for free, as an ordinary consequence of the browser
 // reflowing around a box whose own height is changing — no extra animation
 // needed to make that part happen.
+//
+// **`height: 'auto'`, not `maxHeight: '4em'` (fixed 2026-08-17).** The
+// previous version animated `max-height` between `0` and a deliberately
+// generous `4em`, but a variant's own resting pose is left applied as an
+// inline style after the animation finishes — so every settled row in this
+// mode permanently carried `max-height: 4em`. Together with
+// `.transit-slide__item`'s own `overflow: hidden` (which exists precisely so
+// the collapse clips, see `TransitSlide.scss`) that silently cut off any row
+// taller than 4em, which a pane with a large `--slide-description-size`, or
+// with `showLineName` on (a second `display: block` line inside
+// `.transit-slide__destination`), reaches easily — the row's own tallest
+// content is sized off properties `4em` knows nothing about. Framer Motion
+// measures `'auto'` before animating and restores it at the end, so the
+// collapse still reads identically while a settled row has no height cap at
+// all and can never be clipped. `overflow: hidden` then only ever clips
+// during the animation itself, which is all it was ever meant to do.
+//
+// `overflow` rides along on the variants rather than living in the stylesheet: a collapsing row does
+// need to clip (its content is taller than the box being animated down to zero), but a *settled* one
+// must not, or content that momentarily exceeds its own grid track — a departure inserted above it
+// resizing the row, a destination that wrapped — gets cut off with no way to tell. Framer applies
+// a non-animatable property like this immediately at the start of the animation, and `transitionEnd`
+// releases it once the row has finished arriving, so clipping lasts exactly as long as the animation.
 const transitRowVariants = {
-  hidden: { opacity: 0, maxHeight: 0 },
-  visible: { opacity: 1, maxHeight: '4em' },
-  exit: { opacity: 0, maxHeight: 0 },
+  hidden: { opacity: 0, height: 0, overflow: 'hidden' },
+  visible: { opacity: 1, height: 'auto', transitionEnd: { overflow: 'visible' } },
+  exit: { opacity: 0, height: 0, overflow: 'hidden' },
 }
 const transitRowTransition = { duration: 0.4, ease: 'easeInOut' as const }
 
@@ -328,16 +374,79 @@ function useSequencedColumns(departures: DepartureInfo[], columnCount: number, r
   return columns
 }
 
+/**
+ * Resolves a departure's own line-badge `{ background, color }`, in priority
+ * order: (1) the line's own real official color from Entur
+ * (`departure.lineColor`/`lineTextColor`), when `useRealLineColors` is on
+ * and Entur actually reported one for this specific line — more accurate
+ * than either kind of approximation below since it's the operator's own
+ * real color for this exact line (e.g. Ruter's own 500-series regional
+ * buses come back green, distinct from its usual red city-bus color), and
+ * applies even to `brand`'s own home authority (a Ruter pane's own buses
+ * show their true colors instead of one flat brand red); (2) `autoLineColors`'
+ * hash-based per-authority color, unless this is `brand`'s own home
+ * authority (kept on its brand-theme color instead, same as today); (3) a
+ * manually-configured `lineColors` override, matched by authority; (4)
+ * `undefined` — no inline style, so the default/brand-theme CSS wins.
+ */
+function resolveLineColorStyle({
+  departure,
+  lineColors,
+  autoLineColors,
+  useRealLineColors,
+  brand,
+}: {
+  departure: DepartureInfo
+  lineColors: TransitSlideProps['lineColors']
+  autoLineColors: boolean
+  useRealLineColors: boolean
+  brand: TransitSlideProps['brand']
+}): { background: string; color: string } | undefined {
+  if (useRealLineColors && departure.lineColor) {
+    return { background: departure.lineColor, color: departure.lineTextColor ?? getContrastTextColor(departure.lineColor) }
+  }
+  const autoLineColor =
+    autoLineColors && departure.authorityName && !isBrandHomeAuthority(brand, departure.authorityName) ? getAutoLineColor(departure.authorityName) : undefined
+  if (autoLineColor) return { background: autoLineColor.background, color: autoLineColor.text }
+  const lineColorHex = findLineColorHex(lineColors, departure.authorityName)
+  return lineColorHex ? { background: lineColorHex, color: getContrastTextColor(lineColorHex) } : undefined
+}
+
 /** One departure's own icon/line/destination content (the row's left half) — split from `TransitDepartureTrailing` below so single-column mode can animate each half separately (sliding in from opposite edges); multi-column mode just renders both side by side inside one shared fade. */
-function TransitDepartureLeading({ departure, showLineName, iconPack }: { departure: DepartureInfo; showLineName?: boolean; iconPack?: TransitIconPack }) {
+function TransitDepartureLeading({
+  departure,
+  showLineName,
+  iconPack,
+  lineColors,
+  autoLineColors,
+  useRealLineColors,
+  brand,
+}: {
+  departure: DepartureInfo
+  showLineName?: boolean
+  iconPack?: TransitIconPack
+  lineColors?: TransitSlideProps['lineColors']
+  autoLineColors?: boolean
+  useRealLineColors?: boolean
+  brand?: TransitSlideProps['brand']
+}) {
   const { t } = useLanguage()
+  const lineColorStyle = resolveLineColorStyle({
+    departure,
+    lineColors,
+    autoLineColors: autoLineColors ?? true,
+    useRealLineColors: useRealLineColors ?? true,
+    brand,
+  })
   return (
     <>
-      <span className="transit-slide__mode-icon-wrap">
-        <TransitModeIcon mode={departure.mode} pack={iconPack} className="transit-slide__mode-icon" />
-        {departure.realtime && <span className="transit-slide__realtime-dot" title={t('admin.screens.transitRealtimeDotTitle')} />}
+      <span className="transit-slide__line" style={lineColorStyle}>
+        <span className="transit-slide__line-icon-wrap">
+          <TransitModeIcon mode={departure.mode} pack={iconPack} className="transit-slide__line-icon" />
+          {departure.realtime && <span className="transit-slide__realtime-dot" title={t('admin.screens.transitRealtimeDotTitle')} />}
+        </span>
+        <span className="transit-slide__line-number">{departure.line}</span>
       </span>
-      <span className="transit-slide__line">{departure.line}</span>
       <span className="transit-slide__destination">
         {departure.destination}
         {showLineName && departure.lineName && <span className="transit-slide__line-name">{departure.lineName}</span>}
@@ -366,7 +475,7 @@ function TransitDepartureTrailing({ departure, minutesUntil, showPlatform }: { d
  * `transit-slide__column-header-label`, so `TransitSlide.scss` can pin it
  * to the exact same grid column its corresponding data cell
  * (`.transit-slide__line`/`__platform`/`__time`) uses — without that,
- * `.transit-slide__trailing`'s own 2-track subgrid would auto-place
+ * `.transit-slide__trailing`'s own 2-track grid would auto-place
  * "Arrival" into the *first* (platform's own) track whenever `showPlatform`
  * is off, same failure mode `.transit-slide__time`'s own explicit
  * `grid-column: 2` already guards against for the data rows.
@@ -389,24 +498,53 @@ function TransitColumnHeader({ showPlatform }: { showPlatform?: boolean }) {
 }
 
 /** Fullscreen rendering of real-time departures from one of the cafe's configured nearby stops (see the admin's Integrations tab), for a screen display's "transit" slot. */
-export function TransitSlide({ brand, stopId, departureCount, showPlatform, showLineName, realtimeOnly, modeFilter, iconPack, useBrandTheme, showBrandLogo }: TransitSlideProps) {
+export function TransitSlide({
+  brand,
+  stopId,
+  departureCount,
+  showPlatform,
+  showLineName,
+  departureMode,
+  modeFilter,
+  iconPack,
+  useBrandTheme,
+  showBrandLogo,
+  lineColors,
+  autoLineColors,
+  useRealLineColors,
+}: TransitSlideProps) {
   const { t } = useLanguage()
   const [config] = useIntegrationsConfig()
   const resolvedBrand = brand ?? 'ruter'
   const selectedStops = resolvedBrand === 'entur' ? config.entur.selectedStops : config.transit.selectedStops
   const effectiveStopId = stopId && selectedStops.some((stop) => stop.id === stopId) ? stopId : selectedStops[0]?.id
   const { stopName, departures: fetchedDepartures, loading, stale } = useTransitDepartures(effectiveStopId, departureCount ?? DEFAULT_TRANSIT_DEPARTURE_COUNT)
+  const resolvedDepartureMode = departureMode ?? DEFAULT_TRANSIT_DEPARTURE_MODE
   // Memoized so its reference only actually changes when the underlying
   // data or filters do — `useSequencedDepartures`'s own effect depends on
   // this array, and a fresh `.filter()` result every render (e.g. from the
   // unrelated 30s `now` tick below) would otherwise reset its staging timer
   // before it ever gets to fire.
   const targetDepartures = useMemo(
-    () => fetchedDepartures.filter((departure) => (!realtimeOnly || departure.realtime) && (!modeFilter?.length || modeFilter.includes(departure.mode))),
-    [fetchedDepartures, realtimeOnly, modeFilter],
+    () =>
+      fetchedDepartures.filter((departure) => {
+        // While stale, every departure is already a scheduled fallback (see
+        // `useTransitDepartures`'s own `asScheduled`) — there's no live/vs/
+        // schedule distinction left to honor, and applying `resolvedDepartureMode`
+        // here would otherwise hide everything the moment 'realtime' mode
+        // meets a stale feed (every departure's `realtime` gets forced `false`).
+        const matchesMode =
+          stale ||
+          resolvedDepartureMode === 'both' ||
+          (resolvedDepartureMode === 'realtime' ? departure.realtime : !departure.realtime)
+        return matchesMode && (!modeFilter?.length || modeFilter.includes(departure.mode))
+      }),
+    [fetchedDepartures, stale, resolvedDepartureMode, modeFilter],
   )
   const departures = useSequencedDepartures(targetDepartures, effectiveStopId ?? '')
   const branded = useBrandTheme ?? true
+  const autoColorsEnabled = autoLineColors ?? true
+  const realLineColorsEnabled = useRealLineColors ?? true
 
   /** `Date.now()` can't be called directly during render (an impure call) — ticking this every 30s keeps each departure's "in X min" reasonably fresh between refetches without reading the clock at render time. */
   const [now, setNow] = useState(() => Date.now())
@@ -422,14 +560,23 @@ export function TransitSlide({ brand, stopId, departureCount, showPlatform, show
   // over after the heading.
   const paneRef = useRef<HTMLDivElement>(null)
   const columnCount = useColumnCount(paneRef)
+  const reducedMotion = useReducedMotion()
+  // Departures are what gives when even the smallest legible type cannot fit them all (see
+  // `useFitItemCount` and `useShrinkToFitFontScale`'s own `MIN_LEGIBLE_SCALE`). Dropping from the end
+  // is the right choice here for the same reason it is on the weather pane: the list is time-sorted,
+  // so the departures a viewer can still catch are at the top and the ones furthest out are the ones
+  // they can most afford to lose. Measured against the pane root, which already clips
+  // (`overflow-y: hidden` in `TransitSlide.scss`), so its own overflow is exactly the question asked.
+  const visibleDepartureCount = useFitItemCount(paneRef, departures.length)
+  const visibleDepartures = useMemo(() => departures.slice(0, visibleDepartureCount), [departures, visibleDepartureCount])
   // Never more columns than there are departures to fill them with.
-  const effectiveColumnCount = Math.max(1, Math.min(columnCount, departures.length || 1))
+  const effectiveColumnCount = Math.max(1, Math.min(columnCount, visibleDepartures.length || 1))
   // Called unconditionally (rules of hooks) even in single-column mode,
   // where its result goes unused below — single column has no cross-column
   // reassignment to stage in the first place, so it reads straight off the
   // already-staged `departures` list directly instead, without this hook's
   // own extra step of buffering.
-  const sequencedColumns = useSequencedColumns(departures, effectiveColumnCount, effectiveStopId ?? '')
+  const sequencedColumns = useSequencedColumns(visibleDepartures, effectiveColumnCount, effectiveStopId ?? '')
 
   if (!effectiveStopId) {
     return (
@@ -450,7 +597,7 @@ export function TransitSlide({ brand, stopId, departureCount, showPlatform, show
   // max-height one — see `transitRowVariants`'s own doc comment for why a
   // middle column has no sensible edge left to slide a row toward.
   const usesMaxHeightAnimation = effectiveColumnCount >= 3
-  const columns = isMultiColumn ? sequencedColumns : chunkIntoColumns(departures, effectiveColumnCount)
+  const columns = isMultiColumn ? sequencedColumns : chunkIntoColumns(visibleDepartures, effectiveColumnCount)
 
   return (
     <div ref={paneRef} className={`transit-slide${branded ? ` transit-slide--branded-${resolvedBrand}` : ''}${showingLogo ? ' transit-slide--has-logo' : ''}`}>
@@ -459,99 +606,117 @@ export function TransitSlide({ brand, stopId, departureCount, showPlatform, show
       {departures.length === 0 && !loading ? (
         <p className="transit-slide__empty">{t('admin.screens.transitNoDeparturesLabel')}</p>
       ) : (
-        <div className={`transit-slide__list${isMultiColumn ? ' transit-slide__list--multi-column' : ''}`}>
-          {columns.map((columnDepartures, columnIndex) => {
-            // Only meaningful in 2-column slide-in/out mode (see
-            // `transitLeadingVariants`'s own doc comment) — the left
-            // column's own rows slide to/from the left, the right
-            // column's own to/from the right.
-            const columnSlideVariants = columnIndex === 0 ? transitLeadingVariants : transitTrailingVariants
-            return (
-              <ul key={columnIndex} className="transit-slide__column">
-                <TransitColumnHeader showPlatform={showPlatform} />
-                {
-                  // `popLayout` (the slide-in/out animation's own posture,
-                  // used for 1 *and* 2 columns — see `transitLeadingVariants`'s
-                  // own doc comment) removes an exiting element from normal
-                  // document flow by setting `position: absolute` on it —
-                  // which breaks `.transit-slide__item`'s own
-                  // `grid-template-columns: subgrid` (subgrid has no parent
-                  // grid to inherit tracks from once it's no longer a real
-                  // grid item), so the exiting row's own grid recomputes
-                  // from scratch and its line badge visibly stretches to
-                  // whatever width it lands with, right as it's animating
-                  // out. The fade + max-height animation's own rows (3+
-                  // columns) need to stay in normal flow through their own
-                  // exit instead (see `transitRowVariants`'s own doc
-                  // comment for why) — the default (`sync`) mode does that.
-                }
-                <AnimatePresence initial={false} mode={usesMaxHeightAnimation ? undefined : 'popLayout'}>
-                  {columnDepartures.map((departure) => {
-                    const minutesUntil = Math.max(0, Math.round((new Date(departure.expectedDepartureTime).getTime() - now) / 60_000))
-                    const itemClassName = `transit-slide__item${departure.cancelled ? ' transit-slide__item--cancelled' : ''}`
-                    if (usesMaxHeightAnimation) {
+        // Fades the whole column list out/in whenever `effectiveColumnCount` itself changes — a resize
+        // that doesn't actually change how many columns render (including one blocked by
+        // `effectiveColumnCount`'s own departure-count cap) never re-triggers this (see
+        // `slideLayoutFade.ts`). Keyed on the count, not `isMultiColumn`, so 2→3 (both "multi") still
+        // fades too. The brand logo/heading above are outside this block, so they never fade with it.
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={effectiveColumnCount}
+            className={`transit-slide__list${isMultiColumn ? ' transit-slide__list--multi-column' : ''}`}
+            // Marks this list as the slide's *body* — the part that fades out before the pane
+            // resizes and returns re-laid-out afterwards, while the brand logo and heading (siblings
+            // outside it) stay put throughout. See `LayoutPane.tsx`'s own `bodyHidden`/`skipsLayout`.
+            data-slide-body=""
+            variants={SLIDE_LAYOUT_FADE_VARIANTS}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={slideLayoutFadeTransition(reducedMotion)}
+          >
+            {columns.map((columnDepartures, columnIndex) => {
+              // Only meaningful in 2-column slide-in/out mode (see
+              // `transitLeadingVariants`'s own doc comment) — the left
+              // column's own rows slide to/from the left, the right
+              // column's own to/from the right.
+              const columnSlideVariants = columnIndex === 0 ? transitLeadingVariants : transitTrailingVariants
+              return (
+                <ul key={columnIndex} className="transit-slide__column">
+                  <TransitColumnHeader showPlatform={showPlatform} />
+                  {
+                    // `popLayout` (the slide-in/out animation's own posture,
+                    // used for 1 *and* 2 columns — see `transitLeadingVariants`'s
+                    // own doc comment) removes an exiting element from normal
+                    // document flow by setting `position: absolute` on it —
+                    // which can still change how `.transit-slide__item`'s own
+                    // grid tracks resolve once it's no longer a real grid
+                    // item of `.transit-slide__column`, so the exiting row's
+                    // line badge can visibly stretch to whatever width it
+                    // lands with, right as it's animating out. The fade +
+                    // max-height animation's own rows (3+
+                    // columns) need to stay in normal flow through their own
+                    // exit instead (see `transitRowVariants`'s own doc
+                    // comment for why) — the default (`sync`) mode does that.
+                  }
+                  <AnimatePresence initial={false} mode={usesMaxHeightAnimation ? undefined : 'popLayout'}>
+                    {columnDepartures.map((departure) => {
+                      const minutesUntil = Math.max(0, Math.round((new Date(departure.expectedDepartureTime).getTime() - now) / 60_000))
+                      const itemClassName = `transit-slide__item${departure.cancelled ? ' transit-slide__item--cancelled' : ''}`
+                      if (usesMaxHeightAnimation) {
+                        return (
+                          <motion.li
+                            key={departureKey(departure)}
+                            layout="position"
+                            initial="hidden"
+                            animate="visible"
+                            exit="exit"
+                            variants={transitRowVariants}
+                            transition={transitRowTransition}
+                            className={itemClassName}
+                          >
+                            <span className="transit-slide__leading">
+                              <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} useRealLineColors={realLineColorsEnabled} brand={resolvedBrand} />
+                            </span>
+                            <span className="transit-slide__trailing">
+                              <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
+                            </span>
+                          </motion.li>
+                        )
+                      }
+                      if (isMultiColumn) {
+                        // 2 columns: the whole row slides as one unit, toward
+                        // this column's own edge (`columnSlideVariants`) —
+                        // not split into independently-sliding halves like
+                        // single-column mode below, since there's no longer a
+                        // full pane's width for each half to travel across.
+                        return (
+                          <motion.li
+                            key={departureKey(departure)}
+                            layout="position"
+                            initial="hidden"
+                            animate="visible"
+                            exit="exit"
+                            variants={columnSlideVariants}
+                            transition={transitItemTransition}
+                            className={itemClassName}
+                          >
+                            <span className="transit-slide__leading">
+                              <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} useRealLineColors={realLineColorsEnabled} brand={resolvedBrand} />
+                            </span>
+                            <span className="transit-slide__trailing">
+                              <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
+                            </span>
+                          </motion.li>
+                        )
+                      }
                       return (
-                        <motion.li
-                          key={departureKey(departure)}
-                          layout="position"
-                          initial="hidden"
-                          animate="visible"
-                          exit="exit"
-                          variants={transitRowVariants}
-                          transition={transitRowTransition}
-                          className={itemClassName}
-                        >
-                          <span className="transit-slide__leading">
-                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} />
-                          </span>
-                          <span className="transit-slide__trailing">
+                        <motion.li key={departureKey(departure)} initial="hidden" animate="visible" exit="exit" className={itemClassName}>
+                          <motion.span layout="position" className="transit-slide__leading" variants={transitLeadingVariants} transition={transitItemTransition}>
+                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} useRealLineColors={realLineColorsEnabled} brand={resolvedBrand} />
+                          </motion.span>
+                          <motion.span layout="position" className="transit-slide__trailing" variants={transitTrailingVariants} transition={transitItemTransition}>
                             <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
-                          </span>
+                          </motion.span>
                         </motion.li>
                       )
-                    }
-                    if (isMultiColumn) {
-                      // 2 columns: the whole row slides as one unit, toward
-                      // this column's own edge (`columnSlideVariants`) —
-                      // not split into independently-sliding halves like
-                      // single-column mode below, since there's no longer a
-                      // full pane's width for each half to travel across.
-                      return (
-                        <motion.li
-                          key={departureKey(departure)}
-                          layout="position"
-                          initial="hidden"
-                          animate="visible"
-                          exit="exit"
-                          variants={columnSlideVariants}
-                          transition={transitItemTransition}
-                          className={itemClassName}
-                        >
-                          <span className="transit-slide__leading">
-                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} />
-                          </span>
-                          <span className="transit-slide__trailing">
-                            <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
-                          </span>
-                        </motion.li>
-                      )
-                    }
-                    return (
-                      <motion.li key={departureKey(departure)} initial="hidden" animate="visible" exit="exit" className={itemClassName}>
-                        <motion.span layout="position" className="transit-slide__leading" variants={transitLeadingVariants} transition={transitItemTransition}>
-                          <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} />
-                        </motion.span>
-                        <motion.span layout="position" className="transit-slide__trailing" variants={transitTrailingVariants} transition={transitItemTransition}>
-                          <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
-                        </motion.span>
-                      </motion.li>
-                    )
-                  })}
-                </AnimatePresence>
-              </ul>
-            )
-          })}
-        </div>
+                    })}
+                  </AnimatePresence>
+                </ul>
+              )
+            })}
+          </motion.div>
+        </AnimatePresence>
       )}
       {stale && <p className="transit-slide__stale-notice">{t('admin.screens.transitStaleNotice')}</p>}
     </div>

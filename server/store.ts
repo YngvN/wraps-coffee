@@ -77,6 +77,7 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.displayUpdateState': null,
   'admin.displayScreenOverride': null,
   'admin.integrations': null,
+  'admin.transitDepartures': null,
   'admin.sidebarSettings': null,
   'admin.orders': null,
   'admin.messageBoards': null,
@@ -104,6 +105,10 @@ const HARDCODED_DEFAULTS: Partial<Record<SyncedKey, unknown>> = {
   // individually (see `ScreenSlot.language`).
   'admin.paneLanguage': 'no',
   'admin.integrations': DEFAULT_INTEGRATIONS_CONFIG,
+  // No bundled seed — populated entirely by the local server's own
+  // background poller (see `transitPoller.ts`), same posture as
+  // `admin.woltOrders`/`admin.foodoraOrders`.
+  'admin.transitDepartures': {},
   'admin.sidebarSettings': DEFAULT_SIDEBAR_SETTINGS,
   // No bundled seed — orders only ever arrive via the Neon bridge pulling
   // real submissions down from the public website (see `neonBridge.ts`).
@@ -644,7 +649,7 @@ export interface OllamaConfig {
 const DEFAULT_OLLAMA_CONFIG: OllamaConfig = {
   baseUrl: 'http://localhost:11434',
   visionModel: 'qwen2.5vl:3b',
-  thinkingModel: 'qwen2.5:3b-instruct',
+  thinkingModel: 'qwen3:4b',
 }
 
 export function getOllamaConfig(): OllamaConfig {

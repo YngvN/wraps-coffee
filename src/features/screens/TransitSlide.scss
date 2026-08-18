@@ -1,6 +1,20 @@
 @use '../../styles/variables' as *;
 @use '../../styles/mixins' as *;
 
+// The column's own shared track list, plus the two slices of it that
+// `.transit-slide__leading`/`__trailing` each span. Declared once here so
+// `.transit-slide__column`, `__column-header`, `__item`, `__leading` and
+// `__trailing` can each restate the exact same tracks (real CSS `subgrid`
+// isn't usable — see the note at the bottom of this file) without the
+// definitions silently drifting apart.
+//
+// `__leading` has 2 tracks, not 3 — the mode icon isn't its own grid item
+// anymore, it lives inside `.transit-slide__line`'s own badge alongside the
+// line number (see `TransitSlide.tsx`'s `TransitDepartureLeading`).
+$transit-tracks: auto minmax(0, 1fr) minmax(0, max-content) minmax(0, max-content);
+$transit-leading-tracks: auto minmax(0, 1fr); // `.transit-slide__leading`'s own `grid-column: span 2`
+$transit-trailing-tracks: minmax(0, max-content) minmax(0, max-content); // `.transit-slide__trailing`'s own `grid-column: span 2`
+
 .transit-slide {
   position: relative;
   display: flex;
@@ -12,7 +26,7 @@
   font-size: var(--slide-item-title-size, 5.5cqmin);
   gap: 0.75em;
   height: 100%;
-  padding: 1.5em;
+  padding: var(--pane-padding, 1.5em);
   overflow-y: hidden;
   overflow-x: hidden;
 
@@ -91,7 +105,7 @@
   flex: 1 1 0;
   min-width: 0;
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) minmax(0, max-content) minmax(0, max-content);
+  grid-template-columns: $transit-tracks;
   align-content: start;
   align-items: center;
   row-gap: 0.4em;
@@ -104,7 +118,11 @@
 
 .transit-slide__column-header {
   display: grid;
-  grid-template-columns: subgrid;
+  // Restates `.transit-slide__column`'s own `$transit-tracks` explicitly, since Chromium < 117
+  // (this fleet's WebView) has no `subgrid` to inherit them through — `column-gap` doesn't cascade
+  // via CSS inheritance either, so it's restated here too.
+  grid-template-columns: $transit-tracks;
+  column-gap: 0.5em;
   grid-column: 1 / -1;
   padding-bottom: 0.2em;
   border-bottom: 1px solid var(--screen-border);
@@ -116,10 +134,10 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
 
-  // Matches `.transit-slide__line`'s own position — the 2nd of `__leading`'s
-  // 3 subgrid tracks (after the mode icon).
+  // Matches `.transit-slide__line`'s own position — the 1st of `__leading`'s
+  // 2 tracks (the icon lives inside the badge now, not its own track).
   &--line {
-    grid-column: 2;
+    grid-column: 1;
   }
 
   // Matches `.transit-slide__platform`'s/`.transit-slide__time`'s own
@@ -136,19 +154,29 @@
 }
 
 // Spans the column's own full width as a single grid item — needed for
-// `.transit-slide__leading`/`__trailing` below to able to hand the *same*
-// shared tracks back down to their own children via `subgrid` — while
-// still being a real box of its own (not `display: contents`, which the
-// single-shared-grid-across-all-rows version before columns existed used
-// instead): multi-column mode's own fade + `max-height` collapse/expand
+// `.transit-slide__leading`/`__trailing` below to be able to size their own
+// children against the same explicit track list (see `$transit-tracks`) —
+// while still being a real box of its own (not `display: contents`, which
+// the single-shared-grid-across-all-rows version before columns existed
+// used instead): multi-column mode's own fade + height collapse/expand
 // animates *this* element directly, which needs a real box to animate.
-// `overflow: hidden` is what actually makes the `max-height` collapse
-// visually clip its own content while animating, in both modes.
+//
+// **Deliberately no `overflow: hidden` here (fixed 2026-08-17).** It used to be unconditional, which
+// meant every row clipped its own content at *all* times rather than only while animating — so a row
+// that momentarily exceeded its own grid track (a departure being inserted above it shifting row
+// sizing, a wrapped destination) was cut off mid-content, permanently and invisibly. That is the
+// "lines partly hidden when a new line appears in the middle" symptom.
+//
+// Clipping is now applied only for the animation that genuinely needs it — the 3+ column height
+// collapse, which sets `overflow: hidden` from its own variants and releases it on `transitionEnd`
+// (see `transitRowVariants` in `TransitSlide.tsx`). The 1-/2-column slide-outs never needed it here:
+// their halves travel off the *pane's* own edges, and `.transit-slide` already clips there.
 .transit-slide__item {
   display: grid;
-  grid-template-columns: subgrid;
+  // See `.transit-slide__column-header`'s own comment on restating `$transit-tracks` explicitly.
+  grid-template-columns: $transit-tracks;
+  column-gap: 0.5em;
   grid-column: 1 / -1;
-  overflow: hidden;
 
   &--cancelled {
     .transit-slide__leading,
@@ -163,9 +191,10 @@
 }
 
 .transit-slide__leading {
-  grid-column: span 3;
+  grid-column: span 2;
   display: grid;
-  grid-template-columns: subgrid;
+  grid-template-columns: $transit-leading-tracks;
+  column-gap: 0.5em;
   align-items: center;
   // A grid item's default `min-width` is `auto` (shrink-to-fit its own
   // content), not `0` — without this, `.transit-slide__destination`'s own
@@ -179,26 +208,34 @@
 .transit-slide__trailing {
   grid-column: span 2;
   display: grid;
-  grid-template-columns: subgrid;
+  grid-template-columns: $transit-trailing-tracks;
+  column-gap: 0.5em;
   align-items: center;
 }
 
-.transit-slide__mode-icon-wrap {
+.transit-slide__line-icon-wrap {
   position: relative;
   display: inline-flex;
-  align-self: center;
   flex-shrink: 0;
 }
 
-.transit-slide__mode-icon {
-  font-size: 1.2em;
-  color: var(--screen-text-muted);
+// No explicit `color` here (unlike the muted, semi-transparent styling this
+// replaced) — inherits `.transit-slide__line`'s own already contrast-safe
+// `color` instead, via plain `currentColor` (the filled `'standard'`-pack
+// glyphs use `fill="currentColor"`, the outline ones `stroke="currentColor"`
+// — see `TransitModeIcon.tsx`), so the icon always reads as solid/opaque
+// and always matches the line number's own text color, whatever that badge's
+// background ends up being (brand theme, a real per-line Entur color, an
+// auto-hash color, or a manual override).
+.transit-slide__line-icon {
+  font-size: 1.1em;
 }
 
 // A fixed, theme-independent green — signals "live" the same way regardless
 // of the screen's own background/text contrast setup, same posture as the
 // admin Integrations page's own status dots.
 .transit-slide__realtime-dot {
+  display: none;
   position: absolute;
   top: -0.1em;
   right: -0.1em;
@@ -211,13 +248,21 @@
 
 .transit-slide__line {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  // Sizes to its own content rather than stretching to fill its column track
+  // (whose width, per the CSS Grid spec, is auto-sized to the widest badge
+  // across *every* row in that column) — without this, a grid item's
+  // default `justify-self: stretch` would make every badge in the column
+  // render at that shared widest-of-all-rows width instead of its own.
+  justify-self: start;
   min-width: 3ch;
-  padding: 0.1em 0.3em;
+  padding: 0.1em 0.4em;
   border-radius: 6px;
   background: var(--screen-text);
   color: var(--screen-bg);
   font-weight: 700;
-  text-align: center;
   white-space: nowrap;
 }
 
@@ -236,7 +281,7 @@
   overflow-wrap: normal;
 }
 
-// Pinned to `__trailing`'s 2nd subgrid column explicitly, rather than
+// Pinned to `__trailing`'s 2nd column explicitly, rather than
 // relying on plain DOM-order auto-placement — when `showPlatform` is off,
 // `.transit-slide__platform` isn't rendered at all, and without an
 // explicit position this would auto-place into the *first* (platform's
@@ -352,3 +397,21 @@
   // doesn't occupy any flow space of its own.
   height: calc(var(--slide-heading-size, 8cqmin) * 0.7);
 }
+
+// Why every grid above restates `$transit-tracks`/`$transit-leading-tracks`/`$transit-trailing-tracks`
+// explicitly instead of using real CSS `subgrid`: `subgrid` shipped in Chromium 117, and this fleet's
+// TVs run the AOSP Android System WebView (`com.android.webview`) on Chromium 116, where
+// `grid-template-columns: subgrid` used to be an *invalid value* dropped at parse time — that left
+// `.transit-slide__leading` as a single implicit column (line badge and destination stacked
+// vertically instead of side by side), which `.transit-slide__item`'s own `overflow: hidden` then
+// clipped straight into the next row, so departures rendered visibly overlapping each other.
+//
+// The trade-off versus real subgrid: each row sizes its own tracks independently rather than sharing
+// one set across the whole column, so columns line up only approximately across rows instead of
+// exactly. In practice the fixed cells (line badge, platform, arrival time) are near-identical widths
+// and the destination is the only flexible one (`minmax(0, 1fr)`), so this reads as aligned.
+// `subgrid` also would have inherited its parent grid's own gaps automatically; an
+// explicit track list does not, which is why every rule above restates `column-gap` too — without it
+// the header's own "Spor"/"Ankomst" labels sit flush against each other and read as one run-together
+// word ("SPORANKOMST"), and every row's cells lose the breathing room `.transit-slide__column`'s own
+// `column-gap` gives them.

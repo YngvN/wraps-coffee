@@ -1,4 +1,4 @@
-import type { LayoutNode, PaneId, SlideTransitionDirection, SplitDirection } from '../types/screen'
+import type { LayoutNode, PaneId, SplitDirection } from '../types/screen'
 import { findLeafPath } from './layoutTree'
 
 /** A step from a `split` node to one of its two children. */
@@ -69,22 +69,53 @@ export function resolveRatio(node: Extract<LayoutNode, { type: 'split' }>): numb
   return clampRatio(node.ratio ?? CENTER_RATIO)
 }
 
-/** CSS grid-template for one `split` node's own 2-cell nested grid — `'row'` (side by side) sizes columns, `'column'` (stacked) sizes rows. Each `split` node in the tree gets its own call to this, right where its own nested grid is rendered (see `LayoutTree.tsx`) — there's no single whole-screen "grid template" anymore, since the arrangement is no longer one flat shape. */
-export function nodeGridTemplate(node: Extract<LayoutNode, { type: 'split' }>): { gridTemplateColumns?: string; gridTemplateRows?: string } {
-  const share = resolveRatio(node)
-  const track = `${share}% ${100 - share}%`
+/**
+ * The two track sizes for a split whose own `ratio` is `share`, on a grid with a `gapPx` gap between
+ * them — each track taking its share of the space *left over* after the gap, rather than of the whole
+ * container.
+ *
+ * This distinction is the whole point. A plain `${share}% ${100 - share}%` sums to 100% and then the
+ * `gap` is added on top, so every split overflows its own container by exactly its gap — invisible on
+ * its own (`overflow: hidden` clips it), but it compounds: a pane N splits deep is displaced by up to
+ * `gapPx * N`, and the last pane in each chain is pushed off the screen edge and clipped by that much.
+ * Measured on the "EXTREME anim test" fixture before this existed: at a 3-pane stage the rightmost
+ * pane ran to 1928px on a 1920px screen, and at the 3x3 stage both the last column and the last row
+ * were 8px past the edge. Taking each track's share of `100% - gapPx` instead makes the tracks plus
+ * the gap sum to exactly 100% at every level, so nothing accumulates and nothing is pushed out.
+ *
+ * `gapPx: 0` reproduces the old behavior exactly, which is correct whenever there genuinely is no gap
+ * (borders turned off screen-wide, or a grouped split closing its own seam — see `LayoutTree.tsx`).
+ */
+export function gapAwareTracks(share: number, gapPx: number): string {
+  if (gapPx === 0) return `${share}% ${100 - share}%`
+  const first = (share / 100) * gapPx
+  const second = ((100 - share) / 100) * gapPx
+  return `calc(${share}% - ${first.toFixed(3)}px) calc(${100 - share}% - ${second.toFixed(3)}px)`
+}
+
+/**
+ * CSS grid-template for one `split` node's own 2-cell nested grid — `'row'` (side by side) sizes
+ * columns, `'column'` (stacked) sizes rows. Each `split` node in the tree gets its own call to this,
+ * right where its own nested grid is rendered (see `LayoutTree.tsx`) — there's no single whole-screen
+ * "grid template" anymore, since the arrangement is no longer one flat shape.
+ *
+ * `gapPx` must be that grid's own actual `gap` — see `gapAwareTracks` for why passing it matters and
+ * what goes wrong when the tracks don't account for it.
+ */
+export function nodeGridTemplate(node: Extract<LayoutNode, { type: 'split' }>, gapPx = 0): { gridTemplateColumns?: string; gridTemplateRows?: string } {
+  const track = gapAwareTracks(resolveRatio(node), gapPx)
   return node.direction === 'row' ? { gridTemplateColumns: track } : { gridTemplateRows: track }
 }
 
 /** One `split` ancestor of a leaf, on the root-to-leaf path — which child ('first'/'second') the leaf descends through, and that ancestor's own path (for `pathKey`/`setRatioAtPath`). Ordered root-to-leaf; the *last* entry is nearest the leaf. */
-interface AncestorStep {
+export interface AncestorStep {
   path: NodePath
   direction: SplitDirection
   /** Whether the leaf descends through this ancestor's `first` child (vs. `second`). */
   throughFirst: boolean
 }
 
-function ancestorSteps(root: LayoutNode, leafId: PaneId): AncestorStep[] {
+export function ancestorSteps(root: LayoutNode, leafId: PaneId): AncestorStep[] {
   const path = findLeafPath(root, leafId)
   if (!path) return []
   const steps: AncestorStep[] = []
@@ -99,7 +130,7 @@ function ancestorSteps(root: LayoutNode, leafId: PaneId): AncestorStep[] {
   return steps
 }
 
-function nearestAncestor(steps: AncestorStep[], direction: SplitDirection): AncestorStep | undefined {
+export function nearestAncestor(steps: AncestorStep[], direction: SplitDirection): AncestorStep | undefined {
   for (let i = steps.length - 1; i >= 0; i--) if (steps[i].direction === direction) return steps[i]
   return undefined
 }
@@ -134,27 +165,6 @@ export function paneResizableAxes(root: LayoutNode, leafId: PaneId): PaneResizab
     width: row ? { path: row.path, isFirstShare: row.throughFirst } : undefined,
     height: column ? { path: column.path, isFirstShare: column.throughFirst } : undefined,
   }
-}
-
-/**
- * The slide-in/out direction a pane's own rotation should use by default, so
- * it only ever enters/exits through an actual screen edge and never through
- * a border it shares with a neighboring pane. A leaf's nearest row-ancestor
- * (if any) leaves exactly one of left/right free — the other is bordered by
- * its sibling; likewise up/down for its nearest column-ancestor. Prefers the
- * free horizontal edge as a consistent tie-break when both axes have an
- * ancestor (matching this function's own previous fixed-shape behavior),
- * falling back to the free vertical edge if only a column-ancestor exists,
- * and to `'right'` for a root leaf with no ancestors at all (the whole
- * screen, one pane, no neighbor on any side).
- */
-export function paneDefaultSlideDirection(root: LayoutNode, leafId: PaneId): SlideTransitionDirection {
-  const steps = ancestorSteps(root, leafId)
-  const row = nearestAncestor(steps, 'row')
-  if (row) return row.throughFirst ? 'left' : 'right'
-  const column = nearestAncestor(steps, 'column')
-  if (column) return column.throughFirst ? 'up' : 'down'
-  return 'right'
 }
 
 /** The default fraction of the screen's own viewport (standing in for `containerWidth`/`containerHeight`, since an arrangement always fills it entirely) a slide's own `resizeToFit` image/video box is fit within, along either axis, until its own `resizeScale` says otherwise. */

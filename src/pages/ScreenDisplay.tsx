@@ -11,11 +11,16 @@ import { GlobalTextSizeScaler, type GlobalTextSizeScalerHandle, type SizeSnapsho
 import { KeepEditPrompt, type SlotEditChanges } from '../features/screens/KeepEditPrompt'
 import { NoConnectionIcon } from '../features/screens/NoConnectionIcon'
 import { OtherSettingsEditor } from '../features/screens/OtherSettingsEditor'
+import { ScaledScreenPreview } from '../features/screens/ScaledScreenPreview'
 import { ScreenToolbar } from '../features/screens/ScreenToolbar'
 import { SlotEditor } from '../features/screens/SlotEditor'
 import { SplitLayout } from '../features/screens/SplitLayout'
+import { warmShrinkScales } from '../features/screens/warmShrinkScales'
+import { SLIDE_BITMAP_ENABLED } from '../features/screens/slideBitmapStore'
+import { warmSlideBitmaps } from '../features/screens/warmSlideBitmaps'
 import { StagePlaybackControls } from '../features/screens/StagePlaybackControls'
 import { TransitionSettingsEditor } from '../features/screens/TransitionSettingsEditor'
+import { captureScreenPreviews } from '../features/screens/screenPreviewCapture'
 import { useIdleVisibility } from '../features/screens/useIdleVisibility'
 import { useAdminSession } from '../hooks/useAdminSession'
 import { evictUnusedVideoCache, prewarmVideoCache } from '../hooks/useCachedVideoSrc'
@@ -58,6 +63,7 @@ import {
   resolveSlotContent,
   resolveSlotLanguage,
   resolveSlotLocked,
+  resolveSlotTextColor,
   resolveSlotTextSizes,
   resolveStageValue,
   writeStageCheckpoint,
@@ -66,7 +72,7 @@ import { resolveContentTextSizes, textSizesToCssVars } from '../utils/textSizeVa
 import './ScreenDisplay.scss'
 
 /** The fixed `KeepEditPrompt` change-summary for the pane-resize fallback prompt below — a divider drag only ever touches the arrangement's own shape/ratios, never a pane's content/text size/background. */
-const RESIZE_CHANGES: SlotEditChanges = { content: false, textSizes: false, backgroundColor: false, backgroundImage: false, language: false, layout: true }
+const RESIZE_CHANGES: SlotEditChanges = { content: false, textSizes: false, backgroundColor: false, backgroundImage: false, language: false, layout: true, textColor: false, customContent: false }
 
 /** Folds a stage's own live text-size draft into `slot`'s content timeline, at `stage` — used both when switching away from that stage (so its edits aren't lost) and when the whole editor closes. Only meaningful with more than one stage — with just one, editing "this pane" and editing "the slot's own shared size" are the same action (see `SlotEditor`'s own single-stage fallback), so this is a no-op. */
 function flushStageTextSizeIntoSlot(slot: ScreenSlot, stage: number, textSizes: TextSizes, hasMultipleStages: boolean): ScreenSlot {
@@ -445,6 +451,35 @@ export function ScreenDisplay() {
     window.history.replaceState(null, '', window.location.pathname)
   }, [])
 
+  /**
+   * **Arm B (experiment, 2026-08-16)** — pre-resolves every stage's shrink-to-fit font scales once,
+   * off-screen, before the rotation first reaches them (see `warmShrinkScales`). Read-only kiosk
+   * route only: an editor tab is being actively driven by a human and re-renders its panes
+   * constantly anyway, so it would pay the warm-up cost for nothing. The `canEdit` this mirrors is
+   * declared further down, past the `!screen` early return below, and a hook cannot live there.
+   *
+   * Keyed on the screen's *id*, not the screen object, so it runs once per screen per page load
+   * rather than on every sync snapshot (which hands back a fresh object reference each time).
+   * Deliberately fire-and-forget: nothing on screen waits for it, and a failure just means the panes
+   * resolve their own scale live exactly as they did before this existed.
+   */
+  const warmedScreenIdRef = useRef<string | null>(null)
+  const screenIdToWarm = screen?.screenID
+  useEffect(() => {
+    if (!screen || !screenIdToWarm || (session && isEditorRoute) || warmedScreenIdRef.current === screenIdToWarm) return
+    warmedScreenIdRef.current = screenIdToWarm
+    // Sequential, never concurrent: both mount a live `SplitLayout` off-screen, and running them at
+    // once would put two full screens' worth of data subscriptions and animations on this device's
+    // four cores simultaneously.
+    //
+    // The bitmap pass is gated on its own flag rather than merely producing unused captures, because
+    // it is the expensive one — up to one `html-to-image` capture per pane per stage at
+    // `devicePixelRatio`, measured on the TV producing 3.5-second frames while the rotation was
+    // already playing. See `SLIDE_BITMAP_ENABLED` for the measurement that turned it off.
+    void warmShrinkScales(screen, defaultPaneLanguage).then(() => (SLIDE_BITMAP_ENABLED ? warmSlideBitmaps(screen, defaultPaneLanguage) : undefined))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the screen's identity rather than the object itself, per the doc comment above.
+  }, [screenIdToWarm, session, isEditorRoute, defaultPaneLanguage])
+
   if (!screen) {
     return (
       <div className="screen-display screen-display--not-found" style={getScreenColorVars(DEFAULT_SCREEN_BACKGROUND_COLOR) as CSSProperties}>
@@ -494,7 +529,14 @@ export function ScreenDisplay() {
     setRedoStack([])
     setScreens(
       screens.map((existing) =>
-        existing.screenID === screen.screenID ? (liveEditing ? { ...existing, ...patch } : { ...existing, draft: { ...existing.draft, ...patch } }) : existing,
+        existing.screenID === screen.screenID
+          ? liveEditing
+            ? { ...existing, ...patch }
+            : // Stamped every write, not just the first, so `stagedBy.at` always reflects this session's
+              // own most recent edit — see `ScreenConfig.draft`'s own doc comment for why this matters
+              // (telling a human's own in-progress draft apart from one the assistant staged).
+              { ...existing, draft: { ...existing.draft, ...patch, stagedBy: { source: 'admin', at: new Date().toISOString() } } }
+          : existing,
       ),
     )
   }
@@ -510,7 +552,17 @@ export function ScreenDisplay() {
 
   /** Merges the pending draft onto the published fields and clears it — everyone else's own view (which never reads `draft` at all) starts reflecting it immediately. Only ever called while `screen.draft` is actually set (see the toolbar's own Publish button). */
   const handlePublish = () => {
-    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? { ...existing, ...existing.draft, draft: undefined } : existing)))
+    const published: ScreenConfig = { ...screen, ...screen.draft, draft: undefined }
+    setScreens(screens.map((existing) => (existing.screenID === screen.screenID ? published : existing)))
+
+    // Regenerates the Screens grid's static thumbnail(s) in the background —
+    // see `ScreenForm.tsx`'s own save handler for the same call and why it's
+    // fire-and-forget.
+    if (session) {
+      void captureScreenPreviews(published, session.token, defaultPaneLanguage).then((previewImages) => {
+        if (previewImages) setScreens((current) => current.map((existing) => (existing.screenID === published.screenID ? { ...existing, previewImages } : existing)))
+      })
+    }
   }
 
   const activeTextSizes = editingTarget === 'screen' && screenDraftSnapshot ? screenDraftSnapshot.textSizes : (viewScreen.textSizes ?? DEFAULT_TEXT_SIZES)
@@ -742,7 +794,7 @@ export function ScreenDisplay() {
     if (!tree) return
     const { tree: nextTree, newPaneId } = splitLeaf(tree, leafId, axis, edge)
     const nextLayout = writeStageCheckpoint(viewScreen.layout, targetStage, nextTree)
-    const nextPaneSlots = { ...viewScreen.paneSlots, [newPaneId]: cloneSlot(viewScreen.paneSlots[leafId] ?? emptySlot()) }
+    const nextPaneSlots = { ...viewScreen.paneSlots, [newPaneId]: cloneSlot(viewScreen.paneSlots[leafId] ?? emptySlot(), leafId) }
     applyScreenPatch({ layout: nextLayout, paneSlots: nextPaneSlots })
   }
 
@@ -767,9 +819,9 @@ export function ScreenDisplay() {
     const originalSlot = viewScreen.paneSlots[leafId] ?? emptySlot()
     const nextPaneSlots = {
       ...viewScreen.paneSlots,
-      [rightId]: cloneSlot(originalSlot),
-      [bottomLeftId]: cloneSlot(originalSlot),
-      [bottomRightId]: cloneSlot(originalSlot),
+      [rightId]: cloneSlot(originalSlot, leafId),
+      [bottomLeftId]: cloneSlot(originalSlot, leafId),
+      [bottomRightId]: cloneSlot(originalSlot, rightId),
     }
     applyScreenPatch({ layout: nextLayout, paneSlots: nextPaneSlots })
   }
@@ -980,6 +1032,8 @@ export function ScreenDisplay() {
     backgroundImage: JSON.stringify(effectiveBackgroundImage(originalSlot, activeStage)) !== JSON.stringify(effectiveBackgroundImage(draftSlot, activeStage)),
     language: resolveSlotLanguage(originalSlot, activeStage) !== resolveSlotLanguage(draftSlot, activeStage),
     layout: false,
+    textColor: resolveSlotTextColor(originalSlot, activeStage) !== resolveSlotTextColor(draftSlot, activeStage),
+    customContent: originalSlot.customCss !== draftSlot.customCss || originalSlot.customHtml !== draftSlot.customHtml || originalSlot.customHtmlPlacement !== draftSlot.customHtmlPlacement,
   })
 
   /**
@@ -1026,11 +1080,11 @@ export function ScreenDisplay() {
    * `KeepEditPrompt`'s own "keep for next step(s) too" — persists the active
    * stage's edit same as `closeEditor`, then overwrites every later stage's
    * own checkpoint for this exact pane (content, its text size, background
-   * color, language override) with that identical, just-edited result.
-   * Background image isn't propagated separately — with more than one stage
-   * (the only case this ever runs in), `PaneEditor`'s single consolidated
-   * picker always writes it onto `content` (see `SlotEditor`'s own
-   * `setBackgroundImage`), so the `content` propagation below already
+   * color, text color, language override) with that identical, just-edited
+   * result. Background image isn't propagated separately — with more than
+   * one stage (the only case this ever runs in), `PaneEditor`'s single
+   * consolidated picker always writes it onto `content` (see `SlotEditor`'s
+   * own `setBackgroundImage`), so the `content` propagation below already
    * carries it forward, same as text size needs no propagation line of its
    * own here.
    */
@@ -1040,6 +1094,7 @@ export function ScreenDisplay() {
     const finalSlot = finalizeDraftSlot()
     const contentAtStage = resolveSlotContent(finalSlot, activeStage)
     const backgroundColorAtStage = resolveSlotBackgroundColor(finalSlot, activeStage)
+    const textColorAtStage = resolveSlotTextColor(finalSlot, activeStage)
     const languageAtStage = resolveSlotLanguage(finalSlot, activeStage)
 
     let propagatedSlot = finalSlot
@@ -1048,6 +1103,7 @@ export function ScreenDisplay() {
         ...propagatedSlot,
         content: writeStageCheckpoint(propagatedSlot.content, futureStage, contentAtStage),
         backgroundColor: writeStageCheckpoint(propagatedSlot.backgroundColor, futureStage, backgroundColorAtStage),
+        textColor: writeStageCheckpoint(propagatedSlot.textColor, futureStage, textColorAtStage),
         language: writeStageCheckpoint(propagatedSlot.language, futureStage, languageAtStage),
       }
     }
@@ -1151,32 +1207,50 @@ export function ScreenDisplay() {
                 {t('screenDisplay.publish')}
               </button>
             )}
+            {screen.draft?.stagedBy?.source === 'assistant' && (
+              <span className="screen-toolbar__staged-note">{t('screenDisplay.stagedByAssistant', { date: new Date(screen.draft.stagedBy.at).toLocaleString() })}</span>
+            )}
           </>
         )}
         {!canEdit && !displayMachineId && showFullscreenButton && <FullscreenToggle />}
       </ScreenToolbar>
-      <SplitLayout
-        key={screen.screenID}
-        screen={effectiveScreen}
-        resolveTextSizes={resolveTextSizes}
-        onEditSlide={canEdit ? openSlotEditor : undefined}
-        stage={stage}
-        forcedStage={forcedStage}
-        tick={tick}
-        onResizeDivider={canEdit ? handleResizeDivider : undefined}
-        onDragStateChange={handleDragStateChange}
-        onDropImage={canEdit ? handleDropImage : undefined}
-        onSplitPane={canEdit ? handleSplitPane : undefined}
-        onSplitFour={canEdit ? handleSplitPaneFour : undefined}
-        onBorderClick={canEdit ? openBorderEditor : undefined}
-        onTogglePaneLock={canEdit ? handleTogglePaneLock : undefined}
-        selectedLeafIds={activeSelectedLeafIds}
-        onToggleChecked={canEdit ? toggleLeafChecked : undefined}
-        defaultPaneLanguage={defaultPaneLanguage}
-        onRequestStageAdvance={handleVideoEndedAdvance}
-        selectedLeafId={typeof editingTarget === 'object' && editingTarget !== null ? editingTarget.leafId : undefined}
-        dimUnselectedPanes={typeof editingTarget === 'object' && editingTarget !== null}
-      />
+      {(() => {
+        const splitLayout = (
+          <SplitLayout
+            key={screen.screenID}
+            screen={effectiveScreen}
+            resolveTextSizes={resolveTextSizes}
+            onEditSlide={canEdit ? openSlotEditor : undefined}
+            stage={stage}
+            forcedStage={forcedStage}
+            tick={tick}
+            onResizeDivider={canEdit ? handleResizeDivider : undefined}
+            onDragStateChange={handleDragStateChange}
+            onDropImage={canEdit ? handleDropImage : undefined}
+            onSplitPane={canEdit ? handleSplitPane : undefined}
+            onSplitFour={canEdit ? handleSplitPaneFour : undefined}
+            onBorderClick={canEdit ? openBorderEditor : undefined}
+            onTogglePaneLock={canEdit ? handleTogglePaneLock : undefined}
+            selectedLeafIds={activeSelectedLeafIds}
+            onToggleChecked={canEdit ? toggleLeafChecked : undefined}
+            defaultPaneLanguage={defaultPaneLanguage}
+            onRequestStageAdvance={handleVideoEndedAdvance}
+            selectedLeafId={typeof editingTarget === 'object' && editingTarget !== null ? editingTarget.leafId : undefined}
+            dimUnselectedPanes={typeof editingTarget === 'object' && editingTarget !== null}
+          />
+        )
+        // `isEditorRoute` is load-bearing here, not redundant with the field check: the real kiosk
+        // route (`/screens/:screenId`) must never take this branch even if `editorTargetViewport`
+        // happens to be set — it already IS the target device's own true viewport, not something
+        // being emulated, so locking/scaling it would be actively wrong there.
+        return isEditorRoute && viewScreen.editorTargetViewport ? (
+          <ScaledScreenPreview referenceSize={viewScreen.editorTargetViewport} fit="contain" className="screen-display__editor-lock">
+            {splitLayout}
+          </ScaledScreenPreview>
+        ) : (
+          splitLayout
+        )
+      })()}
 
       {screensaverActive && (
         <div className="screen-display__screensaver">

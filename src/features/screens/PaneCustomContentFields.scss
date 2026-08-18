@@ -1,0 +1,48 @@
+@use '../../styles/variables' as *;
+
+.pane-custom-content-fields {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+}
+
+.pane-custom-content-fields__hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: $color-text-muted;
+}
+
+.pane-custom-content-fields__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit;
+}
+
+.pane-custom-content-fields__counter {
+  font-size: 0.75rem;
+  color: $color-text-muted;
+}
+
+.pane-custom-content-fields__errors {
+  margin: 0;
+  padding-left: $spacing-unit * 1.25;
+  font-size: 0.8125rem;
+  color: $color-error;
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+}
+
+.pane-custom-content-fields__placement {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit;
+  flex-wrap: wrap;
+}
+
+.pane-custom-content-fields__placement-buttons {
+  display: flex;
+  gap: calc($spacing-unit / 2);
+}

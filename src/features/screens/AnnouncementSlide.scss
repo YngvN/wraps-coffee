@@ -7,7 +7,7 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: $spacing-unit * 6;
+  padding: var(--pane-padding, $spacing-unit * 6);
   text-align: center;
   gap: $spacing-unit * 2;
   overflow-y: hidden;

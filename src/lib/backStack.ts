@@ -15,10 +15,13 @@ interface StackEntry {
   onBack: BackHandler
   /** Set once this entry has already been resolved some other way (an explicit Back button click, a Cancel/Save, unmounting) — see `release` — so the `popstate` that eventually catches up to it (consuming the history slot `pushBackLevel` created) doesn't call `onBack` a second time. */
   handled: boolean
+  /** Stamped into this entry's own pushed history state, so `release` can tell whether that state is still the current top-of-history entry (see `release`). */
+  id: number
 }
 
 const stack: StackEntry[] = []
 let listening = false
+let nextId = 0
 
 function handlePopState() {
   const entry = stack.pop()
@@ -49,13 +52,23 @@ export interface BackLevel {
  */
 export function pushBackLevel(onBack: BackHandler): BackLevel {
   ensureListening()
-  window.history.pushState({ backLevel: true }, '')
-  const entry: StackEntry = { onBack, handled: false }
+  const id = ++nextId
+  window.history.pushState({ backLevel: true, id }, '')
+  const entry: StackEntry = { onBack, handled: false, id }
   stack.push(entry)
   return {
     release: () => {
       entry.handled = true
-      window.history.back()
+      // Only step back if this entry's own pushed state is still the current
+      // top of browser history — if something unrelated navigated on top of
+      // it since (e.g. a sidebar link click, which unmounts this level and
+      // triggers this same cleanup), stepping back here would pop THAT
+      // navigation instead of this level's own placeholder. Leaving it
+      // un-popped is safe: `handled` is already set, so the eventual
+      // `popstate` that catches up to this entry will silently no-op.
+      if ((window.history.state as { id?: number } | null)?.id === id) {
+        window.history.back()
+      }
     },
   }
 }

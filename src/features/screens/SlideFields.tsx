@@ -19,6 +19,7 @@ import {
   DEFAULT_TIME_FONT_SIZE,
   DEFAULT_TIME_UNITS,
   DEFAULT_TRANSIT_DEPARTURE_COUNT,
+  DEFAULT_TRANSIT_DEPARTURE_MODE,
   DEFAULT_TRANSIT_ICON_PACK,
   DEFAULT_WEATHER_FORECAST_HOURS,
   DEFAULT_WEATHER_ICON_PACK,
@@ -31,6 +32,7 @@ import {
   type TimeDisplayMode,
   type TimeUnit,
   type TimeWeekdayStyle,
+  type TransitDepartureMode,
   type TransitIconPack,
   type WeatherIconPack,
 } from '../../types/screen'
@@ -41,11 +43,18 @@ import { formatOrdinal } from '../../utils/formatOrdinal'
 import { getSmallUrl, getThumbnailUrl } from '../../utils/responsiveImage'
 import { TRANSIT_MODES } from '../../utils/transitModes'
 import { MessagePickerModal } from './MessagePickerModal'
+import { TransitLineColorListEditor } from './TransitLineColorListEditor'
 import './SlideFields.scss'
 
 const MESSAGE_BOARD_DISPLAY_MODES: MessageBoardDisplayMode[] = ['rotating', 'list', 'single']
 const MESSAGE_BOARD_ORDERS: MessageBoardOrder[] = ['newestFirst', 'oldestFirst']
 const TRANSIT_ICON_PACKS: TransitIconPack[] = ['standard', 'simple']
+const TRANSIT_DEPARTURE_MODES: TransitDepartureMode[] = ['realtime', 'schedule', 'both']
+const TRANSIT_DEPARTURE_MODE_OPTION_KEYS: Record<TransitDepartureMode, string> = {
+  realtime: 'admin.screens.transitDepartureModeRealtimeOption',
+  schedule: 'admin.screens.transitDepartureModeScheduleOption',
+  both: 'admin.screens.transitDepartureModeBothOption',
+}
 const WEATHER_ICON_PACKS: WeatherIconPack[] = ['outline', 'system']
 
 /**
@@ -283,9 +292,9 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
     onChange({ ...content, showLineName })
   }
 
-  const setTransitRealtimeOnly = (realtimeOnly: boolean) => {
+  const setTransitDepartureMode = (departureMode: TransitDepartureMode) => {
     if (content.kind !== 'transit') return
-    onChange({ ...content, realtimeOnly })
+    onChange({ ...content, departureMode })
   }
 
   /** Keeps `modeFilter` in `TRANSIT_MODES`' own fixed order regardless of the order modes were toggled in — same "filter the fixed order down" technique as `setTimeUnit`. */
@@ -309,6 +318,21 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
   const setTransitShowBrandLogo = (showBrandLogo: boolean) => {
     if (content.kind !== 'transit') return
     onChange({ ...content, showBrandLogo })
+  }
+
+  const setTransitLineColors = (lineColors: NonNullable<Extract<ScreenSlotContent, { kind: 'transit' }>['lineColors']>) => {
+    if (content.kind !== 'transit') return
+    onChange({ ...content, lineColors })
+  }
+
+  const setTransitAutoLineColors = (autoLineColors: boolean) => {
+    if (content.kind !== 'transit') return
+    onChange({ ...content, autoLineColors })
+  }
+
+  const setTransitUseRealLineColors = (useRealLineColors: boolean) => {
+    if (content.kind !== 'transit') return
+    onChange({ ...content, useRealLineColors })
   }
 
   const setWeatherLocationId = (locationId: string) => {
@@ -797,6 +821,20 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
             <span>{t('admin.screens.transitDepartureCountLabel')}</span>
             <NumberInput min={1} max={20} value={content.departureCount ?? DEFAULT_TRANSIT_DEPARTURE_COUNT} onChange={setTransitDepartureCount} />
           </label>
+          <label className="slide-fields__labeled-select">
+            <span>{t('admin.screens.transitDepartureModeLabel')}</span>
+            <select
+              aria-label={t('admin.screens.transitDepartureModeLabel')}
+              value={content.departureMode ?? DEFAULT_TRANSIT_DEPARTURE_MODE}
+              onChange={(event) => setTransitDepartureMode(event.target.value as TransitDepartureMode)}
+            >
+              {TRANSIT_DEPARTURE_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {t(TRANSIT_DEPARTURE_MODE_OPTION_KEYS[mode])}
+                </option>
+              ))}
+            </select>
+          </label>
           <CollapsibleSection label={t('admin.screens.transitDetailsLabel')} hint={t('admin.screens.transitDetailsHint')}>
             <Checkbox id={`${id}-transit-platform`} label={t('admin.screens.transitShowPlatformLabel')} checked={Boolean(content.showPlatform)} onChange={(event) => setTransitShowPlatform(event.target.checked)} />
             <Checkbox
@@ -804,12 +842,6 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
               label={t('admin.screens.transitShowLineNameLabel')}
               checked={Boolean(content.showLineName)}
               onChange={(event) => setTransitShowLineName(event.target.checked)}
-            />
-            <Checkbox
-              id={`${id}-transit-realtime-only`}
-              label={t('admin.screens.transitRealtimeOnlyLabel')}
-              checked={Boolean(content.realtimeOnly)}
-              onChange={(event) => setTransitRealtimeOnly(event.target.checked)}
             />
           </CollapsibleSection>
           <CollapsibleSection label={t('admin.screens.transitModeFilterLabel')} hint={t('admin.screens.transitModeFilterHint')}>
@@ -845,6 +877,19 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
               onChange={(event) => setTransitShowBrandLogo(event.target.checked)}
             />
           )}
+          <Checkbox
+            id={`${id}-transit-real-line-colors`}
+            label={t('admin.screens.transitUseRealLineColorsLabel')}
+            checked={content.useRealLineColors ?? true}
+            onChange={(event) => setTransitUseRealLineColors(event.target.checked)}
+          />
+          <Checkbox
+            id={`${id}-transit-auto-line-colors`}
+            label={t('admin.screens.transitAutoLineColorsLabel')}
+            checked={content.autoLineColors ?? true}
+            onChange={(event) => setTransitAutoLineColors(event.target.checked)}
+          />
+          {!(content.autoLineColors ?? true) && <TransitLineColorListEditor colors={content.lineColors ?? []} onChange={setTransitLineColors} />}
         </>
       )}
 
