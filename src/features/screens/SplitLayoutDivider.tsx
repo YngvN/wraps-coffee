@@ -8,9 +8,17 @@ const HANDLE_THICKNESS = 20
 /** How far (px) the pointer can move between down and up before this counts as a real resize drag rather than a plain click — see `onBorderClick`. Deliberately small (a genuine drag almost always moves well past this within the first few pixels), just enough to absorb the tiny jitter a human hand can't avoid even on a "still" click. */
 const CLICK_MOVE_THRESHOLD = 4
 
+// Divided by `--scaled-screen-preview-scale` (published by `ScaledScreenPreview`, defaults to `1`
+// elsewhere) so this stays a constant *physical* hit-target regardless of how much a `ScaledScreenPreview`
+// ancestor ends up shrinking/growing the whole rendered result — without this, a divider's hit-area
+// would grow or shrink right along with the paint-time scale instead of staying grabbable.
+const HANDLE_THICKNESS_EXPR = `${HANDLE_THICKNESS}px / var(--scaled-screen-preview-scale, 1)`
+
 function handleStyle(orientation: 'vertical' | 'horizontal', value: number): CSSProperties {
-  if (orientation === 'vertical') return { top: 0, bottom: 0, left: `calc(${value}% - ${HANDLE_THICKNESS / 2}px)`, width: HANDLE_THICKNESS }
-  return { left: 0, right: 0, top: `calc(${value}% - ${HANDLE_THICKNESS / 2}px)`, height: HANDLE_THICKNESS }
+  const thickness = `calc(${HANDLE_THICKNESS_EXPR})`
+  const offset = `calc(${value}% - (${HANDLE_THICKNESS_EXPR}) / 2)`
+  if (orientation === 'vertical') return { top: 0, bottom: 0, left: offset, width: thickness }
+  return { left: 0, right: 0, top: offset, height: thickness }
 }
 
 interface SplitLayoutDividerProps {

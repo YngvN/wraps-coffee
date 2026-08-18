@@ -1,12 +1,20 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { DEFAULT_PREVIEW_ASPECT_RATIO, type PreviewAspectRatio } from '../../types/screen'
 import { referenceCanvasSize } from './screenPreviewGeometry'
 import './ScaledScreenPreview.scss'
 
 interface ScaledScreenPreviewProps {
   children: ReactNode
-  /** Falls back to 16:9 (a standard landscape display) when omitted. */
+  /** Falls back to 16:9 (a standard landscape display) when omitted. Ignored entirely when `referenceSize` is given. */
   aspectRatio?: PreviewAspectRatio
+  /**
+   * Overrides the `aspectRatio`-derived reference resolution with an exact
+   * CSS-px size — e.g. `ScreenDisplay.tsx`'s editor-mode lock
+   * (`ScreenConfig.editorTargetViewport`), which needs to match a real
+   * device's own fixed layout viewport rather than the aspect-ratio-
+   * normalized `REFERENCE_LONG_SIDE` canvas every other caller uses.
+   */
+  referenceSize?: { width: number; height: number }
   /**
    * `'width'` (the default): the outer box is *shaped* to `aspectRatio`
    * itself (via CSS `aspect-ratio`, filling whatever width its parent
@@ -20,6 +28,8 @@ interface ScaledScreenPreviewProps {
    * letterboxed rather than stretched or clipped.
    */
   fit?: 'width' | 'contain'
+  /** Extra class(es) merged onto the outer box — e.g. so a fullscreen caller can override the card-shaped `border-radius` baked into `.scaled-screen-preview`. */
+  className?: string
 }
 
 /**
@@ -37,12 +47,20 @@ interface ScaledScreenPreviewProps {
  * pane sizes and text sizes alike — so it reproduces exactly how the real
  * display would look, just smaller. See `fit` for the two ways the outer
  * box itself can be sized.
+ *
+ * The resolved `scale` is also published as the `--scaled-screen-preview-scale`
+ * CSS custom property on the canvas, so descendants that size a fixed hit-area
+ * in this pre-transform reference space (e.g. `SplitLayoutDivider`'s drag
+ * handles) can divide by it to keep a constant *physical* size regardless of
+ * how much this wrapper ends up shrinking/growing the whole result. It
+ * resolves to the CSS default of `1` anywhere no `ScaledScreenPreview`
+ * ancestor exists.
  */
-export function ScaledScreenPreview({ children, aspectRatio = DEFAULT_PREVIEW_ASPECT_RATIO, fit = 'width' }: ScaledScreenPreviewProps) {
+export function ScaledScreenPreview({ children, aspectRatio = DEFAULT_PREVIEW_ASPECT_RATIO, referenceSize, fit = 'width', className }: ScaledScreenPreviewProps) {
   const outerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0)
 
-  const { width: referenceWidth, height: referenceHeight } = referenceCanvasSize(aspectRatio)
+  const { width: referenceWidth, height: referenceHeight } = referenceSize ?? referenceCanvasSize(aspectRatio)
 
   useEffect(() => {
     const node = outerRef.current
@@ -53,18 +71,24 @@ export function ScaledScreenPreview({ children, aspectRatio = DEFAULT_PREVIEW_AS
     })
     observer.observe(node)
     return () => observer.disconnect()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `referenceWidth`/`referenceHeight` only ever change alongside `aspectRatio` itself, re-observing on every render is unnecessary.
-  }, [aspectRatio.width, aspectRatio.height, fit])
+  }, [referenceWidth, referenceHeight, fit])
 
   return (
     <div
       ref={outerRef}
-      className={`scaled-screen-preview${fit === 'contain' ? ' scaled-screen-preview--contain' : ''}`}
-      style={fit === 'width' ? { aspectRatio: `${aspectRatio.width} / ${aspectRatio.height}` } : undefined}
+      className={`scaled-screen-preview${fit === 'contain' ? ' scaled-screen-preview--contain' : ''}${className ? ` ${className}` : ''}`}
+      style={fit === 'width' ? { aspectRatio: `${referenceWidth} / ${referenceHeight}` } : undefined}
     >
       <div
         className={`scaled-screen-preview__canvas${fit === 'contain' ? ' scaled-screen-preview__canvas--contain' : ''}`}
-        style={{ width: referenceWidth, height: referenceHeight, transform: fit === 'contain' ? `translate(-50%, -50%) scale(${scale})` : `scale(${scale})` }}
+        style={
+          {
+            width: referenceWidth,
+            height: referenceHeight,
+            transform: fit === 'contain' ? `translate(-50%, -50%) scale(${scale})` : `scale(${scale})`,
+            '--scaled-screen-preview-scale': scale || 1,
+          } as CSSProperties
+        }
       >
         {children}
       </div>

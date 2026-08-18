@@ -1240,12 +1240,26 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
           monitorLabel: displayDraft.monitorLabel,
           machineLabel: currentMachine?.customLabel ?? currentMachine?.label ?? displayDraft.machineLabel,
           assignedScreenID: currentMonitor?.assignedScreenID ?? null,
+          // Both machine-level settings belong in `currentDraft` so the review's own before/after rows
+          // compare against what is actually stored. Omitting them (as this did for `maxImagePx`
+          // before 2026-08-18) made every review claim the current value was the `'auto'` default.
+          maxImagePx: currentMachine?.maxImagePx ?? 'auto',
+          renderWidthPx: currentMachine?.renderWidthPx ?? 'auto',
         }
         const saveDisplayManager = (next: DisplayManagerDraft) => {
           setDisplayMachines(
             displayMachines.map((machine) =>
               machine.machineID === next.machineID
-                ? { ...machine, customLabel: next.machineLabel, monitors: machine.monitors.map((monitor) => (monitor.id === next.monitorId ? { ...monitor, assignedScreenID: next.assignedScreenID } : monitor)) }
+                ? {
+                    ...machine,
+                    customLabel: next.machineLabel,
+                    // Persisted alongside the rename/assignment — without these the entity's own
+                    // `mergeDraft` result for them was shown in the review and then silently dropped
+                    // on confirm (a real bug for `maxImagePx` before 2026-08-18, fixed here).
+                    maxImagePx: next.maxImagePx,
+                    renderWidthPx: next.renderWidthPx,
+                    monitors: machine.monitors.map((monitor) => (monitor.id === next.monitorId ? { ...monitor, assignedScreenID: next.assignedScreenID } : monitor)),
+                  }
                 : machine,
             ),
           )

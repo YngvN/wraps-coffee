@@ -17,6 +17,13 @@
   transition: background-color 0.4s ease, color 0.4s ease;
 }
 
+// `ScaledScreenPreview`'s own `border-radius: 8px` is right for a dashboard
+// card, wrong on a true edge-to-edge fullscreen editor (see the size-lock
+// wrapper in ScreenDisplay.tsx).
+.screen-display__editor-lock {
+  border-radius: 0;
+}
+
 // A quiet "showing stored content" watermark (see useConnectionStatus) —
 // shares the toolbar's own z-index so it stays visible over the screensaver
 // too, since a disconnected screen not knowing whether its own scheduled

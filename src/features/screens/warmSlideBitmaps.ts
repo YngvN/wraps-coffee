@@ -2,6 +2,7 @@ import { getFontEmbedCSS, toBlob } from 'html-to-image'
 import { createElement } from 'react'
 import type { LanguageCode } from '../../i18n'
 import type { PaneId, ScreenConfig } from '../../types/screen'
+import { effectiveDevicePixelRatio } from '../../utils/effectiveDevicePixelRatio'
 import { getPersistedSlotTextSizes } from '../../utils/screenStages'
 import { resolveContentTextSizes, SLIDE_SIZE_VAR_NAMES } from '../../utils/textSizeVars'
 import { withOffscreenStage } from './offscreenStageMount'
@@ -220,10 +221,15 @@ async function waitForShrinkToSettle(pane: HTMLElement): Promise<number> {
  * screen at exactly the moment the design removes them. What the bitmap has to carry is the chrome —
  * the brand logo, the stop name — which is what stays visible throughout.
  *
- * Captured at `devicePixelRatio`, not 1. The TV's backing store is 1920x1080 behind a 960x540 CSS
- * viewport, so a `pixelRatio: 1` capture is half-resolution and visibly softer than the live DOM it
- * replaces — which would make the bitmap-to-live swap *pop* at the moment the pane settles, the one
- * moment a viewer is looking straight at it.
+ * Captured at the **effective** device pixel ratio, not a flat 1 and not raw `devicePixelRatio`. The
+ * point is to match the backing store exactly: too low and the bitmap is visibly softer than the live
+ * DOM it replaces, which makes the bitmap-to-live swap *pop* at the moment the pane settles — the one
+ * moment a viewer is looking straight at it; too high and it burns capture time and decoded memory on
+ * pixels the surface cannot show. With the default `width=device-width` those are the same number
+ * (the TV's 1920x1080 store behind a 960x540 CSS viewport ⇒ ratio 2). With a forced layout viewport
+ * (`DisplayRenderWidth`) they are not: at `width=1920` that same store is 1 device px per CSS px, and
+ * capturing at the raw `devicePixelRatio` of 2 would quadruple the pixel count for no visible gain.
+ * See `effectiveDevicePixelRatio`.
  */
 async function capturePane(pane: HTMLElement, screen: ScreenConfig, stage: number, fontEmbedCSS: string | null): Promise<void> {
   const paneId = pane.getAttribute('data-pane-id') as PaneId | null
@@ -254,7 +260,7 @@ async function capturePane(pane: HTMLElement, screen: ScreenConfig, stage: numbe
   // into the space it left — producing a bitmap that does not line up with the live DOM it replaces.
   for (const body of bodies) body.style.visibility = 'hidden'
 
-  const pixelRatio = window.devicePixelRatio || 1
+  const pixelRatio = effectiveDevicePixelRatio()
   try {
     const captureStart = performance.now()
     const blob = await Promise.race([

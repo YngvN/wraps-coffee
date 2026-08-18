@@ -13,6 +13,7 @@ import {
   DEFAULT_TEXT_SIZES,
   type BackgroundImage,
   type DraftableScreenFields,
+  type EditorTargetViewport,
   type LayoutNode,
   type PaneGrowthFallback,
   type PaneId,
@@ -25,6 +26,7 @@ import {
   type StageTimeline,
   type TextSizes,
 } from '../../../types/screen'
+import { DISPLAY_RENDER_WIDTH_OPTIONS, type DisplayRenderWidth } from '../../../types/displayMachine'
 import { findSiblingEventOrdinal } from '../../../utils/eventOrdinals'
 import { generateId } from '../../../utils/id'
 import { cloneSlot, createLeaf, deleteLeaf, emptySlot, listLeaves, splitLeaf } from '../../../utils/layoutTree'
@@ -122,6 +124,8 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
   const [direction, setDirection] = useState<1 | -1>(1)
   /** Which physical display shape the "Layout" tab's own live preview is currently sized to — persisted as the screen's own `previewAspectRatio` (see `handleSubmit`). */
   const [previewAspectRatio, setPreviewAspectRatio] = useState<PreviewAspectRatio>(screen?.previewAspectRatio ?? PREVIEW_ASPECT_RATIOS[0].ratio)
+  /** Interim per-screen viewport lock for `ScreenDisplay.tsx`'s fullscreen editor — see `ScreenConfig.editorTargetViewport`. Unlike `previewAspectRatio` above, `undefined` here is a real, meaningful state ("no lock, today's raw-fill behavior") rather than a placeholder for a default, so it's seeded straight from the screen with no fallback. */
+  const [editorTargetViewport, setEditorTargetViewport] = useState<EditorTargetViewport | undefined>(screen?.editorTargetViewport)
   const [liveTextSizes, setLiveTextSizes] = useState<TextSizes>(screen?.textSizes ?? DEFAULT_TEXT_SIZES)
   /** Which stage a pane's own tab is currently showing fields for — shared across every pane tab (switching which pane you're viewing doesn't change it), since stages are a screen-wide sequence, not a per-pane one. */
   const [activeStage, setActiveStage] = useState(1)
@@ -797,6 +801,7 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
         hideScrollbar,
         useScreensaver,
         previewAspectRatio,
+        editorTargetViewport,
       }
       onSave(nextScreen)
 
@@ -810,6 +815,27 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
         })
       }
     }
+
+    /**
+     * The same resolution tiers Display Manager offers per unit (`DISPLAY_RENDER_WIDTH_OPTIONS`), so
+     * the editor can preview at the exact CSS width a display actually lays out against.
+     *
+     * Deliberately *aligned* rather than derived: `renderWidthPx` is per-machine while this field is
+     * per-screen, and one screen can run on many machines, so there is no single machine to read it
+     * from. Offering identical tiers is what keeps the two consistent — see `DisplayRenderWidth`.
+     *
+     * `'auto'` is skipped (it means "don't lock" here, which is what unchecking the box already does),
+     * and heights come from the 16:9 the tiers describe; "Custom" below covers anything else.
+     */
+    const EDITOR_TARGET_VIEWPORT_PRESETS: { viewport: EditorTargetViewport; label: string }[] = DISPLAY_RENDER_WIDTH_OPTIONS.filter(
+      (option): option is Exclude<DisplayRenderWidth, 'auto'> => option !== 'auto',
+    ).map((width) => ({
+      viewport: { width, height: Math.round((width * 9) / 16) },
+      label: t(`admin.displayManager.renderWidth${width}`),
+    }))
+    const isCustomEditorTargetViewport = Boolean(
+      editorTargetViewport && !EDITOR_TARGET_VIEWPORT_PRESETS.some((preset) => preset.viewport.width === editorTargetViewport.width && preset.viewport.height === editorTargetViewport.height),
+    )
 
     viewKey = 'main'
     formContent = (
@@ -850,6 +876,63 @@ export function ScreenForm({ screen, onSave, onCancel, onRouteChange, initialTar
               </button>
             ))}
           </div>
+
+          {/* Locks `ScreenDisplay.tsx`'s fullscreen editor to a real device's own CSS-px viewport instead of the admin's own browser window, so what's shown while editing matches what that device actually renders. The tiers match Display Manager's per-unit "Render resolution" (`DisplayRenderWidth`) — see `EDITOR_TARGET_VIEWPORT_PRESETS` for why this is aligned with that setting rather than derived from it. Deliberately separate from the ratio picker above: that one shapes this inline dashboard preview only and never reaches the real kiosk display. */}
+          <Checkbox
+            id="screen-form-editor-viewport-lock"
+            label={t('admin.screens.editorViewportLockLabel')}
+            checked={editorTargetViewport !== undefined}
+            // Defaults to the 1080p tier (the one Display Manager recommends, and the first that
+            // clears Android's own minimum-font-size clamp) rather than the widest option, which is
+            // what `[0]` would be given the list runs widest-first.
+            onChange={(event) =>
+              setEditorTargetViewport(
+                event.target.checked ? (EDITOR_TARGET_VIEWPORT_PRESETS.find((preset) => preset.viewport.width === 1920) ?? EDITOR_TARGET_VIEWPORT_PRESETS[0]).viewport : undefined,
+              )
+            }
+          />
+          {editorTargetViewport && (
+            <>
+              <div className="screen-form__layout-picker" role="group" aria-label={t('admin.screens.editorViewportLockLabel')}>
+                {EDITOR_TARGET_VIEWPORT_PRESETS.map(({ viewport, label }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className={`screen-form__layout-option${editorTargetViewport.width === viewport.width && editorTargetViewport.height === viewport.height ? ' screen-form__layout-option--active' : ''}`}
+                    onClick={() => setEditorTargetViewport(viewport)}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={`screen-form__layout-option${isCustomEditorTargetViewport ? ' screen-form__layout-option--active' : ''}`}
+                  onClick={() => setEditorTargetViewport({ width: editorTargetViewport.width, height: editorTargetViewport.height })}
+                >
+                  {t('admin.screens.editorViewportCustomLabel')}
+                </button>
+              </div>
+              {isCustomEditorTargetViewport && (
+                <div className="screen-form__editor-viewport-custom">
+                  <NumberInput
+                    id="screen-form-editor-viewport-width"
+                    label={t('admin.screens.editorViewportWidthLabel')}
+                    value={editorTargetViewport.width}
+                    onChange={(value) => setEditorTargetViewport({ width: value, height: editorTargetViewport.height })}
+                    min={1}
+                  />
+                  <NumberInput
+                    id="screen-form-editor-viewport-height"
+                    label={t('admin.screens.editorViewportHeightLabel')}
+                    value={editorTargetViewport.height}
+                    onChange={(value) => setEditorTargetViewport({ width: editorTargetViewport.width, height: value })}
+                    min={1}
+                  />
+                </div>
+              )}
+            </>
+          )}
+
           {hasMultipleStages && <StageTabs stageCount={stageCount} activeStage={clampedActiveStage} onActiveStageChange={handleActiveStageChange} />}
           <div className="screen-form__preview">
             <ScaledScreenPreview aspectRatio={previewAspectRatio} fit="contain">

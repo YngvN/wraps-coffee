@@ -60,20 +60,21 @@
 }
 
 // One column per hour (`.weather-slide__item` below) plus one shared label
-// column at the start (`.weather-slide__row-labels`) — every column shares
-// this same set of row tracks via `subgrid`, the transpose of `TransitSlide`'s
-// own columns-sharing-row-tracks technique (there, a shared header sits
-// *above* rows of departures; here, a shared label column sits *before*
-// columns of hours). `grid-auto-flow: column` is what makes each new
-// `<li>`/label column land in its own column instead of `grid`'s row-first
-// default. The label column's own width is `max-content` (just wide enough
-// for the longest label); every hour column then splits whatever's left
-// evenly (`minmax(0, 1fr)`, same as before this was a grid).
+// column at the start (`.weather-slide__row-labels`) — every column restates
+// this same set of row tracks explicitly (see the note above `.weather-slide__item`
+// below for why not real `subgrid`), the transpose of `TransitSlide`'s own
+// columns-sharing-row-tracks technique (there, a shared header sits *above*
+// rows of departures; here, a shared label column sits *before* columns of
+// hours). `grid-auto-flow: column` is what makes each new `<li>`/label
+// column land in its own column instead of `grid`'s row-first default. The
+// label column's own width is `max-content` (just wide enough for the
+// longest label); every hour column then splits whatever's left evenly
+// (`minmax(0, 1fr)`, same as before this was a grid).
 //
 // `grid-template-rows` needs an *explicit* track count, not just `auto`
-// implicit rows — every subgridded child below anchors its own `grid-row: 1
-// / -1` against this explicit grid, and `-1` only means "last row" relative
-// to an explicit `grid-template-rows`; with none declared, there are zero
+// implicit rows — every child below anchors its own `grid-row: 1 / -1`
+// against this explicit grid, and `-1` only means "last row" relative to an
+// explicit `grid-template-rows`; with none declared, there are zero
 // explicit row lines, so `1 / -1` collapses to a single row and every
 // child's own rows pile on top of each other instead of stacking. The count
 // itself (`--weather-track-count`) is set inline by `WeatherSlide.tsx`,
@@ -91,14 +92,23 @@
   width: 100%;
 }
 
-// Spans every row track as a single grid item — needed for `subgrid` below
-// to hand the *same* shared row tracks back down to its own children, same
-// "real box, not `display: contents`" reasoning as `TransitSlide`'s own
-// `.transit-slide__item` — which, for the same reason, also no longer clips.
+// Spans every row track as a single grid item — same "real box, not
+// `display: contents`" reasoning as `TransitSlide`'s own `.transit-slide__item`
+// — which, for the same reason, also no longer clips.
+//
+// `grid-template-rows` restates `--weather-track-count` explicitly rather than
+// using real CSS `subgrid`, since this fleet's TVs run Chromium 116 (`subgrid`
+// shipped in 117) — see the equivalent note at the bottom of `TransitSlide.scss`
+// for the full reasoning. Every track here is a uniform `auto` and each hour
+// column carries the exact same field structure, so independently-sized tracks
+// still come out aligned (unlike vertical mode below, which needs equal `1fr`
+// tracks instead — see that note for why). `row-gap` is restated too since it
+// doesn't cascade down via CSS inheritance the way a real `subgrid`'s gaps would.
 .weather-slide__item {
   grid-row: 1 / -1;
   display: grid;
-  grid-template-rows: subgrid;
+  grid-template-rows: repeat(var(--weather-track-count, 3), auto);
+  row-gap: calc($spacing-unit / 2);
   justify-items: center;
   align-items: center;
   // **No `overflow: hidden` (2026-08-17).** It used to clip this column while Framer animated it
@@ -115,8 +125,8 @@
   min-width: 0;
 }
 
-// The row-label column itself — same subgrid technique as
-// `.weather-slide__item`, just left-aligned (`justify-items: start`)
+// The row-label column itself — same explicit-track technique as
+// `.weather-slide__item` above, just left-aligned (`justify-items: start`)
 // instead of centered, and always the first column (relying on DOM order:
 // it's the first child, before every `.weather-slide__item`). `aria-hidden`
 // in the markup since it's purely a visual legend for the hour columns next
@@ -124,41 +134,70 @@
 .weather-slide__row-labels {
   grid-row: 1 / -1;
   display: grid;
-  grid-template-rows: subgrid;
+  grid-template-rows: repeat(var(--weather-track-count, 3), auto);
+  row-gap: calc($spacing-unit / 2);
   justify-items: start;
   align-items: center;
 }
 
 // Vertical mode (see `useIsVerticalPane`): one row per hour, sharing column
-// tracks via `subgrid` — the same shape `TransitSlide`'s own
-// `.transit-slide__column` uses (a header row on top, one row per item below
-// it). Columns are all `auto`-width (not `1fr` — there's no "spread across
-// the pane's own full width" goal here the way horizontal mode's hour
-// columns have), so the whole list just shrinks to its own natural content
-// width and `.weather-slide__content`'s own centering handles the rest. Same
-// explicit-track-count reasoning as `--horizontal` above, just on the column
-// axis instead of the row one.
+// tracks — the same shape `TransitSlide`'s own `.transit-slide__column` uses
+// (a header row on top, one row per item below it). Same explicit-track-count
+// reasoning as `--horizontal` above, just on the column axis instead of the
+// row one.
+//
+// **`1fr`, not `auto` (2026-08-17).** `auto`-width columns were tried first — no
+// "spread across the pane's own full width" goal here the way horizontal mode's
+// hour columns have, so the whole list would just shrink to its own natural
+// content width and `.weather-slide__content`'s own centering would handle the
+// rest. Measured on the TV (Chromium 116, no real `subgrid` to share one grid's
+// worth of tracks across every row — see the note above `.weather-slide__item`),
+// that was wrong and visibly so: each row computes its own explicit tracks
+// independently, and the content genuinely differs per row — the leading card
+// reads "Now" where the rest read "07:00", and each hour's weather symbol is a
+// different SVG with a different intrinsic width (a bare moon is far narrower
+// than a moon behind cloud). So every row placed its temperature at a slightly
+// different x and the column visibly stepped in and out down the list. Equal
+// tracks are the only thing that aligns rows that cannot share them — this list
+// is given a definite `width` for the same reason, since `1fr` needs a basis to
+// divide, and without it the tracks fall back to sizing on content, which is
+// exactly the behavior being replaced.
 .weather-slide__list--vertical {
   display: grid;
-  grid-template-columns: repeat(var(--weather-track-count, 3), auto);
+  grid-template-columns: 1fr;
+  width: 100%;
   column-gap: $spacing-unit * 1.5;
   row-gap: calc($spacing-unit / 2);
   align-items: center;
 }
 
 // Angled rather than upright (see `.weather-slide__column-header-label`
-// below) — its own natural text width is what's driving each auto-sized
-// column wider than its actual value content needs, so tilting it is worth
-// more than centering it. `overflow: visible` (`.weather-slide__item`'s own
-// `overflow: hidden` doesn't apply here) lets the tilted text rise clear
-// above this row's own box instead of being clipped by it — the extra
-// `height` below is what actually reserves the room for that, since a
-// `transform` never grows the box it's applied to.
+// below) — an upright label at this column width would either overflow its
+// own equal-width track or force the whole list wider than the pane, so
+// tilting it (reading diagonally instead) is worth more than the awkward
+// wrap/truncation an upright label would need. `overflow: visible`
+// (`.weather-slide__item`'s own `overflow: hidden` doesn't apply here) lets
+// the tilted text rise clear above this row's own box instead of being
+// clipped by it — the extra `height` below is what actually reserves the
+// room for that, since a `transform` never grows the box it's applied to.
+//
+// `grid-template-columns`/`column-gap` restate `.weather-slide__list--vertical`'s
+// own equal `1fr` tracks explicitly rather than sharing them via real `subgrid`
+// — see the note above that rule for why, and the one above `.weather-slide__item`
+// for why this fleet can't use `subgrid` at all. `justify-items: center`
+// (not `start`) is part of that same fix: `start` matched *content-sized*
+// tracks, where a tilted label's own pivot point sitting at its column's left
+// edge lined up with a narrower-than-average value beneath it; with every
+// column now an equal fraction of the pane's width instead, left-hugging every
+// cell would pile all the slack after the last column and the whole block
+// would read as sitting left of centre — see `.weather-slide__column-header-label`
+// below for how this changes where its own pivot point actually lands.
 .weather-slide__column-header {
   display: grid;
-  grid-template-columns: subgrid;
+  grid-template-columns: repeat(var(--weather-track-count, 3), minmax(0, 1fr));
+  column-gap: $spacing-unit * 1.5;
   grid-column: 1 / -1;
-  justify-items: start;
+  justify-items: center;
   align-items: end;
   height: 4.5em;
   padding-bottom: 0.4em;
@@ -170,16 +209,16 @@
 
 // Spans every column track as a single grid item — the vertical-mode
 // equivalent of `.weather-slide__item` above (there, a column spanning every
-// row; here, a row spanning every column). `justify-items: start` (not
-// `center`) to match `.weather-slide__column-header`'s own alignment — a
-// tilted label's own pivot point (see `.weather-slide__column-header-label`)
-// sits at its column's own left edge, so a value centered in that same
-// column would drift out from under it instead of lining up.
+// row; here, a row spanning every column). Same explicit-track restatement
+// and `justify-items: center` as `.weather-slide__column-header` above,
+// for the same reason — the two need to agree on both so a value lines up
+// under its own header label.
 .weather-slide__row {
   display: grid;
-  grid-template-columns: subgrid;
+  grid-template-columns: repeat(var(--weather-track-count, 3), minmax(0, 1fr));
+  column-gap: $spacing-unit * 1.5;
   grid-column: 1 / -1;
-  justify-items: start;
+  justify-items: center;
   // The icon is by far the tallest cell in its own row (see
   // `.weather-slide__icon`'s own font size) — centering every other cell
   // against it, rather than each defaulting to `stretch`/top-aligning on its
@@ -200,20 +239,22 @@
 }
 
 // Tilted up and to the right, pivoting from its own bottom-left corner —
-// that corner is what stays put at roughly its own column's own left edge
-// (matching `.weather-slide__column-header`'s own `justify-items: start`),
-// with the label rising away from the column below rather than growing
-// sideways into its neighbor the way an upright label would.
+// that corner is what stays put at roughly the center of its own column's
+// own track (matching `.weather-slide__column-header`'s own
+// `justify-items: center`), with the label rising away from there rather
+// than growing sideways into its neighbor the way an upright label would.
 //
-// `width: 1px` is what actually makes the neighboring columns pack tight —
-// a `transform` is paint-only, so without this the grid track sizing below
-// still reserves each column's *unrotated* text width (e.g. all of
-// "Luftfuktighet" laid out flat), pushing the next column that much further
-// right even though the rotated text no longer visually needs that room.
-// Collapsing the box itself to 1px forces its contribution to the column's
-// own `auto` track size down to (near) nothing; `overflow: visible` on
-// `.weather-slide__column-header` is what then lets the now-oversized text
-// keep painting past its own collapsed box instead of clipping.
+// `width: 1px` collapses this label to (near) nothing rather than its own
+// natural unrotated text width (e.g. all of "Luftfuktighet" laid out flat)
+// — a `transform` is paint-only and never resizes the box it's applied to,
+// so without this a wide box would shift how far off-center the rotated
+// text's own pivot corner sits, and `justify-items: center` would center
+// that whole wide box rather than just the pivot point. (The column's own
+// track no longer needs protecting from this box's width the way it would
+// with a content-sized track — `minmax(0, 1fr)` already fixes its minimum
+// size at `0`, ignoring content entirely.) `overflow: visible` on
+// `.weather-slide__column-header` is what then lets the now-oversized
+// rotated text keep painting past this collapsed box instead of clipping.
 .weather-slide__column-header-label {
   width: 1px;
   transform: rotate(-40deg);
@@ -337,61 +378,12 @@
   height: calc(var(--slide-heading-size, 8cqmin) * 0.7);
 }
 
-// Fallback for engines without `subgrid` — see `TransitSlide.scss`'s own
-// equivalent block for the full reasoning (Chromium < 117, i.e. the AOSP
-// Android System WebView still shipping on some of this fleet's TVs, drops
-// every `subgrid` declaration above as an invalid value, collapsing each
-// subgridded child to a single implicit track and piling its cells on top of
-// one another).
-//
-// Both parents already size their tracks off `--weather-track-count` (set
-// inline by `WeatherSlide.tsx`), so the fallback just restates that same
-// expression rather than duplicating a literal count. Alignment survives
-// this better than `TransitSlide`'s own fallback does: every track is a
-// uniform `auto` and each hour column/row carries the exact same field
-// structure, so independently-sized tracks still come out near-identical.
-// Gaps are restated for the same reason `TransitSlide`'s own fallback
-// restates them: a real `subgrid` inherits its parent grid's gaps, an
-// explicit track list doesn't, so without this every shared track sits flush
-// against the next one.
-@supports not (grid-template-rows: subgrid) {
-  // Horizontal mode — columns of hours sharing the list's own row tracks.
-  .weather-slide__item,
-  .weather-slide__row-labels {
-    grid-template-rows: repeat(var(--weather-track-count, 3), auto);
-    row-gap: calc($spacing-unit / 2);
-  }
-}
-
-@supports not (grid-template-columns: subgrid) {
-  // Vertical mode — rows of hours sharing the list's own column tracks.
-  //
-  // **`1fr`, not `auto` (2026-08-17).** The block comment above predicted that independently-sized
-  // `auto` tracks would "come out near-identical" because every row carries the same field structure.
-  // Measured on the TV (Chromium 116, no subgrid), that is wrong and visibly so: `auto` sizes each row's
-  // tracks to *its own* content, and the content genuinely differs per row — the leading card reads "Now"
-  // where the rest read "07:00", and each hour's weather symbol is a different SVG with a different
-  // intrinsic width (a bare moon is far narrower than a moon behind cloud). So every row placed its
-  // temperature at a slightly different x and the column visibly stepped in and out down the list.
-  //
-  // Equal tracks are the only thing that aligns rows that cannot share them. The list is given a
-  // definite width for the same reason — `1fr` needs a basis to divide, and without it the tracks fall
-  // back to sizing on content, which is exactly the behaviour being replaced.
-  .weather-slide__list--vertical {
-    grid-template-columns: 1fr;
-    width: 100%;
-  }
-
-  .weather-slide__column-header,
-  .weather-slide__row {
-    grid-template-columns: repeat(var(--weather-track-count, 3), minmax(0, 1fr));
-    column-gap: $spacing-unit * 1.5;
-    // `center`, overriding the `start` both rules carry above. That `start` exists to keep a value under
-    // its own tilted header label, whose pivot is its column's left edge — right for subgrid's
-    // content-sized tracks, wrong here: these tracks are equal and span the pane, so left-hugging every
-    // cell leaves all the slack piled up after the last column and the whole block reads as sitting left
-    // of centre. Centring each cell in its own equal track is what makes the group symmetric within the
-    // pane while keeping the columns aligned with each other.
-    justify-items: center;
-  }
-}
+// Why every grid above restates its own tracks explicitly instead of using real CSS `subgrid` to
+// share one grid's worth of tracks across every child: `subgrid` shipped in Chromium 117, and this
+// fleet's TVs run the AOSP Android System WebView (`com.android.webview`) on Chromium 116, where
+// `grid-template-columns`/`grid-template-rows: subgrid` used to be an *invalid value* dropped at parse
+// time — every subgridded child collapsed to a single implicit track and piled its cells on top of one
+// another. See each rule above for its own restated tracks/gaps (a real `subgrid` would have inherited
+// its parent's gaps automatically; an explicit track list does not, so every rule above restates its
+// own `column-gap`/`row-gap` too) — and `.weather-slide__list--vertical`'s own comment above for why
+// vertical mode specifically needs equal `1fr` tracks rather than `auto` ones.

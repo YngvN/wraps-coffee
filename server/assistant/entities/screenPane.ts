@@ -229,11 +229,12 @@ function buildContentSchema(): Record<string, unknown> {
         modeFilter: nullable({ type: 'array', items: { type: 'string' }, description: 'Transport modes to include, e.g. "bus"/"rail" — the FULL replacement list; empty/unset shows every mode.' }),
         iconPack: nullable({ type: 'string', enum: ['standard', 'simple'] }),
         autoLineColors: nullable({ type: 'boolean' }),
+        useRealLineColors: nullable({ type: 'boolean' }),
         useBrandTheme: nullable({ type: 'boolean' }),
         showBrandLogo: nullable({ type: 'boolean' }),
         textSizes: TEXT_SIZES_SCHEMA,
       },
-      ['kind', 'brand', 'stopId', 'departureCount', 'showPlatform', 'showLineName', 'departureMode', 'modeFilter', 'iconPack', 'autoLineColors', 'useBrandTheme', 'showBrandLogo', 'textSizes'],
+      ['kind', 'brand', 'stopId', 'departureCount', 'showPlatform', 'showLineName', 'departureMode', 'modeFilter', 'iconPack', 'autoLineColors', 'useRealLineColors', 'useBrandTheme', 'showBrandLogo', 'textSizes'],
     ),
     contentBranch(
       {

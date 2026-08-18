@@ -292,12 +292,12 @@ export function WeatherSlide({
   // `WeatherSlide.scss`, since `repeat(<n>, auto)` needs a concrete count —
   // unlike `TransitSlide`'s own fixed column count, this one genuinely
   // varies with which details are on. Every `grid-row`/`grid-column: 1 / -1`
-  // subgrid below depends on this explicit count to resolve `-1` against —
-  // without it, there's no explicit grid to anchor "last track" to, and
-  // every track collapses into one.
+  // below depends on this explicit count to resolve `-1` against — without
+  // it, there's no explicit grid to anchor "last track" to, and every track
+  // collapses into one.
   const trackCount = 3 + [showWind, showHumidity, showPrecipitationProbability, showUvIndex, showPressure].filter(Boolean).length
 
-  /** One hour's own field values, in a fixed order shared by both orientations' own per-hour element (`.weather-slide__item` in horizontal mode, `.weather-slide__row` in vertical) — time, icon, temp always; each detail only when its own toggle is on, matching `renderDetailLabels`'s own conditions exactly (subgrid alignment is purely positional, so the two ever drifting out of sync would misalign every label against the wrong value). */
+  /** One hour's own field values, in a fixed order shared by both orientations' own per-hour element (`.weather-slide__item` in horizontal mode, `.weather-slide__row` in vertical) — time, icon, temp always; each detail only when its own toggle is on, matching `renderDetailLabels`'s own conditions exactly (grid alignment here is purely positional, so the two ever drifting out of sync would misalign every label against the wrong value). */
   const renderHourFields = (hour: WeatherHour, index: number): ReactNode => (
     <>
       {/* The leading card is always the current hour (the list is time-sorted, oldest-first) — reads better as "Now" than repeating the clock's own current hour back at it. Naturally lands on whichever card the sequencer has just reflowed into position 0, right as `useSequencedHours` retires the previous one. */}
@@ -342,8 +342,8 @@ export function WeatherSlide({
         {/* Fades the whole list container out/in whenever `isVertical` itself flips — a resize that stays within the same orientation never re-triggers this (see `slideLayoutFade.ts`), only an actual shape change does. Nested inside `.weather-slide__content`, not wrapping it, so the brand logo and low/high summary (siblings/outside this block) never fade with it. */}
         <AnimatePresence mode="wait" initial={false}>
           {isVertical ? (
-            // Vertical mode: one row per hour, sharing column tracks via
-            // `subgrid` — the exact same shape `TransitSlide`'s own
+            // Vertical mode: one row per hour, sharing column tracks (see
+            // `WeatherSlide.scss`) — the exact same shape `TransitSlide`'s own
             // `.transit-slide__column` uses (a header row up top, one row per
             // item below it), not a coincidence: a narrow/portrait pane and a
             // departures board both read best as a plain top-to-bottom list.
@@ -383,10 +383,11 @@ export function WeatherSlide({
             </motion.ul>
           ) : (
             // Horizontal mode (the default): one column per hour, sharing row
-            // tracks via `subgrid` — the transpose of the vertical shape above
-            // (there, one row per hour sharing column tracks; here, one column
-            // per hour sharing row tracks), with a shared row-label legend at
-            // the *start* taking the header row's own place.
+            // tracks (see `WeatherSlide.scss`) — the transpose of the vertical
+            // shape above (there, one row per hour sharing column tracks;
+            // here, one column per hour sharing row tracks), with a shared
+            // row-label legend at the *start* taking the header row's own
+            // place.
             <motion.ul
               key="horizontal"
               className="weather-slide__list weather-slide__list--horizontal"

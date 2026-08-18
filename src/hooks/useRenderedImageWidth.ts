@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { effectiveDevicePixelRatio } from '../utils/effectiveDevicePixelRatio'
 
 /**
  * Measures how wide an element actually renders, in **device pixels**, for choosing an image variant
@@ -38,7 +39,9 @@ export function useRenderedImageWidth<T extends HTMLElement>() {
   useLayoutEffect(() => {
     const element = ref.current
     if (!element) return
-    const measure = () => publish(element.getBoundingClientRect().width * (window.devicePixelRatio || 1))
+    // `effectiveDevicePixelRatio`, not `window.devicePixelRatio` — see that function for why the raw
+    // value over-requests by 2x on a display with a forced layout viewport (`DisplayRenderWidth`).
+    const measure = () => publish(element.getBoundingClientRect().width * effectiveDevicePixelRatio())
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(element)

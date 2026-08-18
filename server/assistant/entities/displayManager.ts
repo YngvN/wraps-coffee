@@ -1,4 +1,4 @@
-import { DISPLAY_MAX_IMAGE_PX_OPTIONS, type DisplayMachine, type DisplayMaxImagePx } from '../../../src/types/displayMachine'
+import { DISPLAY_MAX_IMAGE_PX_OPTIONS, DISPLAY_RENDER_WIDTH_OPTIONS, type DisplayMachine, type DisplayMaxImagePx, type DisplayRenderWidth } from '../../../src/types/displayMachine'
 import type { ScreenConfig } from '../../../src/types/screen'
 import * as store from '../../store'
 import { nullable, type AssistantCandidate, type AssistantEntity, type AssistantFillContext, type AssistantJsonSchema, type AssistantValidationIssue } from '../types'
@@ -23,12 +23,15 @@ export interface DisplayManagerDraft {
   assignedScreenID: string | null
   /** Machine-level, not per-monitor — same as `machineLabel`. See `DisplayMachine.maxImagePx`. */
   maxImagePx: DisplayMaxImagePx
+  /** Machine-level, not per-monitor — same as `maxImagePx` above. See `DisplayMachine.renderWidthPx`. */
+  renderWidthPx: DisplayRenderWidth
 }
 
 interface DisplayManagerFields {
   machineLabel: string | null
   assignedScreenName: string | null
   maxImagePx: string | null
+  renderWidthPx: string | null
 }
 
 function findMonitor(machineID: string, monitorId: string): DisplayManagerDraft | null {
@@ -42,6 +45,7 @@ function findMonitor(machineID: string, monitorId: string): DisplayManagerDraft 
     machineLabel: machine.customLabel ?? machine.label,
     assignedScreenID: monitor.assignedScreenID,
     maxImagePx: machine.maxImagePx ?? 'auto',
+    renderWidthPx: machine.renderWidthPx ?? 'auto',
   }
 }
 
@@ -103,8 +107,16 @@ export const displayManagerEntity: AssistantEntity<DisplayManagerDraft> = {
           description:
             'Ceiling on how large an image this display downloads and decodes, in pixels of width. "auto" lets it choose from how large the image is actually shown; a number caps it for a slower or older unit.',
         }),
+        // Same "small fixed context-free enum" reasoning as `maxImagePx` above — deliberately not a
+        // `confabulationRiskFields` entry.
+        renderWidthPx: nullable({
+          type: 'string',
+          enum: DISPLAY_RENDER_WIDTH_OPTIONS.map((option) => String(option)),
+          description:
+            'The CSS layout width this display designs against, in pixels — not its panel resolution, and it does not change how many pixels are drawn. "auto" follows the device. Raise it when text on a busy screen renders too small or gets cut off; 1920 is the recommended tier.',
+        }),
       },
-      required: ['machineLabel', 'assignedScreenName', 'maxImagePx'],
+      required: ['machineLabel', 'assignedScreenName', 'maxImagePx', 'renderWidthPx'],
       additionalProperties: false,
     }
   },
@@ -140,7 +152,12 @@ export const displayManagerEntity: AssistantEntity<DisplayManagerDraft> = {
     const requestedCap = fields.maxImagePx
     const parsedCap = requestedCap === 'auto' ? 'auto' : Number(requestedCap)
     const maxImagePx = requestedCap !== null && (DISPLAY_MAX_IMAGE_PX_OPTIONS as readonly unknown[]).includes(parsedCap) ? (parsedCap as DisplayMaxImagePx) : base.maxImagePx
-    return { ...base, machineLabel: fields.machineLabel ?? base.machineLabel, assignedScreenID, maxImagePx }
+    // Same round-trip-then-validate treatment as `maxImagePx` directly above.
+    const requestedWidth = fields.renderWidthPx
+    const parsedWidth = requestedWidth === 'auto' ? 'auto' : Number(requestedWidth)
+    const renderWidthPx =
+      requestedWidth !== null && (DISPLAY_RENDER_WIDTH_OPTIONS as readonly unknown[]).includes(parsedWidth) ? (parsedWidth as DisplayRenderWidth) : base.renderWidthPx
+    return { ...base, machineLabel: fields.machineLabel ?? base.machineLabel, assignedScreenID, maxImagePx, renderWidthPx }
   },
 
   validate(): AssistantValidationIssue[] {

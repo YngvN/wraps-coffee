@@ -115,7 +115,15 @@ interface EstimatedCall {
   cancellation: boolean
   destinationDisplay: { frontText: string }
   quay: { publicCode: string | null } | null
-  serviceJourney: { line: { publicCode: string; name: string | null; transportMode: string; authority: { id: string; name: string } | null } }
+  serviceJourney: {
+    line: {
+      publicCode: string
+      name: string | null
+      transportMode: string
+      authority: { id: string; name: string } | null
+      presentation: { colour: string | null; textColour: string | null } | null
+    }
+  }
 }
 interface StopPlaceDeparturesResponse {
   data: { stopPlace: { name: string; estimatedCalls: EstimatedCall[] } | null }
@@ -151,11 +159,17 @@ const DEPARTURES_QUERY = `
         cancellation
         destinationDisplay { frontText }
         quay { publicCode }
-        serviceJourney { line { publicCode name transportMode authority { id name } } }
+        serviceJourney { line { publicCode name transportMode authority { id name } presentation { colour textColour } } }
       }
     }
   }
 `
+
+/** Entur returns `presentation.colour`/`textColour` as bare hex (e.g. `"76A300"`) — prefixes it with `#` to match this app's own `lineColors[].hex` convention (`TransitLineColorListEditor.tsx`), so the client can use it directly as a CSS value with no further normalizing. */
+function normalizeHex(value: string | null | undefined): string | undefined {
+  if (!value) return undefined
+  return value.startsWith('#') ? value : `#${value}`
+}
 
 /** Fetches the next `TRANSIT_FETCH_BUFFER` departures from stop `stopId` (regardless of `count` — see its own doc comment), cached briefly per `stopId` so several concurrent callers (the poller, an on-demand HTTP request) don't each hit Entur independently. Returns the full buffered list; the caller is responsible for only *displaying* `count` of them. Shared by `handleDepartures` (the on-demand HTTP route) and `transitPoller.ts` (the background poller that owns `admin.transitDepartures`). */
 export async function fetchStopDepartures(stopId: string, count: number): Promise<StopDepartures> {
@@ -177,6 +191,8 @@ export async function fetchStopDepartures(stopId: string, count: number): Promis
         mode: call.serviceJourney.line.transportMode,
         authorityId: call.serviceJourney.line.authority?.id ?? undefined,
         authorityName: call.serviceJourney.line.authority?.name ?? undefined,
+        lineColor: normalizeHex(call.serviceJourney.line.presentation?.colour),
+        lineTextColor: normalizeHex(call.serviceJourney.line.presentation?.textColour),
         destination: call.destinationDisplay.frontText,
         expectedDepartureTime: call.expectedDepartureTime,
         aimedDepartureTime: call.aimedDepartureTime,

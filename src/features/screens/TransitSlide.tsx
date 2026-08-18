@@ -8,6 +8,7 @@ import { useLanguage } from '../../i18n'
 import { DEFAULT_TRANSIT_DEPARTURE_COUNT, DEFAULT_TRANSIT_DEPARTURE_MODE, type TransitDepartureMode, type TransitIconPack } from '../../types/screen'
 import type { DepartureInfo } from '../../types/integrations'
 import { getAutoLineColor } from '../../utils/transitLineColors'
+import { getContrastTextColor } from '../../utils/screenColors'
 import { SLIDE_LAYOUT_FADE_VARIANTS, slideLayoutFadeTransition } from './slideLayoutFade'
 import { TransitModeIcon } from './TransitModeIcon'
 import './TransitSlide.scss'
@@ -37,6 +38,8 @@ interface TransitSlideProps {
   lineColors?: { id: string; authority: string; hex: string }[]
   /** Assigns each operator a distinct, automatically generated color instead of `lineColors` — except `brand`'s own native operator (e.g. Ruter on a Ruter# pane), which keeps its real brand-theme color, same as today. Falls back to `true`. */
   autoLineColors?: boolean
+  /** Uses a departure's own real official line color from Entur (`DepartureInfo.lineColor`/`lineTextColor`) whenever one is reported, ahead of `autoLineColors`/`lineColors`/the brand theme — see `ScreenSlotContent`'s `'transit'` variant. Falls back to `true`. */
+  useRealLineColors?: boolean
 }
 
 /** Looks up `lineColors`' entry for `authorityName`, matching case-insensitively/trimmed since Entur's own casing/whitespace isn't guaranteed to match what an admin typed. Returns `undefined` when unset, unmatched, or the departure has no known authority. */
@@ -144,7 +147,7 @@ const transitItemTransition = { duration: 0.4, ease: 'easeInOut' as const }
 // `overflow` rides along on the variants rather than living in the stylesheet: a collapsing row does
 // need to clip (its content is taller than the box being animated down to zero), but a *settled* one
 // must not, or content that momentarily exceeds its own grid track — a departure inserted above it
-// resizing the subgrid, a destination that wrapped — gets cut off with no way to tell. Framer applies
+// resizing the row, a destination that wrapped — gets cut off with no way to tell. Framer applies
 // a non-animatable property like this immediately at the start of the animation, and `transitionEnd`
 // releases it once the row has finished arriving, so clipping lasts exactly as long as the animation.
 const transitRowVariants = {
@@ -371,6 +374,44 @@ function useSequencedColumns(departures: DepartureInfo[], columnCount: number, r
   return columns
 }
 
+/**
+ * Resolves a departure's own line-badge `{ background, color }`, in priority
+ * order: (1) the line's own real official color from Entur
+ * (`departure.lineColor`/`lineTextColor`), when `useRealLineColors` is on
+ * and Entur actually reported one for this specific line — more accurate
+ * than either kind of approximation below since it's the operator's own
+ * real color for this exact line (e.g. Ruter's own 500-series regional
+ * buses come back green, distinct from its usual red city-bus color), and
+ * applies even to `brand`'s own home authority (a Ruter pane's own buses
+ * show their true colors instead of one flat brand red); (2) `autoLineColors`'
+ * hash-based per-authority color, unless this is `brand`'s own home
+ * authority (kept on its brand-theme color instead, same as today); (3) a
+ * manually-configured `lineColors` override, matched by authority; (4)
+ * `undefined` — no inline style, so the default/brand-theme CSS wins.
+ */
+function resolveLineColorStyle({
+  departure,
+  lineColors,
+  autoLineColors,
+  useRealLineColors,
+  brand,
+}: {
+  departure: DepartureInfo
+  lineColors: TransitSlideProps['lineColors']
+  autoLineColors: boolean
+  useRealLineColors: boolean
+  brand: TransitSlideProps['brand']
+}): { background: string; color: string } | undefined {
+  if (useRealLineColors && departure.lineColor) {
+    return { background: departure.lineColor, color: departure.lineTextColor ?? getContrastTextColor(departure.lineColor) }
+  }
+  const autoLineColor =
+    autoLineColors && departure.authorityName && !isBrandHomeAuthority(brand, departure.authorityName) ? getAutoLineColor(departure.authorityName) : undefined
+  if (autoLineColor) return { background: autoLineColor.background, color: autoLineColor.text }
+  const lineColorHex = findLineColorHex(lineColors, departure.authorityName)
+  return lineColorHex ? { background: lineColorHex, color: getContrastTextColor(lineColorHex) } : undefined
+}
+
 /** One departure's own icon/line/destination content (the row's left half) — split from `TransitDepartureTrailing` below so single-column mode can animate each half separately (sliding in from opposite edges); multi-column mode just renders both side by side inside one shared fade. */
 function TransitDepartureLeading({
   departure,
@@ -378,6 +419,7 @@ function TransitDepartureLeading({
   iconPack,
   lineColors,
   autoLineColors,
+  useRealLineColors,
   brand,
 }: {
   departure: DepartureInfo
@@ -385,21 +427,25 @@ function TransitDepartureLeading({
   iconPack?: TransitIconPack
   lineColors?: TransitSlideProps['lineColors']
   autoLineColors?: boolean
+  useRealLineColors?: boolean
   brand?: TransitSlideProps['brand']
 }) {
   const { t } = useLanguage()
-  const autoLineColor =
-    autoLineColors && departure.authorityName && !isBrandHomeAuthority(brand, departure.authorityName) ? getAutoLineColor(departure.authorityName) : undefined
-  const lineColorHex = autoLineColor ? undefined : findLineColorHex(lineColors, departure.authorityName)
-  const lineColorStyle = autoLineColor ? { background: autoLineColor.background, color: autoLineColor.text } : lineColorHex ? { background: lineColorHex } : undefined
+  const lineColorStyle = resolveLineColorStyle({
+    departure,
+    lineColors,
+    autoLineColors: autoLineColors ?? true,
+    useRealLineColors: useRealLineColors ?? true,
+    brand,
+  })
   return (
     <>
-      <span className="transit-slide__mode-icon-wrap">
-        <TransitModeIcon mode={departure.mode} pack={iconPack} className="transit-slide__mode-icon" />
-        {departure.realtime && <span className="transit-slide__realtime-dot" title={t('admin.screens.transitRealtimeDotTitle')} />}
-      </span>
       <span className="transit-slide__line" style={lineColorStyle}>
-        {departure.line}
+        <span className="transit-slide__line-icon-wrap">
+          <TransitModeIcon mode={departure.mode} pack={iconPack} className="transit-slide__line-icon" />
+          {departure.realtime && <span className="transit-slide__realtime-dot" title={t('admin.screens.transitRealtimeDotTitle')} />}
+        </span>
+        <span className="transit-slide__line-number">{departure.line}</span>
       </span>
       <span className="transit-slide__destination">
         {departure.destination}
@@ -429,7 +475,7 @@ function TransitDepartureTrailing({ departure, minutesUntil, showPlatform }: { d
  * `transit-slide__column-header-label`, so `TransitSlide.scss` can pin it
  * to the exact same grid column its corresponding data cell
  * (`.transit-slide__line`/`__platform`/`__time`) uses — without that,
- * `.transit-slide__trailing`'s own 2-track subgrid would auto-place
+ * `.transit-slide__trailing`'s own 2-track grid would auto-place
  * "Arrival" into the *first* (platform's own) track whenever `showPlatform`
  * is off, same failure mode `.transit-slide__time`'s own explicit
  * `grid-column: 2` already guards against for the data rows.
@@ -465,6 +511,7 @@ export function TransitSlide({
   showBrandLogo,
   lineColors,
   autoLineColors,
+  useRealLineColors,
 }: TransitSlideProps) {
   const { t } = useLanguage()
   const [config] = useIntegrationsConfig()
@@ -497,6 +544,7 @@ export function TransitSlide({
   const departures = useSequencedDepartures(targetDepartures, effectiveStopId ?? '')
   const branded = useBrandTheme ?? true
   const autoColorsEnabled = autoLineColors ?? true
+  const realLineColorsEnabled = useRealLineColors ?? true
 
   /** `Date.now()` can't be called directly during render (an impure call) — ticking this every 30s keeps each departure's "in X min" reasonably fresh between refetches without reading the clock at render time. */
   const [now, setNow] = useState(() => Date.now())
@@ -591,13 +639,12 @@ export function TransitSlide({
                     // used for 1 *and* 2 columns — see `transitLeadingVariants`'s
                     // own doc comment) removes an exiting element from normal
                     // document flow by setting `position: absolute` on it —
-                    // which breaks `.transit-slide__item`'s own
-                    // `grid-template-columns: subgrid` (subgrid has no parent
-                    // grid to inherit tracks from once it's no longer a real
-                    // grid item), so the exiting row's own grid recomputes
-                    // from scratch and its line badge visibly stretches to
-                    // whatever width it lands with, right as it's animating
-                    // out. The fade + max-height animation's own rows (3+
+                    // which can still change how `.transit-slide__item`'s own
+                    // grid tracks resolve once it's no longer a real grid
+                    // item of `.transit-slide__column`, so the exiting row's
+                    // line badge can visibly stretch to whatever width it
+                    // lands with, right as it's animating out. The fade +
+                    // max-height animation's own rows (3+
                     // columns) need to stay in normal flow through their own
                     // exit instead (see `transitRowVariants`'s own doc
                     // comment for why) — the default (`sync`) mode does that.
@@ -619,7 +666,7 @@ export function TransitSlide({
                             className={itemClassName}
                           >
                             <span className="transit-slide__leading">
-                              <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} brand={resolvedBrand} />
+                              <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} useRealLineColors={realLineColorsEnabled} brand={resolvedBrand} />
                             </span>
                             <span className="transit-slide__trailing">
                               <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
@@ -645,7 +692,7 @@ export function TransitSlide({
                             className={itemClassName}
                           >
                             <span className="transit-slide__leading">
-                              <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} brand={resolvedBrand} />
+                              <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} useRealLineColors={realLineColorsEnabled} brand={resolvedBrand} />
                             </span>
                             <span className="transit-slide__trailing">
                               <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />
@@ -656,7 +703,7 @@ export function TransitSlide({
                       return (
                         <motion.li key={departureKey(departure)} initial="hidden" animate="visible" exit="exit" className={itemClassName}>
                           <motion.span layout="position" className="transit-slide__leading" variants={transitLeadingVariants} transition={transitItemTransition}>
-                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} brand={resolvedBrand} />
+                            <TransitDepartureLeading departure={departure} showLineName={showLineName} iconPack={iconPack} lineColors={lineColors} autoLineColors={autoColorsEnabled} useRealLineColors={realLineColorsEnabled} brand={resolvedBrand} />
                           </motion.span>
                           <motion.span layout="position" className="transit-slide__trailing" variants={transitTrailingVariants} transition={transitItemTransition}>
                             <TransitDepartureTrailing departure={departure} minutesUntil={minutesUntil} showPlatform={showPlatform} />

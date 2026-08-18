@@ -193,10 +193,12 @@ export type ScreenSlotContent =
       modeFilter?: string[]
       /** Which icon set the mode icons next to each departure are drawn from — see `TransitIconPack`. Falls back to `DEFAULT_TRANSIT_ICON_PACK`. */
       iconPack?: TransitIconPack
-      /** Per-operator line-badge color overrides, keyed by the operator's own display name as Entur reports it (e.g. `"Vy"`, `"Flytoget"`) — matched against `DepartureInfo['authorityName']` case-insensitively/trimmed. A departure whose authority has no matching entry (including Ruter itself, which normally isn't listed here) keeps the pane's default badge styling. Ignored while `autoLineColors` is on. */
+      /** Per-operator line-badge color overrides, keyed by the operator's own display name as Entur reports it (e.g. `"Vy"`, `"Flytoget"`) — matched against `DepartureInfo['authorityName']` case-insensitively/trimmed. A departure whose authority has no matching entry (including Ruter itself, which normally isn't listed here) keeps the pane's default badge styling. Ignored while `autoLineColors` is on, and superseded by `useRealLineColors` for any specific line Entur has a real color for. */
       lineColors?: { id: string; authority: string; hex: string }[]
-      /** Assigns each operator a distinct color automatically, generated deterministically from its own name — no manual setup needed. `brand`'s own native operator (e.g. Ruter on a Ruter# pane) is excluded and keeps its real brand-theme color instead. Takes precedence over `lineColors` (unused while this is on). Falls back to `true`. */
+      /** Assigns each operator a distinct color automatically, generated deterministically from its own name — no manual setup needed. `brand`'s own native operator (e.g. Ruter on a Ruter# pane) is excluded and keeps its real brand-theme color instead. Takes precedence over `lineColors` (unused while this is on), but is itself superseded by `useRealLineColors` for any specific line Entur has a real color for. Falls back to `true`. */
       autoLineColors?: boolean
+      /** Uses each line's own real official badge color (`DepartureInfo['lineColor']`/`lineTextColor`, straight from Entur's `Line.presentation`) whenever Entur reports one for that specific line — taking priority over both `autoLineColors`' hash guess and a manual `lineColors` override, and even over `brand`'s own flat brand-theme color (e.g. a Ruter pane's own buses show their real red/green instead of one uniform red). Falls back to a line with no real color to whichever of `autoLineColors`/`lineColors`/the brand theme would otherwise apply. Falls back to `true`. */
+      useRealLineColors?: boolean
       /** Overrides the pane's own background/font/text colors with a look-alike of whichever brand this pane is (see `brand`) instead of the screen's normal styling. Falls back to `true`. */
       useBrandTheme?: boolean
       /** Shows the pane's own brand's logo in its top-left corner. Only relevant while `useBrandTheme` is on. Falls back to `true`. */
@@ -555,6 +557,13 @@ export interface PreviewAspectRatio {
 /** Used when a screen has no `previewAspectRatio` of its own yet — a standard landscape display. */
 export const DEFAULT_PREVIEW_ASPECT_RATIO: PreviewAspectRatio = { width: 16, height: 9 }
 
+/** A device's fixed CSS-px layout viewport that `ScreenDisplay.tsx`'s fullscreen editor can lock to — see `ScreenConfig.editorTargetViewport`. `dpr` is stored for fleet-identification/documentation only; the size-lock mechanism (`ScaledScreenPreview`'s `referenceSize`) consumes only `width`/`height`. */
+export interface EditorTargetViewport {
+  width: number
+  height: number
+  dpr?: number
+}
+
 /**
  * Font sizes for the text roles shared by every slide, adjustable per screen
  * via the in-display text size editor. Each number is a percentage of the
@@ -594,8 +603,9 @@ export const DEFAULT_TEXT_SIZES: TextSizes = {
  * The subset of `ScreenConfig` fields that determine what a screen actually
  * renders, and can therefore be staged privately in `ScreenConfig.draft`
  * before publishing. Excludes identity/metadata (`screenID`, `name`,
- * `previewAspectRatio`) and ephemeral live-signal fields (`useScreensaver`,
- * `screensaverTestActive`, `editingFocus`), which are always live.
+ * `previewAspectRatio`, `editorTargetViewport`) and ephemeral live-signal
+ * fields (`useScreensaver`, `screensaverTestActive`, `editingFocus`), which
+ * are always live.
  */
 export type DraftableScreenFields = Pick<
   ScreenConfig,
@@ -677,6 +687,26 @@ export interface ScreenConfig {
   backgroundImage?: BackgroundImage
   /** Which physical display shape this screen is meant for — purely a sanity-check/preview aid (the "Layout" tab's own live preview, and each screen's card in the admin Screens list), never affects the real kiosk display itself (`ScreenDisplay` always fills whatever the actual browser/device window's own shape is). Falls back to `DEFAULT_PREVIEW_ASPECT_RATIO` (16:9) when absent. */
   previewAspectRatio?: PreviewAspectRatio
+  /**
+   * Locks `ScreenDisplay.tsx`'s fullscreen in-place editor
+   * (`/screens/editor/:screenId` only — see `isEditorRoute`) to render
+   * `SplitLayout` at this exact CSS-px viewport, then transform-scales the
+   * result to fill however large the admin's actual browser window happens
+   * to be — see `ScaledScreenPreview`'s `referenceSize` prop. Unlike
+   * `previewAspectRatio` above, this DOES affect what the real editor
+   * renders — that's the point: reproducing a real kiosk device's own fixed
+   * CSS-px layout viewport (e.g. 960×540 at devicePixelRatio 2 for this
+   * fleet's `MiTV_AZFU0` units — see
+   * `QA/Reports/kiosk-performance-consolidated-2026-08-16.md` §11) so what
+   * an admin sees while editing matches what the TV actually shows. Falls
+   * back to today's behavior (raw, unscaled fill of the browser's own
+   * viewport, no lock) when absent, so every existing screen is unaffected
+   * until explicitly opted in. Never read on the real kiosk route
+   * (`/screens/:screenId`), which always renders at its own true viewport
+   * regardless — it isn't being "faked" to look like a device there, it IS
+   * the device.
+   */
+  editorTargetViewport?: EditorTargetViewport
   /**
    * Static screenshot(s) of this screen's own rendered appearance, one per
    * stage (`previewImages[stage - 1]`) — regenerated wholesale on every save

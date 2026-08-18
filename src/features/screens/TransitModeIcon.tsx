@@ -9,13 +9,49 @@ interface TransitModeIconProps {
   className?: string
 }
 
-/** Shared stroke-icon defaults, matching `AdminNavIcons`' own outline style — a plain 24x24 glyph that inherits its color from the surrounding text. Shared by every pack, so switching `pack` only ever changes the glyph shapes, never their sizing/alignment. */
-function Wrapper({ children, className }: { children: ReactNode; className?: string }) {
+/**
+ * Shared icon-svg defaults — sizes/aligns every glyph in every pack the same
+ * way (`1em`, inherits color from the surrounding text) regardless of its
+ * own native coordinate space or rendering style. Two independent knobs:
+ * - `viewBox` (default `"0 0 24 24"`, matching every glyph except the
+ *   `'standard'` pack's `air` icon, drawn at its own source 128x128) — no
+ *   glyph needs its coordinates converted to fit a shared space, since
+ *   `width`/`height: 1em` scale the whole viewBox uniformly regardless of
+ *   its own size.
+ * - `filled` — `false` (default) renders `AdminNavIcons`' own outline style
+ *   (`fill: none`, a `currentColor` stroke), used by every `'simple'`-pack
+ *   glyph and the `'standard'` pack's remaining Lucide-adapted ones
+ *   (`cableway`/`funicular`/`lift`/unknown). `true` renders a solid
+ *   `currentColor` silhouette with no stroke, used by the `'standard'`
+ *   pack's own original filled glyphs (`bus`/`tram`/`metro`/`water`/`rail`)
+ *   plus its adapted `air` glyph — letting one pack mix both rendering
+ *   styles glyph-by-glyph instead of forcing a single style pack-wide.
+ */
+function Wrapper({ children, className, viewBox = '0 0 24 24', filled = false }: { children: ReactNode; className?: string; viewBox?: string; filled?: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={className}>
+    <svg
+      viewBox={viewBox}
+      width="1em"
+      height="1em"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke={filled ? 'none' : 'currentColor'}
+      strokeWidth={filled ? undefined : 1.75}
+      strokeLinecap={filled ? undefined : 'round'}
+      strokeLinejoin={filled ? undefined : 'round'}
+      aria-hidden="true"
+      focusable="false"
+      className={className}
+    >
       {children}
     </svg>
   )
+}
+
+/** What `simpleIconFor`/`standardIconFor` return — the glyph itself, plus the two `Wrapper` knobs it needs (a glyph not drawn at the shared 24x24/outline default overrides whichever of these it needs). */
+interface IconSpec {
+  content: ReactNode
+  viewBox?: string
+  filled?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -102,47 +138,51 @@ function SimpleUnknownModeIcon() {
 }
 
 /** Entur's `TransportMode` enum, mapped to a representative `'simple'`-pack icon — `coach` (intercity bus) reuses the bus glyph, and `cableway`/`funicular`/`lift` (all rare, all "hanging from/riding a cable" concepts) share one gondola glyph. */
-function simpleIconFor(mode: string): ReactNode {
+function simpleIconFor(mode: string): IconSpec {
   switch (mode) {
     case 'bus':
     case 'coach':
-      return <SimpleBusIcon />
+      return { content: <SimpleBusIcon /> }
     case 'tram':
-      return <SimpleTramIcon />
+      return { content: <SimpleTramIcon /> }
     case 'rail':
-      return <SimpleRailIcon />
+      return { content: <SimpleRailIcon /> }
     case 'metro':
-      return <SimpleMetroIcon />
+      return { content: <SimpleMetroIcon /> }
     case 'water':
-      return <SimpleWaterIcon />
+      return { content: <SimpleWaterIcon /> }
     case 'air':
-      return <SimpleAirIcon />
+      return { content: <SimpleAirIcon /> }
     case 'cableway':
     case 'funicular':
     case 'lift':
-      return <SimpleCableCarIcon />
+      return { content: <SimpleCableCarIcon /> }
     default:
-      return <SimpleUnknownModeIcon />
+      return { content: <SimpleUnknownModeIcon /> }
   }
 }
 
 // ---------------------------------------------------------------------------
-// "standard" pack — familiar transit-map-style glyphs, adapted from the
-// open-source Lucide icon set (https://lucide.dev, ISC licensed):
-// `bus`, `tram-front`, `train-front`, `train-front-tunnel`, `ship`, `plane`,
-// `cable-car`, and `circle-help`.
+// "standard" pack — `bus`/`tram`/`metro`/`water`/`rail` are this app's own
+// original solid-filled glyphs (`fill="currentColor"`, no stroke) — drawn to
+// read at a glance the way a real transit operator's own departure-board
+// icon set does (chunky silhouette + a mode-specific distinguishing detail:
+// tram's overhead pole, metro's tunnel-arch nose, rail's roof vents/3
+// wheels, water's hull+mast), but freely designed for this app rather than
+// copied from any existing icon set or product. `air` is adapted from an
+// SVG Repo icon (https://www.svgrepo.com/svg/308387/). `cableway`/
+// `funicular`/`lift` and the unknown-mode fallback keep the original
+// Lucide-adapted (https://lucide.dev, ISC licensed) outline glyphs below —
+// no filled replacement exists for these (rare) modes yet, so `standardIconFor`
+// renders them with `filled: false` instead, same as the `'simple'` pack.
 // ---------------------------------------------------------------------------
 
 function StandardBusIcon() {
   return (
     <>
-      <path d="M8 6v6" />
-      <path d="M15 6v6" />
-      <path d="M2 12h19.6" />
-      <path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3" />
-      <circle cx="7" cy="18" r="2" />
-      <path d="M9 18h5" />
-      <circle cx="16" cy="18" r="2" />
+      <rect x="3" y="6" width="18" height="10" rx="3" />
+      <circle cx="7.5" cy="17" r="2" />
+      <circle cx="16.5" cy="17" r="2" />
     </>
   )
 }
@@ -150,13 +190,10 @@ function StandardBusIcon() {
 function StandardTramIcon() {
   return (
     <>
-      <rect width="16" height="16" x="4" y="3" rx="2" />
-      <path d="M4 11h16" />
-      <path d="M12 3v8" />
-      <path d="m8 19-2 3" />
-      <path d="m18 22-2-3" />
-      <path d="M8 15h.01" />
-      <path d="M16 15h.01" />
+      <rect x="11" y="2" width="2" height="5" />
+      <rect x="4" y="7" width="16" height="9" rx="2.5" />
+      <circle cx="8" cy="17.5" r="1.8" />
+      <circle cx="16" cy="17.5" r="1.8" />
     </>
   )
 }
@@ -164,12 +201,12 @@ function StandardTramIcon() {
 function StandardRailIcon() {
   return (
     <>
-      <path d="M8 3.1V7a4 4 0 0 0 8 0V3.1" />
-      <path d="m9 15-1-1" />
-      <path d="m15 15 1-1" />
-      <path d="M9 19c-2.8 0-5-2.2-5-5v-4a8 8 0 0 1 16 0v4c0 2.8-2.2 5-5 5Z" />
-      <path d="m8 19-2 3" />
-      <path d="m16 19 2 3" />
+      <rect x="7" y="4" width="2.5" height="3" rx="1" />
+      <rect x="14.5" y="4" width="2.5" height="3" rx="1" />
+      <rect x="3" y="7" width="18" height="9" rx="3" />
+      <circle cx="7" cy="17.5" r="1.5" />
+      <circle cx="12" cy="17.5" r="1.5" />
+      <circle cx="17" cy="17.5" r="1.5" />
     </>
   )
 }
@@ -177,13 +214,10 @@ function StandardRailIcon() {
 function StandardMetroIcon() {
   return (
     <>
-      <path d="M2 22V12a10 10 0 1 1 20 0v10" />
-      <path d="M15 6.8v1.4a3 2.8 0 1 1-6 0V6.8" />
-      <path d="M10 15h.01" />
-      <path d="M14 15h.01" />
-      <path d="M10 19a4 4 0 0 1-4-4v-3a6 6 0 1 1 12 0v3a4 4 0 0 1-4 4Z" />
-      <path d="m9 19-2 3" />
-      <path d="m15 19 2 3" />
+      <path d="M4 17v-5a8 8 0 0 1 16 0v5Z" />
+      <rect x="4" y="16" width="16" height="1.5" />
+      <circle cx="8" cy="18.2" r="1.6" />
+      <circle cx="16" cy="18.2" r="1.6" />
     </>
   )
 }
@@ -191,17 +225,15 @@ function StandardMetroIcon() {
 function StandardWaterIcon() {
   return (
     <>
-      <path d="M12 10.189V14" />
-      <path d="M12 2v3" />
-      <path d="M19 13V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v6" />
-      <path d="M19.38 20A11.6 11.6 0 0 0 21 14l-8.188-3.639a2 2 0 0 0-1.624 0L3 14a11.6 11.6 0 0 0 2.81 7.76" />
-      <path d="M2 21c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1s1.2 1 2.5 1c2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />
+      <rect x="11.25" y="4" width="1.5" height="10" />
+      <path d="M12.75 4 18 6.5 12.75 9Z" />
+      <path d="M3 15h18l-3 5H6Z" />
     </>
   )
 }
 
 function StandardAirIcon() {
-  return <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" />
+  return <path d="M119.7 18.2c7.8-7.8-3-17.9-10.7-10.3L80.7 36.3 15.8 19.2 5 30l53.5 28.2L36.8 79.8 20 77.7l-8.6 8.6 19.1 10 10 19.1 8.6-8.6-2-16.7 21.6-21.6 27.6 53.2 10.8-10.8L90.8 47.2 119.7 18.2Z" />
 }
 
 function StandardCableCarIcon() {
@@ -229,32 +261,37 @@ function StandardUnknownModeIcon() {
   )
 }
 
-/** Entur's `TransportMode` enum, mapped to a representative `'standard'`-pack icon — `coach` (intercity bus) reuses the bus glyph, `metro` gets the tunnel variant of the train glyph (`rail` gets the plain one), and `cableway`/`funicular`/`lift` (all rare, all "hanging from/riding a cable" concepts) share one gondola glyph. */
-function standardIconFor(mode: string): ReactNode {
+/** Entur's `TransportMode` enum, mapped to a representative `'standard'`-pack icon — `coach` (intercity bus) reuses the bus glyph, and `cableway`/`funicular`/`lift` (all rare, all "hanging from/riding a cable" concepts) share one gondola glyph. */
+function standardIconFor(mode: string): IconSpec {
   switch (mode) {
     case 'bus':
     case 'coach':
-      return <StandardBusIcon />
+      return { content: <StandardBusIcon />, filled: true }
     case 'tram':
-      return <StandardTramIcon />
+      return { content: <StandardTramIcon />, filled: true }
     case 'rail':
-      return <StandardRailIcon />
+      return { content: <StandardRailIcon />, filled: true }
     case 'metro':
-      return <StandardMetroIcon />
+      return { content: <StandardMetroIcon />, filled: true }
     case 'water':
-      return <StandardWaterIcon />
+      return { content: <StandardWaterIcon />, filled: true }
     case 'air':
-      return <StandardAirIcon />
+      return { content: <StandardAirIcon />, filled: true, viewBox: '0 0 128 128' }
     case 'cableway':
     case 'funicular':
     case 'lift':
-      return <StandardCableCarIcon />
+      return { content: <StandardCableCarIcon /> }
     default:
-      return <StandardUnknownModeIcon />
+      return { content: <StandardUnknownModeIcon /> }
   }
 }
 
-/** One outline icon per Entur transport mode, shown next to a departure's line number in `TransitSlide` (and in the admin's own "View transit icons" legend). See `TransitIconPack` for the available icon sets. */
+/** One icon per Entur transport mode, shown inside a departure's line badge in `TransitSlide` (and in the admin's own "View transit icons" legend). See `TransitIconPack` for the available icon sets. */
 export function TransitModeIcon({ mode, pack = DEFAULT_TRANSIT_ICON_PACK, className }: TransitModeIconProps) {
-  return <Wrapper className={className}>{pack === 'simple' ? simpleIconFor(mode) : standardIconFor(mode)}</Wrapper>
+  const { content, viewBox, filled } = pack === 'simple' ? simpleIconFor(mode) : standardIconFor(mode)
+  return (
+    <Wrapper className={className} viewBox={viewBox} filled={filled}>
+      {content}
+    </Wrapper>
+  )
 }

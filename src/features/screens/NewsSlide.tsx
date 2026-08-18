@@ -6,6 +6,7 @@ import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
 import { useLanguage } from '../../i18n'
 import { newsImageProxyUrl } from '../../lib/localServer'
 import { pickNewsImageWidth, type NewsHeadline, type NewsSource } from '../../types/news'
+import { effectiveDevicePixelRatio } from '../../utils/effectiveDevicePixelRatio'
 import { getScreenColorVars } from '../../utils/screenColors'
 import { NewsSourceMark } from './NewsSourceMark'
 import './NewsSlide.scss'
@@ -100,7 +101,9 @@ export function NewsSlide({ sourceIds, headlineCount, rotateSeconds, useBrandThe
     // portrait it is wider, so this deliberately over-estimates rather than serving a copy too small
     // to fill the box. The result is quantised to a bucket by `pickNewsImageWidth`, so being a little
     // generous usually costs nothing at all.
-    const measured = element.getBoundingClientRect().width * NEWS_IMAGE_WIDTH_FRACTION * (window.devicePixelRatio || 1)
+    // `effectiveDevicePixelRatio`, not `window.devicePixelRatio` — see that function for why the raw
+    // value over-requests by 2x on a display with a forced layout viewport (`DisplayRenderWidth`).
+    const measured = element.getBoundingClientRect().width * NEWS_IMAGE_WIDTH_FRACTION * effectiveDevicePixelRatio()
     setImageWidth(pickNewsImageWidth(measured))
   }, [currentHeadline?.link])
 

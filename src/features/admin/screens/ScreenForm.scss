@@ -145,6 +145,12 @@
   }
 }
 
+.screen-form__editor-viewport-custom {
+  display: flex;
+  gap: $spacing-unit;
+  max-width: 20rem;
+}
+
 // A 3x3 "D-pad": one arrow button per direction, in its own compass
 // position, with the center cell left empty.
 .screen-form__resize-pad {

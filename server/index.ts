@@ -157,6 +157,9 @@ function mergeDisplayMachineHeartbeat(
     // `existing` for exactly the same reason `customLabel` is — without this line a heartbeat would
     // silently reset the cap to `'auto'` every 20 seconds.
     maxImagePx: existing?.maxImagePx,
+    // Carried over for exactly the same reason as `maxImagePx` directly above — also admin-set in
+    // Display Manager, also never reported by a heartbeat. See `DisplayRenderWidth`.
+    renderWidthPx: existing?.renderWidthPx,
     connectionType: heartbeat.connectionType,
     monitors,
     lastSeenAt: new Date().toISOString(),
@@ -355,6 +358,11 @@ const httpServer = createServer((req, res) => {
           monitors: mine?.monitors ?? [],
           customLabel,
           maxImagePx: mine?.maxImagePx ?? 'auto',
+          // Rides the response for the same reason `maxImagePx` does (see the comment above): the
+          // kiosk page is unauthenticated and cannot look this up, so the companion is the only
+          // component that knows both which machine it is and what the server says about it, and it
+          // forwards this into the WebView URL (see `useDisplayRenderWidth`).
+          renderWidthPx: mine?.renderWidthPx ?? 'auto',
           effectiveScreenID: resolveEffectiveScreen(machineID),
         })
       })

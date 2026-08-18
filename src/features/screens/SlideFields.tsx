@@ -330,6 +330,11 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
     onChange({ ...content, autoLineColors })
   }
 
+  const setTransitUseRealLineColors = (useRealLineColors: boolean) => {
+    if (content.kind !== 'transit') return
+    onChange({ ...content, useRealLineColors })
+  }
+
   const setWeatherLocationId = (locationId: string) => {
     if (content.kind !== 'weather') return
     onChange({ ...content, locationId: locationId || undefined })
@@ -872,6 +877,12 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
               onChange={(event) => setTransitShowBrandLogo(event.target.checked)}
             />
           )}
+          <Checkbox
+            id={`${id}-transit-real-line-colors`}
+            label={t('admin.screens.transitUseRealLineColorsLabel')}
+            checked={content.useRealLineColors ?? true}
+            onChange={(event) => setTransitUseRealLineColors(event.target.checked)}
+          />
           <Checkbox
             id={`${id}-transit-auto-line-colors`}
             label={t('admin.screens.transitAutoLineColorsLabel')}

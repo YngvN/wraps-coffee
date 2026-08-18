@@ -102,6 +102,7 @@ export function SlotContent({ slot, newsSlots, stageTick, stage, onRequestStageA
         showBrandLogo={slot.showBrandLogo}
         lineColors={slot.lineColors}
         autoLineColors={slot.autoLineColors}
+        useRealLineColors={slot.useRealLineColors}
       />
     )
   if (slot.kind === 'weather')

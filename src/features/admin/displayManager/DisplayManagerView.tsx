@@ -11,7 +11,15 @@ import { useScreens } from '../../../hooks/useScreens'
 import { useScrollToAndHighlight } from '../../../hooks/useScrollToAndHighlight'
 import { useLanguage } from '../../../i18n'
 import { approveDisplayPairing, getUpdatesStatus, setUpdateRollback } from '../../../lib/localServer'
-import { DISPLAY_MAX_IMAGE_PX_OPTIONS, type DisplayMachine, type DisplayMaxImagePx, type DisplayUpdateProgressStatus, type DisplayUpdateTier } from '../../../types/displayMachine'
+import {
+  DISPLAY_MAX_IMAGE_PX_OPTIONS,
+  DISPLAY_RENDER_WIDTH_OPTIONS,
+  type DisplayMachine,
+  type DisplayMaxImagePx,
+  type DisplayRenderWidth,
+  type DisplayUpdateProgressStatus,
+  type DisplayUpdateTier,
+} from '../../../types/displayMachine'
 import { resolveDisplayUpdateState, type DisplayUpdateState, type UpdatesHubStatus } from '../../../utils/displayUpdateState'
 import { connectionBadgeId } from './connectionBadge'
 import { PublishApkControl } from './PublishApkControl'
@@ -270,6 +278,12 @@ export function DisplayManagerView() {
     updateMachine(machineID, (machine) => ({ ...machine, maxImagePx }))
   }
 
+  /** Writes this unit's own CSS layout width. Same "lives where the heartbeat can't reach it" reasoning (and same string-to-number parsing) as `handleMaxImagePxChange` directly above — `mergeDisplayMachineHeartbeat` carries `renderWidthPx` over explicitly too. */
+  const handleRenderWidthPxChange = (machineID: string, value: string) => {
+    const renderWidthPx = (value === 'auto' ? 'auto' : Number(value)) as DisplayRenderWidth
+    updateMachine(machineID, (machine) => ({ ...machine, renderWidthPx }))
+  }
+
   const handleAssign = (machineID: string, monitorId: string, screenId: string) => {
     updateMachine(machineID, (machine) => ({
       ...machine,
@@ -520,6 +534,25 @@ export function DisplayManagerView() {
                   ))}
                 </select>
                 <p className="display-manager-view__image-cap-hint">{t('admin.displayManager.maxImagePxHint')}</p>
+              </div>
+
+              <div className="display-manager-view__image-cap">
+                <label className="display-manager-view__image-cap-label" htmlFor={`machine-render-width-${machine.machineID}`}>
+                  {t('admin.displayManager.renderWidthLabel')}
+                </label>
+                <select
+                  id={`machine-render-width-${machine.machineID}`}
+                  className="display-manager-view__monitor-select"
+                  value={String(machine.renderWidthPx ?? 'auto')}
+                  onChange={(event) => handleRenderWidthPxChange(machine.machineID, event.target.value)}
+                >
+                  {DISPLAY_RENDER_WIDTH_OPTIONS.map((option) => (
+                    <option key={String(option)} value={String(option)}>
+                      {option === 'auto' ? t('admin.displayManager.renderWidthAuto') : t(`admin.displayManager.renderWidth${option}`)}
+                    </option>
+                  ))}
+                </select>
+                <p className="display-manager-view__image-cap-hint">{t('admin.displayManager.renderWidthHint')}</p>
               </div>
               {machine.connectionType === 'mobile' &&
                 (() => {

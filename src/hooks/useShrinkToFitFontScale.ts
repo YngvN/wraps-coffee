@@ -225,8 +225,8 @@ const GAP_SCALE_EXPONENT = 2
  * in local variables between iterations.
  */
 interface SearchState {
-  /** Which probe the next `advanceSearch` call performs. Mirrors the original loop's own structure: check full size, re-confirm the seed, nudge it, then bisect — plus `'floor'`, which re-opens the search below `MIN_LEGIBLE_SCALE` when nothing above it fits (see that constant). */
-  step: 'full' | 'seed' | 'nudge' | 'bisect' | 'floor'
+  /** Which probe the next `advanceSearch` call performs. Mirrors the original loop's own structure: check full size, re-confirm the seed, nudge it, then bisect — plus `'floor'`, which re-opens the search below `MIN_LEGIBLE_SCALE` when nothing above it fits (see that constant), and `'floorCheck'`, a poll-only shortcut for a pane already known to be below it (see that case). */
+  step: 'full' | 'seed' | 'nudge' | 'bisect' | 'floor' | 'floorCheck'
   /** Largest scale known to fit. */
   low: number
   /** Smallest scale known *not* to fit. */
@@ -499,12 +499,36 @@ export function useShrinkToFitFontScale(
 
       const seed = stored ?? scaleCacheRef.current.get(sizeKey) ?? lastScaleRef.current
       searchRef.current = {
-        // Arm H, change 2 — a poll pass with a usable seed skips straight to re-confirming it. The
-        // `'full'` step probes `fitsAt(1)`, laying out the entire unshrunken slide, only to re-learn
-        // what the previous pass already established; `'seed'`/`'nudge'` then answers the poll's real
-        // question (is there room to grow back?) on its own. A pane with no seed still starts at
-        // `'full'`, since there is nothing to re-confirm.
-        step: TRUST_WARM_SCALE && wasPollPass && seed > MIN_LEGIBLE_SCALE && seed < 1 ? 'seed' : 'full',
+        // Arm H, change 2 — a poll pass with a usable *above-floor* seed skips straight to
+        // re-confirming it. The `'full'` step probes `fitsAt(1)`, laying out the entire unshrunken
+        // slide, only to re-learn what the previous pass already established; `'seed'`/`'nudge'` then
+        // answers the poll's real question (is there room to grow back?) on its own. A pane with no
+        // seed still starts at `'full'`, since there is nothing to re-confirm.
+        //
+        // **Any** pass whose seed is already below the legibility floor starts at `'floorCheck'`
+        // (fixed 2026-08-18) — see that case for why. Deliberately NOT restricted to poll passes:
+        // `useCrossfadeSlot` mounts a fresh slide instance on every stage transition (report fact 16),
+        // so a pane returning to a stage it has shown before begins a brand-new search with only the
+        // shared store's seed — and for below-floor content that search always starts by bisecting
+        // `[MIN_LEGIBLE_SCALE, 1]`, where *every* probe fails by construction, before `'floor'` even
+        // re-opens the range that can succeed. Frame-sliced at one probe per animation frame, that
+        // wasted upper half runs ~15 probes/frames, which on this fleet's TV does not finish inside a
+        // 3s stage dwell — so the pane rotated away still mid-converge, painting a *different*
+        // (larger, mid-search) scale than the same content resolves to on a faster machine that
+        // completes the search. That is the "TV catalogue doesn't match the editor" mismatch, and it
+        // is a starting-step problem, not a font or viewport one.
+        //
+        // Correctness is unchanged: `'floorCheck'` still probes `MIN_LEGIBLE_SCALE` every pass, so a
+        // pane that genuinely gained room above the floor is still noticed immediately (that probe is
+        // exactly the question `'full'` would have asked, minus the doomed bisection after it), and a
+        // still-below-floor pane falls through to the same self-correcting `'floor'` re-bisection it
+        // always used. A seed at or above the floor is untouched by this and behaves exactly as before.
+        step:
+          seed > MIN_SCALE && seed <= MIN_LEGIBLE_SCALE
+            ? 'floorCheck'
+            : TRUST_WARM_SCALE && wasPollPass && seed > MIN_LEGIBLE_SCALE && seed < 1
+              ? 'seed'
+              : 'full',
         low: MIN_LEGIBLE_SCALE,
         high: 1,
         seed,
@@ -571,13 +595,59 @@ export function useShrinkToFitFontScale(
           applyScale(state.display)
           return true
         }
+        case 'floorCheck': {
+          // Poll-only fast path for a pane already known to be below `MIN_LEGIBLE_SCALE` (fixed
+          // 2026-08-18, see `beginSearch`'s own step-selection comment). Skips the bisection through
+          // `[MIN_LEGIBLE_SCALE, 1]` a below-floor seed can never succeed in — every probe there fails
+          // by construction, since last time nothing above the floor fit either — which used to cost
+          // ~7 wasted probes (each its own animation frame under Arm A) just to rediscover "still below
+          // floor" before `'floor'` even got to re-bracket. A single probe here answers the same
+          // question directly.
+          //
+          // **Deliberately does NOT seed a below-floor reconfirm from the existing answer** (an earlier
+          // version of this fix did, via `'seed'`/`'nudge'` bounded to the floor range — reverted the
+          // same day). That shortcut is only as reliable as `fitsAt` is noise-free at exactly the
+          // previous answer's own boundary, and a single false-negative there (sub-pixel rounding, a
+          // font metrics difference, anything) permanently ratchets the stored scale *down* with no
+          // symmetric way back up short of a full `fitsAt(MIN_LEGIBLE_SCALE)` success — which
+          // genuinely-below-floor content will essentially never produce. Over enough poll cycles
+          // (every 2s, indefinitely, for as long as the kiosk stays up) that one-way ratchet compounds:
+          // a long-running TV session drifted to a visibly smaller scale (fewer catalogue rows fitting)
+          // than a freshly-loaded session of the *identical* build ever showed. Falling through to
+          // `'floor'` below instead re-bisects the whole floor range from extremes every time — the
+          // same, already-correct, self-correcting behavior this hook always had for that half of the
+          // search — so this step's only effect is skipping the wasted upper-range bisection, not
+          // changing how the floor range itself gets (re)solved.
+          if (fitsAt(MIN_LEGIBLE_SCALE)) {
+            // Room genuinely opened up above the floor (content shrank, or the pane grew) — hand off to
+            // the ordinary preferred-range search exactly as a fresh `'full'`-failed pass would, rather
+            // than duplicating that logic here. This is the poll's own correctness job (see its
+            // `setInterval` comment) — it must still notice this, not just fast-path the common case.
+            state.low = MIN_LEGIBLE_SCALE
+            state.high = 1
+            state.step = 'bisect'
+          } else {
+            state.step = 'floor'
+          }
+          applyScale(state.display)
+          return true
+        }
         case 'floor': {
           // Nothing in the preferred range fit, so the bracket re-opens below the legibility floor
           // rather than settling on a scale that overflows. `MIN_LEGIBLE_SCALE` is a known
           // *non*-fitting upper bound here, which is exactly what `'bisect'` needs.
+          //
+          // Deliberately does NOT touch `state.display` here (fixed 2026-08-18). `MIN_SCALE` is only
+          // the new lower *bound* for `'bisect'` to probe from, not a confirmed-fitting value — it has
+          // never been tested. `display` exists precisely to hold "the best fitting scale found so
+          // far, painted between probes" (see the field's own doc comment), and the previous value
+          // still satisfies that: it's whatever `'full'`/`'seed'`/`'bisect'` last confirmed fit (or the
+          // seed itself, if nothing has fit yet this pass). Setting it to `MIN_SCALE` here painted a
+          // single frame at ~1% scale before `'bisect'` climbed back up — invisible-for-a-frame text on
+          // every re-bracket, which the 2-second safety poll re-triggers indefinitely on any
+          // below-floor pane (e.g. a large catalogue), reading as a repeating jitter.
           state.low = MIN_SCALE
           state.high = MIN_LEGIBLE_SCALE
-          state.display = MIN_SCALE
           state.step = 'bisect'
           applyScale(state.display)
           return true
@@ -589,6 +659,13 @@ export function useShrinkToFitFontScale(
             // it does not fit, so content is never left overflowing (see `MIN_LEGIBLE_SCALE`).
             if (state.low === MIN_LEGIBLE_SCALE && !fitsAt(MIN_LEGIBLE_SCALE)) {
               state.step = 'floor'
+              // `fitsAt` just applied (and left painted) `MIN_LEGIBLE_SCALE` to test it — a probe that
+              // failed, exactly like every other rejected candidate this search tries, but every other
+              // rejection is immediately overwritten by this same case's own `applyScale(state.display)`
+              // below `mid`'s branch, while this early-return path skipped that call (fixed 2026-08-18).
+              // Without it, the still-painted failed probe survives until 'floor' repaints `display` on
+              // the *next* frame — one full frame at half-ish scale, every 2-second poll re-bracket.
+              applyScale(state.display)
               return true
             }
             settle(state.sizeKey, state.low)

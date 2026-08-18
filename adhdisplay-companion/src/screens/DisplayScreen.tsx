@@ -13,6 +13,14 @@ interface DisplayScreenProps {
    * `useDisplayImageCap` on the web side for how it is read back and validated.
    */
   maxImagePx?: 'auto' | number
+  /**
+   * This unit's own admin-set CSS layout width, from the heartbeat response
+   * (`HeartbeatResult.renderWidthPx`). Forwarded into the page URL for the same reason `maxImagePx`
+   * above is — and it specifically has to arrive as a *URL param* rather than be applied later, since
+   * the kiosk rewrites its viewport meta from this before its bundle ever runs (a post-boot change
+   * would cost a full re-layout). See `useDisplayRenderWidth` on the web side.
+   */
+  renderWidthPx?: 'auto' | number
 }
 
 /**
@@ -53,11 +61,12 @@ const HISTORY_RELEASE_DELAY_MS = 10_000
  * commit and the very first load (`opacity` starts at 0, so there's no
  * separate "is this the first render" branch needed).
  */
-export function DisplayScreen({ connection, screenId, maxImagePx = 'auto' }: DisplayScreenProps) {
-  // Included even when `'auto'` so the URL is stable for a given cap — a param that appears and
-  // disappears would make the WebView re-navigate (and re-load the whole kiosk page) on the first
-  // heartbeat after launch, since `source.uri` changing is what triggers a navigation.
-  const url = `${contentOrigin(connection)}/screens/${screenId}?unattended=1&maxImagePx=${maxImagePx}`
+export function DisplayScreen({ connection, screenId, maxImagePx = 'auto', renderWidthPx = 'auto' }: DisplayScreenProps) {
+  // Both params are included even when `'auto'` so the URL is stable for a given configuration — a
+  // param that appears and disappears would make the WebView re-navigate (and re-load the whole kiosk
+  // page) on the first heartbeat after launch, since `source.uri` changing is what triggers a
+  // navigation.
+  const url = `${contentOrigin(connection)}/screens/${screenId}?unattended=1&maxImagePx=${maxImagePx}&renderWidthPx=${renderWidthPx}`
   const opacity = useRef(new Animated.Value(0)).current
   const webViewRef = useRef<WebView>(null)
   const releaseTimer = useRef<ReturnType<typeof setTimeout>>()

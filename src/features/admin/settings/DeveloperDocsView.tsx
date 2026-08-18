@@ -291,7 +291,8 @@ DELETE /uploads/<filename>        (Authorization: Bearer <token>)
   "versionCode"?: number, "versionName"?: string, "runtimeVersion"?: string, "updateId"?: string | null,
   "isEmbeddedLaunch"?: boolean, "updateTier"?: 1 | 2 | 3 }
 → 200 { "ok": true, "monitors": [{ "id", "label", "assignedScreenID" }], "customLabel": "..." | null,
-        "maxImagePx": "auto" | 3840 | 1920 | 800 | 480, "effectiveScreenID": "..." | null }
+        "maxImagePx": "auto" | 3840 | 1920 | 800 | 480,
+        "renderWidthPx": "auto" | 3840 | 2560 | 1920 | 1280, "effectiveScreenID": "..." | null }
 → 400 { "error": "..." }   (malformed body)
 → 409 { "error": "not paired", "needsPairing": true }   ("mobile" only, machineID isn't an approved admin.displayMachines entry yet)
 
@@ -306,6 +307,16 @@ request, and exists because the kiosk page itself can't read it (that page is un
 while admin.displayMachines is gated to the "displaymanager" section). The Companion forwards it
 into the page URL as ?maxImagePx=. "auto" means "decide from how large the image actually renders".
 
+"renderWidthPx" is admin-set the same way and forwarded the same way (?renderWidthPx=), and is the
+CSS layout width the kiosk page rewrites its own viewport meta to before its bundle ever runs (see
+the inline script in index.html). It is NOT the panel's resolution and does not change how many
+pixels get drawn — it changes the units layout is computed in. It exists because Android's WebView
+refuses to render text below 8 CSS px: on a 960x540 CSS viewport a dense pane can need ~5px text,
+so shrink-to-fit can never make it fit, while a 1920 viewport puts the same layout comfortably above
+the clamp. "auto" keeps index.html's own width=device-width. Measured on the fleet TV, every tier
+cleared that clamp for the pane tested (1280 → 12.5px rendered, 1920 → 21.0px), but headroom grows
+with the tier, so 1920 is the recommended default.
+
 "effectiveScreenID" is the hub's own single resolved answer to "what should this device actually be
 showing right now" — a standing admin.displayScreenOverride entry for this machine (see Remote
 Screen Navigation below) if one exists, else "monitors[0].assignedScreenID" above, else null (shows
@@ -316,8 +327,8 @@ healing toward the raw assignment instead.
 
 Upserts by machineID into admin.displayMachines (a regular synced key, see Live data above) —
 preserves each existing monitor's own assignedScreenID (matched by monitor id) and the machine's
-own admin-set fields, customLabel (a rename) and maxImagePx (the image cap), rather than
-overwriting them — every
+own admin-set fields, customLabel (a rename), maxImagePx (the image cap) and renderWidthPx (the
+layout width), rather than overwriting them — every
 heartbeat's own "label" is that machine's self-reported name (e.g. "Display 3"), always
 overwritten as-is, so an admin-typed rename has to live in this separate field to actually stick.
 Actually assigning a Screen or renaming a machine is a normal authenticated write to that same key
@@ -592,7 +603,7 @@ GET /integrations/stops/search?query=<text>
    (searches stop places by name anywhere, not just near a given address)
 
 GET /integrations/departures?stopId=<id>&count=<n>
-→ 200 { "stopName", "departures": [{ "line", "lineName"?, "mode", "authorityId"?, "authorityName"?, "destination", "expectedDepartureTime", "aimedDepartureTime", "realtime", "platform"?, "cancelled" }] }
+→ 200 { "stopName", "departures": [{ "line", "lineName"?, "mode", "authorityId"?, "authorityName"?, "lineColor"?, "lineTextColor"?, "destination", "expectedDepartureTime", "aimedDepartureTime", "realtime", "platform"?, "cancelled" }] }
    (on-demand only — the transit pane itself reads the "admin.transitDepartures" synced key instead, kept fresh by the local server's own background poller; see Live data below)
 
 GET /integrations/weather?lat=<lat>&lon=<lon>&hours=<n>

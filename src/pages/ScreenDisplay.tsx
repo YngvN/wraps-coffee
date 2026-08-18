@@ -11,6 +11,7 @@ import { GlobalTextSizeScaler, type GlobalTextSizeScalerHandle, type SizeSnapsho
 import { KeepEditPrompt, type SlotEditChanges } from '../features/screens/KeepEditPrompt'
 import { NoConnectionIcon } from '../features/screens/NoConnectionIcon'
 import { OtherSettingsEditor } from '../features/screens/OtherSettingsEditor'
+import { ScaledScreenPreview } from '../features/screens/ScaledScreenPreview'
 import { ScreenToolbar } from '../features/screens/ScreenToolbar'
 import { SlotEditor } from '../features/screens/SlotEditor'
 import { SplitLayout } from '../features/screens/SplitLayout'
@@ -1213,28 +1214,43 @@ export function ScreenDisplay() {
         )}
         {!canEdit && !displayMachineId && showFullscreenButton && <FullscreenToggle />}
       </ScreenToolbar>
-      <SplitLayout
-        key={screen.screenID}
-        screen={effectiveScreen}
-        resolveTextSizes={resolveTextSizes}
-        onEditSlide={canEdit ? openSlotEditor : undefined}
-        stage={stage}
-        forcedStage={forcedStage}
-        tick={tick}
-        onResizeDivider={canEdit ? handleResizeDivider : undefined}
-        onDragStateChange={handleDragStateChange}
-        onDropImage={canEdit ? handleDropImage : undefined}
-        onSplitPane={canEdit ? handleSplitPane : undefined}
-        onSplitFour={canEdit ? handleSplitPaneFour : undefined}
-        onBorderClick={canEdit ? openBorderEditor : undefined}
-        onTogglePaneLock={canEdit ? handleTogglePaneLock : undefined}
-        selectedLeafIds={activeSelectedLeafIds}
-        onToggleChecked={canEdit ? toggleLeafChecked : undefined}
-        defaultPaneLanguage={defaultPaneLanguage}
-        onRequestStageAdvance={handleVideoEndedAdvance}
-        selectedLeafId={typeof editingTarget === 'object' && editingTarget !== null ? editingTarget.leafId : undefined}
-        dimUnselectedPanes={typeof editingTarget === 'object' && editingTarget !== null}
-      />
+      {(() => {
+        const splitLayout = (
+          <SplitLayout
+            key={screen.screenID}
+            screen={effectiveScreen}
+            resolveTextSizes={resolveTextSizes}
+            onEditSlide={canEdit ? openSlotEditor : undefined}
+            stage={stage}
+            forcedStage={forcedStage}
+            tick={tick}
+            onResizeDivider={canEdit ? handleResizeDivider : undefined}
+            onDragStateChange={handleDragStateChange}
+            onDropImage={canEdit ? handleDropImage : undefined}
+            onSplitPane={canEdit ? handleSplitPane : undefined}
+            onSplitFour={canEdit ? handleSplitPaneFour : undefined}
+            onBorderClick={canEdit ? openBorderEditor : undefined}
+            onTogglePaneLock={canEdit ? handleTogglePaneLock : undefined}
+            selectedLeafIds={activeSelectedLeafIds}
+            onToggleChecked={canEdit ? toggleLeafChecked : undefined}
+            defaultPaneLanguage={defaultPaneLanguage}
+            onRequestStageAdvance={handleVideoEndedAdvance}
+            selectedLeafId={typeof editingTarget === 'object' && editingTarget !== null ? editingTarget.leafId : undefined}
+            dimUnselectedPanes={typeof editingTarget === 'object' && editingTarget !== null}
+          />
+        )
+        // `isEditorRoute` is load-bearing here, not redundant with the field check: the real kiosk
+        // route (`/screens/:screenId`) must never take this branch even if `editorTargetViewport`
+        // happens to be set — it already IS the target device's own true viewport, not something
+        // being emulated, so locking/scaling it would be actively wrong there.
+        return isEditorRoute && viewScreen.editorTargetViewport ? (
+          <ScaledScreenPreview referenceSize={viewScreen.editorTargetViewport} fit="contain" className="screen-display__editor-lock">
+            {splitLayout}
+          </ScaledScreenPreview>
+        ) : (
+          splitLayout
+        )
+      })()}
 
       {screensaverActive && (
         <div className="screen-display__screensaver">

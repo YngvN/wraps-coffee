@@ -132,6 +132,10 @@ export interface DepartureInfo {
   authorityId?: string
   /** The authority's display name (e.g. `"Ruter"`, `"Vy"`, `"Flytoget"`), when known. */
   authorityName?: string
+  /** The line's own real official badge color, straight from Entur's `Line.presentation.colour` (`#`-prefixed hex) — not every line has one (many smaller/regional authorities don't set it). When present, this is more accurate than either `TransitSlideProps.autoLineColors`' hash-based per-authority guess or a manually-typed override, since it's the operator's own real color for this specific line (e.g. Ruter's own regional/500-series buses come back green, `#76a300`, distinct from its usual red city-bus color). */
+  lineColor?: string
+  /** Pairs with `lineColor` — Entur's own `Line.presentation.textColour` (`#`-prefixed hex), the readable text/icon color against `lineColor`'s background. Only meaningful alongside `lineColor`. */
+  lineTextColor?: string
   destination: string
   expectedDepartureTime: string
   /** The static-timetable departure time, before any real-time adjustment — differs from `expectedDepartureTime` when the service is running late/early. */

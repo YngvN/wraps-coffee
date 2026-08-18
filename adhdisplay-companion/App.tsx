@@ -74,6 +74,8 @@ export default function App() {
   const [deviceLabel, setDeviceLabel] = useState(() => `ADHDisplay Companion (${Platform.OS})`)
   /** This unit's own admin-set image-resolution ceiling, as last reported by the heartbeat — see `HeartbeatResult.maxImagePx`. Kept out of the `AppState` union deliberately; see where it's assigned in the heartbeat loop below. */
   const [maxImagePx, setMaxImagePx] = useState<'auto' | number>('auto')
+  /** This unit's own admin-set CSS layout width, as last reported by the heartbeat — see `HeartbeatResult.renderWidthPx`. Same "kept out of the `AppState` union" reasoning as `maxImagePx` above. */
+  const [renderWidthPx, setRenderWidthPx] = useState<'auto' | number>('auto')
 
   // Derived here (rather than only further down, where the device-socket effect also needs it) so
   // `useRemoteNav` can be handed a real connection as soon as one exists — it needs `syncOrigin` to
@@ -196,6 +198,7 @@ export default function App() {
         // loop — the exact hazard the comment below describes. Setting a primitive to its current
         // value is a no-op for React, so no guard is needed here.
         setMaxImagePx(result.maxImagePx ?? 'auto')
+        setRenderWidthPx(result.renderWidthPx ?? 'auto')
         const assignedScreenID = result.monitors.find((monitor) => monitor.id === DEVICE_MONITOR_ID)?.assignedScreenID ?? null
         // The hub's own single resolved answer to "what should this device actually be showing"
         // (override ?? assignment — see `HeartbeatResult.effectiveScreenID`'s own doc comment),
@@ -267,7 +270,7 @@ export default function App() {
       )}
       {state.stage === 'displaying' && (
         <>
-          <DisplayScreen connection={state.connection} screenId={remoteNav.renderScreenId ?? state.screenId} maxImagePx={maxImagePx} />
+          <DisplayScreen connection={state.connection} screenId={remoteNav.renderScreenId ?? state.screenId} maxImagePx={maxImagePx} renderWidthPx={renderWidthPx} />
           <RemoteNavPreview hud={remoteNav.hud} />
           <RemoteNavHud hud={remoteNav.hud} />
         </>
