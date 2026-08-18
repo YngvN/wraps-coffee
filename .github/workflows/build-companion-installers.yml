@@ -14,9 +14,11 @@ name: Build ADHDisplay Companion installers
 # version mismatch in expo-modules-core:compileReleaseKotlin that doesn't
 # reproduce on a real dev machine (same `npm run build:tv`, same
 # -Pandroid.kotlinVersion flag, builds clean locally - runner-environment-
-# specific, not a code issue). The APK is now built locally only and shipped
-# inside the main ADHDisplay installer instead - see installer/adhdisplay.iss
-# and installer/build-with-apk.ps1.
+# specific, not a code issue). The APK is instead built as part of the main
+# ADHDisplay installer's own CI workflow (build-installer.yml, on
+# windows-latest rather than the Ubuntu runner that hit the mismatch above)
+# and for a local build via installer/build-with-apk.ps1 - see
+# installer/adhdisplay.iss for why it needs to exist before that ISCC run.
 on:
   workflow_dispatch: {}
 

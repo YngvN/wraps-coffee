@@ -37,8 +37,8 @@
 ; to copy to a USB stick per ../docs/INSTALL-TV.md. Since Inno resolves that
 ; [Files] glob at compile time, the APK must already exist in
 ; ../adhdisplay-companion/dist before running ISCC — run build-with-apk.ps1
-; (next to this file) instead of invoking ISCC directly to handle both steps
-; in one command.
+; (next to this file) for a local build, which runs both steps in one
+; command; build-installer.yml does the equivalent two steps itself in CI.
 
 #define AppName "ADHDisplay"
 #define AppExeName "start-adhdisplay.bat"
@@ -64,7 +64,7 @@ AppName={#AppName}
 ; Must stay in sync with the root package.json's own "version" field (see
 ; CLAUDE.md's Versioning rule) - bumped together, in the same change, on
 ; every completed change.
-AppVersion=0.2.87
+AppVersion=0.2.88
 AppPublisher=ADHDisplay
 DefaultDirName=C:\ADHDisplay
 DisableDirPage=no
