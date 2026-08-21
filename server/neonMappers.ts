@@ -23,6 +23,37 @@ import { isProductOutOfStock } from '../src/utils/productStock'
  * done and never re-reads them.
  */
 
+/**
+ * Advisory-lock keys, one per full-replace target.
+ *
+ * Every "replace the whole table" push is `delete` followed by re-`insert`
+ * inside one transaction, and two of those running concurrently corrupt each
+ * other: neither `delete` can see the other's uncommitted rows, so both
+ * proceed to insert the same primary keys and the loser fails with a duplicate
+ * key violation. Concurrency is entirely possible here — a bridge restart
+ * while a reconciliation is still in flight is enough.
+ *
+ * A transaction-scoped advisory lock makes the second one wait instead. By the
+ * time it proceeds, the first has committed, so its `delete` sees those rows
+ * and clears them properly. The lock is released automatically on commit or
+ * rollback, so there is nothing to leak.
+ *
+ * Distinct keys per table so unrelated pushes don't queue behind each other,
+ * and each transaction only ever takes one — no lock ordering, no deadlock.
+ */
+const FULL_REPLACE_LOCKS = {
+  products: 4_820_001,
+  categoryPrices: 4_820_002,
+  events: 4_820_003,
+  messageBoard: 4_820_004,
+} as const
+
+/** Opens a transaction that serialises against any other full replace of the same table. */
+async function beginFullReplace(client: Client, lockKey: number): Promise<void> {
+  await client.query('begin')
+  await client.query('select pg_advisory_xact_lock($1)', [lockKey])
+}
+
 function priceColumns(price: Price | undefined): { price: number | null; price_takeaway: number | null; price_eat_in: number | null } {
   if (price === undefined) return { price: null, price_takeaway: null, price_eat_in: null }
   if (typeof price === 'number') return { price, price_takeaway: null, price_eat_in: null }
@@ -86,7 +117,7 @@ export async function pullProducts(client: Client): Promise<Product[]> {
 }
 
 export async function pushProducts(client: Client, products: Product[]): Promise<void> {
-  await client.query('begin')
+  await beginFullReplace(client, FULL_REPLACE_LOCKS.products)
   try {
     await client.query('delete from products')
     // The public website's own `products` table has a `NOT NULL` `category` column — a product with no category at all (see `Product.catalogueId`) has nothing valid to put there. Rather than inventing a fake category id that would corrupt that separate project's own data, these are simply excluded from the push (and would fail the whole transaction below if they weren't, since every product here is inserted inside one `begin`/`commit`). Revisit once that other schema supports a category-less product.
@@ -138,7 +169,7 @@ export async function pullCategoryPrices(client: Client): Promise<CategoryPrices
 }
 
 export async function pushCategoryPrices(client: Client, prices: CategoryPrices): Promise<void> {
-  await client.query('begin')
+  await beginFullReplace(client, FULL_REPLACE_LOCKS.categoryPrices)
   try {
     await client.query('delete from category_prices')
     for (const [category, price] of Object.entries(prices)) {
@@ -258,7 +289,7 @@ export async function pullEvents(client: Client): Promise<EventRecord[]> {
 }
 
 export async function pushEvents(client: Client, events: EventRecord[]): Promise<void> {
-  await client.query('begin')
+  await beginFullReplace(client, FULL_REPLACE_LOCKS.events)
   try {
     await client.query('delete from events')
     for (const event of events) {
@@ -381,7 +412,7 @@ export async function pushOrdersStatus(client: Client, orders: OrderRecord[]): P
  * not a live copy of every board — there is deliberately no `pullMessageBoard`.
  */
 export async function pushMessageBoard(client: Client, posts: MessageBoardPost[]): Promise<void> {
-  await client.query('begin')
+  await beginFullReplace(client, FULL_REPLACE_LOCKS.messageBoard)
   try {
     await client.query('delete from message_board')
     for (const post of posts) {

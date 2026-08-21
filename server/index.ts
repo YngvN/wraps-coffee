@@ -817,11 +817,19 @@ const httpServer = createServer((req, res) => {
         // `url` and `sync` are independently optional: the settings UI saves
         // the connection string and the sync mode from separate controls, and
         // omitting one must leave it alone rather than clear it.
+        //
+        // Only these two change how the bridge should be running. `websiteUrl`
+        // deliberately doesn't: restarting for it would tear down a healthy
+        // connection and start a second reconciliation racing the first, which
+        // is exactly how two concurrent full-replace pushes collide.
+        let shouldRestartBridge = false
+
         let newUrl = store.getNeonDatabaseUrl()
         if (rawUrl !== undefined) {
           const trimmed = typeof rawUrl === 'string' ? rawUrl.trim() : ''
           newUrl = trimmed || null
           store.setNeonDatabaseUrl(newUrl)
+          shouldRestartBridge = true
           console.log(`[neon] ${session.username} ${newUrl ? 'updated' : 'cleared'} the Neon database URL`)
         }
 
@@ -834,6 +842,7 @@ const httpServer = createServer((req, res) => {
               typeof rawSync.pollOnlyDuringOpeningHours === 'boolean' ? rawSync.pollOnlyDuringOpeningHours : current.pollOnlyDuringOpeningHours,
           }
           store.setNeonSyncConfig(nextSync)
+          shouldRestartBridge = true
           console.log(`[neon] ${session.username} set sync mode to ${nextSync.mode} (every ${nextSync.pollIntervalSeconds}s${nextSync.pollOnlyDuringOpeningHours ? ', opening hours only' : ''})`)
         }
 
@@ -843,9 +852,9 @@ const httpServer = createServer((req, res) => {
           console.log(`[neon] ${session.username} ${trimmed ? 'set' : 'cleared'} the website URL`)
         }
 
-        // Either change alters how the bridge should be running, so it is
-        // torn down and re-entered under the new settings — no restart needed.
-        neonBridge.restart()
+        // Re-enter the bridge under the new settings — no server restart
+        // needed — but only when something it actually depends on changed.
+        if (shouldRestartBridge) neonBridge.restart()
         sendJson(res, 200, { url: newUrl, sync: store.getNeonSyncConfig(), websiteUrl: store.getWebsiteUrl() })
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
