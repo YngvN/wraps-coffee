@@ -23,6 +23,16 @@ interface ThemeFields {
  * a new theme is always seeded with just the 3 locked colors, matching
  * `ThemeEditorForm`'s own default for a blank theme; custom colors are added
  * one at a time afterward via `appearanceThemeColor`.
+ *
+ * **`websiteRoles` is deliberately absent from the schema too**, and not via
+ * `confabulationRiskFields`. That list only strips a field under the `'safe'`
+ * posture (see `stripSchemaFields`), which would still leave the field visible
+ * to a stronger model. These values aren't merely risky to guess — they are
+ * `generateId()` strings from *this theme's* live palette, so no model can
+ * produce a correct one, and any value it did produce would silently repoint
+ * the public website's colors. Same reasoning as `colors` above: the field
+ * survives an assistant edit untouched through `mergeDraft`'s spread, and is
+ * only ever set from `ThemeWebsiteRolesEditor`.
  */
 export const themeEntity: AssistantEntity<AppearanceTheme> = {
   key: 'theme',
@@ -65,6 +75,9 @@ export const themeEntity: AssistantEntity<AppearanceTheme> = {
     const fields = rawFields as ThemeFields
     const base: AppearanceTheme =
       current ?? { id: crypto.randomUUID(), name: '', fonts: { body: '', heading: '', subheading: '' }, colors: LOCKED_APPEARANCE_COLORS }
+    // Spread-then-override, never a field-by-field reconstruction: `colors` and
+    // `websiteRoles` aren't in this entity's schema, and rebuilding the object
+    // from the schema's own field list is exactly how they would get dropped.
     return {
       ...base,
       name: fields.name ?? base.name,

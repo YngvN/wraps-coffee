@@ -4,7 +4,7 @@ import type { NearbyStop, WeatherHour } from '../types/integrations'
 import type { NewsHeadline } from '../types/news'
 import type { OrderStatus } from '../types/order'
 import type { ScreenAddressSettings } from '../types/screenAddress'
-import type { AdminRole, AdminSession, DashboardSection } from '../types/sync'
+import type { AdminRole, AdminSession, DashboardSection, NeonSyncConfig } from '../types/sync'
 import type { WindowLaunchSettings } from '../types/windowLaunch'
 import type { UpdatesHubStatus } from '../utils/displayUpdateState'
 
@@ -442,30 +442,50 @@ export async function regenerateDeveloperKey(token: string): Promise<string> {
   return key
 }
 
-/** The Neon database URL override (see "For developers" in Settings), or `null` if none has been saved — falls back to the server's own `NEON_DATABASE_URL` environment variable when unset. `admin`/`subadmin` only. */
-export async function getNeonUrl(token: string): Promise<string | null> {
+/** The website-bridge connection string plus how the bridge keeps in touch with it. */
+export interface NeonSettings {
+  /** `null` when no override has been saved — the server then falls back to its own `NEON_DATABASE_URL` environment variable. */
+  url: string | null
+  sync: NeonSyncConfig
+  /** The public website's base URL, used only to purge its edge cache after a push. `null` disables purging. */
+  websiteUrl: string | null
+}
+
+/** The Neon database URL override and sync mode (see "For developers" in Settings). `admin`/`subadmin` only. */
+export async function getNeonUrl(token: string): Promise<NeonSettings> {
   const response = await fetch(`${serverBaseUrl()}/neon-url`, { headers: { Authorization: `Bearer ${token}` } })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (response.status === 403) throw new Error('Only admin/subadmin accounts can view the Neon database URL')
   if (!response.ok) throw new Error('Could not load the Neon database URL')
-  const { url } = (await response.json()) as { url: string | null }
-  return url
+  return (await response.json()) as NeonSettings
 }
 
-/** Sets (or, passing `null`/an empty string, clears) the Neon database URL override — the local server reconnects its website bridge immediately, no restart needed. `admin`/`subadmin` only. */
-export async function setNeonUrl(token: string, url: string | null): Promise<string | null> {
+/**
+ * Updates the Neon database URL, the sync mode, or both — the local server
+ * re-enters its website bridge immediately, no restart needed.
+ *
+ * Both fields are independently optional, and omitting one leaves it
+ * untouched: passing only `sync` must not clear a saved connection string.
+ * Passing `url` as `null` or an empty string *is* the way to clear it.
+ *
+ * `admin`/`subadmin` only.
+ *
+ * @param token The current session token.
+ * @param patch The fields to change.
+ * @returns The settings as saved.
+ */
+export async function setNeonUrl(token: string, patch: { url?: string | null; sync?: NeonSyncConfig; websiteUrl?: string | null }): Promise<NeonSettings> {
   const response = await fetch(`${serverBaseUrl()}/neon-url`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify(patch),
   })
   if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string }
     throw new Error(body.error ?? 'Could not save the Neon database URL')
   }
-  const { url: savedUrl } = (await response.json()) as { url: string | null }
-  return savedUrl
+  return (await response.json()) as NeonSettings
 }
 
 /** The saved Wolt POS Integration API credentials (see the Integrations page's Wolt card, and Settings → Testing for the environment checkbox), or `venueId`/`apiKey` both `null` if none have been saved yet. `admin`/`subadmin` only. */

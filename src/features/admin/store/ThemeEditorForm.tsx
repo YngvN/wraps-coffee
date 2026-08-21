@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { Button, FontPicker, Input } from '../../../components'
 import { useLanguage } from '../../../i18n'
-import { LOCKED_APPEARANCE_COLORS, type AppearanceTheme, type AppearanceThemeFonts } from '../../../types/appearanceTheme'
+import { LOCKED_APPEARANCE_COLORS, type AppearanceTheme, type AppearanceThemeColor, type AppearanceThemeFonts } from '../../../types/appearanceTheme'
 import { generateId } from '../../../utils/id'
+import { pruneWebsiteRoles } from '../../../utils/websiteTheme'
 import { ThemeColorListEditor } from './ThemeColorListEditor'
+import { ThemeWebsiteRolesEditor } from './ThemeWebsiteRolesEditor'
 import './ThemeEditorForm.scss'
 
 interface ThemeEditorFormProps {
@@ -28,11 +30,22 @@ export function ThemeEditorForm({ theme, onSave, onCancel }: ThemeEditorFormProp
   const [name, setName] = useState(theme?.name ?? '')
   const [fonts, setFonts] = useState(theme?.fonts ?? BLANK_FONTS)
   const [colors, setColors] = useState(theme?.colors ?? LOCKED_APPEARANCE_COLORS)
+  const [websiteRoles, setWebsiteRoles] = useState(theme?.websiteRoles)
 
+  /**
+   * Keeps the website role assignments honest when the palette changes:
+   * deleting a swatch a role points at drops that role rather than leaving a
+   * dangling id behind. Resolution tolerates a dangling id anyway, so this is
+   * hygiene — but it keeps the saved data readable.
+   */
+  const handleColorsChange = (nextColors: AppearanceThemeColor[]) => {
+    setColors(nextColors)
+    setWebsiteRoles((current) => pruneWebsiteRoles(current, nextColors.map((color) => color.id)))
+  }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    onSave({ id: theme?.id ?? generateId(), name, fonts, colors })
+    onSave({ id: theme?.id ?? generateId(), name, fonts, colors, websiteRoles })
   }
 
   return (
@@ -58,7 +71,9 @@ export function ThemeEditorForm({ theme, onSave, onCancel }: ThemeEditorFormProp
         </div>
       ))}
 
-      <ThemeColorListEditor colors={colors} onChange={setColors} />
+      <ThemeColorListEditor colors={colors} onChange={handleColorsChange} />
+
+      <ThemeWebsiteRolesEditor colors={colors} roles={websiteRoles} onChange={setWebsiteRoles} />
 
       <div className="theme-editor-form__actions">
         <Button type="button" variant="secondary" onClick={onCancel}>

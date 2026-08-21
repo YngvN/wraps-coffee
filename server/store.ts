@@ -7,7 +7,7 @@ import { DEFAULT_DASHBOARD_SCREENSAVER_SETTINGS } from '../src/types/dashboardSc
 import { DEFAULT_INTEGRATIONS_CONFIG } from '../src/types/integrations'
 import { DEFAULT_SCREEN_ADDRESS_SETTINGS, type ScreenAddressSettings } from '../src/types/screenAddress'
 import { DEFAULT_SIDEBAR_SETTINGS } from '../src/types/sidebarSettings'
-import { SYNCED_KEYS, type AdminRole, type DashboardSection, type SyncedKey } from '../src/types/sync'
+import { DEFAULT_NEON_SYNC_CONFIG, SYNCED_KEYS, clampPollIntervalSeconds, type AdminRole, type DashboardSection, type NeonSyncConfig, type NeonSyncMode, type SyncedKey } from '../src/types/sync'
 import { DEFAULT_FOODORA_CONFIG, DEFAULT_WOLT_CONFIG } from '../src/types/delivery'
 import { DEFAULT_WINDOW_LAUNCH_SETTINGS, type WindowLaunchSettings } from '../src/types/windowLaunch'
 import { logProductNameFoldedCollisions, withRecomputedNameFolded } from '../src/lib/productNameFold'
@@ -377,7 +377,7 @@ export function regenerateDeveloperApiKey(): string {
   return key
 }
 
-// --- Neon database URL -------------------------------------------------------
+// --- Neon database URL and sync mode -----------------------------------------
 //
 // An editable override for the `NEON_DATABASE_URL` environment variable (see
 // `neonBridge.ts`), settable from Settings → For developers instead of
@@ -385,19 +385,92 @@ export function regenerateDeveloperApiKey(): string {
 // holding an explicit `null`, i.e. after hitting "Clear" — it takes
 // precedence over the environment variable, so a clear reliably disables the
 // bridge even if the env var is still set in the shell that launched `tsx`.
+//
+// The same file also carries the bridge's `NeonSyncConfig` (listen vs. poll).
+// It lives here rather than in a second file so the pair stays atomic and
+// keeps its existing `mirrorFile` backup coverage for free — which is why
+// both setters go through `writeNeonFile`, preserving the half they aren't
+// changing instead of overwriting the whole document.
 
 const NEON_URL_FILE = join(DATA_DIR, 'neon-database-url.json')
 
+/**
+ * The on-disk shape. Everything but `url` is optional: this file was
+ * originally just `{ url }`, and one written by an older version must keep
+ * loading — hence the defaults applied in `getNeonSyncConfig` rather than a
+ * migration.
+ */
+interface NeonUrlFile {
+  url: string | null
+  syncMode?: NeonSyncMode
+  pollIntervalSeconds?: number
+  pollOnlyDuringOpeningHours?: boolean
+  websiteUrl?: string | null
+}
+
+function readNeonFile(): NeonUrlFile | null {
+  if (!existsSync(NEON_URL_FILE)) return null
+  return JSON.parse(readFileSync(NEON_URL_FILE, 'utf-8')) as NeonUrlFile
+}
+
+/** Writes the whole file, preserving whichever half of it the caller isn't changing. */
+function writeNeonFile(patch: Partial<NeonUrlFile>) {
+  const current = readNeonFile()
+  const next: NeonUrlFile = { url: current?.url ?? null, ...current, ...patch }
+  writeFileSync(NEON_URL_FILE, JSON.stringify(next), 'utf-8')
+  mirrorFile(NEON_URL_FILE)
+}
+
 export function getNeonDatabaseUrl(): string | null {
-  if (existsSync(NEON_URL_FILE)) {
-    return (JSON.parse(readFileSync(NEON_URL_FILE, 'utf-8')) as { url: string | null }).url
-  }
+  const file = readNeonFile()
+  if (file) return file.url
   return process.env.NEON_DATABASE_URL ?? null
 }
 
 export function setNeonDatabaseUrl(url: string | null) {
-  writeFileSync(NEON_URL_FILE, JSON.stringify({ url }), 'utf-8')
-  mirrorFile(NEON_URL_FILE)
+  writeNeonFile({ url })
+}
+
+/**
+ * How the bridge stays in touch with the website's database — see
+ * `neonBridge.ts`. Falls back to `DEFAULT_NEON_SYNC_CONFIG` field by field, so
+ * a file written before any of these existed keeps today's behaviour
+ * (`'listen'`, i.e. a permanently-open connection) rather than silently
+ * changing it.
+ */
+export function getNeonSyncConfig(): NeonSyncConfig {
+  const file = readNeonFile()
+  return {
+    mode: file?.syncMode ?? DEFAULT_NEON_SYNC_CONFIG.mode,
+    pollIntervalSeconds: clampPollIntervalSeconds(file?.pollIntervalSeconds ?? DEFAULT_NEON_SYNC_CONFIG.pollIntervalSeconds),
+    pollOnlyDuringOpeningHours: file?.pollOnlyDuringOpeningHours ?? DEFAULT_NEON_SYNC_CONFIG.pollOnlyDuringOpeningHours,
+  }
+}
+
+/**
+ * The public website's own base URL (e.g. `https://wraps-ulven.netlify.app`),
+ * or `null` when it hasn't been configured.
+ *
+ * Used only to purge that site's edge cache after a push, so a menu or price
+ * change appears there within seconds instead of waiting out its TTL. Purely
+ * an optimisation: with this unset, nothing breaks — the website just falls
+ * back to expiring its own cache on a timer.
+ */
+export function getWebsiteUrl(): string | null {
+  return readNeonFile()?.websiteUrl ?? null
+}
+
+export function setWebsiteUrl(websiteUrl: string | null) {
+  // Stored without a trailing slash so callers can append a path unconditionally.
+  writeNeonFile({ websiteUrl: websiteUrl ? websiteUrl.trim().replace(/\/+$/, '') : null })
+}
+
+export function setNeonSyncConfig(config: NeonSyncConfig) {
+  writeNeonFile({
+    syncMode: config.mode,
+    pollIntervalSeconds: clampPollIntervalSeconds(config.pollIntervalSeconds),
+    pollOnlyDuringOpeningHours: config.pollOnlyDuringOpeningHours,
+  })
 }
 
 // --- Wolt delivery-platform credentials --------------------------------------

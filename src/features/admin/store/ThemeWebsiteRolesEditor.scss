@@ -1,0 +1,74 @@
+@use '../../../styles/variables' as *;
+
+.theme-website-roles {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+}
+
+.theme-website-roles__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.theme-website-roles__hint {
+  margin: 0;
+  color: $color-text-muted;
+  font-size: 0.875rem;
+}
+
+.theme-website-roles__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: $spacing-unit;
+  margin: calc($spacing-unit / 2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.theme-website-roles__field {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+}
+
+.theme-website-roles__label {
+  font-size: 0.875rem;
+}
+
+.theme-website-roles__control {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+
+  select {
+    flex: 1;
+    min-width: 0;
+    padding: calc($spacing-unit / 2);
+    border: 1px solid $color-border;
+    border-radius: 6px;
+    background: $color-surface;
+    color: $color-text;
+    font: inherit;
+
+    &:active {
+      box-shadow: inset 0 2px 4px $color-shadow;
+    }
+  }
+}
+
+// Shows which palette colour a role currently resolves to, so the mapping can
+// be checked at a glance instead of by reading hex codes.
+.theme-website-roles__swatch {
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: 0 0 auto;
+  border: 1px solid $color-border;
+  border-radius: 4px;
+
+  // An unset role gets a hatched box rather than a blank one, so "no colour
+  // chosen" doesn't read as "white chosen".
+  &[data-empty='true'] {
+    background-image: linear-gradient(135deg, transparent 45%, $color-border 45%, $color-border 55%, transparent 55%);
+  }
+}

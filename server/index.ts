@@ -9,7 +9,7 @@ import type { PaneId, ScreenConfig, ScreenSlot } from '../src/types/screen'
 import type { ScreenAddressSettings } from '../src/types/screenAddress'
 import type { WindowLaunchSettings } from '../src/types/windowLaunch'
 import type { StoreSettings } from '../src/types/storeSettings'
-import { SYNCED_KEYS, type AdminRole, type ClientMessage, type DashboardSection, type ServerMessage, type SyncedKey } from '../src/types/sync'
+import { SYNCED_KEYS, clampPollIntervalSeconds, type AdminRole, type ClientMessage, type DashboardSection, type NeonSyncConfig, type ServerMessage, type SyncedKey } from '../src/types/sync'
 import { logProductNameFoldedCollisions, withRecomputedNameFolded } from '../src/lib/productNameFold'
 import { PANE_CUSTOM_CSS_POLICY_VERSION, validatePaneCustomCss } from '../src/utils/paneCustomCss'
 import { PANE_CUSTOM_HTML_POLICY_VERSION, sanitizePaneCustomHtml, validatePaneCustomHtml } from '../src/utils/paneCustomHtml'
@@ -792,7 +792,7 @@ const httpServer = createServer((req, res) => {
       sendJson(res, 403, { error: 'Only admin/subadmin accounts can view the Neon database URL' })
       return
     }
-    sendJson(res, 200, { url: store.getNeonDatabaseUrl() })
+    sendJson(res, 200, { url: store.getNeonDatabaseUrl(), sync: store.getNeonSyncConfig(), websiteUrl: store.getWebsiteUrl() })
     return
   }
 
@@ -808,13 +808,45 @@ const httpServer = createServer((req, res) => {
     }
     readJsonBody(req)
       .then((body) => {
-        const { url: rawUrl } = body as { url?: string | null }
-        const trimmed = typeof rawUrl === 'string' ? rawUrl.trim() : ''
-        const newUrl = trimmed || null
-        store.setNeonDatabaseUrl(newUrl)
+        const { url: rawUrl, sync: rawSync, websiteUrl: rawWebsiteUrl } = body as {
+          url?: string | null
+          sync?: Partial<NeonSyncConfig>
+          websiteUrl?: string | null
+        }
+
+        // `url` and `sync` are independently optional: the settings UI saves
+        // the connection string and the sync mode from separate controls, and
+        // omitting one must leave it alone rather than clear it.
+        let newUrl = store.getNeonDatabaseUrl()
+        if (rawUrl !== undefined) {
+          const trimmed = typeof rawUrl === 'string' ? rawUrl.trim() : ''
+          newUrl = trimmed || null
+          store.setNeonDatabaseUrl(newUrl)
+          console.log(`[neon] ${session.username} ${newUrl ? 'updated' : 'cleared'} the Neon database URL`)
+        }
+
+        if (rawSync !== undefined) {
+          const current = store.getNeonSyncConfig()
+          const nextSync: NeonSyncConfig = {
+            mode: rawSync.mode === 'poll' || rawSync.mode === 'listen' ? rawSync.mode : current.mode,
+            pollIntervalSeconds: clampPollIntervalSeconds(Number(rawSync.pollIntervalSeconds ?? current.pollIntervalSeconds)),
+            pollOnlyDuringOpeningHours:
+              typeof rawSync.pollOnlyDuringOpeningHours === 'boolean' ? rawSync.pollOnlyDuringOpeningHours : current.pollOnlyDuringOpeningHours,
+          }
+          store.setNeonSyncConfig(nextSync)
+          console.log(`[neon] ${session.username} set sync mode to ${nextSync.mode} (every ${nextSync.pollIntervalSeconds}s${nextSync.pollOnlyDuringOpeningHours ? ', opening hours only' : ''})`)
+        }
+
+        if (rawWebsiteUrl !== undefined) {
+          const trimmed = typeof rawWebsiteUrl === 'string' ? rawWebsiteUrl.trim() : ''
+          store.setWebsiteUrl(trimmed || null)
+          console.log(`[neon] ${session.username} ${trimmed ? 'set' : 'cleared'} the website URL`)
+        }
+
+        // Either change alters how the bridge should be running, so it is
+        // torn down and re-entered under the new settings — no restart needed.
         neonBridge.restart()
-        console.log(`[neon] ${session.username} ${newUrl ? 'updated' : 'cleared'} the Neon database URL`)
-        sendJson(res, 200, { url: newUrl })
+        sendJson(res, 200, { url: newUrl, sync: store.getNeonSyncConfig(), websiteUrl: store.getWebsiteUrl() })
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
     return

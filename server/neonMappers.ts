@@ -4,6 +4,7 @@ import type { AllergenCode, CategoryPrices, Price, Product } from '../src/types/
 import type { ContactInfo } from '../src/types/contactInfo'
 import type { ContactMessage } from '../src/types/message'
 import type { EventRecord } from '../src/types/event'
+import type { WebsiteThemeProjection } from '../src/utils/websiteTheme'
 import type { MessageBoardPost } from '../src/types/messageBoard'
 import { isProductOutOfStock } from '../src/utils/productStock'
 
@@ -390,4 +391,32 @@ export async function pushMessageBoard(client: Client, posts: MessageBoardPost[]
     await client.query('rollback')
     throw error
   }
+}
+
+// --- site theme (push-only; the active theme, already resolved) ------------------
+
+/**
+ * Upserts the single `site_theme` row with the cafe's active appearance theme.
+ *
+ * A one-way, *lossy* mirror in the same spirit as `message_board`: the website
+ * gets the one theme currently applied, with its `websiteRoles` already
+ * resolved from palette-colour ids to hex values (see
+ * `toWebsiteThemeProjection`), never the full list of themes this app manages.
+ * There is deliberately no `pullSiteTheme` — pulling this back would collapse
+ * every saved theme into the projection of one.
+ *
+ * `fonts` and `colors` go in as `jsonb` so the set of roles can grow without a
+ * schema migration on a table two repos share. A role the admin hasn't mapped
+ * is simply absent, and the website falls back to its own built-in value.
+ *
+ * @param client A connected pg client.
+ * @param projection The active theme's fonts and resolved colours.
+ */
+export async function pushSiteTheme(client: Client, projection: WebsiteThemeProjection): Promise<void> {
+  await client.query(
+    `insert into site_theme (id, fonts, colors, updated_at)
+     values ('main', $1::jsonb, $2::jsonb, now())
+     on conflict (id) do update set fonts = $1::jsonb, colors = $2::jsonb, updated_at = now()`,
+    [JSON.stringify(projection.fonts), JSON.stringify(projection.colors)],
+  )
 }

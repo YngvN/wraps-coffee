@@ -90,3 +90,61 @@ export interface ErrorMessage {
 
 export type ClientMessage = HelloMessage | WriteMessage
 export type ServerMessage = SnapshotMessage | UpdateMessage | ErrorMessage
+
+// --- Neon bridge sync configuration ------------------------------------------
+//
+// How the local server keeps in touch with the public website's own Postgres
+// database (see `server/neonBridge.ts`). Persisted alongside the connection
+// string in `server/data/neon-database-url.json` and edited from
+// Settings → For developers.
+
+/**
+ * `'listen'` holds one permanently-open connection and reacts to the
+ * database's own `pg_notify` triggers, so an order placed on the website
+ * reaches the cafe within milliseconds. That connection also keeps a
+ * serverless database's compute from ever suspending, which is what it costs.
+ *
+ * `'poll'` opens a short-lived connection on a timer instead, letting the
+ * database sleep in between — but only if the interval is long enough for it
+ * to actually reach its idle threshold. Outbound pushes stay immediate in
+ * both modes; only inbound freshness is traded away.
+ */
+export type NeonSyncMode = 'listen' | 'poll'
+
+/** How the Neon bridge stays in touch with the website's database. */
+export interface NeonSyncConfig {
+  mode: NeonSyncMode
+  /** Only meaningful when `mode` is `'poll'`. */
+  pollIntervalSeconds: number
+  /**
+   * Skip polling entirely while the cafe is closed (per `admin.contactInfo`'s
+   * own opening hours). Nobody places a pickup order for a closed cafe, so
+   * inbound freshness is worth nothing then — and an uninterrupted overnight
+   * gap is what actually lets the database sleep, far more than tuning the
+   * interval does. Only meaningful when `mode` is `'poll'`.
+   */
+  pollOnlyDuringOpeningHours: boolean
+}
+
+/** Deliberately `'listen'`: an existing install must keep behaving exactly as it did before this setting existed. */
+export const DEFAULT_NEON_SYNC_CONFIG: NeonSyncConfig = {
+  mode: 'listen',
+  pollIntervalSeconds: 300,
+  pollOnlyDuringOpeningHours: false,
+}
+
+/** Floor of 30s stops a typo turning polling into a busy loop against the database; ceiling of 1h keeps an order from sitting unseen for most of a shift. */
+export const MIN_POLL_INTERVAL_SECONDS = 30
+export const MAX_POLL_INTERVAL_SECONDS = 3600
+
+/**
+ * Forces a poll interval into the supported range.
+ *
+ * @param seconds Raw value, from the settings form or an older config file.
+ * @returns The value clamped to `[MIN_POLL_INTERVAL_SECONDS, MAX_POLL_INTERVAL_SECONDS]`,
+ *   or the default when it isn't a usable number at all.
+ */
+export function clampPollIntervalSeconds(seconds: number): number {
+  if (!Number.isFinite(seconds)) return DEFAULT_NEON_SYNC_CONFIG.pollIntervalSeconds
+  return Math.min(MAX_POLL_INTERVAL_SECONDS, Math.max(MIN_POLL_INTERVAL_SECONDS, Math.round(seconds)))
+}

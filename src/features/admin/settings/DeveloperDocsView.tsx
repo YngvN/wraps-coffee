@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Button, Card, Input } from '../../../components'
+import { Button, Card, Checkbox, Input, NumberInput } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
 import { getDeveloperKey, getNeonUrl, regenerateDeveloperKey, setNeonUrl } from '../../../lib/localServer'
+import { DEFAULT_NEON_SYNC_CONFIG, MAX_POLL_INTERVAL_SECONDS, MIN_POLL_INTERVAL_SECONDS, type NeonSyncConfig } from '../../../types/sync'
 import './DeveloperDocsView.scss'
 
 /** Masks the password segment of a `postgres://user:password@host/db` connection string for display, leaving the user/host/db visible so an admin can confirm it points at the right project without exposing the actual secret. Falls back to returning `url` unchanged if it doesn't match the expected shape. */
@@ -62,6 +63,9 @@ export function DeveloperDocsView() {
   const [keyError, setKeyError] = useState<string | null>(null)
 
   const [neonUrl, setNeonUrlValue] = useState<string | null>(null)
+  const [neonSync, setNeonSync] = useState<NeonSyncConfig>(DEFAULT_NEON_SYNC_CONFIG)
+  const [websiteUrl, setWebsiteUrlValue] = useState<string | null>(null)
+  const [websiteUrlDraft, setWebsiteUrlDraft] = useState('')
   const [isLoadingNeonUrl, setIsLoadingNeonUrl] = useState(() => session?.role !== 'limited')
   const [isEditingNeonUrl, setIsEditingNeonUrl] = useState(false)
   const [neonUrlDraft, setNeonUrlDraft] = useState('')
@@ -79,7 +83,12 @@ export function DeveloperDocsView() {
   useEffect(() => {
     if (!session || session.role === 'limited') return
     getNeonUrl(session.token)
-      .then(setNeonUrlValue)
+      .then((settings) => {
+        setNeonUrlValue(settings.url)
+        setNeonSync(settings.sync)
+        setWebsiteUrlValue(settings.websiteUrl)
+        setWebsiteUrlDraft(settings.websiteUrl ?? '')
+      })
       .catch(() => setNeonUrlError(t('admin.settings.developerDocs.neonUrlLoadError')))
       .finally(() => setIsLoadingNeonUrl(false))
   }, [session, t])
@@ -100,22 +109,36 @@ export function DeveloperDocsView() {
     setIsEditingNeonUrl(true)
   }
 
-  const saveNeonUrl = (value: string | null) => {
+  /**
+   * Saves whichever half of the Neon settings changed.
+   *
+   * `url` and `sync` are sent independently so that changing the sync mode
+   * never rewrites the connection string, and vice versa.
+   */
+  const saveNeonSettings = (patch: { url?: string | null; sync?: NeonSyncConfig; websiteUrl?: string | null }) => {
     if (!session) return
     setIsSavingNeonUrl(true)
     setNeonUrlError(null)
-    setNeonUrl(session.token, value)
+    setNeonUrl(session.token, patch)
       .then((saved) => {
-        setNeonUrlValue(saved)
+        setNeonUrlValue(saved.url)
+        setNeonSync(saved.sync)
+        setWebsiteUrlValue(saved.websiteUrl)
+        setWebsiteUrlDraft(saved.websiteUrl ?? '')
         setIsEditingNeonUrl(false)
       })
       .catch(() => setNeonUrlError(t('admin.settings.developerDocs.neonUrlSaveError')))
       .finally(() => setIsSavingNeonUrl(false))
   }
 
+  const saveNeonUrl = (value: string | null) => saveNeonSettings({ url: value })
+
   const handleClearNeonUrl = () => {
     if (window.confirm(t('admin.settings.developerDocs.neonUrlClearConfirm'))) saveNeonUrl(null)
   }
+
+  /** Applies one field of the sync config, keeping the rest as it is. */
+  const updateNeonSync = (patch: Partial<NeonSyncConfig>) => saveNeonSettings({ sync: { ...neonSync, ...patch } })
 
   return (
     <div className="developer-docs">
@@ -770,6 +793,27 @@ GET /assistant/product-name-resolution-log   (Authorization: Bearer <token>, adm
         <p>{t('admin.settings.developerDocs.websiteIntro')}</p>
         <p>{t('admin.settings.developerDocs.websiteNoTunnel')}</p>
 
+        <h3>{t('admin.settings.developerDocs.websiteTablesTitle')}</h3>
+        <pre>
+          <code>{`Outbound (this app owns the content; a local edit is pushed as a full replace)
+  products, category_prices, contact_info, events
+
+Inbound (the website owns creation; only new rows are pulled down, and a single
+mutable field is pushed back by id — never an insert or delete from here)
+  messages   -> Messages tab   (this app owns "read")
+  orders     -> Orders tab     (this app owns "status"/"updated_at")
+
+Push-only mirrors (computed here, never read back — pulling either one down would
+overwrite the full local dataset with a filtered projection of itself)
+  message_board  the public subset only: posts on a board with "publish to website"
+                 on, with expired ones dropped. No board_id column at all.
+  site_theme     one row, the *active* appearance theme only, with its website
+                 colour roles already resolved from palette ids to hex values.
+
+The schema itself lives in the website repo (db/schema.sql) and is applied there once.
+This app never creates or migrates a table.`}</code>
+        </pre>
+
         {session?.role !== 'limited' && (
           <>
             <div className="developer-docs__key-display">
@@ -820,6 +864,74 @@ GET /assistant/product-name-resolution-log   (Authorization: Bearer <token>, adm
           </>
         )}
 
+        {session?.role !== 'limited' && !isLoadingNeonUrl && (
+          <div className="developer-docs__sync">
+            <h3>{t('admin.settings.developerDocs.websiteUrlTitle')}</h3>
+            <p>{t('admin.settings.developerDocs.websiteUrlIntro')}</p>
+            <label className="developer-docs__sync-field">
+              <span>{t('admin.settings.developerDocs.websiteUrlLabel')}</span>
+              <Input
+                type="url"
+                value={websiteUrlDraft}
+                placeholder="https://example.netlify.app"
+                disabled={isSavingNeonUrl}
+                onChange={(event) => setWebsiteUrlDraft(event.target.value)}
+                onBlur={() => {
+                  if (websiteUrlDraft.trim() !== (websiteUrl ?? '')) saveNeonSettings({ websiteUrl: websiteUrlDraft })
+                }}
+              />
+            </label>
+            <p className="developer-docs__hint">{t('admin.settings.developerDocs.websiteUrlHint')}</p>
+          </div>
+        )}
+
+        {session?.role !== 'limited' && !isLoadingNeonUrl && (
+          <div className="developer-docs__sync">
+            <h3>{t('admin.settings.developerDocs.syncModeTitle')}</h3>
+            <p>{t('admin.settings.developerDocs.syncModeIntro')}</p>
+
+            <label className="developer-docs__sync-field">
+              <span>{t('admin.settings.developerDocs.syncModeLabel')}</span>
+              <select
+                value={neonSync.mode}
+                disabled={isSavingNeonUrl}
+                onChange={(event) => updateNeonSync({ mode: event.target.value === 'poll' ? 'poll' : 'listen' })}
+              >
+                <option value="listen">{t('admin.settings.developerDocs.syncModeListen')}</option>
+                <option value="poll">{t('admin.settings.developerDocs.syncModePoll')}</option>
+              </select>
+            </label>
+
+            <p className="developer-docs__hint">
+              {t(neonSync.mode === 'poll' ? 'admin.settings.developerDocs.syncModePollHint' : 'admin.settings.developerDocs.syncModeListenHint')}
+            </p>
+
+            {neonSync.mode === 'poll' && (
+              <>
+                <NumberInput
+                  label={t('admin.settings.developerDocs.pollIntervalLabel')}
+                  value={neonSync.pollIntervalSeconds}
+                  min={MIN_POLL_INTERVAL_SECONDS}
+                  max={MAX_POLL_INTERVAL_SECONDS}
+                  step={30}
+                  disabled={isSavingNeonUrl}
+                  onChange={(seconds) => setNeonSync({ ...neonSync, pollIntervalSeconds: seconds })}
+                  onBlur={() => updateNeonSync({ pollIntervalSeconds: neonSync.pollIntervalSeconds })}
+                />
+                <p className="developer-docs__hint">{t('admin.settings.developerDocs.pollIntervalHint')}</p>
+
+                <Checkbox
+                  label={t('admin.settings.developerDocs.pollOpeningHoursLabel')}
+                  checked={neonSync.pollOnlyDuringOpeningHours}
+                  disabled={isSavingNeonUrl}
+                  onChange={(event) => updateNeonSync({ pollOnlyDuringOpeningHours: event.target.checked })}
+                />
+                <p className="developer-docs__hint">{t('admin.settings.developerDocs.pollOpeningHoursHint')}</p>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="developer-docs__key-display">
           <span className="developer-docs__key-label">{t('admin.settings.developerDocs.apiKeyLabel')}</span>
           {isLoadingKey ? (
@@ -854,11 +966,24 @@ POST /developer-key/regenerate    (Authorization: Bearer <token>, admin/subadmin
 → 403 { "error": "..." }   (a "limited" account's own token)
 
 GET /neon-url                     (Authorization: Bearer <token>, admin/subadmin only)
-→ 200 { "url": string | null }
+→ 200 { "url": string | null,
+        "sync": { "mode": "listen" | "poll", "pollIntervalSeconds": number, "pollOnlyDuringOpeningHours": boolean },
+        "websiteUrl": string | null }
 
 POST /neon-url                    (Authorization: Bearer <token>, admin/subadmin only)
-{ "url": string | null }          (null or "" clears it — reconnects the bridge immediately either way)
-→ 200 { "url": string | null }`}</code>
+{ "url"?: string | null,          (null or "" clears it; omit the field entirely to leave it unchanged)
+  "sync"?: { "mode"?: "listen" | "poll",
+             "pollIntervalSeconds"?: number,            (clamped to 30-3600)
+             "pollOnlyDuringOpeningHours"?: boolean },
+  "websiteUrl"?: string | null }  (the public site's base URL, used only to purge its edge cache
+                                   after a push; null disables purging, nothing else changes)
+→ 200 { "url": string | null, "sync": { ... }, "websiteUrl": string | null }
+
+  All three fields are independently optional — sending only "sync" must not clear a saved
+  connection string, and vice versa. Any of them re-enters the bridge immediately
+  (no server restart). "listen" holds one connection open and reacts to the database's own
+  pg_notify triggers; "poll" opens a short-lived connection on the interval instead, so the
+  database can suspend in between. Outbound pushes are immediate in both modes.`}</code>
         </pre>
       </Card>
     </div>
