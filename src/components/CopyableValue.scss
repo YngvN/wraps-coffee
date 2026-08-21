@@ -1,0 +1,62 @@
+@use '../styles/variables' as *;
+
+.copyable-value {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+  min-width: 0;
+}
+
+.copyable-value__label {
+  font-size: 0.875rem;
+  color: $color-text-muted;
+}
+
+.copyable-value__row {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.copyable-value__button {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  min-width: 0;
+  max-width: 100%;
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  border: 1px solid $color-border;
+  border-radius: 6px;
+  background: $color-surface;
+  color: $color-text;
+  cursor: pointer;
+  text-align: left;
+
+  code {
+    // A connection string is far wider than the panel; wrapping keeps the
+    // layout intact rather than forcing the page to scroll sideways.
+    overflow-wrap: anywhere;
+    font-size: 0.875rem;
+  }
+
+  svg {
+    flex: 0 0 auto;
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      background: $color-surface-hover;
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
+.copyable-value__copied {
+  font-size: 0.875rem;
+  color: $color-success;
+}

@@ -7,7 +7,7 @@ import { DEFAULT_DASHBOARD_SCREENSAVER_SETTINGS } from '../src/types/dashboardSc
 import { DEFAULT_INTEGRATIONS_CONFIG } from '../src/types/integrations'
 import { DEFAULT_SCREEN_ADDRESS_SETTINGS, type ScreenAddressSettings } from '../src/types/screenAddress'
 import { DEFAULT_SIDEBAR_SETTINGS } from '../src/types/sidebarSettings'
-import { DEFAULT_NEON_SYNC_CONFIG, SYNCED_KEYS, clampPollIntervalSeconds, type AdminRole, type DashboardSection, type NeonSyncConfig, type NeonSyncMode, type SyncedKey } from '../src/types/sync'
+import { DEFAULT_NEON_SYNC_CONFIG, SYNCED_KEYS, clampPollIntervalSeconds, type AdminRole, type DashboardSection, type NeonSyncConfig, type SyncedKey } from '../src/types/sync'
 import { DEFAULT_FOODORA_CONFIG, DEFAULT_WOLT_CONFIG } from '../src/types/delivery'
 import { DEFAULT_WINDOW_LAUNCH_SETTINGS, type WindowLaunchSettings } from '../src/types/windowLaunch'
 import { logProductNameFoldedCollisions, withRecomputedNameFolded } from '../src/lib/productNameFold'
@@ -402,7 +402,8 @@ const NEON_URL_FILE = join(DATA_DIR, 'neon-database-url.json')
  */
 interface NeonUrlFile {
   url: string | null
-  syncMode?: NeonSyncMode
+  /** Written by versions that still offered an always-connected mode. Read and ignored — polling is the only mode now. */
+  syncMode?: string
   pollIntervalSeconds?: number
   pollOnlyDuringOpeningHours?: boolean
   websiteUrl?: string | null
@@ -434,14 +435,13 @@ export function setNeonDatabaseUrl(url: string | null) {
 /**
  * How the bridge stays in touch with the website's database — see
  * `neonBridge.ts`. Falls back to `DEFAULT_NEON_SYNC_CONFIG` field by field, so
- * a file written before any of these existed keeps today's behaviour
- * (`'listen'`, i.e. a permanently-open connection) rather than silently
- * changing it.
+ * a file written before any of these existed still loads. A `syncMode` left
+ * over from when an always-connected mode existed is ignored rather than
+ * migrated — there is nothing to migrate it to.
  */
 export function getNeonSyncConfig(): NeonSyncConfig {
   const file = readNeonFile()
   return {
-    mode: file?.syncMode ?? DEFAULT_NEON_SYNC_CONFIG.mode,
     pollIntervalSeconds: clampPollIntervalSeconds(file?.pollIntervalSeconds ?? DEFAULT_NEON_SYNC_CONFIG.pollIntervalSeconds),
     pollOnlyDuringOpeningHours: file?.pollOnlyDuringOpeningHours ?? DEFAULT_NEON_SYNC_CONFIG.pollOnlyDuringOpeningHours,
   }
@@ -467,7 +467,6 @@ export function setWebsiteUrl(websiteUrl: string | null) {
 
 export function setNeonSyncConfig(config: NeonSyncConfig) {
   writeNeonFile({
-    syncMode: config.mode,
     pollIntervalSeconds: clampPollIntervalSeconds(config.pollIntervalSeconds),
     pollOnlyDuringOpeningHours: config.pollOnlyDuringOpeningHours,
   })

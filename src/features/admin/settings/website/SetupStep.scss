@@ -1,0 +1,65 @@
+@use '../../../../styles/variables' as *;
+
+.setup-step {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+}
+
+.setup-step__counter {
+  margin: 0;
+  font-size: 0.875rem;
+  color: $color-text-muted;
+}
+
+.setup-step__title {
+  margin: 0;
+}
+
+.setup-step__intro {
+  margin: 0;
+  color: $color-text-muted;
+}
+
+.setup-step__body {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+}
+
+.setup-step__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-unit;
+  flex-wrap: wrap;
+  margin-top: $spacing-unit;
+  padding-top: $spacing-unit;
+  border-top: 1px solid $color-border;
+}
+
+// A numbered list of things to do elsewhere (in the site host's own UI). Steps
+// the dashboard can't perform itself, so they're instructions rather than
+// controls.
+.setup-step__instructions {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  margin: 0;
+  padding-left: calc($spacing-unit * 2.5);
+
+  li::marker {
+    color: $color-text-muted;
+  }
+}
+
+.setup-step__field {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+}
+
+.setup-step__hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: $color-text-muted;
+}

@@ -26,6 +26,7 @@ import { handleNewsImage, startNewsImageCacheSweep } from './newsImageCache'
 import { bearerToken, CORS_HEADERS, readJsonBody, sendJson } from './http'
 import * as mdns from './mdns'
 import * as neonBridge from './neonBridge'
+import * as websiteConnectionTest from './websiteConnectionTest'
 import * as store from './store'
 import * as storageCleanup from './storageCleanup'
 import {
@@ -796,6 +797,31 @@ const httpServer = createServer((req, res) => {
     return
   }
 
+  // Diagnoses the website connection for the guided setup in Settings. Runs
+  // read-only against its own short-lived connection, so it neither disturbs
+  // the live bridge nor depends on it being connected.
+  if (req.method === 'POST' && url.pathname === '/neon-url/test') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role === 'limited') {
+      sendJson(res, 403, { error: 'Only admin/subadmin accounts can test the website connection' })
+      return
+    }
+    websiteConnectionTest
+      .testWebsiteConnection()
+      .then((result) => sendJson(res, 200, result))
+      .catch((error: unknown) => {
+        // `testWebsiteConnection` is written not to reject, so reaching here is
+        // a bug rather than a misconfiguration — and the detail stays server-side.
+        console.error('[neon] connection test threw:', error)
+        sendJson(res, 500, { error: 'The connection test could not be run' })
+      })
+    return
+  }
+
   if (req.method === 'POST' && url.pathname === '/neon-url') {
     const session = store.getSession(bearerToken(req) ?? '')
     if (!session) {
@@ -836,14 +862,13 @@ const httpServer = createServer((req, res) => {
         if (rawSync !== undefined) {
           const current = store.getNeonSyncConfig()
           const nextSync: NeonSyncConfig = {
-            mode: rawSync.mode === 'poll' || rawSync.mode === 'listen' ? rawSync.mode : current.mode,
             pollIntervalSeconds: clampPollIntervalSeconds(Number(rawSync.pollIntervalSeconds ?? current.pollIntervalSeconds)),
             pollOnlyDuringOpeningHours:
               typeof rawSync.pollOnlyDuringOpeningHours === 'boolean' ? rawSync.pollOnlyDuringOpeningHours : current.pollOnlyDuringOpeningHours,
           }
           store.setNeonSyncConfig(nextSync)
           shouldRestartBridge = true
-          console.log(`[neon] ${session.username} set sync mode to ${nextSync.mode} (every ${nextSync.pollIntervalSeconds}s${nextSync.pollOnlyDuringOpeningHours ? ', opening hours only' : ''})`)
+          console.log(`[neon] ${session.username} set the website check interval to ${nextSync.pollIntervalSeconds}s${nextSync.pollOnlyDuringOpeningHours ? ' (opening hours only)' : ''}`)
         }
 
         if (rawWebsiteUrl !== undefined) {

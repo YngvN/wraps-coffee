@@ -1429,7 +1429,8 @@
             "websiteUrlIntro": "Where the public website is published. Setting this lets changes made here appear on the live site within seconds instead of waiting for its cache to expire.",
             "websiteUrlLabel": "Website URL",
             "websiteUrlHint": "Optional. Leave empty and nothing breaks — the website simply refreshes its own copy on a timer instead, so an edit can take up to an hour to show up there.",
-            "websiteTablesTitle": "What is written where"
+            "websiteTablesTitle": "What is written where",
+            "websiteMovedHint": "The connection settings themselves now live in Settings → Connect to website, which walks through them step by step and checks the result."
           },
           "description": "Interface language, the store's default pane language, clock format, and which sidebar sections this dashboard shows.",
           "developersDescription": "Reference documentation for the local server's own HTTP and WebSocket API, for building a custom client against this store's data.",
@@ -1559,6 +1560,125 @@
             "title": "About",
             "versionLabel": "Wraps & Coffee v{{version}}",
             "loading": "Loading…"
+          },
+          "website": {
+            "title": "Connect to website",
+            "description": "Link this dashboard to your public website, so your menu, opening hours and events appear there automatically.",
+            "searchKeywords": "website,netlify,connect,setup,online,database",
+            "stepCounter": "Step {{current}} of {{total}}",
+            "next": "Next",
+            "pickerIntro": "Where is your website published? Choose the service that hosts it.",
+            "providerUnsupported": "{{name}} — not supported yet",
+            "providers": {
+              "netlify": "Netlify",
+              "squarespace": "Squarespace",
+              "wordpress": "WordPress",
+              "other": "Somewhere else"
+            },
+            "loadError": "Could not load the current settings. Check that the local server is running, then try again.",
+            "saveError": "Could not save that. Check that the local server is running, then try again.",
+            "testError": "The connection test could not be run. Check that the local server is running, then try again.",
+            "prerequisite": {
+              "title": "Is your website already online?",
+              "intro": "This setup connects the dashboard to a website that already exists. It cannot create one for you.",
+              "yes": "Yes, my website is online",
+              "notYet": "If it is not online yet, someone needs to publish it to Netlify first — that part is done outside this dashboard. Come back here once the website is live, and this setup will take about five minutes."
+            },
+            "keys": {
+              "title": "Give your website an access key",
+              "intro": "This key lets your website prove it is really yours when it sends orders and messages to this dashboard. Copy it, then add it to your website settings on Netlify.",
+              "keyLabel": "Your access key",
+              "copied": "Copied",
+              "copyAria": "Copy the access key",
+              "generating": "Creating a key…",
+              "instructionOpen": "Open your site on Netlify and go to Project configuration → Environment variables.",
+              "instructionAdd": "Add two variables, named {{names}}.",
+              "instructionSameValue": "Give both of them the key above as their value — exactly the same value in each.",
+              "notSecretTitle": "Do not tick “Contains secret values”",
+              "notSecretBody": "One of these two keys is built into your website’s public pages on purpose, so Netlify will refuse to publish your site if you mark it as secret. Leave the box unticked for both.",
+              "redeployTitle": "Publish your site again afterwards",
+              "redeployBody": "Netlify only picks up one of these keys when it builds your site, so the change will not take effect until your site is published again. On Netlify, use Deploys → Trigger deploy."
+            },
+            "database": {
+              "title": "Connect the shared storage",
+              "intro": "Your website and this dashboard share a storage area. Paste its address here so the two can talk to each other.",
+              "instructionOpen": "Open your site on Netlify and go to the Database section.",
+              "instructionCopy": "Copy the connection string shown there.",
+              "notEnvVars": "Look on the Database page, not in the environment variables list — the connection string is not shown there, and looking for it there is the easiest way to get stuck.",
+              "inputLabel": "Connection string",
+              "alreadySaved": "A connection is already saved. Leave the box empty to keep it, or paste a new one to replace it."
+            },
+            "address": {
+              "title": "Your website address",
+              "intro": "Adding this lets changes you make here show up on your website within seconds instead of within the hour.",
+              "inputLabel": "Website address",
+              "optional": "You can leave this empty. Everything still works — your website will just take a little longer to notice changes.",
+              "skip": "Skip for now"
+            },
+            "test": {
+              "title": "Check that it works",
+              "intro": "Testing the connection now, so you find out here rather than from a customer.",
+              "finish": "Finish",
+              "retry": "Test again",
+              "checks": {
+                "database": "Shared storage",
+                "tables": "Website setup",
+                "website": "Your website"
+              },
+              "status": {
+                "database": {
+                  "ok": "Connected.",
+                  "skipped": "Not checked.",
+                  "warning": "Connected, with a warning.",
+                  "failed": "Could not connect."
+                },
+                "tables": {
+                  "ok": "Your website has finished setting itself up.",
+                  "skipped": "Not checked, because the storage could not be reached.",
+                  "warning": "Set up, with a warning.",
+                  "failed": "Not ready."
+                },
+                "website": {
+                  "ok": "Reached your website, and it recognised your access key.",
+                  "skipped": "Skipped, because you have not entered your website address. Everything still works — updates just take longer to appear.",
+                  "warning": "Reached, with a warning.",
+                  "failed": "Could not reach it."
+                }
+              },
+              "reasons": {
+                "database": {
+                  "notConfigured": "No connection string has been entered yet. Go back a step and add one.",
+                  "unreachable": "Nothing answered at that address. Check that you copied the whole connection string, and that your website’s database still exists on Netlify.",
+                  "authFailed": "The address was found, but the username or password in it was rejected. Copy the connection string from Netlify again — it may have been regenerated.",
+                  "unknown": "Something went wrong that we could not identify. The technical details are in the local server’s log."
+                },
+                "tables": {
+                  "missingTables": "The shared storage is empty. Your website creates the storage areas the first time it is published, so publish your site on Netlify and then test again.",
+                  "unreachable": "The storage could not be read. Try again in a moment.",
+                  "authFailed": "The connection was rejected while reading. Copy the connection string from Netlify again.",
+                  "unknown": "The storage could not be read. The technical details are in the local server’s log."
+                },
+                "website": {
+                  "notConfigured": "No access key has been created yet. Go back to the access key step.",
+                  "notFound": "That address answered, but the connection service was not found there. Check the address is exactly right, and that your site has been published since you added the access key.",
+                  "unauthorized": "Your website did not recognise the access key. Check that both variables on Netlify hold exactly the key from the access key step, and that your site has been published since you added them.",
+                  "unreachable": "Your website could not be reached at that address. Check the address, and that the site is online.",
+                  "unknown": "Your website answered unexpectedly. The technical details are in the local server’s log."
+                }
+              }
+            },
+            "summary": {
+              "connected": "Your website is connected. Your menu, opening hours, events and announcements are sent to it automatically, and orders and messages from customers come back here.",
+              "databaseLabel": "Shared storage",
+              "addressLabel": "Website address",
+              "notSet": "Not set",
+              "testAgain": "Test the connection",
+              "speedTitle": "How often new orders are collected",
+              "speedIntro": "Changes you make here always reach your website straight away. This only affects how soon you find out about new orders and messages from customers.",
+              "intervalLabel": "Check every (seconds)",
+              "openingHoursLabel": "Only check while the cafe is open",
+              "openingHoursHint": "Stops checking while you are closed, then checks once more just after closing time so nothing is missed. Uses the opening hours from Store → Contact info."
+            }
           }
         },
         "integrations": {
@@ -3690,7 +3810,8 @@
             "websiteUrlIntro": "Hvor det offentlige nettstedet er publisert. Settes denne, vises endringer gjort her på det live nettstedet i løpet av sekunder i stedet for å vente på at mellomlageret utløper.",
             "websiteUrlLabel": "Nettadresse",
             "websiteUrlHint": "Valgfritt. Lar du den stå tom, går ingenting i stykker — nettstedet oppdaterer da sin egen kopi med jevne mellomrom i stedet, så en endring kan bruke opptil en time på å dukke opp der.",
-            "websiteTablesTitle": "Hva skrives hvor"
+            "websiteTablesTitle": "Hva skrives hvor",
+            "websiteMovedHint": "Selve tilkoblingsinnstillingene ligger nå under Innstillinger → Koble til nettsted, som går gjennom dem steg for steg og sjekker resultatet."
           },
           "description": "Grensesnittspråk, butikkens standardspråk for paneler, klokkeformat, og hvilke sidemeny-seksjoner dette dashbordet viser.",
           "developersDescription": "Referansedokumentasjon for den lokale serverens eget HTTP- og WebSocket-API, for å bygge en egen klient mot butikkens data.",
@@ -3820,6 +3941,125 @@
             "title": "Om",
             "versionLabel": "Wraps & Coffee v{{version}}",
             "loading": "Laster…"
+          },
+          "website": {
+            "title": "Koble til nettsted",
+            "description": "Koble dette dashbordet til nettstedet ditt, slik at meny, åpningstider og arrangementer vises der automatisk.",
+            "searchKeywords": "nettsted,netlify,koble,oppsett,nett,database",
+            "stepCounter": "Steg {{current}} av {{total}}",
+            "next": "Neste",
+            "pickerIntro": "Hvor er nettstedet ditt publisert? Velg tjenesten som har det.",
+            "providerUnsupported": "{{name}} — støttes ikke ennå",
+            "providers": {
+              "netlify": "Netlify",
+              "squarespace": "Squarespace",
+              "wordpress": "WordPress",
+              "other": "Et annet sted"
+            },
+            "loadError": "Kunne ikke laste innstillingene. Sjekk at den lokale serveren kjører, og prøv igjen.",
+            "saveError": "Kunne ikke lagre. Sjekk at den lokale serveren kjører, og prøv igjen.",
+            "testError": "Tilkoblingstesten kunne ikke kjøres. Sjekk at den lokale serveren kjører, og prøv igjen.",
+            "prerequisite": {
+              "title": "Er nettstedet ditt allerede på nett?",
+              "intro": "Dette oppsettet kobler dashbordet til et nettsted som allerede finnes. Det kan ikke lage et for deg.",
+              "yes": "Ja, nettstedet mitt er på nett",
+              "notYet": "Hvis det ikke er på nett ennå, må noen publisere det på Netlify først — det gjøres utenfor dette dashbordet. Kom tilbake hit når nettstedet er live, så tar dette oppsettet omtrent fem minutter."
+            },
+            "keys": {
+              "title": "Gi nettstedet en tilgangsnøkkel",
+              "intro": "Denne nøkkelen lar nettstedet bevise at det virkelig er ditt når det sender bestillinger og meldinger til dashbordet. Kopier den, og legg den inn i nettstedets innstillinger på Netlify.",
+              "keyLabel": "Tilgangsnøkkelen din",
+              "copied": "Kopiert",
+              "copyAria": "Kopier tilgangsnøkkelen",
+              "generating": "Lager en nøkkel …",
+              "instructionOpen": "Åpne nettstedet ditt på Netlify og gå til Project configuration → Environment variables.",
+              "instructionAdd": "Legg til to variabler, med navnene {{names}}.",
+              "instructionSameValue": "Gi begge nøkkelen over som verdi — nøyaktig samme verdi i begge.",
+              "notSecretTitle": "Ikke huk av for «Contains secret values»",
+              "notSecretBody": "Den ene av disse to nøklene bygges med vilje inn i nettstedets offentlige sider, så Netlify nekter å publisere nettstedet hvis du merker den som hemmelig. La avhukingen stå tom for begge.",
+              "redeployTitle": "Publiser nettstedet på nytt etterpå",
+              "redeployBody": "Netlify henter bare den ene nøkkelen når nettstedet bygges, så endringen trer ikke i kraft før nettstedet publiseres på nytt. På Netlify: Deploys → Trigger deploy."
+            },
+            "database": {
+              "title": "Koble til det delte lageret",
+              "intro": "Nettstedet og dashbordet deler et lagringsområde. Lim inn adressen hit, så kan de to snakke sammen.",
+              "instructionOpen": "Åpne nettstedet ditt på Netlify og gå til Database-delen.",
+              "instructionCopy": "Kopier tilkoblingsstrengen som vises der.",
+              "notEnvVars": "Se på Database-siden, ikke i listen over miljøvariabler — tilkoblingsstrengen vises ikke der, og å lete etter den der er den enkleste måten å sette seg fast på.",
+              "inputLabel": "Tilkoblingsstreng",
+              "alreadySaved": "En tilkobling er allerede lagret. La feltet stå tomt for å beholde den, eller lim inn en ny for å erstatte den."
+            },
+            "address": {
+              "title": "Nettadressen din",
+              "intro": "Legger du inn denne, vises endringene du gjør her på nettstedet i løpet av sekunder i stedet for i løpet av en time.",
+              "inputLabel": "Nettadresse",
+              "optional": "Du kan la denne stå tom. Alt fungerer fortsatt — nettstedet bruker bare litt lengre tid på å oppdage endringer.",
+              "skip": "Hopp over"
+            },
+            "test": {
+              "title": "Sjekk at det virker",
+              "intro": "Tester tilkoblingen nå, slik at du oppdager det her og ikke via en kunde.",
+              "finish": "Fullfør",
+              "retry": "Test på nytt",
+              "checks": {
+                "database": "Delt lager",
+                "tables": "Oppsett av nettstedet",
+                "website": "Nettstedet ditt"
+              },
+              "status": {
+                "database": {
+                  "ok": "Tilkoblet.",
+                  "skipped": "Ikke sjekket.",
+                  "warning": "Tilkoblet, med en advarsel.",
+                  "failed": "Fikk ikke kontakt."
+                },
+                "tables": {
+                  "ok": "Nettstedet har gjort ferdig oppsettet sitt.",
+                  "skipped": "Ikke sjekket, fordi lageret ikke kunne nås.",
+                  "warning": "Satt opp, med en advarsel.",
+                  "failed": "Ikke klart."
+                },
+                "website": {
+                  "ok": "Nådde nettstedet, og det kjente igjen tilgangsnøkkelen.",
+                  "skipped": "Hoppet over, fordi du ikke har lagt inn nettadressen. Alt fungerer fortsatt — oppdateringer tar bare lengre tid.",
+                  "warning": "Nådd, med en advarsel.",
+                  "failed": "Fikk ikke kontakt."
+                }
+              },
+              "reasons": {
+                "database": {
+                  "notConfigured": "Ingen tilkoblingsstreng er lagt inn ennå. Gå ett steg tilbake og legg til en.",
+                  "unreachable": "Ingenting svarte på den adressen. Sjekk at du kopierte hele tilkoblingsstrengen, og at nettstedets database fortsatt finnes på Netlify.",
+                  "authFailed": "Adressen ble funnet, men brukernavnet eller passordet i den ble avvist. Kopier tilkoblingsstrengen fra Netlify på nytt — den kan ha blitt laget om.",
+                  "unknown": "Noe gikk galt som vi ikke klarte å identifisere. De tekniske detaljene ligger i loggen til den lokale serveren."
+                },
+                "tables": {
+                  "missingTables": "Det delte lageret er tomt. Nettstedet oppretter lagringsområdene første gang det publiseres, så publiser nettstedet på Netlify og test på nytt.",
+                  "unreachable": "Lageret kunne ikke leses. Prøv igjen om et øyeblikk.",
+                  "authFailed": "Tilkoblingen ble avvist under lesing. Kopier tilkoblingsstrengen fra Netlify på nytt.",
+                  "unknown": "Lageret kunne ikke leses. De tekniske detaljene ligger i loggen til den lokale serveren."
+                },
+                "website": {
+                  "notConfigured": "Ingen tilgangsnøkkel er laget ennå. Gå tilbake til steget for tilgangsnøkkel.",
+                  "notFound": "Adressen svarte, men tilkoblingstjenesten ble ikke funnet der. Sjekk at adressen er helt riktig, og at nettstedet er publisert etter at du la inn tilgangsnøkkelen.",
+                  "unauthorized": "Nettstedet kjente ikke igjen tilgangsnøkkelen. Sjekk at begge variablene på Netlify inneholder nøyaktig nøkkelen fra tilgangsnøkkel-steget, og at nettstedet er publisert etter at du la dem inn.",
+                  "unreachable": "Nettstedet kunne ikke nås på den adressen. Sjekk adressen, og at nettstedet er på nett.",
+                  "unknown": "Nettstedet svarte uventet. De tekniske detaljene ligger i loggen til den lokale serveren."
+                }
+              }
+            },
+            "summary": {
+              "connected": "Nettstedet ditt er koblet til. Meny, åpningstider, arrangementer og kunngjøringer sendes dit automatisk, og bestillinger og meldinger fra kunder kommer tilbake hit.",
+              "databaseLabel": "Delt lager",
+              "addressLabel": "Nettadresse",
+              "notSet": "Ikke satt",
+              "testAgain": "Test tilkoblingen",
+              "speedTitle": "Hvor ofte nye bestillinger hentes",
+              "speedIntro": "Endringer du gjør her når alltid nettstedet med én gang. Dette påvirker bare hvor fort du får vite om nye bestillinger og meldinger fra kunder.",
+              "intervalLabel": "Sjekk hvert (sekunder)",
+              "openingHoursLabel": "Sjekk bare mens kafeen er åpen",
+              "openingHoursHint": "Slutter å sjekke mens dere er stengt, og sjekker én gang til rett etter stengetid slik at ingenting går tapt. Bruker åpningstidene fra Butikk → Kontaktinfo."
+            }
           }
         },
         "integrations": {

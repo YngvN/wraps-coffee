@@ -47,24 +47,21 @@ import { purgeForKeys } from './websiteCache'
  *   bridge only ever pulls new rows down, and pushes back a single mutable
  *   field (`read`/`status`) by id, never inserting or deleting.
  *
- * Reuses Neon's own `pg_notify` triggers (already present in the website's
- * schema) via `LISTEN` for near-real-time pulls, plus a full reconciliation
- * pass on every connect/reconnect — `NOTIFY` is fire-and-forget, so anything
- * that fired while this bridge was disconnected would otherwise be lost.
+ * **Polling, not a persistent connection.** Every cycle opens a short-lived
+ * connection, does its work, and closes it again, so the website's serverless
+ * database is free to suspend in between. An always-open `LISTEN` connection
+ * would deliver new orders within milliseconds — the database's own
+ * `pg_notify` triggers are still there and still fire — but it would also keep
+ * that database awake around the clock regardless of how many orders actually
+ * arrive. For a cafe that is nearly all of the time, so the option was removed
+ * rather than left as a tempting default.
  *
- * **Two sync modes** (`NeonSyncConfig`, edited in Settings → For developers).
- * `'listen'` is the default and the behaviour described above: one
- * permanently-open connection, reacting within milliseconds. That connection
- * is also what stops a serverless database's compute from ever suspending,
- * which is what it costs to run. `'poll'` instead opens a short-lived
- * connection on a timer and closes it again, so the database can sleep in
- * between — optionally skipping the closed hours entirely
- * (`pollOnlyDuringOpeningHours`), which saves far more than shortening the
- * interval ever could. Both modes push outbound edits immediately; only
- * *inbound* freshness is traded away, so an order can sit up to one interval
- * before the cafe sees it. Note that an interval shorter than the database's
- * own idle-suspend threshold keeps it awake just as effectively as `LISTEN`
- * does, and saves nothing.
+ * Only *inbound* freshness is paced by the interval: an order can sit up to
+ * one cycle before the cafe sees it. Outbound pushes are immediate
+ * (`pushIfRelevant`). Skipping the closed hours entirely
+ * (`pollOnlyDuringOpeningHours`) saves far more than shortening the interval,
+ * since an interval shorter than the database's own idle-suspend threshold
+ * keeps it awake anyway and saves nothing.
  *
  * A third, deliberately different case: `MESSAGE_BOARD_KEYS`
  * (`admin.messageBoards`/`admin.messageBoardPosts`) are **push-only**, never
@@ -75,10 +72,8 @@ import { purgeForKeys } from './websiteCache'
  * *either* key recomputes and re-pushes that whole mirror as a full replace.
  */
 
-const INITIAL_RECONNECT_DELAY_MS = 500
-const MAX_RECONNECT_DELAY_MS = 10_000
-/** Coalesces a burst of `NOTIFY`s for the same key (e.g. a multi-row push firing the trigger once per row) into a single re-query. */
-const NOTIFY_DEBOUNCE_MS = 300
+/** Coalesces a burst of local edits (e.g. several keys saved together) into a single push connection. */
+const PUSH_DEBOUNCE_MS = 300
 
 const OUTBOUND_KEYS: SyncedKey[] = ['admin.products', 'admin.categoryPrices', 'admin.contactInfo', 'admin.events']
 const INBOUND_KEYS: SyncedKey[] = ['admin.messages', 'admin.orders']
@@ -93,27 +88,15 @@ const MESSAGE_BOARD_KEYS: SyncedKey[] = ['admin.messageBoards', 'admin.messageBo
  */
 const THEME_KEYS: SyncedKey[] = ['admin.appearanceThemes']
 
-const CHANNEL_TO_KEY: Record<string, SyncedKey> = {
-  products_changed: 'admin.products',
-  category_prices_changed: 'admin.categoryPrices',
-  contact_info_changed: 'admin.contactInfo',
-  events_changed: 'admin.events',
-  messages_changed: 'admin.messages',
-  orders_changed: 'admin.orders',
-}
-
 type ApplyUpdate = (key: SyncedKey, value: unknown) => void
 type ReportError = (message: string, detail?: string) => void
 
-let client: Client | null = null
-let reconnectDelay = INITIAL_RECONNECT_DELAY_MS
 let applyUpdateRef: ApplyUpdate | null = null
 let reportErrorRef: ReportError | null = null
-const debounceTimers = new Map<SyncedKey, NodeJS.Timeout>()
-/** Set by `stop()` so a reconnect attempt already in flight (or scheduled via `setTimeout`) doesn't resurrect the connection after graceful shutdown has started. */
+/** Set by `stop()` so a poll tick already scheduled doesn't resurrect the sync after graceful shutdown has started. */
 let stopped = false
 
-// --- poll-mode state (all unused while `mode` is `'listen'`) -----------------
+// --- poll state ---------------------------------------------------------------
 
 let pollTimer: NodeJS.Timeout | null = null
 /** Guards against a slow tick overlapping the next one, which would open a second connection for the same work. */
@@ -256,73 +239,6 @@ async function reconcile(activeClient: Client) {
   }
 }
 
-function scheduleReconnect() {
-  if (stopped) return
-  setTimeout(() => void connect(), reconnectDelay)
-  reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY_MS)
-}
-
-async function connect() {
-  if (stopped) return
-  const connectionString = store.getNeonDatabaseUrl()
-  if (!connectionString) return
-
-  const newClient = new Client({ connectionString })
-
-  try {
-    await newClient.connect()
-  } catch (error) {
-    console.error('[neon] connection failed, retrying:', error)
-    reportErrorRef?.('Lost connection to the website database', errorDetail(error))
-    scheduleReconnect()
-    return
-  }
-
-  client = newClient
-  reconnectDelay = INITIAL_RECONNECT_DELAY_MS
-  console.log('[neon] connected')
-
-  newClient.on('notification', (message) => {
-    const key = message.channel ? CHANNEL_TO_KEY[message.channel] : undefined
-    if (!key) return
-    const existing = debounceTimers.get(key)
-    if (existing) clearTimeout(existing)
-    debounceTimers.set(
-      key,
-      setTimeout(() => {
-        debounceTimers.delete(key)
-        pullAndApply(newClient, key).catch((error: unknown) => {
-          console.error(`[neon] failed to pull ${key} after notify:`, error)
-          reportErrorRef?.(`Failed to sync ${key} from the website`, errorDetail(error))
-        })
-      }, NOTIFY_DEBOUNCE_MS),
-    )
-  })
-
-  newClient.on('error', (error) => {
-    console.error('[neon] connection error:', error)
-    reportErrorRef?.('Lost connection to the website database', errorDetail(error))
-    if (client === newClient) client = null
-    scheduleReconnect()
-  })
-
-  newClient.on('end', () => {
-    if (client !== newClient) return
-    client = null
-    scheduleReconnect()
-  })
-
-  try {
-    for (const channel of Object.keys(CHANNEL_TO_KEY)) {
-      await newClient.query(`LISTEN ${channel}`)
-    }
-    await reconcile(newClient)
-  } catch (error) {
-    console.error('[neon] setup failed:', error)
-    reportErrorRef?.('Failed to sync with the website database', errorDetail(error))
-  }
-}
-
 // --- poll mode ---------------------------------------------------------------
 
 /**
@@ -390,7 +306,7 @@ function shouldRunPollTick(): boolean {
  * One poll cycle.
  *
  * @param full On the first cycle after (re)start, runs the same full
- *   `reconcile` a fresh `LISTEN` connection would. Subsequent cycles pull
+ *   `reconcile` a fresh connection would. Subsequent cycles pull
  *   `INBOUND_KEYS` only: re-running the outbound half every tick would race a
  *   local edit, pulling a stale remote value back over a save whose own push
  *   is still sitting in the debounce window.
@@ -447,7 +363,7 @@ function schedulePolledPush(key: SyncedKey) {
   pushFlushTimer = setTimeout(() => {
     pushFlushTimer = null
     void flushPendingPushes()
-  }, NOTIFY_DEBOUNCE_MS)
+  }, PUSH_DEBOUNCE_MS)
 }
 
 /**
@@ -467,7 +383,7 @@ async function flushPendingPushes(): Promise<void> {
     pushFlushTimer = setTimeout(() => {
       pushFlushTimer = null
       void flushPendingPushes()
-    }, NOTIFY_DEBOUNCE_MS)
+    }, PUSH_DEBOUNCE_MS)
     return
   }
 
@@ -518,25 +434,7 @@ function teardownPolling() {
   pendingPushKeys.clear()
 }
 
-/**
- * Enters whichever mode is configured. Assumes nothing is currently running.
- *
- * Returns without doing anything when no connection string is set. `connect()`
- * guards this for itself, but `startPolling()` cannot: a timer started without
- * one would fail on every single tick, so clearing the URL from Settings while
- * in poll mode has to leave the bridge genuinely idle.
- */
-function beginSync() {
-  if (!store.getNeonDatabaseUrl()) return
-
-  if (store.getNeonSyncConfig().mode === 'poll') {
-    startPolling()
-    return
-  }
-  void connect()
-}
-
-/** Starts the bridge (a no-op if no connection string is configured, via either the env var or Settings → For developers). Call once at server boot, after `store.load()`. */
+/** Starts the bridge (a no-op if no connection string is configured, via either the env var or Settings → Connect to website). Call once at server boot, after `store.load()`. */
 export function start(applyUpdate: ApplyUpdate, reportError: ReportError) {
   applyUpdateRef = applyUpdate
   reportErrorRef = reportError
@@ -546,93 +444,48 @@ export function start(applyUpdate: ApplyUpdate, reportError: ReportError) {
     return
   }
 
-  beginSync()
+  startPolling()
 }
 
-/** Disconnects (if connected) and reconnects using whatever `store.getNeonDatabaseUrl()` returns right now — called after an admin edits or clears it from Settings, so the change takes effect immediately without a server restart. If the new value is unset, `connect()` itself just no-ops, leaving the bridge disconnected. */
+/**
+ * Stops and restarts polling using whatever `store.getNeonDatabaseUrl()`
+ * returns right now — called after an admin edits or clears it from Settings,
+ * so the change takes effect immediately without a server restart.
+ *
+ * With the URL cleared this leaves the bridge genuinely idle rather than
+ * starting a timer that would fail on every tick.
+ */
 export function restart() {
-  reconnectDelay = INITIAL_RECONNECT_DELAY_MS
-  for (const timer of debounceTimers.values()) clearTimeout(timer)
-  debounceTimers.clear()
   teardownPolling()
-
-  if (client) {
-    const oldClient = client
-    client = null
-    oldClient.end().catch(() => {})
-  }
-
-  beginSync()
+  if (!store.getNeonDatabaseUrl()) return
+  startPolling()
 }
 
-/** Disconnects and stops any further reconnect attempts — called on graceful shutdown (SIGTERM/SIGINT). */
+/** Stops polling and drops anything queued — called on graceful shutdown (SIGTERM/SIGINT). */
 export function stop() {
   stopped = true
-  for (const timer of debounceTimers.values()) clearTimeout(timer)
-  debounceTimers.clear()
   teardownPolling()
-
-  if (client) {
-    const oldClient = client
-    client = null
-    oldClient.end().catch(() => {})
-  }
 }
 
 /**
  * Pushes a client-originated write up to Neon if this bridge owns the key
  * outbound.
  *
- * Outbound pushes stay immediate in **both** modes — poll mode trades away
- * inbound freshness only, never how quickly a staff edit reaches the website.
- * In poll mode the key is queued and flushed on its own short-lived
- * connection a moment later (`schedulePolledPush`); in listen mode it goes
- * straight down the open one.
+ * **Outbound pushes are immediate**, independent of the poll interval: the key
+ * is queued and flushed on its own short-lived connection a moment later
+ * (`schedulePolledPush`). Only *inbound* freshness is paced by the interval,
+ * so a staff edit never waits for the next tick.
  *
- * Silently no-ops when there is nothing to push to (no connection string, or
- * listen mode currently disconnected) — the connection loss itself already
- * reported once, and repeating "failed to push" on every subsequent edit
- * would just be noise.
+ * Silently no-ops when there is nothing to push to (no connection string
+ * configured), rather than reporting a failure on every subsequent edit.
  */
 export function pushIfRelevant(key: SyncedKey, value: unknown) {
   if (stopped) return
+  if (!store.getNeonDatabaseUrl()) return
+  if (!MESSAGE_BOARD_KEYS.includes(key) && !THEME_KEYS.includes(key) && !OUTBOUND_KEYS.includes(key) && !INBOUND_KEYS.includes(key)) return
 
-  if (store.getNeonSyncConfig().mode === 'poll') {
-    if (!store.getNeonDatabaseUrl()) return
-    if (!MESSAGE_BOARD_KEYS.includes(key) && !THEME_KEYS.includes(key) && !OUTBOUND_KEYS.includes(key) && !INBOUND_KEYS.includes(key)) return
-    schedulePolledPush(key)
-    return
-  }
-
-  if (!client) return
-  const activeClient = client
-
-  if (MESSAGE_BOARD_KEYS.includes(key)) {
-    pushPublicMessageBoardPosts(activeClient)
-      .then(() => purgeForKeys([key]))
-      .catch((error: unknown) => {
-        console.error('[neon] push failed for the message board:', error)
-        reportErrorRef?.('Failed to push the message board to the website', errorDetail(error))
-      })
-    return
-  }
-
-  if (THEME_KEYS.includes(key)) {
-    pushActiveTheme(activeClient)
-      .then(() => purgeForKeys([key]))
-      .catch((error: unknown) => {
-        console.error('[neon] push failed for the site theme:', error)
-        reportErrorRef?.('Failed to push the appearance theme to the website', errorDetail(error))
-      })
-    return
-  }
-
-  if (!OUTBOUND_KEYS.includes(key) && !INBOUND_KEYS.includes(key)) return
-
-  push(activeClient, key, value)
-    .then(() => purgeForKeys([key]))
-    .catch((error: unknown) => {
-      console.error(`[neon] push failed for ${key}:`, error)
-      reportErrorRef?.(`Failed to push ${key} to the website`, errorDetail(error))
-    })
+  // `value` is deliberately unused: the flush re-reads the current value from
+  // the store, so a burst of saves to one key sends only its final state.
+  void value
+  schedulePolledPush(key)
 }

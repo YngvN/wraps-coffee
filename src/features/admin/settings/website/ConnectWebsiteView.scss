@@ -1,0 +1,79 @@
+@use '../../../../styles/variables' as *;
+
+.connect-website__picker {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+
+  p {
+    margin: 0;
+  }
+}
+
+// Buttons that belong to the step's own content rather than to its Back/Next
+// footer, so they don't get the divider and right-alignment the footer has.
+.setup-step__actions--inline {
+  justify-content: flex-start;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.connection-summary {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+
+  h4 {
+    margin: $spacing-unit 0 0;
+  }
+
+  select {
+    padding: calc($spacing-unit / 1.5) $spacing-unit;
+    border: 1px solid $color-border;
+    border-radius: 6px;
+    background: $color-surface;
+    color: $color-text;
+    font: inherit;
+    max-width: 24rem;
+
+    &:active {
+      box-shadow: inset 0 2px 4px $color-shadow;
+    }
+  }
+}
+
+.connection-summary__lead {
+  margin: 0;
+}
+
+.connection-summary__facts {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  margin: 0;
+
+  dt {
+    font-size: 0.875rem;
+    color: $color-text-muted;
+    margin-bottom: calc($spacing-unit / 4);
+  }
+
+  dd {
+    display: flex;
+    align-items: center;
+    gap: $spacing-unit;
+    flex-wrap: wrap;
+    margin: 0;
+  }
+
+  code {
+    // Connection strings are long; wrapping keeps the panel from scrolling
+    // sideways on a narrow screen.
+    overflow-wrap: anywhere;
+    font-size: 0.875rem;
+    padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
+    border-radius: 4px;
+    background: $color-surface;
+  }
+}

@@ -96,41 +96,37 @@ export type ServerMessage = SnapshotMessage | UpdateMessage | ErrorMessage
 // How the local server keeps in touch with the public website's own Postgres
 // database (see `server/neonBridge.ts`). Persisted alongside the connection
 // string in `server/data/neon-database-url.json` and edited from
-// Settings → For developers.
+// Settings → Connect to website.
 
 /**
- * `'listen'` holds one permanently-open connection and reacts to the
- * database's own `pg_notify` triggers, so an order placed on the website
- * reaches the cafe within milliseconds. That connection also keeps a
- * serverless database's compute from ever suspending, which is what it costs.
+ * How often the bridge checks the website's database for new orders and
+ * messages.
  *
- * `'poll'` opens a short-lived connection on a timer instead, letting the
- * database sleep in between — but only if the interval is long enough for it
- * to actually reach its idle threshold. Outbound pushes stay immediate in
- * both modes; only inbound freshness is traded away.
+ * **Polling is the only mode.** An always-open `LISTEN` connection would
+ * deliver new orders within milliseconds, but it also stops a serverless
+ * database from ever suspending — a cost paid around the clock regardless of
+ * how many orders actually arrive, which for a cafe is nearly all of the time.
+ * That trade was not worth it, so the option is gone rather than merely
+ * discouraged.
+ *
+ * Only *inbound* freshness is affected. A change made in the dashboard is
+ * still pushed to the website immediately.
  */
-export type NeonSyncMode = 'listen' | 'poll'
-
-/** How the Neon bridge stays in touch with the website's database. */
 export interface NeonSyncConfig {
-  mode: NeonSyncMode
-  /** Only meaningful when `mode` is `'poll'`. */
   pollIntervalSeconds: number
   /**
-   * Skip polling entirely while the cafe is closed (per `admin.contactInfo`'s
-   * own opening hours). Nobody places a pickup order for a closed cafe, so
-   * inbound freshness is worth nothing then — and an uninterrupted overnight
-   * gap is what actually lets the database sleep, far more than tuning the
-   * interval does. Only meaningful when `mode` is `'poll'`.
+   * Skip checking entirely while the cafe is closed (per `admin.contactInfo`'s
+   * own opening hours). Nobody is waiting on an order at a closed cafe, so an
+   * uninterrupted overnight gap is what actually lets the database sleep — far
+   * more than shortening the interval ever saves.
    */
   pollOnlyDuringOpeningHours: boolean
 }
 
-/** Deliberately `'listen'`: an existing install must keep behaving exactly as it did before this setting existed. */
+/** Five minutes during opening hours: frequent enough that an order isn't missed, sparse enough that the database can suspend overnight. */
 export const DEFAULT_NEON_SYNC_CONFIG: NeonSyncConfig = {
-  mode: 'listen',
   pollIntervalSeconds: 300,
-  pollOnlyDuringOpeningHours: false,
+  pollOnlyDuringOpeningHours: true,
 }
 
 /** Floor of 30s stops a typo turning polling into a busy loop against the database; ceiling of 1h keeps an order from sitting unseen for most of a shift. */

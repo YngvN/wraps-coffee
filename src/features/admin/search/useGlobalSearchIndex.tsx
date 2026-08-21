@@ -286,6 +286,16 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
       { id: 'settingsPage:developers', type: 'settingsPage', title: t('admin.settings.developersTitle'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings/developers' },
       ...(session?.role !== 'limited'
         ? [
+            // Same admin/subadmin gate as the row itself in `SettingsView` —
+            // a search result that 403s on arrival is worse than no result.
+            {
+              id: 'settingsPage:website',
+              type: 'settingsPage' as const,
+              title: t('admin.settings.website.title'),
+              subtitle: settingsTypeLabel,
+              keywords: t('admin.settings.website.searchKeywords').split(','),
+              url: '/admin/dashboard/settings/website',
+            },
             { id: 'settingsPage:advanced', type: 'settingsPage' as const, title: t('admin.settings.advanced.title'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings/advanced' },
             { id: 'settingsPage:backup', type: 'settingsPage' as const, title: t('admin.settings.backup.title'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings/backup' },
             { id: 'settingsPage:testing', type: 'settingsPage' as const, title: t('admin.settings.testing.title'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings/testing' },

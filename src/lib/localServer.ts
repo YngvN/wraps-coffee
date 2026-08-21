@@ -5,6 +5,7 @@ import type { NewsHeadline } from '../types/news'
 import type { OrderStatus } from '../types/order'
 import type { ScreenAddressSettings } from '../types/screenAddress'
 import type { AdminRole, AdminSession, DashboardSection, NeonSyncConfig } from '../types/sync'
+import type { WebsiteConnectionTestResult } from '../types/websiteProvider'
 import type { WindowLaunchSettings } from '../types/windowLaunch'
 import type { UpdatesHubStatus } from '../utils/displayUpdateState'
 
@@ -486,6 +487,32 @@ export async function setNeonUrl(token: string, patch: { url?: string | null; sy
     throw new Error(body.error ?? 'Could not save the Neon database URL')
   }
   return (await response.json()) as NeonSettings
+}
+
+/**
+ * Diagnoses the website connection — which half is misconfigured, and how.
+ *
+ * Read-only and safe to call at any time: the server opens its own short-lived
+ * connection rather than touching the live sync bridge. Every result is one of
+ * a fixed set of reasons, never a raw database error, so nothing sensitive
+ * reaches the browser.
+ *
+ * `admin`/`subadmin` only.
+ *
+ * @param token The current session token.
+ * @returns One result per check, in display order.
+ */
+export async function testWebsiteConnection(token: string): Promise<WebsiteConnectionTestResult> {
+  const response = await fetch(`${serverBaseUrl()}/neon-url/test`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Could not test the website connection')
+  }
+  return (await response.json()) as WebsiteConnectionTestResult
 }
 
 /** The saved Wolt POS Integration API credentials (see the Integrations page's Wolt card, and Settings → Testing for the environment checkbox), or `venueId`/`apiKey` both `null` if none have been saved yet. `admin`/`subadmin` only. */
