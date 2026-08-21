@@ -810,7 +810,7 @@ overwrite the full local dataset with a filtered projection of itself)
   site_theme     one row, the *active* appearance theme only, with its website
                  colour roles already resolved from palette ids to hex values.
 
-The schema itself lives in the website repo (db/schema.sql) and is applied there once.
+The schema itself lives in the website repo (netlify/database/migrations/), applied by Netlify on deploy.
 This app never creates or migrates a table.`}</code>
         </pre>
 
