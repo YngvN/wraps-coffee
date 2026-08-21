@@ -12,10 +12,14 @@ import { isProductOutOfStock } from '../src/utils/productStock'
  * Row ↔ app-type mapping and the push/pull SQL for every key the Neon bridge
  * touches (see `neonBridge.ts`) — kept in its own file since it's pure
  * plumbing, distinct from the bridge's own connection/LISTEN/reconcile
- * orchestration. Column names and shapes here are hand-matched against
- * `Website/db/schema.sql` and that project's own `netlify/functions/*.ts` —
- * there is no shared type package between the two repos, so a schema change
- * on either side needs a matching update here.
+ * orchestration. Column names and shapes here are hand-matched against the
+ * website repo's own `db/schema.sql` (`../wraps-ulven`) and its
+ * `netlify/functions/*.ts` — there is no shared type package between the two
+ * repos, so a schema change on either side needs a matching update here.
+ *
+ * That repo owns the DDL; this file is authoritative for what each column
+ * *means*. Adding a column here means adding it there too, as an
+ * `alter table ... add column if not exists` so existing databases catch up.
  */
 
 function priceColumns(price: Price | undefined): { price: number | null; price_takeaway: number | null; price_eat_in: number | null } {
