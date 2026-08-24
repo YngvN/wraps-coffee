@@ -4,6 +4,7 @@ import type { ContactMessage } from '../src/types/message'
 import type { MessageBoard, MessageBoardPost } from '../src/types/messageBoard'
 import type { OrderRecord } from '../src/types/order'
 import type { CategoryPrices, Product } from '../src/types/product'
+import type { Catalogue } from '../src/types/category'
 import type { SyncedKey } from '../src/types/sync'
 import type { EventRecord } from '../src/types/event'
 import { isPostExpired } from '../src/utils/messageBoard'
@@ -70,6 +71,8 @@ import { purgeForKeys } from './websiteCache'
  * dropped) — a filtered, lossy mirror computed from both keys together, so
  * it must never be read back into the full local dataset. A write to
  * *either* key recomputes and re-pushes that whole mirror as a full replace.
+ * `THEME_KEYS` and `CATALOGUE_ORDER_KEYS` are push-only for their own
+ * reasons — see each one's own comment.
  */
 
 /** Coalesces a burst of local edits (e.g. several keys saved together) into a single push connection. */
@@ -87,6 +90,22 @@ const MESSAGE_BOARD_KEYS: SyncedKey[] = ['admin.messageBoards', 'admin.messageBo
  * whole local theme list with a single flattened theme.
  */
 const THEME_KEYS: SyncedKey[] = ['admin.appearanceThemes']
+/**
+ * Push-only for the same reason as the two groups above, and likewise not an
+ * outbound key: `admin.catalogues` has no table of its own on the website. It
+ * only ever feeds the `products` table's own `category_order`/`product_order`
+ * columns, so that the public menu can reproduce the admin's own
+ * catalogue → category → product arrangement (see `computeProductOrderRanks`).
+ *
+ * Putting it in `OUTBOUND_KEYS` instead would break `reconcile`, which pulls
+ * every outbound key on connect — there is no catalogues table to pull from,
+ * so `pull` would throw `no pull mapping for admin.catalogues` every cycle.
+ *
+ * A write here re-pushes the whole products table in its new order; a write to
+ * `admin.products` itself already does the same via its own outbound push, so
+ * `flushPendingPushes` only fires this when products weren't already queued.
+ */
+const CATALOGUE_ORDER_KEYS: SyncedKey[] = ['admin.catalogues']
 
 type ApplyUpdate = (key: SyncedKey, value: unknown) => void
 type ReportError = (message: string, detail?: string) => void
@@ -125,6 +144,46 @@ function isDefaultValue(key: SyncedKey, value: unknown): boolean {
   return Object.keys(value as object).length === 0
 }
 
+/** The catalogues `pushProducts` ranks its products against — read fresh from the store on every push, since a catalogue/category reorder changes the order without `admin.products` itself changing at all. */
+function currentCatalogues(): Catalogue[] {
+  return (store.get('admin.catalogues')?.value as Catalogue[] | undefined) ?? []
+}
+
+/**
+ * Reorders a freshly pulled product list to match the local one's own array
+ * order, so accepting the website's copy of the *content* never rewrites the
+ * *order*.
+ *
+ * `pullProducts` reads `order by category, item_id` — a stable query order,
+ * but an arbitrary one as far as display goes. Array position in
+ * `admin.products` is the admin's own drag-and-drop display order (the same
+ * order `computeProductOrderRanks` flattens into the website's rank columns),
+ * so applying the pulled list verbatim would reset that arrangement to
+ * id-sorted on every reconnect — and then push that reset order straight back
+ * out as the public menu's order.
+ *
+ * The rank columns can't be pulled back to settle this instead: they're
+ * deliberately write-only (see `ProductRow` in `neonMappers.ts`), precisely
+ * because this side is authoritative about order.
+ *
+ * @param remote Products as pulled from the website, in `category, item_id` order.
+ * @param local The current local products, whose array order is authoritative.
+ * @returns The remote products, ordered by their local position; ones with no
+ *   local counterpart keep their relative pulled order and go last, since
+ *   nothing here knows where the admin would have wanted them.
+ */
+function preserveLocalProductOrder(remote: Product[], local: Product[]): Product[] {
+  const localPositionById = new Map(local.map((product, index) => [product.itemID, index]))
+  const known: Product[] = []
+  const unknown: Product[] = []
+  for (const product of remote) {
+    if (localPositionById.has(product.itemID)) known.push(product)
+    else unknown.push(product)
+  }
+  known.sort((a, b) => localPositionById.get(a.itemID)! - localPositionById.get(b.itemID)!)
+  return [...known, ...unknown]
+}
+
 async function pull(activeClient: Client, key: SyncedKey): Promise<unknown> {
   switch (key) {
     case 'admin.products':
@@ -147,7 +206,7 @@ async function pull(activeClient: Client, key: SyncedKey): Promise<unknown> {
 async function push(activeClient: Client, key: SyncedKey, value: unknown): Promise<void> {
   switch (key) {
     case 'admin.products':
-      return pushProducts(activeClient, value as Product[])
+      return pushProducts(activeClient, value as Product[], currentCatalogues())
     case 'admin.categoryPrices':
       return pushCategoryPrices(activeClient, value as CategoryPrices)
     case 'admin.contactInfo':
@@ -192,6 +251,12 @@ async function pushActiveTheme(activeClient: Client): Promise<void> {
   await pushSiteTheme(activeClient, toWebsiteThemeProjection(active))
 }
 
+/** Re-pushes the whole products table in its current catalogue/category order — what a catalogue/category reorder triggers, since that changes the order the website should show without changing `admin.products` itself (see `CATALOGUE_ORDER_KEYS`). Shares `pushProducts`' own advisory lock with the ordinary products push, so the two can never race. */
+async function pushProductsInCurrentOrder(activeClient: Client): Promise<void> {
+  const products = (store.get('admin.products')?.value as Product[] | undefined) ?? []
+  await pushProducts(activeClient, products, currentCatalogues())
+}
+
 /** Runs once per fresh connection: for outbound keys, seeds Neon from local data if Neon's own table is still empty (first-sync safety, same spirit as the LAN sync's own `seeded` flag), else pulls Neon's value down; for inbound keys, always pulls down. */
 async function reconcile(activeClient: Client) {
   for (const key of OUTBOUND_KEYS) {
@@ -203,7 +268,13 @@ async function reconcile(activeClient: Client) {
         purgeForKeys([key])
         console.log(`[neon] seeded ${key} up to the website (was empty there)`)
       } else if (!isDefaultValue(key, remote)) {
-        applyUpdateRef?.(key, remote)
+        // Products are the one outbound key whose array order carries meaning,
+        // so the pulled content is re-sorted into the local order rather than
+        // replacing it — see `preserveLocalProductOrder`.
+        applyUpdateRef?.(
+          key,
+          key === 'admin.products' ? preserveLocalProductOrder(remote as Product[], (local as Product[] | undefined) ?? []) : remote,
+        )
       }
     } catch (error) {
       console.error(`[neon] reconciliation failed for ${key}:`, error)
@@ -236,6 +307,26 @@ async function reconcile(activeClient: Client) {
   } catch (error) {
     console.error('[neon] reconciliation failed for the site theme:', error)
     reportErrorRef?.('Failed to sync the appearance theme with the website', errorDetail(error))
+  }
+
+  // Push-only for the same reason — see `CATALOGUE_ORDER_KEYS`. Runs after the
+  // outbound loop above deliberately: that loop is what settles what
+  // `admin.products` currently holds, and this ranks exactly that.
+  //
+  // Unconditional rather than only-when-empty, because the rank columns are
+  // never pulled back (see `ProductRow`): nothing here can tell whether the
+  // website's own copy is already in the right order, only that the local
+  // order is authoritative. Without this a reconnect leaves every row at its
+  // `0` default — the products table is non-empty, so the outbound loop pulls
+  // rather than pushes — and the public menu silently falls back to sorting
+  // alphabetically by name until some unrelated product edit happens to
+  // trigger a push.
+  try {
+    await pushProductsInCurrentOrder(activeClient)
+    purgeForKeys(CATALOGUE_ORDER_KEYS)
+  } catch (error) {
+    console.error('[neon] reconciliation failed for the product display order:', error)
+    reportErrorRef?.('Failed to sync the product display order with the website', errorDetail(error))
   }
 }
 
@@ -391,9 +482,13 @@ async function flushPendingPushes(): Promise<void> {
   // however many of their keys are queued they collapse into one push apiece
   // rather than doing that work twice.
   const queued = [...pendingPushKeys]
-  const keys = queued.filter((key) => !MESSAGE_BOARD_KEYS.includes(key) && !THEME_KEYS.includes(key))
+  const keys = queued.filter((key) => !MESSAGE_BOARD_KEYS.includes(key) && !THEME_KEYS.includes(key) && !CATALOGUE_ORDER_KEYS.includes(key))
   const alsoPushMessageBoard = queued.some((key) => MESSAGE_BOARD_KEYS.includes(key))
   const alsoPushTheme = queued.some((key) => THEME_KEYS.includes(key))
+  // Skipped when `admin.products` is in this same batch: its own push above already
+  // sends the products table in its current catalogue order, so re-pushing here
+  // would just repeat the identical full replace.
+  const alsoPushProductOrder = queued.some((key) => CATALOGUE_ORDER_KEYS.includes(key)) && !keys.includes('admin.products')
   pendingPushKeys.clear()
 
   pushFlushRunning = true
@@ -404,6 +499,7 @@ async function flushPendingPushes(): Promise<void> {
       }
       if (alsoPushMessageBoard) await pushPublicMessageBoardPosts(temporaryClient)
       if (alsoPushTheme) await pushActiveTheme(temporaryClient)
+      if (alsoPushProductOrder) await pushProductsInCurrentOrder(temporaryClient)
     })
     // One purge for the whole batch, after every push in it landed.
     purgeForKeys(queued)
@@ -482,7 +578,7 @@ export function stop() {
 export function pushIfRelevant(key: SyncedKey, value: unknown) {
   if (stopped) return
   if (!store.getNeonDatabaseUrl()) return
-  if (!MESSAGE_BOARD_KEYS.includes(key) && !THEME_KEYS.includes(key) && !OUTBOUND_KEYS.includes(key) && !INBOUND_KEYS.includes(key)) return
+  if (!MESSAGE_BOARD_KEYS.includes(key) && !THEME_KEYS.includes(key) && !CATALOGUE_ORDER_KEYS.includes(key) && !OUTBOUND_KEYS.includes(key) && !INBOUND_KEYS.includes(key)) return
 
   // `value` is deliberately unused: the flush re-reads the current value from
   // the store, so a burst of saves to one key sends only its final state.

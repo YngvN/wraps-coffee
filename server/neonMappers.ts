@@ -1,11 +1,13 @@
 import type { Client } from 'pg'
 import type { OrderRecord } from '../src/types/order'
 import type { AllergenCode, CategoryPrices, Price, Product } from '../src/types/product'
+import type { Catalogue } from '../src/types/category'
 import type { ContactInfo } from '../src/types/contactInfo'
 import type { ContactMessage } from '../src/types/message'
 import type { EventRecord } from '../src/types/event'
 import type { WebsiteThemeProjection } from '../src/utils/websiteTheme'
 import type { MessageBoardPost } from '../src/types/messageBoard'
+import { computeProductOrderRanks } from '../src/utils/productCatalogue'
 import { isProductOutOfStock } from '../src/utils/productStock'
 
 /**
@@ -96,6 +98,18 @@ interface ProductRow {
   out_of_stock: boolean
 }
 
+/**
+ * The website's `products` table also has `category_order`/`product_order`
+ * columns, deliberately absent from `ProductRow` above: they're written on
+ * every push (see `pushProducts`) and never read back, since this app's own
+ * copy of that order is authoritative — it's just array position, see
+ * `computeProductOrderRanks`. Same posture as `updated_at`, which
+ * `pullProducts` also doesn't select.
+ *
+ * They exist purely so the website can reproduce the admin's own
+ * catalogue → category → product arrangement; without them its own `get-menu`
+ * function has nothing to sort on but the product name, alphabetically.
+ */
 export async function pullProducts(client: Client): Promise<Product[]> {
   const { rows } = await client.query<ProductRow>(
     `select item_id, category, name_no, name_en, description_no, description_en, price, price_takeaway, price_eat_in, allergens, available, out_of_stock
@@ -116,16 +130,28 @@ export async function pullProducts(client: Client): Promise<Product[]> {
   }))
 }
 
-export async function pushProducts(client: Client, products: Product[]): Promise<void> {
+/**
+ * Full replace of the website's own `products` table, in the admin's own
+ * catalogue → category → product display order.
+ *
+ * @param products Every product, in their current `admin.products` order.
+ * @param catalogues Every catalogue, in their current `admin.catalogues` order
+ *   — needed only to rank the products (see `computeProductOrderRanks`);
+ *   catalogues themselves have no table on the website and are never pushed.
+ */
+export async function pushProducts(client: Client, products: Product[], catalogues: Catalogue[]): Promise<void> {
+  const ranks = computeProductOrderRanks(products, catalogues)
   await beginFullReplace(client, FULL_REPLACE_LOCKS.products)
   try {
     await client.query('delete from products')
-    // The public website's own `products` table has a `NOT NULL` `category` column — a product with no category at all (see `Product.catalogueId`) has nothing valid to put there. Rather than inventing a fake category id that would corrupt that separate project's own data, these are simply excluded from the push (and would fail the whole transaction below if they weren't, since every product here is inserted inside one `begin`/`commit`). Revisit once that other schema supports a category-less product.
-    for (const product of products.filter((product) => product.category)) {
+    // Only products `computeProductOrderRanks` gave a rank to are pushed — that is, ones belonging to a category that actually exists. This covers two cases at once. A product with no category at all (see `Product.catalogueId`) has nothing valid to put in the website's `NOT NULL` `category` column; rather than inventing a fake category id that would corrupt that separate project's own data, it's excluded (and would fail the whole transaction below if it weren't, since every product here is inserted inside one `begin`/`commit`). Revisit once that other schema supports a category-less product. A product whose `category` id no longer resolves to any real category (orphaned by a deleted category — see `UnassignedProductsModal`) is excluded for a different reason: it would otherwise reach the public menu grouped under a category that no longer exists.
+    for (const product of products) {
+      const rank = ranks.get(product.itemID)
+      if (!rank) continue
       const cols = priceColumns(product.price)
       await client.query(
-        `insert into products (item_id, category, name_no, name_en, description_no, description_en, price, price_takeaway, price_eat_in, allergens, available, out_of_stock)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        `insert into products (item_id, category, name_no, name_en, description_no, description_en, price, price_takeaway, price_eat_in, allergens, available, out_of_stock, category_order, product_order)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
         [
           product.itemID,
           product.category,
@@ -139,6 +165,8 @@ export async function pushProducts(client: Client, products: Product[]): Promise
           product.allergens,
           product.available,
           isProductOutOfStock(product),
+          rank.categoryOrder,
+          rank.productOrder,
         ],
       )
     }

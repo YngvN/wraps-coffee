@@ -25,6 +25,8 @@ import * as store from './store'
 const TAGS_BY_KEY: Partial<Record<SyncedKey, string>> = {
   'admin.products': 'menu',
   'admin.categoryPrices': 'menu',
+  // Not menu *content*, but menu *order* — a catalogue/category reorder re-pushes the products table (see `CATALOGUE_ORDER_KEYS`), so the same tag has to be purged for the new order to actually be served.
+  'admin.catalogues': 'menu',
   'admin.contactInfo': 'contact-info',
   'admin.events': 'events',
   'admin.messageBoards': 'message-board',
