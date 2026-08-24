@@ -1359,8 +1359,12 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                   setEvents(events.filter((existing) => existing.eventID !== itemID))
                   flow.onCommitted()
                 } else if (entity === 'catalogue') {
-                  // Matches `ProductsView.tsx`'s own real delete: a naive top-level filter, no cascade — see `catalogue.ts`'s own `validate()` soft warning for why that's a known, honestly-surfaced gap rather than one this commit silently repeats differently.
+                  // Replicates `ProductsView.tsx`'s own real delete: remove the catalogue, plus every product that lived in it (via a category, or directly via `catalogueId`) and each of its categories' default-price entries — orphaned products otherwise stayed in `admin.products` (an `OUTBOUND_KEY`, unlike `admin.catalogues`) and kept getting pushed to the external website after the catalogue vanished from the app.
+                  const catalogue = catalogues.find((existing) => existing.id === itemID)
+                  const categoryIds = new Set((catalogue?.categories ?? []).map((category) => category.id))
                   setCatalogues(catalogues.filter((existing) => existing.id !== itemID))
+                  setProducts(products.filter((product) => !(product.category ? categoryIds.has(product.category) : product.catalogueId === itemID)))
+                  setCategoryPrices(Object.fromEntries(Object.entries(categoryPrices).filter(([categoryId]) => !categoryIds.has(categoryId))))
                   flow.onCommitted()
                 } else if (entity === 'category') {
                   // Replicates `CategoriesView.tsx`'s real 3-part cascade: remove from the parent catalogue's `categories[]`, drop every product in it, clear its default-price entry.

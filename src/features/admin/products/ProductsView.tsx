@@ -1,16 +1,20 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Button, ChevronRightIcon, EditDeleteButtons, Modal, SlideTransition, TranslatedText } from '../../../components'
+import { Alert, Button, ChevronRightIcon, EditDeleteButtons, Modal, SlideTransition, TranslatedText } from '../../../components'
 import { useBackLevel } from '../../../hooks/useBackLevel'
 import { useCatalogues } from '../../../hooks/useCatalogues'
+import { useCategoryPrices } from '../../../hooks/useCategoryPrices'
 import { useDisplayName } from '../../../hooks/useDisplayName'
+import { useProducts } from '../../../hooks/useProducts'
 import { useRecentlyOpened } from '../../../hooks/useRecentlyOpened'
 import { useLanguage } from '../../../i18n'
 import type { Catalogue } from '../../../types/category'
+import { resolveProductCatalogue } from '../../../utils/productCatalogue'
 import { AllProductsView } from './AllProductsView'
 import { CatalogueForm } from './CatalogueForm'
 import { CategoriesView } from './CategoriesView'
+import { UnassignedProductsModal } from './UnassignedProductsModal'
 import './ProductsView.scss'
 
 /** Admin view for the Products hierarchy: catalogues (e.g. "Food menu", a separate "Merch" catalogue for non-food items) → each catalogue's own categories, each expandable inline to show (and drag-and-drop reorganize) its own products — see `CategoriesView`, which owns that whole board; there's no separate per-category page anymore. Edits show up live on the kiosk display. */
@@ -18,11 +22,14 @@ export function ProductsView() {
   const { t } = useLanguage()
   const displayName = useDisplayName()
   const [catalogues, setCatalogues] = useCatalogues()
+  const [products, setProducts] = useProducts()
+  const [categoryPrices, setCategoryPrices] = useCategoryPrices()
   const { record: recordRecentlyOpened } = useRecentlyOpened()
   const [editingCatalogue, setEditingCatalogue] = useState<Catalogue | null | undefined>(undefined)
   const [searchParams, setSearchParams] = useSearchParams()
   const [openCatalogueId, setOpenCatalogueId] = useState<string | null>(null)
   const [showAllProducts, setShowAllProducts] = useState(false)
+  const [showUnassignedProducts, setShowUnassignedProducts] = useState(false)
   /** Set from `?categoryId=` (search deep link) — passed to `CategoriesView` so it expands and scrolls/flashes that category's own section on arrival. Cleared via `onConsumeInitialDeepLink` once consumed. */
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null)
   /** Set from `?productId=` (search/notification deep link) — passed to `CategoriesView` so it expands the right section and opens that exact product's edit form on arrival. */
@@ -85,11 +92,17 @@ export function ProductsView() {
     closeForm()
   }
 
-  /** Deleting a catalogue removes it and every category nested inside it — since categories live inside `Catalogue.categories`, this alone is enough for those; their own products (a separate flat list, `admin.products`) still need their own cleanup pass. */
+  /** Deleting a catalogue removes it and every category nested inside it (since categories live inside `Catalogue.categories`, that alone is enough for those), plus a cleanup pass over the separate flat `admin.products`/`admin.categoryPrices` stores for anything that belonged to it — mirrors `CategoriesView.tsx`'s own `handleDeleteCategory`. Without this, orphaned products stayed in `admin.products` (an `OUTBOUND_KEY`, unlike `admin.catalogues`) and kept getting pushed to the external website even after the catalogue vanished from the app. */
   const handleDelete = (catalogue: Catalogue) => {
     if (!window.confirm(t('admin.products.confirmDeleteCatalogue'))) return
+    const categoryIds = new Set(catalogue.categories.map((category) => category.id))
     setCatalogues(catalogues.filter((existing) => existing.id !== catalogue.id))
+    setProducts(products.filter((product) => !(product.category ? categoryIds.has(product.category) : product.catalogueId === catalogue.id)))
+    setCategoryPrices(Object.fromEntries(Object.entries(categoryPrices).filter(([categoryId]) => !categoryIds.has(categoryId))))
   }
+
+  /** Products whose `category`/`catalogueId` no longer resolves to any real catalogue — left behind by a catalogue deleted before `handleDelete` cleaned up after itself (or, going forward, orphaned some other way, e.g. a corrupted sync). Surfaced via `UnassignedProductsModal` since none of the normal per-catalogue views can ever reach them. */
+  const unassignedProducts = products.filter((product) => !resolveProductCatalogue(product, catalogues))
 
   const openCatalogue = catalogues.find((catalogue) => catalogue.id === openCatalogueId)
 
@@ -150,6 +163,15 @@ export function ProductsView() {
             </div>
             <TranslatedText as="p" id="admin.products.description" className="admin-page-description" />
 
+            {unassignedProducts.length > 0 && (
+              <Alert variant="warning" title={t('admin.products.unassignedProductsTitle')}>
+                {t('admin.products.unassignedProductsBanner', { count: unassignedProducts.length })}
+                <Button type="button" variant="secondary" onClick={() => setShowUnassignedProducts(true)}>
+                  {t('admin.products.unassignedProductsReview')}
+                </Button>
+              </Alert>
+            )}
+
             {catalogues.length === 0 ? (
               <p className="products-view__empty">{t('admin.products.noCatalogues')}</p>
             ) : (
@@ -183,6 +205,19 @@ export function ProductsView() {
       <Modal open={isFormOpen} onClose={closeForm} title={editingCatalogue ? t('admin.products.editCatalogue') : t('admin.products.addCatalogue')}>
         {isFormOpen && <CatalogueForm catalogue={editingCatalogue ?? null} onSave={handleSave} onCancel={closeForm} />}
       </Modal>
+
+      {showUnassignedProducts && (
+        <UnassignedProductsModal
+          products={unassignedProducts}
+          catalogues={catalogues}
+          onMoveProduct={(updated) => setProducts(products.map((existing) => (existing.itemID === updated.itemID ? updated : existing)))}
+          onDeleteProducts={(toDelete) => {
+            const ids = new Set(toDelete.map((product) => product.itemID))
+            setProducts(products.filter((existing) => !ids.has(existing.itemID)))
+          }}
+          onClose={() => setShowUnassignedProducts(false)}
+        />
+      )}
     </>
   )
 }

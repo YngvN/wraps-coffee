@@ -1,7 +1,7 @@
 {
   "name": "adhdisplay-admin",
   "private": true,
-  "version": "0.2.91",
+  "version": "0.2.94",
   "type": "module",
   "scripts": {
     "dev": "concurrently -n vite,ws -c blue,magenta \"vite --host\" \"tsx watch server/index.ts\"",

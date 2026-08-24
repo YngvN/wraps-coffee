@@ -71,7 +71,7 @@ export const catalogueEntity: AssistantEntity<Catalogue> = {
   },
 
   validate(action, draft: Catalogue): AssistantValidationIssue[] {
-    // Counts both a category-linked product (the category itself disappears along with the catalogue) and one living directly in this catalogue with no category at all (see `Product.catalogueId`) — both are orphaned the same way.
+    // Counts both a category-linked product (the category itself disappears along with the catalogue) and one living directly in this catalogue with no category at all (see `Product.catalogueId`) — both are deleted along with the catalogue by `AssistantPanel.tsx`'s delete branch (mirroring `ProductsView.tsx`'s own real delete), so this is a heads-up count of what that cascade will remove, not a warning about orphaning.
     const dependentProductCount =
       action === 'delete'
         ? liveProducts().filter((product) => draft.categories.some((category) => category.id === product.category) || product.catalogueId === draft.id).length

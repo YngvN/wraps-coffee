@@ -1,0 +1,17 @@
+@use '../../../styles/variables' as *;
+
+.unassigned-products-modal__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit;
+  max-width: var(--admin-list-max-width);
+  margin-bottom: $spacing-unit;
+}
+
+// No visible `.checkbox__label` (see the component's own JSX) since the
+// product's own name sits right next to it — an `aria-label` on the input
+// carries the accessible name instead.
+.unassigned-products-modal__item-checkbox {
+  flex-shrink: 0;
+}
