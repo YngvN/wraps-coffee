@@ -1682,11 +1682,11 @@
               "addressLabel": "Website address",
               "notSet": "Not set",
               "testAgain": "Test the connection",
-              "speedTitle": "How often new orders are collected",
-              "speedIntro": "Changes you make here always reach your website straight away. This only affects how soon you find out about new orders and messages from customers.",
-              "intervalLabel": "Check every (seconds)",
-              "openingHoursLabel": "Only check while the cafe is open",
-              "openingHoursHint": "Stops checking while you are closed, then checks once more just after closing time so nothing is missed. Uses the opening hours from Store → Contact info."
+              "speedTitle": "How new orders reach you",
+              "speedIntro": "While the cafe is open, new orders and messages appear here as soon as a customer sends them. Changes you make always reach your website straight away.",
+              "intervalLabel": "Backstop check every (seconds)",
+              "openingHoursLabel": "Only stay connected while the cafe is open",
+              "openingHoursHint": "Disconnects while you are closed — which is what lets the website database sleep — then pulls once more just after closing time so nothing is missed. Uses the opening hours from Store → Contact info."
             }
           }
         },
@@ -4072,11 +4072,11 @@
               "addressLabel": "Nettadresse",
               "notSet": "Ikke satt",
               "testAgain": "Test tilkoblingen",
-              "speedTitle": "Hvor ofte nye bestillinger hentes",
-              "speedIntro": "Endringer du gjør her når alltid nettstedet med én gang. Dette påvirker bare hvor fort du får vite om nye bestillinger og meldinger fra kunder.",
-              "intervalLabel": "Sjekk hvert (sekunder)",
-              "openingHoursLabel": "Sjekk bare mens kafeen er åpen",
-              "openingHoursHint": "Slutter å sjekke mens dere er stengt, og sjekker én gang til rett etter stengetid slik at ingenting går tapt. Bruker åpningstidene fra Butikk → Kontaktinfo."
+              "speedTitle": "Hvordan nye bestillinger når deg",
+              "speedIntro": "Mens kafeen er åpen dukker nye bestillinger og meldinger opp her med én gang kunden sender dem. Endringer du gjør når alltid nettstedet med én gang.",
+              "intervalLabel": "Reservesjekk hvert (sekunder)",
+              "openingHoursLabel": "Vær bare tilkoblet mens kafeen er åpen",
+              "openingHoursHint": "Kobler fra mens dere er stengt — det er det som lar nettsidedatabasen sove — og henter én gang til rett etter stengetid slik at ingenting går tapt. Bruker åpningstidene fra Butikk → Kontaktinfo."
             }
           }
         },

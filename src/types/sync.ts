@@ -99,31 +99,37 @@ export type ServerMessage = SnapshotMessage | UpdateMessage | ErrorMessage
 // Settings → Connect to website.
 
 /**
- * How often the bridge checks the website's database for new orders and
- * messages.
+ * How the local server keeps in touch with the website's database.
  *
- * **Polling is the only mode.** An always-open `LISTEN` connection would
- * deliver new orders within milliseconds, but it also stops a serverless
- * database from ever suspending — a cost paid around the clock regardless of
- * how many orders actually arrive, which for a cafe is nearly all of the time.
- * That trade was not worth it, so the option is gone rather than merely
- * discouraged.
- *
- * Only *inbound* freshness is affected. A change made in the dashboard is
- * still pushed to the website immediately.
+ * **Orders and messages arrive by `LISTEN`, not by polling.** While the cafe
+ * is open the bridge holds one connection and the website's own `pg_notify`
+ * triggers deliver a new order in milliseconds; while it is closed nothing is
+ * connected at all. See `server/neonBridge.ts` for why that costs no more than
+ * the polling it replaced — briefly, the old default interval and the
+ * database's idle-suspend window were both ~5 minutes, so polling never let it
+ * suspend anyway and merely delivered orders late.
  */
 export interface NeonSyncConfig {
+  /**
+   * How often to pull anyway, as a backstop against a lost notification.
+   *
+   * No longer what paces a new order reaching the cafe — that is immediate
+   * now. Lowering this therefore buys nothing while costing database compute
+   * for every extra wake-up, so the bridge treats it as a *floor* and never
+   * pulls more often than its own `SAFETY_NET_PULL_MS`. Raising it is still
+   * honoured, since that only relaxes the backstop.
+   */
   pollIntervalSeconds: number
   /**
-   * Skip checking entirely while the cafe is closed (per `admin.contactInfo`'s
-   * own opening hours). Nobody is waiting on an order at a closed cafe, so an
-   * uninterrupted overnight gap is what actually lets the database sleep — far
-   * more than shortening the interval ever saves.
+   * Disconnect entirely while the cafe is closed (per `admin.contactInfo`'s
+   * own opening hours). Nobody is waiting on an order at a closed cafe, and an
+   * uninterrupted overnight gap is the one thing that genuinely lets the
+   * database sleep — it is where all of the saving actually comes from.
    */
   pollOnlyDuringOpeningHours: boolean
 }
 
-/** Five minutes during opening hours: frequent enough that an order isn't missed, sparse enough that the database can suspend overnight. */
+/** Five minutes is kept as the stored default for continuity, but it now only sets the backstop floor — the bridge's own 15-minute minimum wins. Disconnecting overnight is the setting that matters. */
 export const DEFAULT_NEON_SYNC_CONFIG: NeonSyncConfig = {
   pollIntervalSeconds: 300,
   pollOnlyDuringOpeningHours: true,

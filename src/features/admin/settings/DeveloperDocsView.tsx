@@ -814,9 +814,10 @@ POST /neon-url/test                (Authorization: Bearer <token>, admin/subadmi
   Read-only diagnosis used by Settings → Connect to website. Opens its own short-lived
   connection, so it neither disturbs the live bridge nor needs it connected. "reason" is always
   one of the fixed values above and never a raw driver message — pg errors carry the database
-  host and sometimes credentials, and this response reaches the browser. The bridge polls on the interval rather than holding a
-  connection open, so the website's database can suspend in between; outbound pushes are
-  immediate regardless.`}</code>
+  host and sometimes credentials, and this response reaches the browser. While the cafe is open the bridge holds one
+  LISTEN connection so new orders and messages arrive immediately, and disconnects outside opening hours so the website's
+  database can suspend; "pollIntervalSeconds" is only the backstop pull, floored at 15 minutes. Outbound pushes open their
+  own short-lived connection and are immediate regardless.`}</code>
         </pre>
       </Card>
     </div>
