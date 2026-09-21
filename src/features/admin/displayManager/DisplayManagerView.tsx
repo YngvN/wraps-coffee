@@ -1,87 +1,72 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Alert, Badge, Button, Card, CloseIcon, CollapsibleSection, Input, PlusIcon, Spinner, TranslatedText } from '../../../components'
+import { Alert, Badge, Button, Card, CollapsibleSection, PlusIcon, StatusDot, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
+import { useClockFormatPreference } from '../../../hooks/useClockFormatPreference'
+import { useDateFormatPreference } from '../../../hooks/useDateFormatPreference'
 import { useDisplayMachineCloseRequests } from '../../../hooks/useDisplayMachineCloseRequests'
 import { useDisplayMachines } from '../../../hooks/useDisplayMachines'
 import { useDisplayPairingRequests } from '../../../hooks/useDisplayPairingRequests'
 import { useDisplayScreenOverride } from '../../../hooks/useDisplayScreenOverride'
 import { useDisplayUpdateState } from '../../../hooks/useDisplayUpdateState'
+import { useNow } from '../../../hooks/useNow'
 import { useScreens } from '../../../hooks/useScreens'
 import { useScrollToAndHighlight } from '../../../hooks/useScrollToAndHighlight'
 import { useLanguage } from '../../../i18n'
 import { approveDisplayPairing, getUpdatesStatus, setUpdateRollback } from '../../../lib/localServer'
-import {
-  DISPLAY_MAX_IMAGE_PX_OPTIONS,
-  DISPLAY_RENDER_WIDTH_OPTIONS,
-  type DisplayMachine,
-  type DisplayMaxImagePx,
-  type DisplayRenderWidth,
-  type DisplayUpdateProgressStatus,
-  type DisplayUpdateTier,
-} from '../../../types/displayMachine'
+import { type DisplayMachine, type DisplayMaxImagePx, type DisplayRenderWidth, type DisplayUpdateProgressStatus } from '../../../types/displayMachine'
+import { formatDateTime } from '../../../utils/clockFormat'
+import { resolveDisplayConnectionStatus } from '../../../utils/displayConnection'
 import { resolveDisplayUpdateState, type DisplayUpdateState, type UpdatesHubStatus } from '../../../utils/displayUpdateState'
-import { connectionBadgeId } from './connectionBadge'
+import { connectionStatusDot } from './connectionStatusDot'
+import { DisplayCard } from './DisplayCard'
+import { DisplayDetailsModal, type DisplayUpdatePanel } from './DisplayDetailsModal'
 import { PublishApkControl } from './PublishApkControl'
+import { resolveDisplayedScreen } from './resolveDisplayedScreen'
 import { useBulkUpdateRunner, type QueuedUpdate } from './updateQueue'
 import './DisplayManagerView.scss'
 
 /**
- * Maps a `mobile` machine's own reported `updateTier` to a label + `Badge` variant, shown next to
- * its connection-type badge — without this, "Update to current" looks identical for a Tier 1 (OTA
- * only) and a Tier 3 (needs an on-device confirmation tap) device even though the hub already
- * picks a genuinely different mechanism per machine server-side (`pushUpdateTriggersForNewEntries`
- * in `server/index.ts`); this badge just makes that already-correct decision visible to the admin.
- * `undefined` (a pre-Update-Channel client that's never reported a tier at all) renders nothing.
+ * Maps a resolved `DisplayUpdateState` to the plain-language line the admin
+ * actually reads, plus (only where it changes what they must physically do)
+ * a note about the device's own capability.
+ *
+ * Update *tiers* are deliberately not shown any more. "Tier 1 · OTA only"
+ * described this codebase's internal capability model, not anything an
+ * admin can act on — and the hub already picks the right mechanism per
+ * machine server-side (`pushUpdateTriggersForNewEntries` in
+ * `server/index.ts`), so the tier was decoration on a decision nobody makes
+ * by hand. What survives is the part that does change behaviour: a Tier 3
+ * device needs someone to press Confirm on the TV, and a Tier 1 device that
+ * is natively stale can't be updated remotely at all.
  */
-function updateTierBadge(tier: DisplayUpdateTier | undefined): { variant: 'neutral' | 'info' | 'warning'; labelId: string } | null {
-  switch (tier) {
-    case 1:
-      return { variant: 'neutral', labelId: 'admin.displayManager.updateTierOta' }
-    case 2:
-      return { variant: 'info', labelId: 'admin.displayManager.updateTierSilent' }
-    case 3:
-      return { variant: 'warning', labelId: 'admin.displayManager.updateTierPrompted' }
-    default:
-      return null
-  }
-}
-
-/**
- * Maps a resolved `DisplayUpdateState` (see `resolveDisplayUpdateState`) to
- * the shared `Badge` component's own severity variant and an i18n label key.
- * Several states share a variant (e.g. `ota-available`/`apk-available` are
- * both just "an update exists") since `Badge`'s variants are severity
- * buckets, not one-per-state — the label text is what actually distinguishes
- * them, not the color.
- */
-function updateStateBadge(state: DisplayUpdateState): { variant: 'neutral' | 'success' | 'warning' | 'error' | 'info'; labelId: string } {
+function updateStateCopy(state: DisplayUpdateState): { labelId: string; capabilityNoteId: string | null } {
   switch (state) {
     case 'current':
-      return { variant: 'success', labelId: 'admin.displayManager.updateStateCurrent' }
+      return { labelId: 'admin.displayManager.updateStateCurrent', capabilityNoteId: null }
     case 'ota-available':
-      return { variant: 'info', labelId: 'admin.displayManager.updateStateOtaAvailable' }
     case 'apk-available':
-      return { variant: 'info', labelId: 'admin.displayManager.updateStateApkAvailable' }
+      return { labelId: 'admin.displayManager.updateStateAvailable', capabilityNoteId: null }
     case 'apk-prompted':
-      return { variant: 'warning', labelId: 'admin.displayManager.updateStateApkPrompted' }
+      return { labelId: 'admin.displayManager.updateStateAvailable', capabilityNoteId: 'admin.displayManager.updateNeedsDeviceTap' }
     case 'usb-required':
-      return { variant: 'error', labelId: 'admin.displayManager.updateStateUsbRequired' }
+      return { labelId: 'admin.displayManager.updateStateUsbRequired', capabilityNoteId: 'admin.displayManager.updateUsbHint' }
     case 'unknown':
-      return { variant: 'neutral', labelId: 'admin.displayManager.updateStateUnknown' }
+      return { labelId: 'admin.displayManager.updateStateUnknown', capabilityNoteId: null }
     case 'offline':
-      return { variant: 'neutral', labelId: 'admin.displayManager.updateStateOffline' }
+      return { labelId: 'admin.displayManager.updateStateOffline', capabilityNoteId: null }
   }
 }
 
 /**
- * Builds the `QueuedUpdate` a machine's own "Update to current" click (or a
- * bulk-update run including it) should write, from its already-resolved
+ * Builds the `QueuedUpdate` a machine's own Update click (or a bulk run
+ * including it) should write, from its already-resolved
  * `DisplayUpdateState` — `null` for any state with no real action (already
- * current, offline, unresolvable). `ota-available` targets the bundle
- * published for this machine's own `runtimeVersion`; `apk-available`/
- * `apk-prompted` both target the hub's current native `versionCode` (the
- * mechanism difference between silent-Tier-2 and prompted-Tier-3 is decided
+ * current, offline, unresolvable, or `usb-required`, which by definition
+ * has no remote mechanism). `ota-available` targets the bundle published
+ * for this machine's own `runtimeVersion`; `apk-available`/`apk-prompted`
+ * both target the hub's current native `versionCode` (the mechanism
+ * difference between silent-Tier-2 and prompted-Tier-3 is decided
  * server-side from the machine's own `updateTier`, not by which of these
  * two states resolved — see `pushUpdateTriggersForNewEntries` in
  * `server/index.ts`).
@@ -116,32 +101,38 @@ function progressLabelId(status: DisplayUpdateProgressStatus): string {
  * Every machine (an Electron kiosk managing its own detected monitors), a
  * plain browser tab (`/display-connect`), or a paired ADHDisplay Companion
  * app instance that has ever heartbeated in (see
- * `POST /display-machines/heartbeat`), each with its own monitors and a
- * Screen-assignment selector per monitor. A monitor with no Screen assigned
- * shows the bouncing-company-name standby screensaver instead (see
- * `DisplayStandby`) until one is picked here. Its own "+ Add Display" row
- * opens a new `DisplayWindow.tsx` window, which registers itself here the
- * same way any other display does. A mobile device that's heartbeated in
- * but not yet approved shows up passively — no "look for displays" step
- * needed — in the "Pending approval" section above the machines grid (see
- * `useDisplayPairingRequests`), each card showing its own `#suffix` (the
- * pending request's own `machineID`, last 4 characters) that also appears
- * on the TV's own `PairingScreen` so an admin can cross-check the dashboard
- * card against the physical device before clicking Approve — the one-click
- * button is the entire approval flow, no PIN/QR involved. Once approved it
- * becomes a real entry in the machines grid below. Rendered from
- * `ScreensView` as a submenu, not a route of its own — its own Back level
- * (returning to the Screens list) is registered by `ScreensView` itself,
- * not here.
+ * `POST /display-machines/heartbeat`), shown as a grid of compact cards.
+ * Each card is a miniature of what that display is actually putting on
+ * screen (see `DisplayScreenPreview`) plus a colour-coded connection dot;
+ * clicking one opens `DisplayDetailsModal`, which holds everything
+ * editable — the name, a screen assignment per monitor, the two per-unit
+ * resolution ceilings, the update action and Remove.
+ *
+ * A monitor with no Screen assigned shows the bouncing-company-name standby
+ * screensaver (see `DisplayStandby`) until one is picked. Its own "+ Add
+ * Display" row opens a new `DisplayWindow.tsx` window, which registers
+ * itself here the same way any other display does. A mobile device that's
+ * heartbeated in but not yet approved shows up passively — no "look for
+ * displays" step needed — in the "Pending approval" section above the grid
+ * (see `useDisplayPairingRequests`), each card showing its own `#suffix`
+ * (the pending request's own `machineID`, last 4 characters) that also
+ * appears on the TV's own `PairingScreen` so an admin can cross-check the
+ * dashboard card against the physical device before clicking Approve — the
+ * one-click button is the entire approval flow, no PIN/QR involved. Once
+ * approved it becomes a real entry in the grid below.
  */
 export function DisplayManagerView() {
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const { session } = useAdminSession()
   const [machines, setMachines] = useDisplayMachines()
   const [, setCloseRequests] = useDisplayMachineCloseRequests()
   const [pairingRequests] = useDisplayPairingRequests()
   const [screens] = useScreens()
   const [searchParams, setSearchParams] = useSearchParams()
+  const [clockFormat] = useClockFormatPreference()
+  const [dateFormat] = useDateFormatPreference()
+  /** Drives the connection dots: without a ticker a display that goes quiet keeps its green dot until something unrelated happens to re-render this view. */
+  const now = useNow()
   /** Guards the deep-link effect below so it only ever highlights the target pending card once — `pairingRequests` is synced data that may not have loaded its real snapshot yet on first render, same posture as `UsersView`'s own deep-link effect. */
   const consumedDeepLinkRef = useRef(false)
   const { registerRef: registerPendingRef, triggerHighlight: triggerPendingHighlight } = useScrollToAndHighlight()
@@ -152,6 +143,9 @@ export function DisplayManagerView() {
   const [approvingMachineId, setApprovingMachineId] = useState<string | null>(null)
   const [approveError, setApproveError] = useState<string | null>(null)
   const [approveNotice, setApproveNotice] = useState<string | null>(null)
+
+  /** Which display's details sheet is open, by `machineID`. Also what the `?updateMachineId=` deep link opens. */
+  const [openMachineId, setOpenMachineId] = useState<string | null>(null)
 
   // The hub's own current-APK/current-bundle reference (see `resolveDisplayUpdateState`'s own doc
   // comment) — `null` until the first fetch resolves, in which case every machine's own resolved
@@ -178,7 +172,7 @@ export function DisplayManagerView() {
 
   const [updateProgress, setUpdateProgress] = useDisplayUpdateState()
 
-  /** Writes/replaces a `DisplayUpdateProgress` entry per queued machine and (via `applyUpdate`'s own diff in `server/index.ts`) is what actually causes the hub to push the right message (`check-update` or `install-update`, decided server-side from the machine's own `updateTier` — see `pushUpdateTriggersForNewEntries`'s own doc comment there) to each one. Shared by the single per-machine "Update to current" button and the bulk queue below. */
+  /** Writes/replaces a `DisplayUpdateProgress` entry per queued machine and (via `applyUpdate`'s own diff in `server/index.ts`) is what actually causes the hub to push the right message (`check-update` or `install-update`, decided server-side from the machine's own `updateTier` — see `pushUpdateTriggersForNewEntries`'s own doc comment there) to each one. Shared by the single per-machine Update button and the bulk queue below. */
   const startUpdatesFor = (entries: QueuedUpdate[]) => {
     setUpdateProgress((current) => {
       const startedAt = new Date().toISOString()
@@ -186,6 +180,16 @@ export function DisplayManagerView() {
       const newEntries = entries.map((entry) => ({ machineID: entry.machineID, status: 'awaiting-heartbeat' as const, startedAt, ...('targetUpdateId' in entry ? { targetUpdateId: entry.targetUpdateId } : { targetVersionCode: entry.targetVersionCode }) }))
       return [...withoutEntries, ...newEntries]
     })
+  }
+
+  /**
+   * Drops one machine's own progress entry. A `update-failed` entry is written in place by the hub's
+   * own 10-minute sweep and never removed (`startUpdateFailureSweep` in `server/index.ts`), so
+   * without this the only way to clear a failed badge was a later successful run — leaving a display
+   * that has since been fixed by hand looking permanently broken.
+   */
+  const dismissUpdateEntry = (machineID: string) => {
+    setUpdateProgress((current) => current.filter((entry) => entry.machineID !== machineID))
   }
 
   const { running: bulkRunning, startBulkUpdate, abortBulkUpdate } = useBulkUpdateRunner(updateProgress, startUpdatesFor)
@@ -208,6 +212,12 @@ export function DisplayManagerView() {
 
   const [screenOverrides, setScreenOverrides] = useDisplayScreenOverride()
 
+  /** Formats a heartbeat/override timestamp against the store's own date and clock preferences — every other admin surface does, and this view used to call `toLocaleString()` directly and ignore them. */
+  const formatTimestamp = (iso: string) => {
+    const date = new Date(iso)
+    return Number.isFinite(date.getTime()) ? formatDateTime(date, language, clockFormat, dateFormat) : t('admin.displayManager.lastSeenNever')
+  }
+
   /**
    * Clears a display's own remote-navigation override, returning it to its
    * normal admin-assigned screen (Remote Screen Navigation spec — required
@@ -224,11 +234,10 @@ export function DisplayManagerView() {
   /**
    * Deep-link support: `?pendingMachineId=<id>` scrolls to and highlights that pending card — reached via the
    * notification bell (`NotificationsDropdown`) or global search (`useGlobalSearchIndex`), both of which build a
-   * URL of the form `/admin/dashboard/displays?pendingMachineId=<id>`. `ScreensView`'s own effect
-   * consumes `displayManager` and opens this view; this effect only ever touches `pendingMachineId`, the same
-   * "each view strips only its own param" convention every other deep-linkable view follows. If the request was
-   * already approved or expired by the time this runs, it's simply never found — same accepted behavior every
-   * other synced-data deep link in this codebase already has for a since-deleted target.
+   * URL of the form `/admin/dashboard/displays?pendingMachineId=<id>`. This effect only ever touches
+   * `pendingMachineId`, the same "each view strips only its own param" convention every other deep-linkable view
+   * follows. If the request was already approved or expired by the time this runs, it's simply never found — same
+   * accepted behavior every other synced-data deep link in this codebase already has for a since-deleted target.
    */
   useEffect(() => {
     if (consumedDeepLinkRef.current) return
@@ -244,11 +253,13 @@ export function DisplayManagerView() {
   }, [pairingRequests, searchParams, setSearchParams, triggerPendingHighlight])
 
   /**
-   * Deep-link support: `?updateMachineId=<id>` scrolls to and highlights that machine's own card in
-   * the regular (already-approved) grid — same convention as `?pendingMachineId=` above, just
-   * targeting a joined `DisplayMachine` instead of a still-pending request, via its own independent
-   * `consumedUpdateDeepLinkRef`/`registerMachineRef` pair so the two deep links can't interfere with
-   * each other. Reached from Display Manager's own entry in `useGlobalSearchIndex.tsx`.
+   * Deep-link support: `?updateMachineId=<id>` now **opens that machine's own details sheet** as well as
+   * highlighting its card, since everything the link is meant to reach (its version, update state and Update
+   * button) moved into the modal — the `admin-deep-links` convention is to open the target's own sub-state
+   * rather than only scroll to it when one exists. Same independent `consumedUpdateDeepLinkRef`/
+   * `registerMachineRef` pair as `?pendingMachineId=` above so the two can't interfere. The param name is
+   * unchanged because `useGlobalSearchIndex.tsx` builds it. `setState` goes through `queueMicrotask` per this
+   * codebase's `react-hooks/set-state-in-effect` rule.
    */
   useEffect(() => {
     if (consumedUpdateDeepLinkRef.current) return
@@ -256,6 +267,7 @@ export function DisplayManagerView() {
     const machine = updateMachineId ? machines.find((candidate) => candidate.machineID === updateMachineId) : undefined
     if (!machine) return
     consumedUpdateDeepLinkRef.current = true
+    queueMicrotask(() => setOpenMachineId(machine.machineID))
     triggerMachineHighlight(machine.machineID)
     setSearchParams((current) => {
       current.delete('updateMachineId')
@@ -312,6 +324,7 @@ export function DisplayManagerView() {
     if (!window.confirm(t('admin.common.confirmDelete'))) return
     setMachines((current) => current.filter((machine) => machine.machineID !== machineID))
     setCloseRequests((current) => (current.includes(machineID) ? current : [...current, machineID]))
+    setOpenMachineId(null)
   }
 
   /** Opens a new window standing in for one physical monitor, waiting to be assigned a Screen — see `DisplayWindow.tsx`. A relative URL, deliberately unlike the Screens list's own "Open"/"Editor" links (those are meant to be pasted onto a *different* device; a Display window represents an extra monitor on *this* machine, so it should stay on whatever origin the dashboard itself is already on). */
@@ -337,16 +350,50 @@ export function DisplayManagerView() {
   // Every machine "Update all" would act on right now — any machine whose resolved state has a
   // real QueuedUpdate behind it (see queuedUpdateFor). Mixes OTA and APK targets freely; which
   // mechanism each one actually gets is decided per-machine, server-side (see startUpdatesFor's
-  // own doc comment).
-  const actionableEntries: QueuedUpdate[] = machines.flatMap((machine) => {
-    const state = resolveDisplayUpdateState(machine, updatesHubStatus)
-    if (!state) return []
-    const queued = queuedUpdateFor(machine, state, updatesHubStatus)
-    return queued ? [queued] : []
-  })
+  // own doc comment). Recomputed against `now` so a display going offline drops out of a rollout.
+  const actionableEntries: QueuedUpdate[] = useMemo(
+    () =>
+      machines.flatMap((machine) => {
+        const state = resolveDisplayUpdateState(machine, updatesHubStatus, now)
+        if (!state) return []
+        const queued = queuedUpdateFor(machine, state, updatesHubStatus)
+        return queued ? [queued] : []
+      }),
+    [machines, updatesHubStatus, now],
+  )
 
   const currentApk = updatesHubStatus?.currentApk ?? null
   const currentApkRolledBack = currentApk ? (updatesHubStatus?.rolledBackRuntimeVersions.includes(currentApk.runtimeVersion) ?? false) : false
+
+  /** Builds the update section for one machine's details sheet — `null` for a display with no resolvable update state at all (every `electron`/`url` display, and any machine before the hub status has loaded). */
+  const buildUpdatePanel = (machine: DisplayMachine): DisplayUpdatePanel | null => {
+    if (machine.connectionType !== 'mobile') return null
+    const progressEntry = updateProgress.find((entry) => entry.machineID === machine.machineID)
+    if (progressEntry) {
+      const failed = progressEntry.status === 'update-failed'
+      return {
+        stateText: t(progressLabelId(progressEntry.status)),
+        capabilityNote: null,
+        busy: !failed,
+        failedText: failed ? t('admin.displayManager.updateFailedHint') : null,
+        onDismissFailure: failed ? () => dismissUpdateEntry(machine.machineID) : undefined,
+      }
+    }
+    const state = resolveDisplayUpdateState(machine, updatesHubStatus, now)
+    if (!state) return null
+    const { labelId, capabilityNoteId } = updateStateCopy(state)
+    const queuedUpdate = queuedUpdateFor(machine, state, updatesHubStatus)
+    return {
+      stateText: t(labelId),
+      capabilityNote: capabilityNoteId ? t(capabilityNoteId) : null,
+      busy: false,
+      failedText: null,
+      onUpdate: queuedUpdate ? () => startUpdatesFor([queuedUpdate]) : undefined,
+    }
+  }
+
+  const openMachine = openMachineId ? (machines.find((machine) => machine.machineID === openMachineId) ?? null) : null
+  const openMachineOverride = openMachine ? screenOverrides.find((entry) => entry.machineID === openMachine.machineID) : undefined
 
   return (
     <div className="display-manager-view">
@@ -362,6 +409,10 @@ export function DisplayManagerView() {
       </button>
 
       <div className="display-manager-view__update-actions">
+        {/* Without a published APK the hub has nothing to compare a display against, so every update
+            control below would silently render nothing at all. Say so instead — a fresh install has
+            no bundles and no APK, and an empty section reads as "no updates needed". */}
+        {!currentApk && <p className="display-manager-view__no-build">{t('admin.displayManager.noPublishedBuild')}</p>}
         {currentApk && actionableEntries.length > 0 &&
           (bulkRunning ? (
             <Button type="button" variant="secondary" onClick={abortBulkUpdate}>
@@ -369,7 +420,7 @@ export function DisplayManagerView() {
             </Button>
           ) : (
             <Button type="button" onClick={() => startBulkUpdate(actionableEntries)}>
-              {t('admin.displayManager.updateAllButton')}
+              {t('admin.displayManager.updateAllButton', { count: actionableEntries.length })}
             </Button>
           ))}
         {currentApk && (
@@ -400,28 +451,24 @@ export function DisplayManagerView() {
           <h2 className="display-manager-view__pending-title">{t('admin.displayManager.pendingSectionTitle')}</h2>
           {approveNotice && <Alert variant="success">{approveNotice}</Alert>}
           {approveError && <Alert variant="error">{approveError}</Alert>}
-          <div className="display-manager-view__pending-cards">
-            {pairingRequests.map((request) => (
+          <div className="display-manager-view__grid">
+            {pairingRequests.map((request) => {
+              const pendingDot = connectionStatusDot(resolveDisplayConnectionStatus(request.lastSeenAt, now))
+              return (
               <Card key={request.machineID} ref={registerPendingRef(request.machineID)} className="display-manager-view__pending-card">
                 <div className="display-manager-view__pending-card-header">
+                  <StatusDot status={pendingDot.dot} label={t(pendingDot.labelId)} />
                   <span className="display-manager-view__pending-label">{request.label}</span>
                   <span className="display-manager-view__id-suffix">#{request.machineID.slice(-4)}</span>
                 </div>
-                <span className="display-manager-view__badge display-manager-view__badge--pending">
-                  {t('admin.displayManager.pendingBadge')}
-                </span>
-                <p className="display-manager-view__last-seen">
-                  {t('admin.displayManager.lastSeen', { date: new Date(request.lastSeenAt).toLocaleString() })}
-                </p>
-                <Button
-                  type="button"
-                  onClick={() => void handleApprove(request.machineID)}
-                  disabled={approvingMachineId === request.machineID}
-                >
+                <Badge variant="warning">{t('admin.displayManager.pendingBadge')}</Badge>
+                <p className="display-manager-view__last-seen">{t('admin.displayManager.lastSeen', { date: formatTimestamp(request.lastSeenAt) })}</p>
+                <Button type="button" onClick={() => void handleApprove(request.machineID)} disabled={approvingMachineId === request.machineID}>
                   {t('admin.displayManager.approveButton')}
                 </Button>
               </Card>
-            ))}
+              )
+            })}
           </div>
         </section>
       )}
@@ -429,154 +476,51 @@ export function DisplayManagerView() {
       {machines.length === 0 ? (
         <p className="display-manager-view__empty">{t('admin.displayManager.empty')}</p>
       ) : (
-        <div className="display-manager-view__machines">
-          {machines.map((machine) => (
-            <Card key={machine.machineID} ref={registerMachineRef(machine.machineID)}>
-              <div className="display-manager-view__machine-header">
-                <Input
-                  id={`machine-label-${machine.machineID}`}
-                  value={machine.customLabel ?? machine.label}
-                  onChange={(event) => handleLabelChange(machine.machineID, event.target.value)}
-                />
-                <span className={`display-manager-view__badge display-manager-view__badge--${machine.connectionType}`}>
-                  {t(connectionBadgeId(machine.connectionType))}
-                </span>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="display-manager-view__remove-button"
-                  onClick={() => handleRemove(machine.machineID)}
-                  aria-label={t('admin.common.delete')}
-                  title={t('admin.common.delete')}
-                >
-                  <CloseIcon />
-                </Button>
-              </div>
-              <p className="display-manager-view__last-seen">{t('admin.displayManager.lastSeen', { date: new Date(machine.lastSeenAt).toLocaleString() })}</p>
-              {machine.connectionType === 'mobile' && (
-                <p className="display-manager-view__version-row">
-                  <span className="display-manager-view__version-text">
-                    {machine.versionName ? t('admin.displayManager.versionLabel', { versionName: machine.versionName }) : t('admin.displayManager.versionUnknown')}
-                  </span>
-                  {(() => {
-                    const tierBadge = updateTierBadge(machine.updateTier)
-                    return tierBadge && <Badge variant={tierBadge.variant}>{t(tierBadge.labelId)}</Badge>
-                  })()}
-                  {(() => {
-                    // A pending progress entry (this machine's own update in flight, or recently
-                    // failed) takes over the badge slot entirely — the resolved state underneath it
-                    // is stale by definition until the entry clears (see mergeDisplayMachineHeartbeat).
-                    const progressEntry = updateProgress.find((entry) => entry.machineID === machine.machineID)
-                    if (progressEntry) {
-                      return (
-                        <>
-                          {progressEntry.status !== 'update-failed' && <Spinner size="sm" />}
-                          <Badge variant={progressEntry.status === 'update-failed' ? 'error' : 'info'}>{t(progressLabelId(progressEntry.status))}</Badge>
-                        </>
-                      )
-                    }
-                    const state = resolveDisplayUpdateState(machine, updatesHubStatus)
-                    if (!state) return null
-                    const { variant, labelId } = updateStateBadge(state)
-                    const queuedUpdate = queuedUpdateFor(machine, state, updatesHubStatus)
-                    return (
-                      <>
-                        <Badge variant={variant}>{t(labelId)}</Badge>
-                        {queuedUpdate && (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            className="display-manager-view__update-button"
-                            onClick={() => startUpdatesFor([queuedUpdate])}
-                          >
-                            {t('admin.displayManager.updateButton')}
-                          </Button>
-                        )}
-                      </>
-                    )
-                  })()}
-                </p>
-              )}
-              <ul className="display-manager-view__monitors">
-                {machine.monitors.map((monitor) => (
-                  <li key={monitor.id} className="display-manager-view__monitor">
-                    <span className="display-manager-view__monitor-label">{monitor.label}</span>
-                    <select
-                      className="display-manager-view__monitor-select"
-                      value={monitor.assignedScreenID ?? ''}
-                      onChange={(event) => handleAssign(machine.machineID, monitor.id, event.target.value)}
-                    >
-                      <option value="">{t('admin.displayManager.unassignedOption')}</option>
-                      {screens.map((screen) => (
-                        <option key={screen.screenID} value={screen.screenID}>
-                          {screen.name}
-                        </option>
-                      ))}
-                    </select>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="display-manager-view__image-cap">
-                <label className="display-manager-view__image-cap-label" htmlFor={`machine-max-image-${machine.machineID}`}>
-                  {t('admin.displayManager.maxImagePxLabel')}
-                </label>
-                <select
-                  id={`machine-max-image-${machine.machineID}`}
-                  className="display-manager-view__monitor-select"
-                  value={String(machine.maxImagePx ?? 'auto')}
-                  onChange={(event) => handleMaxImagePxChange(machine.machineID, event.target.value)}
-                >
-                  {DISPLAY_MAX_IMAGE_PX_OPTIONS.map((option) => (
-                    <option key={String(option)} value={String(option)}>
-                      {option === 'auto' ? t('admin.displayManager.maxImagePxAuto') : t('admin.displayManager.maxImagePxValue', { px: String(option) })}
-                    </option>
-                  ))}
-                </select>
-                <p className="display-manager-view__image-cap-hint">{t('admin.displayManager.maxImagePxHint')}</p>
-              </div>
-
-              <div className="display-manager-view__image-cap">
-                <label className="display-manager-view__image-cap-label" htmlFor={`machine-render-width-${machine.machineID}`}>
-                  {t('admin.displayManager.renderWidthLabel')}
-                </label>
-                <select
-                  id={`machine-render-width-${machine.machineID}`}
-                  className="display-manager-view__monitor-select"
-                  value={String(machine.renderWidthPx ?? 'auto')}
-                  onChange={(event) => handleRenderWidthPxChange(machine.machineID, event.target.value)}
-                >
-                  {DISPLAY_RENDER_WIDTH_OPTIONS.map((option) => (
-                    <option key={String(option)} value={String(option)}>
-                      {option === 'auto' ? t('admin.displayManager.renderWidthAuto') : t(`admin.displayManager.renderWidth${option}`)}
-                    </option>
-                  ))}
-                </select>
-                <p className="display-manager-view__image-cap-hint">{t('admin.displayManager.renderWidthHint')}</p>
-              </div>
-              {machine.connectionType === 'mobile' &&
-                (() => {
-                  const override = screenOverrides.find((entry) => entry.machineID === machine.machineID)
-                  if (!override) return null
-                  const screenName = screens.find((screen) => screen.screenID === override.screenId)?.name ?? override.screenId
-                  return (
-                    <div className="display-manager-view__override-row">
-                      <div className="display-manager-view__override-summary">
-                        <Badge variant="warning">{t('admin.displayManager.overriddenBadge')}</Badge>
-                        <span className="display-manager-view__override-text">
-                          {t('admin.displayManager.overriddenTo', { screenName, date: new Date(override.setAt).toLocaleString() })}
-                        </span>
-                      </div>
-                      <p className="display-manager-view__override-hint">{t('admin.displayManager.overriddenHint')}</p>
-                      <Button type="button" variant="secondary" onClick={() => handleReturnToAssigned(machine.machineID)}>
-                        {t('admin.displayManager.returnToAssignedButton')}
-                      </Button>
-                    </div>
-                  )
-                })()}
-            </Card>
-          ))}
+        <div className="display-manager-view__grid">
+          {machines.map((machine) => {
+            const connectionStatus = resolveDisplayConnectionStatus(machine.lastSeenAt, now)
+            const firstMonitor = machine.monitors[0]
+            const updatePanel = buildUpdatePanel(machine)
+            return (
+              <DisplayCard
+                key={machine.machineID}
+                ref={registerMachineRef(machine.machineID)}
+                machine={machine}
+                connectionStatus={connectionStatus}
+                displayedScreen={firstMonitor ? resolveDisplayedScreen(machine, firstMonitor, screens, screenOverrides) : null}
+                lastSeenText={formatTimestamp(machine.lastSeenAt)}
+                updateStateText={updatePanel?.stateText ?? null}
+                onOpenDetails={() => setOpenMachineId(machine.machineID)}
+              />
+            )
+          })}
         </div>
+      )}
+
+      {openMachine && (
+        <DisplayDetailsModal
+          machine={openMachine}
+          screens={screens}
+          overrides={screenOverrides}
+          connectionStatus={resolveDisplayConnectionStatus(openMachine.lastSeenAt, now)}
+          lastSeenText={formatTimestamp(openMachine.lastSeenAt)}
+          overrideSetAtText={openMachineOverride ? formatTimestamp(openMachineOverride.setAt) : null}
+          versionText={
+            openMachine.connectionType === 'mobile'
+              ? openMachine.versionName
+                ? t('admin.displayManager.versionLabel', { versionName: openMachine.versionName })
+                : t('admin.displayManager.versionUnknown')
+              : null
+          }
+          updatePanel={buildUpdatePanel(openMachine)}
+          onClose={() => setOpenMachineId(null)}
+          onLabelChange={(customLabel) => handleLabelChange(openMachine.machineID, customLabel)}
+          onAssign={(monitorId, screenId) => handleAssign(openMachine.machineID, monitorId, screenId)}
+          onMaxImagePxChange={(value) => handleMaxImagePxChange(openMachine.machineID, value)}
+          onRenderWidthPxChange={(value) => handleRenderWidthPxChange(openMachine.machineID, value)}
+          onReturnToAssigned={() => handleReturnToAssigned(openMachine.machineID)}
+          onRemove={() => handleRemove(openMachine.machineID)}
+        />
       )}
     </div>
   )

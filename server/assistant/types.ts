@@ -71,7 +71,7 @@ export interface AssistantFillContext {
  * One manageable "thing" the assistant can operate on. Adding a new entity to
  * the assistant means writing one new file implementing this contract and
  * registering it in `registry.ts` — the state machine, the HTTP routes, and
- * the confirmation UI never need to change. See this repo's CLAUDE.md for the
+ * the confirmation UI never need to change. See the `assistant-entities` skill for the
  * rule that keeps this registry in sync with new dashboard functionality.
  */
 export interface AssistantEntity<TDraft> {

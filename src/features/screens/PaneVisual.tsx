@@ -43,7 +43,7 @@ interface PaneVisualProps {
  * render (one instance per active crossfade slot, up to two at once) **and** every assistant preview
  * (the candidate list's own thumbnails, the before/after review) — extracted so the two can never
  * visually drift apart, same reasoning `PaneEditor.tsx` is already shared between the two admin
- * editors (see this repo's CLAUDE.md).
+ * editors (see the `screens` skill).
  *
  * Deliberately does **not** render its own `<style>` tag at all — the scoped CSS a `customCss` value
  * produces (`scopePaneCustomCss`/`usePaneCustomContent`) is the *caller's* responsibility to render as

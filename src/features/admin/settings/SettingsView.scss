@@ -39,11 +39,6 @@
   }
 }
 
-.settings-view__pane-language-hint {
-  color: $color-text-muted;
-  font-size: 0.875rem;
-}
-
 .settings-view__pane-language-options {
   display: flex;
   gap: $spacing-unit;
@@ -141,12 +136,6 @@
     background: $color-accent;
     color: $color-bg;
   }
-}
-
-.settings-view__sidebar-items-hint {
-  margin: 0 0 $spacing-unit;
-  color: $color-text-muted;
-  font-size: 0.875rem;
 }
 
 .settings-view__sidebar-items {

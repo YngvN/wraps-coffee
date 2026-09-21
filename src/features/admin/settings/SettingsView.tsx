@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { BackButton, Card, Checkbox, NavRowList, NumberInput, SlideTransition, TranslatedText, type NavRowItem } from '../../../components'
+import { BackButton, Card, Checkbox, HelpTip, type NavRowItem, NavRowList, NumberInput, SlideTransition, TranslatedText } from '../../../components'
 import { availableLanguages, useLanguage } from '../../../i18n'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useClockFormatPreference, type ClockFormat } from '../../../hooks/useClockFormatPreference'
@@ -193,8 +193,13 @@ export function SettingsView() {
               ))}
             </div>
           </Card>
-          <Card title={t('admin.settings.paneLanguageLabel')}>
-            <p className="settings-view__pane-language-hint">{t('admin.settings.paneLanguageHint')}</p>
+          <Card
+            title={
+              <>
+                {t('admin.settings.paneLanguageLabel')} <HelpTip text={t('admin.settings.paneLanguageHint')} />
+              </>
+            }
+          >
             <div className="settings-view__pane-language-options">
               {availableLanguages.map((option) => (
                 <button
@@ -236,8 +241,13 @@ export function SettingsView() {
               ))}
             </div>
           </Card>
-          <Card title={t('admin.settings.sidebarItemsTitle')}>
-            <p className="settings-view__sidebar-items-hint">{t('admin.settings.sidebarItemsHint')}</p>
+          <Card
+            title={
+              <>
+                {t('admin.settings.sidebarItemsTitle')} <HelpTip text={t('admin.settings.sidebarItemsHint')} />
+              </>
+            }
+          >
             <ul className="settings-view__sidebar-items">
               {toggleableItems.map((item) => {
                 const NavIcon = ADMIN_NAV_ICONS[item.to]
@@ -256,8 +266,13 @@ export function SettingsView() {
               })}
             </ul>
           </Card>
-          <Card title={t('admin.settings.dashboardScreensaver.title')}>
-            <p className="settings-view__developers-hint">{t('admin.settings.dashboardScreensaver.hint')}</p>
+          <Card
+            title={
+              <>
+                {t('admin.settings.dashboardScreensaver.title')} <HelpTip text={t('admin.settings.dashboardScreensaver.hint')} />
+              </>
+            }
+          >
             <Checkbox
               id="dashboard-screensaver-enabled"
               label={t('admin.settings.dashboardScreensaver.enableLabel')}

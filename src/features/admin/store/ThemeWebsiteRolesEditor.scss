@@ -11,12 +11,6 @@
   font-size: 1rem;
 }
 
-.theme-website-roles__hint {
-  margin: 0;
-  color: $color-text-muted;
-  font-size: 0.875rem;
-}
-
 .theme-website-roles__list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));

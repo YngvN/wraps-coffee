@@ -83,7 +83,7 @@ interface ScreenFields {
  * `editingFocus`, `screensaverTestActive`, or `draft`, all of which are only
  * ever meaningfully edited via `ScreenDisplay.tsx`'s own in-place pane
  * editor at `/screens/editor/:screenId`, deliberately out of scope for this
- * entity (see this repo's CLAUDE.md "Screens feature: two editors" section).
+ * entity (see the `screens` skill).
  * On `create`, those excluded fields get a minimal valid default (a single
  * leaf pane showing a live clock) rather than being left structurally
  * invalid. "Duplicate" is intentionally not offered as its own action — not

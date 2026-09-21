@@ -2427,10 +2427,11 @@ function reconcileStockForOrders(previousOrders: OrderRecord[], incomingOrders: 
  * forcing every future fix (however small) through a full native rebuild.
  * Only surfaced once a real Tier 2/3 device existed to hit it.
  */
-function pushUpdateTriggersForNewEntries(previous: DisplayUpdateProgress[], incoming: DisplayUpdateProgress[]) {
+function pushUpdateTriggersForNewEntries(previous: DisplayUpdateProgress[], incoming: DisplayUpdateProgress[]): DisplayUpdateProgress[] {
   const previousByMachineID = new Map(previous.map((entry) => [entry.machineID, entry]))
   const machines = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
   const machinesByID = new Map(machines.map((machine) => [machine.machineID, machine]))
+  const undeliverable = new Set<string>()
   for (const entry of incoming) {
     const before = previousByMachineID.get(entry.machineID)
     const isNewRun =
@@ -2439,8 +2440,17 @@ function pushUpdateTriggersForNewEntries(previous: DisplayUpdateProgress[], inco
     const updateTier = machinesByID.get(entry.machineID)?.updateTier
     const message: DeviceServerMessage =
       entry.targetVersionCode !== undefined && (updateTier === 2 || updateTier === 3) ? { type: 'install-update', mechanism: 'apk' } : { type: 'check-update' }
-    pushToDevice(entry.machineID, message)
+    if (!pushToDevice(entry.machineID, message)) undeliverable.add(entry.machineID)
   }
+  // A device with no open socket will never act on this run, so there is nothing to wait for: mark it
+  // failed now rather than letting `startUpdateFailureSweep` discover it up to
+  // `UPDATE_FAILURE_TIMEOUT_MS` (10 minutes) later, which is a long time to watch a spinner that was
+  // never going to resolve. Returned as a rewritten `value` for the caller to persist rather than
+  // written with its own `applyUpdate` call: this runs in `applyUpdate`'s *pre-write* phase, so a
+  // nested call would both recurse and read the pre-write state (see `admin.products` for the same
+  // rewrite-`value` pattern).
+  if (undeliverable.size === 0) return incoming
+  return incoming.map((entry) => (undeliverable.has(entry.machineID) ? { ...entry, status: 'update-failed' as const } : entry))
 }
 
 /** Default 10 minutes (Update Channel spec §3.4) — a pending update run older than this without its own device reporting the expected `updateId` back gets marked `update-failed`, surfaced in Display Manager. No automatic retry: a device that failed to update and then failed to come back needs a human, not a retry loop running unattended on a wall-mounted screen. */
@@ -2630,7 +2640,9 @@ function applyUpdate(key: SyncedKey, value: unknown) {
     reconcileStockForOrders((store.get('admin.orders')?.value as OrderRecord[] | undefined) ?? [], value as OrderRecord[])
   }
   if (key === 'admin.displayUpdateState') {
-    pushUpdateTriggersForNewEntries((store.get('admin.displayUpdateState')?.value as DisplayUpdateProgress[] | undefined) ?? [], value as DisplayUpdateProgress[])
+    // Rewrites `value`: an entry whose device had no open socket comes back already marked
+    // `update-failed`, so the write that triggered the push also persists its immediate failure.
+    value = pushUpdateTriggersForNewEntries((store.get('admin.displayUpdateState')?.value as DisplayUpdateProgress[] | undefined) ?? [], value as DisplayUpdateProgress[])
   }
   if (key === 'admin.products') {
     // Kept current on every write (both a real client edit and a Neon-bridge

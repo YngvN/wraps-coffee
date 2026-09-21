@@ -65,7 +65,7 @@ export function useBulkUpdateRunner(progress: DisplayUpdateProgress[], startUpda
       // still-present `update-failed` DisplayUpdateProgress entry) stays visible; this only stops
       // the *queue* from advancing to further batches. `queueMicrotask` here, not a plain
       // synchronous call, per this codebase's own `react-hooks/set-state-in-effect` rule (see
-      // CLAUDE.md's "Deep-linkable admin views" section for the same fix elsewhere).
+      // the `admin-deep-links` skill for the same fix elsewhere).
       queueMicrotask(() => setState((current) => (current ? { queue: [], currentBatch: [], failed: [...current.failed, ...justFailed] } : current)))
       return
     }

@@ -22,9 +22,3 @@
   gap: $spacing-unit;
   max-width: var(--admin-field-max-width);
 }
-
-.store-settings-view__hint {
-  margin: 0 0 $spacing-unit;
-  color: $color-text-muted;
-  font-size: 0.875rem;
-}

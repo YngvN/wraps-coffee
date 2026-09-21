@@ -5,7 +5,7 @@ import { useLanguage } from '../../../i18n'
 import { getDeveloperKey, regenerateDeveloperKey } from '../../../lib/localServer'
 import './DeveloperDocsView.scss'
 
-/** Every `SYNCED_KEY` (see `src/types/sync.ts`) paired with its own one-line description key — kept in sync with that list by hand; see CLAUDE.md's "Keep docs in sync" rule. */
+/** Every `SYNCED_KEY` (see `src/types/sync.ts`) paired with its own one-line description key — kept in sync with that list by hand; see the `keep-in-sync` skill. */
 const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.products', descKey: 'admin.settings.developerDocs.keyProducts' },
   { key: 'admin.categoryPrices', descKey: 'admin.settings.developerDocs.keyCategoryPrices' },
@@ -45,7 +45,7 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
  * kiosk not built with this codebase) would need to read or write this
  * cafe's own data. Purely static content (no live requests made from this
  * page itself); kept accurate by hand against `server/index.ts` and
- * `src/types/sync.ts` — see CLAUDE.md's "Keep docs in sync" rule, which
+ * `src/types/sync.ts` — see the `keep-in-sync` skill, which
  * exists specifically so future endpoint/key changes update this page too.
  */
 export function DeveloperDocsView() {

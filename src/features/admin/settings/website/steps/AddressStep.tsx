@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Input } from '../../../../../components'
+import { HelpTip, Input } from '../../../../../components'
 import { useLanguage } from '../../../../../i18n'
 import { SetupStep } from '../SetupStep'
 
@@ -43,7 +43,9 @@ export function AddressStep({ stepNumber, stepCount, savedUrl, isSaving, saveWeb
       nextLabel={draft.trim() ? undefined : t('admin.settings.website.address.skip')}
     >
       <label className="setup-step__field">
-        <span>{t('admin.settings.website.address.inputLabel')}</span>
+        <span>
+          {t('admin.settings.website.address.inputLabel')} <HelpTip text={t('admin.settings.website.address.optional')} />
+        </span>
         <Input
           type="url"
           value={draft}
@@ -52,8 +54,6 @@ export function AddressStep({ stepNumber, stepCount, savedUrl, isSaving, saveWeb
           onChange={(event) => setDraft(event.target.value)}
         />
       </label>
-
-      <p className="setup-step__hint">{t('admin.settings.website.address.optional')}</p>
     </SetupStep>
   )
 }

@@ -1,0 +1,87 @@
+@use '../styles/variables' as *;
+
+.help-tip {
+  display: inline-flex;
+  vertical-align: middle;
+
+  &__trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.125rem;
+    height: 1.125rem;
+    padding: 0;
+    border: 1px solid $color-border;
+    border-radius: 50%;
+    background: transparent;
+    color: $color-text-muted;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: help;
+    transition:
+      color 0.15s ease,
+      border-color 0.15s ease,
+      background-color 0.15s ease;
+
+    // Hover-only styling stays behind `hover: hover` so a tap on a touch
+    // screen doesn't leave the trigger looking permanently highlighted.
+    @media (hover: hover) {
+      &:hover {
+        border-color: $color-accent;
+        background: $color-surface-hover;
+        color: $color-accent;
+      }
+    }
+
+    &:focus-visible {
+      outline: 2px solid $color-accent;
+      outline-offset: 2px;
+    }
+
+    &:active {
+      box-shadow: inset 0 2px 4px $color-shadow;
+    }
+  }
+
+  &__bubble {
+    position: fixed;
+    z-index: 1000;
+    max-width: 260px;
+    padding: calc($spacing-unit / 1.5) $spacing-unit;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    background: $color-surface-raised;
+    color: $color-text;
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.4;
+    text-align: left;
+    white-space: normal;
+    // Purely informational, and dismissed by any pointer-down elsewhere —
+    // so it must never swallow a click meant for the control underneath it.
+    pointer-events: none;
+    box-shadow: 0 4px 12px $color-shadow;
+    animation: help-tip-fade-in 0.12s ease-out;
+  }
+}
+
+@keyframes help-tip-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Respect a user's reduced-motion preference — the bubble still appears, just
+// without the small slide.
+@media (prefers-reduced-motion: reduce) {
+  .help-tip__bubble {
+    animation: none;
+  }
+}

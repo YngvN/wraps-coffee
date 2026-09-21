@@ -125,7 +125,8 @@ export function useWeatherForecast(lat: number | undefined, lon: number | undefi
     // Deferred by a microtask rather than called straight from the effect
     // body — a synchronous `setState` there trips this codebase's own
     // `react-hooks/set-state-in-effect` rule (same reasoning, and the same
-    // fix, as the deep-linkable admin views documented in CLAUDE.md). Still
+    // fix, as the deep-linkable admin views the `admin-deep-links` skill
+    // documents). Still
     // lands before the browser paints, so the cached forecast shows up on the
     // same frame either way; only the ref write above has to stay synchronous,
     // since `refresh` below closes over it immediately.

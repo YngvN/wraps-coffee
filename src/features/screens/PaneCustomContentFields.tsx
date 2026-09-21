@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, CollapsibleSection, Textarea } from '../../components'
+import { Button, CollapsibleSection, HelpTip, Textarea } from '../../components'
 import { useLanguage } from '../../i18n'
 import { MAX_PANE_CUSTOM_CSS_LENGTH, MAX_PANE_CUSTOM_HTML_LENGTH } from '../../types/screen'
 import { listAllowedCssProperties, validatePaneCustomCss } from '../../utils/paneCustomCss'
@@ -23,8 +23,8 @@ function useLiveValidation(value: string | undefined, validate: (value: string) 
   const [problems, setProblems] = useState<string[]>([])
   useEffect(() => {
     // Always scheduled via the timer, even for an empty `value` — never a synchronous `setState`
-    // directly in the effect body (this codebase's own lint rule; see CLAUDE.md's "Deep-linkable
-    // admin views" section for the same rule hit elsewhere).
+    // directly in the effect body (this codebase's own lint rule; see the `admin-deep-links`
+    // skill for the same rule hit elsewhere).
     const timer = setTimeout(() => setProblems(value ? validate(value) : []), VALIDATION_DEBOUNCE_MS)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `validate` is one of the two stable module-level functions passed in by this file's own two call sites below, never a fresh closure worth re-triggering on
@@ -88,7 +88,9 @@ export function PaneCustomContentFields({ customCss, onCustomCssChange, customHt
           <p className="pane-custom-content-fields__hint">{t('admin.screens.paneCustomContent.htmlHint', { tags: listAllowedHtmlTags('admin').join(', ') })}</p>
           <p className="pane-custom-content-fields__hint">{t('admin.screens.paneCustomContent.htmlNotTranslatedHint')}</p>
           <div className="pane-custom-content-fields__placement">
-            <span>{t('admin.screens.paneCustomContent.placementLabel')}</span>
+            <span>
+              {t('admin.screens.paneCustomContent.placementLabel')} <HelpTip text={t('admin.screens.paneCustomContent.placementHint')} />
+            </span>
             <div className="pane-custom-content-fields__placement-buttons">
               <Button type="button" variant={customHtmlPlacement !== 'before' ? 'primary' : 'secondary'} onClick={() => onCustomHtmlPlacementChange('after')}>
                 {t('admin.screens.paneCustomContent.placementAfter')}
@@ -98,7 +100,6 @@ export function PaneCustomContentFields({ customCss, onCustomCssChange, customHt
               </Button>
             </div>
           </div>
-          <p className="pane-custom-content-fields__hint">{t('admin.screens.paneCustomContent.placementHint')}</p>
           <Textarea
             id="pane-custom-html"
             value={customHtml ?? ''}

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { Input, PlusIcon, TrashIcon } from '../../components'
+import { HelpTip, Input, PlusIcon, TrashIcon } from '../../components'
 import { useLanguage } from '../../i18n'
 import { generateId } from '../../utils/id'
 import './TransitLineColorListEditor.scss'
@@ -38,8 +38,9 @@ export function TransitLineColorListEditor({ colors, onChange }: TransitLineColo
 
   return (
     <div className="transit-line-color-list-editor">
-      <span className="transit-line-color-list-editor__label">{t('admin.screens.transitLineColorsLabel')}</span>
-      <p className="transit-line-color-list-editor__hint">{t('admin.screens.transitLineColorsHint')}</p>
+      <span className="transit-line-color-list-editor__label">
+        {t('admin.screens.transitLineColorsLabel')} <HelpTip text={t('admin.screens.transitLineColorsHint')} />
+      </span>
 
       <ul className="transit-line-color-list-editor__list">
         <AnimatePresence initial={false}>

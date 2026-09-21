@@ -1,13 +1,5 @@
 import type { DisplayMachine } from '../types/displayMachine'
-
-/**
- * A display is considered offline once its last heartbeat is older than
- * this — 4.5x the companion app's own 20s heartbeat interval (see
- * `HEARTBEAT_INTERVAL_MS` in `adhdisplay-companion/App.tsx`), generous
- * enough to absorb one or two missed beats from a flaky LAN without
- * flapping the badge.
- */
-const OFFLINE_THRESHOLD_MS = 90_000
+import { resolveDisplayConnectionStatus } from './displayConnection'
 
 export type DisplayUpdateState = 'current' | 'ota-available' | 'apk-available' | 'apk-prompted' | 'usb-required' | 'unknown' | 'offline'
 
@@ -28,23 +20,28 @@ export interface UpdatesHubStatus {
  * it, and this function has no server-only dependencies (no filesystem, no
  * secrets) that would force a round-trip.
  *
- * `null` means "nothing to show yet," not "current." A machine can resolve
- * to `null` for a few separate, deliberate reasons: no `hubStatus` at all
- * (the caller hasn't fetched it yet), nothing published for this machine's
- * own `runtimeVersion` yet, or — for a native-stale, Tier-1 machine
- * specifically — `usb-required` needing a floor `versionCode` marking the
- * first update-channel-capable release, which genuinely can't be hardcoded
- * yet: it's only knowable once a real first release actually ships with a
- * real version number, and guessing one would violate the same "fail
- * visible" rule that keeps `unknown` from ever collapsing into `current`.
- * `apk-available`/`apk-prompted` (Tier 2/3) don't have this problem — a
- * device that reports `updateTier` 2 or 3 at all necessarily already has
- * commit 7's own code, so there's no equivalent "which build first had
- * this" ambiguity to resolve.
+ * `null` means "nothing to show yet," not "current." A machine resolves to
+ * `null` for two deliberate reasons: no `hubStatus` at all (the caller
+ * hasn't fetched it yet), or nothing published for this machine's own
+ * `runtimeVersion` yet.
+ *
+ * A native-stale machine that reports `updateTier: 1` resolves to
+ * `usb-required` — it can't install an APK by any remote mechanism, so a
+ * service visit is genuinely the only route and saying so is more useful
+ * than showing nothing. This used to return `null` instead, on the grounds
+ * that telling a Tier 1 device apart from a pre-Update-Channel one needed a
+ * floor `versionCode` marking the first update-channel-capable release. It
+ * doesn't: a device that reports a tier *at all* is already running
+ * update-channel code, which is the same argument that already justified
+ * trusting `updateTier` 2 and 3. Only a machine that has never reported a
+ * tier (`undefined`) stays `null`, since that genuinely is unknowable.
  */
-export function resolveDisplayUpdateState(machine: DisplayMachine, hubStatus?: UpdatesHubStatus | null): DisplayUpdateState | null {
-  const lastSeenMs = new Date(machine.lastSeenAt).getTime()
-  if (!Number.isFinite(lastSeenMs) || Date.now() - lastSeenMs > OFFLINE_THRESHOLD_MS) return 'offline'
+export function resolveDisplayUpdateState(machine: DisplayMachine, hubStatus?: UpdatesHubStatus | null, now?: number): DisplayUpdateState | null {
+  // Anything short of a live heartbeat counts as offline for update purposes — pushing an update at
+  // a display that isn't listening can only fail. The finer `reconnecting`/`never` grades this
+  // resolver collapses here are still shown separately by the connection dot (see
+  // `resolveDisplayConnectionStatus`), which is the single owner of the staleness thresholds.
+  if (resolveDisplayConnectionStatus(machine.lastSeenAt, now) !== 'online') return 'offline'
   if (machine.versionCode === undefined) return 'unknown'
   if (!hubStatus?.currentApk) return null
 
@@ -52,7 +49,8 @@ export function resolveDisplayUpdateState(machine: DisplayMachine, hubStatus?: U
   if (!nativeCurrent) {
     if (machine.updateTier === 2) return 'apk-available'
     if (machine.updateTier === 3) return 'apk-prompted'
-    return null // usb-required — see this function's own doc comment
+    if (machine.updateTier === 1) return 'usb-required'
+    return null // never reported a tier at all — see this function's own doc comment
   }
 
   const currentUpdateId = machine.runtimeVersion ? hubStatus.currentUpdateIdByRuntimeVersion[machine.runtimeVersion] : undefined

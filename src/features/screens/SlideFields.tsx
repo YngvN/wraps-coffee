@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Checkbox, CollapsibleSection, ImageUploadField, Input, NumberInput, Textarea } from '../../components'
+import { Button, Checkbox, CollapsibleSection, HelpTip, ImageUploadField, Input, NumberInput, Textarea } from '../../components'
 import { useCatalogues } from '../../hooks/useCatalogues'
 import { useEvents } from '../../hooks/useEvents'
 import { useIntegrationsConfig } from '../../hooks/useIntegrationsConfig'
@@ -675,18 +675,24 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
           )}
           <Checkbox
             id={`${id}-video-advance-stage-on-end`}
-            label={t('admin.screens.videoAdvanceStageOnEndLabel')}
+            label={
+              <>
+                {t('admin.screens.videoAdvanceStageOnEndLabel')} <HelpTip text={t('admin.screens.videoAdvanceStageOnEndHint')} />
+              </>
+            }
             checked={Boolean(content.advanceStageOnEnd)}
             onChange={(event) => setVideoAdvanceStageOnEnd(event.target.checked)}
           />
-          {content.advanceStageOnEnd && <p className="slide-fields__hint">{t('admin.screens.videoAdvanceStageOnEndHint')}</p>}
           <Checkbox
             id={`${id}-video-restart-on-stage-one`}
-            label={t('admin.screens.videoRestartOnStageOneLabel')}
+            label={
+              <>
+                {t('admin.screens.videoRestartOnStageOneLabel')} <HelpTip text={t('admin.screens.videoRestartOnStageOneHint')} />
+              </>
+            }
             checked={Boolean(content.restartOnStageOne)}
             onChange={(event) => setVideoRestartOnStageOne(event.target.checked)}
           />
-          {content.restartOnStageOne && <p className="slide-fields__hint">{t('admin.screens.videoRestartOnStageOneHint')}</p>}
 
           {content.videoUrl && (
             <div className="slide-fields__preview">

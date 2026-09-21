@@ -1,0 +1,100 @@
+@use '../../../styles/mixins' as *;
+@use '../../../styles/variables' as *;
+
+// The card itself is a plain container; `.display-card__hit` below is the
+// actual button covering it (see the component for why). Hover/pressed
+// states therefore key off that overlay's own state rather than the card's.
+.display-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow: hidden;
+  color: $color-text;
+  @include surface('raised', $radius-lg);
+
+  @media (hover: hover) {
+    &:has(.display-card__hit:hover) {
+      background: $color-surface-hover;
+    }
+  }
+
+  &:has(.display-card__hit:active) {
+    box-shadow: inset 0 2px 4px $color-shadow;
+  }
+}
+
+// Transparent overlay covering the whole card. Sits above the content so it
+// catches every click, but carries no visuals of its own beyond the focus
+// ring, which is drawn inset so it isn't clipped by the card's own overflow.
+.display-card__hit {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: $radius-lg;
+  background: none;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid $color-accent;
+    outline-offset: -2px;
+  }
+}
+
+// Fixed height so cards of differently-shaped screens stay the same size —
+// `ScaledScreenPreview`'s own `fit="contain"` letterboxes into this box.
+.display-card__preview {
+  position: relative;
+  display: block;
+  height: 140px;
+}
+
+// "+2" when a machine drives more monitors than the one previewed here; the
+// rest are shown individually in the details modal.
+.display-card__monitor-count {
+  position: absolute;
+  right: calc($spacing-unit / 2);
+  bottom: calc($spacing-unit / 2);
+  padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
+  border-radius: 999px;
+  background: $color-bg;
+  color: $color-text-muted;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.display-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+  padding: $spacing-unit;
+}
+
+.display-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+}
+
+.display-card__name {
+  flex: 1;
+  overflow: hidden;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.display-card__screen {
+  overflow: hidden;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.display-card__meta,
+.display-card__update-state {
+  color: $color-text-muted;
+  font-size: 0.75rem;
+}

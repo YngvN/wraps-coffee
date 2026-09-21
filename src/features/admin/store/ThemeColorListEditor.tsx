@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { LockIcon, PlusIcon, TrashIcon } from '../../../components'
+import { HelpTip, LockIcon, PlusIcon, TrashIcon } from '../../../components'
 import { useLanguage } from '../../../i18n'
 import type { AppearanceThemeColor } from '../../../types/appearanceTheme'
 import { generateId } from '../../../utils/id'
@@ -36,8 +36,9 @@ export function ThemeColorListEditor({ colors, onChange }: ThemeColorListEditorP
 
   return (
     <div className="theme-color-list-editor">
-      <span className="theme-color-list-editor__label">{t('admin.appearance.colorsLabel')}</span>
-      <p className="theme-color-list-editor__hint">{t('admin.appearance.lockedColorsHint')}</p>
+      <span className="theme-color-list-editor__label">
+        {t('admin.appearance.colorsLabel')} <HelpTip text={t('admin.appearance.lockedColorsHint')} />
+      </span>
 
       <ul className="theme-color-list-editor__locked">
         {lockedColors.map((color) => (

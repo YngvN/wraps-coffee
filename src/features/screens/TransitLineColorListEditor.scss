@@ -5,12 +5,6 @@
   font-weight: 600;
 }
 
-.transit-line-color-list-editor__hint {
-  margin: calc($spacing-unit / 4) 0 $spacing-unit;
-  color: $color-text-muted;
-  font-size: 0.8125rem;
-}
-
 .transit-line-color-list-editor__list {
   display: flex;
   flex-direction: column;

@@ -1,0 +1,103 @@
+@use '../../../styles/variables' as *;
+
+.display-details {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit * 1.5);
+  align-items: flex-start;
+}
+
+.display-details__status {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  font-size: 0.8125rem;
+  color: $color-text-muted;
+}
+
+.display-details__field {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 4);
+  width: 100%;
+  max-width: var(--admin-field-max-width);
+}
+
+.display-details__field-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.display-details__section-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.display-details__select {
+  padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
+  border: 1px solid $color-border;
+  border-radius: 6px;
+  background: $color-bg;
+  color: $color-text;
+  font-size: 0.875rem;
+}
+
+.display-details__monitors,
+.display-details__update,
+.display-details__advanced {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  width: 100%;
+}
+
+// One row per monitor: a miniature of what that monitor is showing beside
+// the selector that changes it, so the effect of a reassignment is visible
+// without leaving the sheet.
+.display-details__monitor {
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-unit;
+}
+
+.display-details__monitor-preview {
+  flex-shrink: 0;
+  width: 6rem;
+  height: 3.5rem;
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+.display-details__override {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc($spacing-unit / 2);
+  width: 100%;
+  padding-top: $spacing-unit;
+  border-top: 1px solid $color-border;
+}
+
+.display-details__override-summary {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+}
+
+.display-details__override-text {
+  font-size: 0.8125rem;
+}
+
+.display-details__update-row {
+  display: flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  font-size: 0.875rem;
+}
+
+.display-details__version,
+.display-details__capability-note {
+  margin: 0;
+  color: $color-text-muted;
+  font-size: 0.8125rem;
+}

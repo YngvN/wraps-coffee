@@ -20,7 +20,7 @@ import { userEntity } from './entities/user'
 import type { AssistantEntity, AssistantSession } from './types'
 
 /**
- * Every entity the assistant can operate on. Per this repo's CLAUDE.md:
+ * Every entity the assistant can operate on. Per the `assistant-entities` skill:
  * whenever new interactive dashboard functionality is added, add/update the
  * matching entry here in the same change.
  *

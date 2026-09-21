@@ -1,6 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Alert, AnimatedDetails, BackButton, Button, Checkbox, CloseIcon, FetchedLogo, Input, Modal, PlusIcon, SlideTransition, TranslatedText, YrLogo } from '../../../components'
+import {
+  Alert,
+  AnimatedDetails,
+  BackButton,
+  Button,
+  Checkbox,
+  CloseIcon,
+  FetchedLogo,
+  HelpTip,
+  Input,
+  Modal,
+  PlusIcon,
+  SlideTransition,
+  StatusDot,
+  TranslatedText,
+  YrLogo,
+  type StatusDotStatus,
+} from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useClockFormatPreference } from '../../../hooks/useClockFormatPreference'
 import { useContactInfo } from '../../../hooks/useContactInfo'
@@ -655,8 +672,7 @@ export function IntegrationsView() {
   }
 
   const weatherStatus = computeWeatherStatus(config)
-  const weatherStatusDotClass =
-    weatherStatus === 'live' ? 'status-dot--active' : weatherStatus === 'stale' ? 'status-dot--stale' : weatherStatus === 'error' ? 'status-dot--inactive' : 'status-dot--disabled'
+  const weatherStatusDot: StatusDotStatus = weatherStatus === 'live' ? 'active' : weatherStatus === 'stale' ? 'stale' : weatherStatus === 'error' ? 'inactive' : 'disabled'
   const weatherStatusTitleKey =
     weatherStatus === 'live'
       ? 'admin.integrations.statusEnabled'
@@ -687,9 +703,11 @@ export function IntegrationsView() {
           <YrLogo className="integration-submenu__icon" />
           <span className="integration-submenu__title">
             <span className="integration-submenu__brand">{t('admin.integrations.weatherBrandName')}</span>
-            <span className="integration-submenu__label">{t('admin.integrations.weatherLabel')}</span>
+            <span className="integration-submenu__label">
+              {t('admin.integrations.weatherLabel')} <HelpTip text={t('admin.integrations.weatherEnabledDescription')} />
+            </span>
           </span>
-          <span className={`status-dot ${weatherStatusDotClass}`} title={t(weatherStatusTitleKey)} />
+          <StatusDot status={weatherStatusDot} title={t(weatherStatusTitleKey)} label={t(weatherStatusTitleKey)} />
           <span className="integration-submenu__chevron" aria-hidden="true">
             ▸
           </span>
@@ -697,7 +715,6 @@ export function IntegrationsView() {
       }
     >
       {config.weather.useStoreLocation && !addressLookup?.coordinates && <p className="integrations-view__hint">{t('admin.integrations.needsLookupHint')}</p>}
-      <p className="integrations-view__hint">{t('admin.integrations.weatherEnabledDescription')}</p>
       <Button type="button" variant="secondary" onClick={() => setWeatherIconsOpen(true)}>
         {t('admin.integrations.weatherIconsButton')}
       </Button>
@@ -778,7 +795,7 @@ export function IntegrationsView() {
             <span className="integration-submenu__brand">{t('admin.integrations.transitBrandName')}</span>
             <span className="integration-submenu__label">{t('admin.integrations.transitLabel')}</span>
           </span>
-          <span className={`status-dot${config.transit.enabled ? ' status-dot--active' : ' status-dot--disabled'}`} title={t(config.transit.enabled ? 'admin.integrations.statusEnabled' : 'admin.integrations.statusDisabled')} />
+          <StatusDot status={config.transit.enabled ? 'active' : 'disabled'} title={t(config.transit.enabled ? 'admin.integrations.statusEnabled' : 'admin.integrations.statusDisabled')} label={t(config.transit.enabled ? 'admin.integrations.statusEnabled' : 'admin.integrations.statusDisabled')} />
           <span className="integration-submenu__chevron" aria-hidden="true">
             ▸
           </span>
@@ -826,8 +843,9 @@ export function IntegrationsView() {
                 )
               })()}
 
-              <p className="integrations-view__stops-label">{t('admin.integrations.stopSearchLabel')}</p>
-              <p className="integrations-view__hint">{t('admin.integrations.stopSearchHint')}</p>
+              <p className="integrations-view__stops-label">
+                {t('admin.integrations.stopSearchLabel')} <HelpTip text={t('admin.integrations.stopSearchHint')} />
+              </p>
               <div className="integrations-view__stop-search">
                 <Input
                   id="integrations-transit-stop-search-query"
@@ -893,7 +911,7 @@ export function IntegrationsView() {
             <span className="integration-submenu__brand">{t('admin.integrations.enturBrandName')}</span>
             <span className="integration-submenu__label">{t('admin.integrations.enturLabel')}</span>
           </span>
-          <span className={`status-dot${config.entur.enabled ? ' status-dot--active' : ' status-dot--disabled'}`} title={t(config.entur.enabled ? 'admin.integrations.statusEnabled' : 'admin.integrations.statusDisabled')} />
+          <StatusDot status={config.entur.enabled ? 'active' : 'disabled'} title={t(config.entur.enabled ? 'admin.integrations.statusEnabled' : 'admin.integrations.statusDisabled')} label={t(config.entur.enabled ? 'admin.integrations.statusEnabled' : 'admin.integrations.statusDisabled')} />
           <span className="integration-submenu__chevron" aria-hidden="true">
             ▸
           </span>
@@ -941,8 +959,9 @@ export function IntegrationsView() {
             )
           })()}
 
-          <p className="integrations-view__stops-label">{t('admin.integrations.stopSearchLabel')}</p>
-          <p className="integrations-view__hint">{t('admin.integrations.stopSearchHint')}</p>
+          <p className="integrations-view__stops-label">
+            {t('admin.integrations.stopSearchLabel')} <HelpTip text={t('admin.integrations.stopSearchHint')} />
+          </p>
           <div className="integrations-view__stop-search">
             <Input
               id="integrations-entur-stop-search-query"
@@ -1012,11 +1031,14 @@ export function IntegrationsView() {
           <FetchedLogo slug="rss" label="RSS" className="integration-submenu__icon" />
           <span className="integration-submenu__title">
             <span className="integration-submenu__brand">{t('admin.integrations.newsBrandName')}</span>
-            <span className="integration-submenu__label">{t('admin.integrations.newsLabel')}</span>
+            <span className="integration-submenu__label">
+              {t('admin.integrations.newsLabel')} <HelpTip text={t('admin.integrations.newsEnabledDescription')} />
+            </span>
           </span>
-          <span
-            className={`status-dot${config.news.enabled ? ' status-dot--active' : ' status-dot--disabled'}`}
+          <StatusDot
+            status={config.news.enabled ? 'active' : 'disabled'}
             title={t(config.news.enabled ? 'admin.integrations.statusEnabled' : 'admin.integrations.statusDisabled')}
+            label={t(config.news.enabled ? 'admin.integrations.statusEnabled' : 'admin.integrations.statusDisabled')}
           />
           <span className="integration-submenu__chevron" aria-hidden="true">
             ▸
@@ -1024,7 +1046,6 @@ export function IntegrationsView() {
         </>
       }
     >
-      <p className="integrations-view__hint">{t('admin.integrations.newsEnabledDescription')}</p>
       {config.news.enabledSourceIds.length === 0 && <p className="integrations-view__hint">{t('admin.integrations.newsNeedsSourceHint')}</p>}
       <p className="integrations-view__stops-label">{t('admin.integrations.newsSourcesLabel')}</p>
       <ul className="integrations-view__stop-list">
@@ -1054,14 +1075,8 @@ export function IntegrationsView() {
   // after flipping it on but before pasting in real values.
   const woltMissingCredentials = woltConfig.enabled && !hasSavedWoltCredentials
   const woltEffectiveState = !woltConfig.enabled ? 'disabled' : woltMissingCredentials ? 'stale' : woltConfig.status.state
-  const woltStatusDotClass =
-    woltEffectiveState === 'live'
-      ? 'status-dot--active'
-      : woltEffectiveState === 'stale'
-        ? 'status-dot--stale'
-        : woltEffectiveState === 'error'
-          ? 'status-dot--inactive'
-          : 'status-dot--disabled'
+  const woltStatusDot: StatusDotStatus =
+    woltEffectiveState === 'live' ? 'active' : woltEffectiveState === 'stale' ? 'stale' : woltEffectiveState === 'error' ? 'inactive' : 'disabled'
   const woltStatusTitleKey = woltMissingCredentials
     ? 'admin.integrations.woltNeedsCredentialsHint'
     : woltEffectiveState === 'live'
@@ -1101,11 +1116,14 @@ export function IntegrationsView() {
           <FetchedLogo slug="wolt" label="Wolt" className="integration-submenu__icon" />
           <span className="integration-submenu__title">
             <span className="integration-submenu__brand">{t('admin.integrations.woltBrandName')}</span>
-            <span className="integration-submenu__label">{t('admin.integrations.woltLabel')}</span>
+            <span className="integration-submenu__label">
+              {t('admin.integrations.woltLabel')} <HelpTip text={t('admin.integrations.woltEnabledDescription')} />
+            </span>
           </span>
-          <span
-            className={`status-dot ${woltStatusDotClass}`}
+          <StatusDot
+            status={woltStatusDot}
             title={!woltMissingCredentials && woltEffectiveState === 'error' && woltConfig.status.detail ? woltConfig.status.detail : t(woltStatusTitleKey)}
+            label={t(woltStatusTitleKey)}
           />
           <span className="integration-submenu__chevron" aria-hidden="true">
             ▸
@@ -1113,7 +1131,6 @@ export function IntegrationsView() {
         </>
       }
     >
-      <p className="integrations-view__hint">{t('admin.integrations.woltEnabledDescription')}</p>
       {!hasSavedWoltCredentials && <p className="integrations-view__hint">{t('admin.integrations.woltNeedsCredentialsHint')}</p>}
 
       <Input
@@ -1125,11 +1142,14 @@ export function IntegrationsView() {
       <Input
         id="integrations-wolt-api-key"
         type="password"
-        label={t('admin.integrations.woltApiKeyLabel')}
+        label={
+          <>
+            {t('admin.integrations.woltApiKeyLabel')} <HelpTip text={t('admin.integrations.woltCredentialsHint')} />
+          </>
+        }
         value={woltApiKeyDraft}
         onChange={(event) => setWoltApiKeyDraft(event.target.value)}
       />
-      <p className="integrations-view__hint">{t('admin.integrations.woltCredentialsHint')}</p>
       {woltCredentialsError && <Alert variant="error">{woltCredentialsError}</Alert>}
       <Button type="button" variant="secondary" onClick={handleSaveWoltCredentials} disabled={isSavingWoltCredentials || (!woltVenueIdDraft.trim() && !woltApiKeyDraft.trim())}>
         {isSavingWoltCredentials ? t('admin.integrations.woltCredentialsSavingButton') : t('admin.integrations.woltCredentialsSaveButton')}
@@ -1158,7 +1178,7 @@ export function IntegrationsView() {
             {t('admin.integrations.woltLastOrderLabel')}: {formatDateTime(new Date(woltConfig.status.lastOrderAt), language, clockFormat, dateFormat)}
           </span>
         )}
-        <span className="integrations-view__hint">{t('admin.integrations.woltPollIntervalHint')}</span>
+        <HelpTip text={t('admin.integrations.woltPollIntervalHint')} />
       </div>
 
       {woltSyncError && <Alert variant="error">{woltSyncError}</Alert>}
@@ -1187,11 +1207,14 @@ export function IntegrationsView() {
             <FetchedLogo slug="claude" label="Claude" className="integration-submenu__icon" />
             <span className="integration-submenu__title">
               <span className="integration-submenu__brand">Claude</span>
-              <span className="integration-submenu__label">{t('admin.integrations.assistantApiKeyTitle')}</span>
+              <span className="integration-submenu__label">
+                {t('admin.integrations.assistantApiKeyTitle')} <HelpTip text={t('admin.integrations.assistantApiKeyDescription')} />
+              </span>
             </span>
-            <span
-              className={`status-dot ${hasSavedAssistantKey ? 'status-dot--active' : 'status-dot--disabled'}`}
+            <StatusDot
+              status={hasSavedAssistantKey ? 'active' : 'disabled'}
               title={t(hasSavedAssistantKey ? 'admin.integrations.assistantApiKeySaved' : 'admin.integrations.assistantApiKeyMissing')}
+              label={t(hasSavedAssistantKey ? 'admin.integrations.assistantApiKeySaved' : 'admin.integrations.assistantApiKeyMissing')}
             />
             <span className="integration-submenu__chevron" aria-hidden="true">
               ▸
@@ -1199,7 +1222,6 @@ export function IntegrationsView() {
           </>
         }
       >
-        <p className="integrations-view__hint">{t('admin.integrations.assistantApiKeyDescription')}</p>
         <p>{t(hasSavedAssistantKey ? 'admin.integrations.assistantApiKeySaved' : 'admin.integrations.assistantApiKeyMissing')}</p>
 
         <Input
@@ -1216,7 +1238,9 @@ export function IntegrationsView() {
         </Button>
 
         <fieldset className="integrations-view__assistant-models">
-          <legend>{t('admin.integrations.assistantModelLegend')}</legend>
+          <legend>
+            {t('admin.integrations.assistantModelLegend')} <HelpTip text={t('admin.integrations.assistantModelPricingHint')} />
+          </legend>
           {(['claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-opus-4-5'] as const).map((model) => (
             <label key={model} className="integrations-view__assistant-model-option">
               <input
@@ -1232,7 +1256,6 @@ export function IntegrationsView() {
               </span>
             </label>
           ))}
-          <p className="integrations-view__hint">{t('admin.integrations.assistantModelPricingHint')}</p>
         </fieldset>
       </AnimatedDetails>
     </div>
@@ -1284,11 +1307,14 @@ export function IntegrationsView() {
             <FetchedLogo slug="ollama" label="Ollama" className="integration-submenu__icon" />
             <span className="integration-submenu__title">
               <span className="integration-submenu__brand">Ollama</span>
-              <span className="integration-submenu__label">{t('admin.integrations.ollamaTitle')}</span>
+              <span className="integration-submenu__label">
+                {t('admin.integrations.ollamaTitle')} <HelpTip text={t('admin.integrations.ollamaDescription')} />
+              </span>
             </span>
-            <span
-              className={`status-dot ${ollamaTestResult ? (ollamaTestResult.ok ? 'status-dot--active' : 'status-dot--inactive') : 'status-dot--disabled'}`}
+            <StatusDot
+              status={ollamaTestResult ? (ollamaTestResult.ok ? 'active' : 'inactive') : 'disabled'}
               title={t(ollamaTestResult ? (ollamaTestResult.ok ? 'admin.integrations.ollamaTestSuccessLabel' : 'admin.integrations.ollamaTestUnreachableError') : 'admin.integrations.statusDisabled')}
+              label={t(ollamaTestResult ? (ollamaTestResult.ok ? 'admin.integrations.ollamaTestSuccessLabel' : 'admin.integrations.ollamaTestUnreachableError') : 'admin.integrations.statusDisabled')}
             />
             <span className="integration-submenu__chevron" aria-hidden="true">
               ▸
@@ -1296,12 +1322,13 @@ export function IntegrationsView() {
           </>
         }
       >
-        <p className="integrations-view__hint">{t('admin.integrations.ollamaDescription')}</p>
 
         <Input id="integrations-ollama-base-url" label={t('admin.integrations.ollamaBaseUrlLabel')} value={ollamaBaseUrlDraft} onChange={(event) => setOllamaBaseUrlDraft(event.target.value)} placeholder="http://localhost:11434" />
 
         <div className="integrations-view__ollama-field">
-          <label htmlFor="integrations-ollama-vision-tier">{t('admin.integrations.ollamaVisionModelLabel')}</label>
+          <label htmlFor="integrations-ollama-vision-tier">
+            {t('admin.integrations.ollamaVisionModelLabel')} <HelpTip text={t('admin.integrations.ollamaVisionModelHint')} />
+          </label>
           <select id="integrations-ollama-vision-tier" value={ollamaVisionSelectValue} onChange={(event) => handleOllamaVisionTierChange(event.target.value)}>
             {OLLAMA_VISION_TIERS.map((tier) => (
               <option key={tier.labelKey} value={tier.labelKey}>
@@ -1327,7 +1354,6 @@ export function IntegrationsView() {
           {ollamaVisionSelectValue === OLLAMA_CUSTOM_TIER_VALUE && (
             <Input id="integrations-ollama-vision-custom" value={ollamaVisionModelDraft} onChange={(event) => setOllamaVisionModelDraft(event.target.value)} placeholder="qwen2.5vl:3b" />
           )}
-          <p className="integrations-view__hint">{t('admin.integrations.ollamaVisionModelHint')}</p>
           {ollamaTestResult?.ok && ollamaTestResult.visionModelInstalled === false && (
             <Button type="button" variant="secondary" onClick={() => handleDownloadOllamaModel(ollamaVisionModelDraft)} disabled={downloadingOllamaTag !== null}>
               {downloadingOllamaTag === ollamaVisionModelDraft ? t('admin.integrations.ollamaDownloadingButton') : t('admin.integrations.ollamaDownloadButton')}
@@ -1336,7 +1362,9 @@ export function IntegrationsView() {
         </div>
 
         <div className="integrations-view__ollama-field">
-          <label htmlFor="integrations-ollama-thinking-tier">{t('admin.integrations.ollamaThinkingModelLabel')}</label>
+          <label htmlFor="integrations-ollama-thinking-tier">
+            {t('admin.integrations.ollamaThinkingModelLabel')} <HelpTip text={t('admin.integrations.ollamaThinkingModelHint')} />
+          </label>
           <select id="integrations-ollama-thinking-tier" value={ollamaThinkingSelectValue} onChange={(event) => handleOllamaThinkingTierChange(event.target.value)}>
             {OLLAMA_THINKING_TIERS.map((tier) => (
               <option key={tier.labelKey} value={tier.labelKey}>
@@ -1362,7 +1390,6 @@ export function IntegrationsView() {
           {ollamaThinkingSelectValue === OLLAMA_CUSTOM_TIER_VALUE && (
             <Input id="integrations-ollama-thinking-custom" value={ollamaThinkingModelDraft} onChange={(event) => setOllamaThinkingModelDraft(event.target.value)} placeholder="qwen3:4b" />
           )}
-          <p className="integrations-view__hint">{t('admin.integrations.ollamaThinkingModelHint')}</p>
           {ollamaTestResult?.ok && ollamaTestResult.thinkingModelInstalled === false && (
             <Button type="button" variant="secondary" onClick={() => handleDownloadOllamaModel(ollamaThinkingModelDraft)} disabled={downloadingOllamaTag !== null}>
               {downloadingOllamaTag === ollamaThinkingModelDraft ? t('admin.integrations.ollamaDownloadingButton') : t('admin.integrations.ollamaDownloadButton')}
@@ -1391,15 +1418,15 @@ export function IntegrationsView() {
           onToggle={() => setOllamaModelManagerOpen((current) => !current)}
           summary={
             <>
-              <span>{t('admin.integrations.ollamaModelManagerTitle')}</span>
+              <span>
+                {t('admin.integrations.ollamaModelManagerTitle')} <HelpTip text={t('admin.integrations.ollamaModelManagerHint')} />
+              </span>
               <span className="integrations-view__model-manager-chevron" aria-hidden="true">
                 ▸
               </span>
             </>
           }
         >
-          <p className="integrations-view__hint">{t('admin.integrations.ollamaModelManagerHint')}</p>
-
           {isLoadingOllamaModels ? (
             <p className="integrations-view__hint">{t('admin.integrations.ollamaModelManagerLoading')}</p>
           ) : ollamaModelsError ? (
@@ -1447,14 +1474,8 @@ export function IntegrationsView() {
   // Same derivation as Wolt's own status above.
   const foodoraMissingCredentials = foodoraConfig.enabled && !hasSavedFoodoraCredentials
   const foodoraEffectiveState = !foodoraConfig.enabled ? 'disabled' : foodoraMissingCredentials ? 'stale' : foodoraConfig.status.state
-  const foodoraStatusDotClass =
-    foodoraEffectiveState === 'live'
-      ? 'status-dot--active'
-      : foodoraEffectiveState === 'stale'
-        ? 'status-dot--stale'
-        : foodoraEffectiveState === 'error'
-          ? 'status-dot--inactive'
-          : 'status-dot--disabled'
+  const foodoraStatusDot: StatusDotStatus =
+    foodoraEffectiveState === 'live' ? 'active' : foodoraEffectiveState === 'stale' ? 'stale' : foodoraEffectiveState === 'error' ? 'inactive' : 'disabled'
   const foodoraStatusTitleKey = foodoraMissingCredentials
     ? 'admin.integrations.foodoraNeedsCredentialsHint'
     : foodoraEffectiveState === 'live'
@@ -1494,11 +1515,14 @@ export function IntegrationsView() {
           <FetchedLogo slug="foodora" label="Foodora" className="integration-submenu__icon" />
           <span className="integration-submenu__title">
             <span className="integration-submenu__brand">{t('admin.integrations.foodoraBrandName')}</span>
-            <span className="integration-submenu__label">{t('admin.integrations.foodoraLabel')}</span>
+            <span className="integration-submenu__label">
+              {t('admin.integrations.foodoraLabel')} <HelpTip text={t('admin.integrations.foodoraEnabledDescription')} />
+            </span>
           </span>
-          <span
-            className={`status-dot ${foodoraStatusDotClass}`}
+          <StatusDot
+            status={foodoraStatusDot}
             title={!foodoraMissingCredentials && foodoraEffectiveState === 'error' && foodoraConfig.status.detail ? foodoraConfig.status.detail : t(foodoraStatusTitleKey)}
+            label={t(foodoraStatusTitleKey)}
           />
           <span className="integration-submenu__chevron" aria-hidden="true">
             ▸
@@ -1506,7 +1530,6 @@ export function IntegrationsView() {
         </>
       }
     >
-      <p className="integrations-view__hint">{t('admin.integrations.foodoraEnabledDescription')}</p>
       {!hasSavedFoodoraCredentials && <p className="integrations-view__hint">{t('admin.integrations.foodoraNeedsCredentialsHint')}</p>}
 
       <Input
@@ -1518,11 +1541,14 @@ export function IntegrationsView() {
       <Input
         id="integrations-foodora-api-key"
         type="password"
-        label={t('admin.integrations.foodoraApiKeyLabel')}
+        label={
+          <>
+            {t('admin.integrations.foodoraApiKeyLabel')} <HelpTip text={t('admin.integrations.foodoraCredentialsHint')} />
+          </>
+        }
         value={foodoraApiKeyDraft}
         onChange={(event) => setFoodoraApiKeyDraft(event.target.value)}
       />
-      <p className="integrations-view__hint">{t('admin.integrations.foodoraCredentialsHint')}</p>
       {foodoraCredentialsError && <Alert variant="error">{foodoraCredentialsError}</Alert>}
       <Button type="button" variant="secondary" onClick={handleSaveFoodoraCredentials} disabled={isSavingFoodoraCredentials || (!foodoraVenueIdDraft.trim() && !foodoraApiKeyDraft.trim())}>
         {isSavingFoodoraCredentials ? t('admin.integrations.foodoraCredentialsSavingButton') : t('admin.integrations.foodoraCredentialsSaveButton')}
@@ -1551,7 +1577,7 @@ export function IntegrationsView() {
             {t('admin.integrations.foodoraLastOrderLabel')}: {formatDateTime(new Date(foodoraConfig.status.lastOrderAt), language, clockFormat, dateFormat)}
           </span>
         )}
-        <span className="integrations-view__hint">{t('admin.integrations.foodoraPollIntervalHint')}</span>
+        <HelpTip text={t('admin.integrations.foodoraPollIntervalHint')} />
       </div>
 
       {foodoraSyncError && <Alert variant="error">{foodoraSyncError}</Alert>}

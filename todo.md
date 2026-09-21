@@ -19,6 +19,7 @@ Testing
 - UI, All views, Editor
 - Use different wording, not only "Legg til", but "Sett opp" "Lag X" etc
 - ordering needs AI updates for deletion among other things
+Add also a trashcan where deleted screens can be restored for a week. Do the same for media
 
 1. 
 - License tracker

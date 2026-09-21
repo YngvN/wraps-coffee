@@ -41,12 +41,9 @@
   }
 }
 
-// The "Pending approval" section, shown above the machines grid only while
-// `pairingRequests.length > 0` — a device shows up here passively (no "look
-// for displays" step) as soon as it heartbeats in.
-// Holds the "Update all"/"Stop rollout" button and the rollback CollapsibleSection, shown only
-// once the hub has a real current-APK reference to compare displays against (see `currentApk` in
-// DisplayManagerView.tsx) — nothing to act on before that.
+// Holds the "Update all"/"Stop rollout" button, the rollback section and the APK publisher. Also
+// carries the "nothing published yet" notice, which is what shows before the hub has any current-APK
+// reference to compare displays against — without it this whole block silently renders empty.
 .display-manager-view__update-actions {
   display: flex;
   flex-direction: column;
@@ -55,6 +52,15 @@
   margin-bottom: $spacing-unit * 1.5;
 }
 
+.display-manager-view__no-build {
+  margin: 0;
+  color: $color-text-muted;
+  font-size: 0.8125rem;
+}
+
+// The "Pending approval" section, shown above the machines grid only while
+// `pairingRequests.length > 0` — a device shows up here passively (no "look
+// for displays" step) as soon as it heartbeats in.
 .display-manager-view__pending {
   display: flex;
   flex-direction: column;
@@ -67,10 +73,13 @@
   font-size: 1rem;
 }
 
-.display-manager-view__pending-cards {
-  display: flex;
-  flex-direction: column;
+// Shared by the pending-approval cards and the machines themselves so the
+// page reads as one grid rather than two differently-shaped lists.
+.display-manager-view__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: $spacing-unit;
+  align-items: start;
 }
 
 .display-manager-view__pending-card {
@@ -82,7 +91,7 @@
 
 .display-manager-view__pending-card-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: calc($spacing-unit / 2);
 }
 
@@ -99,175 +108,8 @@
   font-variant-numeric: tabular-nums;
 }
 
-.display-manager-view__machines {
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-unit * 1.5;
-}
-
-.display-manager-view__machine-header {
-  display: flex;
-  align-items: center;
-  gap: $spacing-unit;
-  margin-bottom: $spacing-unit;
-
-  .input-field {
-    flex: 1;
-  }
-}
-
-.display-manager-view__badge {
-  flex-shrink: 0;
-  padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  white-space: nowrap;
-
-  &--url {
-    background: $color-accent;
-    color: $color-accent-contrast;
-  }
-
-  &--electron {
-    background: $color-border;
-    color: $color-text;
-  }
-
-  &--mobile {
-    background: $color-success;
-    color: $color-accent-contrast;
-  }
-
-  &--pending {
-    background: $color-warning;
-    color: $color-accent-contrast;
-  }
-}
-
-// Icon-only, same sizing convention as `.integrations-view__icon-button` -
-// the surrounding `.btn--secondary` variant already supplies the
-// border/hover/active states this design system wants everywhere.
-.display-manager-view__remove-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 2rem;
-  height: 2rem;
-  padding: 0;
-}
-
 .display-manager-view__last-seen {
   margin: 0 0 $spacing-unit;
   font-size: 0.8125rem;
-  color: $color-text-muted;
-}
-
-// Only shown for `connectionType: 'mobile'` (ADHDisplay Companion) machines — the version/update-state
-// fields this reads (see `resolveDisplayUpdateState`) are never populated for `electron`/`url` connections.
-.display-manager-view__version-row {
-  display: flex;
-  align-items: center;
-  gap: calc($spacing-unit / 2);
-  margin: 0 0 $spacing-unit;
-  font-size: 0.8125rem;
-}
-
-.display-manager-view__version-text {
-  color: $color-text-muted;
-}
-
-.display-manager-view__update-button {
-  flex-shrink: 0;
-  padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
-  font-size: 0.75rem;
-}
-
-.display-manager-view__monitors {
-  display: flex;
-  flex-direction: column;
-  gap: calc($spacing-unit / 2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.display-manager-view__monitor {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: $spacing-unit;
-  padding: calc($spacing-unit / 2) 0;
-  border-top: 1px solid $color-border;
-
-  &:first-child {
-    border-top: none;
-  }
-}
-
-.display-manager-view__monitor-label {
-  font-size: 0.875rem;
-}
-
-.display-manager-view__monitor-select {
-  padding: calc($spacing-unit / 4) calc($spacing-unit / 2);
-  border: 1px solid $color-border;
-  border-radius: 6px;
-  background: $color-bg;
-  color: $color-text;
-  font-size: 0.875rem;
-}
-
-// Only rendered while a machine's own admin.displayScreenOverride entry exists — required by the
-// D1 safety model (Remote Screen Navigation spec), not optional: an override the admin can't see
-// is an assignment change that silently doesn't apply.
-.display-manager-view__override-row {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: calc($spacing-unit / 2);
-  margin-top: $spacing-unit;
-  padding-top: $spacing-unit;
-  border-top: 1px solid $color-border;
-}
-
-.display-manager-view__override-summary {
-  display: flex;
-  align-items: center;
-  gap: calc($spacing-unit / 2);
-}
-
-.display-manager-view__override-text {
-  font-size: 0.8125rem;
-}
-
-.display-manager-view__override-hint {
-  margin: 0;
-  font-size: 0.75rem;
-  color: $color-text-muted;
-}
-
-// This unit's own image-resolution ceiling (`DisplayMachine.maxImagePx`). Sits below the monitor
-// list rather than inside it: the cap describes the *machine's* hardware, not any one monitor.
-.display-manager-view__image-cap {
-  display: flex;
-  flex-direction: column;
-  gap: calc($spacing-unit / 4);
-  margin-top: $spacing-unit;
-  // Was stretching the select across the full card width; capped to roughly
-  // match this same view's own screen-assignment select, which already sits
-  // at a sane width (see `--admin-field-max-width` in `AdminDashboard.scss`).
-  max-width: var(--admin-field-max-width);
-}
-
-.display-manager-view__image-cap-label {
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.display-manager-view__image-cap-hint {
-  margin: 0;
-  font-size: 0.75rem;
   color: $color-text-muted;
 }

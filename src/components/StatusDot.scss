@@ -1,0 +1,28 @@
+@use '../styles/variables' as *;
+
+// Moved verbatim out of `IntegrationsView.scss`, where these globally-named
+// rules happened to live: any other view using `.status-dot` was silently
+// relying on that one stylesheet being loaded. Owned by `StatusDot.tsx` now,
+// so the markup and the rules ship together.
+.status-dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+
+  &--active {
+    background: $color-success;
+  }
+
+  &--stale {
+    background: $color-warning;
+  }
+
+  &--inactive {
+    background: $color-error;
+  }
+
+  &--disabled {
+    background: $color-text-muted;
+  }
+}

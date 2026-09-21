@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { Input, PlusIcon, TrashIcon } from '../../../components'
+import { HelpTip, Input, PlusIcon, TrashIcon } from '../../../components'
 import { useLanguage, type LanguageCode } from '../../../i18n'
 import type { CustomFieldDefinition, CustomFieldType } from '../../../types/customFields'
 import { generateId } from '../../../utils/id'
@@ -63,8 +63,9 @@ export function CustomFieldListEditor({ fields, selectedLanguage, onChange }: Cu
 
   return (
     <div className="custom-field-list-editor">
-      <span className="custom-field-list-editor__label">{t('admin.products.customFieldsLabel')}</span>
-      <p className="custom-field-list-editor__hint">{t('admin.products.customFieldsHint')}</p>
+      <span className="custom-field-list-editor__label">
+        {t('admin.products.customFieldsLabel')} <HelpTip text={t('admin.products.customFieldsHint')} />
+      </span>
 
       <ul className="custom-field-list-editor__list">
         <AnimatePresence initial={false}>

@@ -1,6 +1,6 @@
 import type { ChangeEvent } from 'react'
 import { useEffect, useState } from 'react'
-import { Button, Modal } from '../../../components'
+import { Button, HelpTip, Modal } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
 import {
@@ -243,16 +243,18 @@ export function BackupSettingsView() {
   return (
     <div className="backup-settings">
       <div className="backup-settings__section">
-        <h2>{t('admin.settings.backup.createTitle')}</h2>
-        <p className="backup-settings__hint">{t('admin.settings.backup.createHint')}</p>
+        <h2>
+          {t('admin.settings.backup.createTitle')} <HelpTip text={t('admin.settings.backup.createHint')} />
+        </h2>
         <Button type="button" onClick={() => void handleCreateBackup()} disabled={isCreating}>
           {isCreating ? t('admin.settings.backup.creatingLabel') : t('admin.settings.backup.createButton')}
         </Button>
       </div>
 
       <div className="backup-settings__section">
-        <h2>{t('admin.settings.backup.restoreTitle')}</h2>
-        <p className="backup-settings__hint">{t('admin.settings.backup.restoreHint')}</p>
+        <h2>
+          {t('admin.settings.backup.restoreTitle')} <HelpTip text={t('admin.settings.backup.restoreHint')} />
+        </h2>
 
         {!isLoadingStatus && status?.folderBackupAvailable && (
           <div className="backup-settings__restore-option">
@@ -275,10 +277,10 @@ export function BackupSettingsView() {
       {message && <p className="backup-settings__message">{message}</p>}
 
       <div className="backup-settings__section">
-        <h2>{t('admin.settings.backup.cleanup.title')}</h2>
-        <p className="backup-settings__hint">
-          {t('admin.settings.backup.cleanup.hint', { retentionDays: cleanupPreview?.retentionDays ?? 180, staleDays: cleanupPreview?.displayMachineStaleDays ?? 30 })}
-        </p>
+        <h2>
+          {t('admin.settings.backup.cleanup.title')}{' '}
+          <HelpTip text={t('admin.settings.backup.cleanup.hint', { retentionDays: cleanupPreview?.retentionDays ?? 180, staleDays: cleanupPreview?.displayMachineStaleDays ?? 30 })} />
+        </h2>
 
         {!isLoadingCleanup && cleanupPreview && cleanupItemCount === 0 && <p className="backup-settings__hint">{t('admin.settings.backup.cleanup.emptyMessage')}</p>}
 
@@ -303,8 +305,9 @@ export function BackupSettingsView() {
       </div>
 
       <div className="backup-settings__section">
-        <h2>{t('admin.settings.backup.screensHistory.title')}</h2>
-        <p className="backup-settings__hint">{t('admin.settings.backup.screensHistory.hint')}</p>
+        <h2>
+          {t('admin.settings.backup.screensHistory.title')} <HelpTip text={t('admin.settings.backup.screensHistory.hint')} />
+        </h2>
 
         {!isLoadingSnapshots && snapshots.length === 0 && <p className="backup-settings__hint">{t('admin.settings.backup.screensHistory.emptyMessage')}</p>}
 

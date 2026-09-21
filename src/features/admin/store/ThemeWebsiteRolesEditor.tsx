@@ -1,3 +1,4 @@
+import { HelpTip } from '../../../components'
 import { useLanguage } from '../../../i18n'
 import { WEBSITE_ROLE_KEYS, type AppearanceThemeColor, type AppearanceThemeWebsiteRoles } from '../../../types/appearanceTheme'
 import './ThemeWebsiteRolesEditor.scss'
@@ -35,8 +36,9 @@ export function ThemeWebsiteRolesEditor({ colors, roles, onChange }: ThemeWebsit
 
   return (
     <section className="theme-website-roles">
-      <h3 className="theme-website-roles__title">{t('admin.appearance.websiteRolesTitle')}</h3>
-      <p className="theme-website-roles__hint">{t('admin.appearance.websiteRolesHint')}</p>
+      <h3 className="theme-website-roles__title">
+        {t('admin.appearance.websiteRolesTitle')} <HelpTip text={t('admin.appearance.websiteRolesHint')} />
+      </h3>
 
       <ul className="theme-website-roles__list">
         {WEBSITE_ROLE_KEYS.map((role) => {

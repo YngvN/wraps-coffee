@@ -81,10 +81,22 @@ export function getMachineIDForSocket(socket: WebSocket): string | undefined {
   return machineIDBySocket.get(socket)
 }
 
-/** Pushes a message to one specific companion device's own persistent WS connection, if it currently has one open — a no-op (not queued, not retried) if it doesn't, same best-effort posture as this device's own heartbeat. */
-export function pushToDevice(machineID: string, message: DeviceServerMessage) {
+/**
+ * Pushes a message to one specific companion device's own persistent WS connection, if it currently
+ * has one open — still a no-op (not queued, not retried) if it doesn't, same best-effort posture as
+ * this device's own heartbeat.
+ *
+ * Returns whether the message was actually handed to a socket. Callers that only fire and forget can
+ * ignore it, but an update trigger must not: a push dropped here used to be indistinguishable from
+ * one the device simply hadn't acted on yet, so a display that was offline at the moment of the click
+ * sat showing "Updating…" for the full `UPDATE_FAILURE_TIMEOUT_MS` (10 minutes) before the sweep in
+ * `server/index.ts` called it failed.
+ */
+export function pushToDevice(machineID: string, message: DeviceServerMessage): boolean {
   const socket = deviceSockets.get(machineID)
-  if (socket && socket.readyState === socket.OPEN) socket.send(JSON.stringify(message))
+  if (!socket || socket.readyState !== socket.OPEN) return false
+  socket.send(JSON.stringify(message))
+  return true
 }
 
 /** Pushes a message to every currently-connected companion device — used for `navigable-set` when the underlying screen list itself changes (every connected device's own browsable set is affected, not just one). */

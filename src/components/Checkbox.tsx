@@ -1,8 +1,9 @@
-import type { InputHTMLAttributes } from 'react'
+import type { InputHTMLAttributes, ReactNode } from 'react'
 import './Checkbox.scss'
 
 interface CheckboxProps extends InputHTMLAttributes<HTMLInputElement> {
-  label: string
+  /** `ReactNode` rather than `string` so a `HelpTip` can sit inline beside the label text, matching `Input`'s own label prop. */
+  label: ReactNode
 }
 
 /**

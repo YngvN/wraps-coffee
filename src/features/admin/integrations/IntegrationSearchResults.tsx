@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Badge, FetchedLogo, YrLogo } from '../../../components'
+import { Badge, FetchedLogo, StatusDot, YrLogo } from '../../../components'
 import { useLanguage } from '../../../i18n'
 import type { IntegrationsConfig } from '../../../types/integrations'
 import { COMING_SOON_INTEGRATIONS } from './comingSoonIntegrations'
@@ -95,9 +95,10 @@ export function IntegrationSearchResults({ query, config }: IntegrationSearchRes
               {entry.enabled === undefined ? (
                 <Badge variant="neutral">{t('admin.integrations.comingSoon.badge')}</Badge>
               ) : (
-                <span
-                  className={`status-dot${entry.enabled ? ' status-dot--active' : ' status-dot--disabled'}`}
+                <StatusDot
+                  status={entry.enabled ? 'active' : 'disabled'}
                   title={t(entry.enabled ? 'admin.integrations.statusEnabled' : 'admin.integrations.statusDisabled')}
+                  label={t(entry.enabled ? 'admin.integrations.statusEnabled' : 'admin.integrations.statusDisabled')}
                 />
               )}
             </li>

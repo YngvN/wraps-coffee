@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Button, Checkbox } from '../../../components'
+import { Button, Checkbox, HelpTip } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
 import { getFoodoraCredentials, getWoltCredentials, setFoodoraCredentials, setWoltCredentials } from '../../../lib/localServer'
@@ -91,14 +91,18 @@ export function TestingSettingsView() {
           <h2>{t('admin.settings.testing.woltTitle')}</h2>
           <Checkbox
             id="testing-wolt-use-development-environment"
-            label={t('admin.settings.testing.woltCheckboxLabel')}
+            label={
+              <>
+                {t('admin.settings.testing.woltCheckboxLabel')}{' '}
+                <HelpTip text={t(woltCredentials.useDevelopmentEnvironment ? 'admin.settings.testing.woltDevelopmentHint' : 'admin.settings.testing.woltProductionHint')} />
+              </>
+            }
             checked={woltCredentials.useDevelopmentEnvironment}
             onChange={(event) => {
               setWoltSaved(false)
               setWoltCredentialsState({ ...woltCredentials, useDevelopmentEnvironment: event.target.checked })
             }}
           />
-          <p className="testing-settings__hint">{t(woltCredentials.useDevelopmentEnvironment ? 'admin.settings.testing.woltDevelopmentHint' : 'admin.settings.testing.woltProductionHint')}</p>
           {woltError && <p className="testing-settings__error">{woltError}</p>}
           <Button onClick={handleSaveWolt} disabled={isSavingWolt}>
             {t('admin.common.save')}
@@ -114,14 +118,17 @@ export function TestingSettingsView() {
           <h2>{t('admin.settings.testing.foodoraTitle')}</h2>
           <Checkbox
             id="testing-foodora-use-development-environment"
-            label={t('admin.settings.testing.foodoraCheckboxLabel')}
+            label={
+              <>
+                {t('admin.settings.testing.foodoraCheckboxLabel')} <HelpTip text={t('admin.settings.testing.foodoraNoUrlHint')} />
+              </>
+            }
             checked={foodoraCredentials.useDevelopmentEnvironment}
             onChange={(event) => {
               setFoodoraSaved(false)
               setFoodoraCredentialsState({ ...foodoraCredentials, useDevelopmentEnvironment: event.target.checked })
             }}
           />
-          <p className="testing-settings__hint">{t('admin.settings.testing.foodoraNoUrlHint')}</p>
           {foodoraError && <p className="testing-settings__error">{foodoraError}</p>}
           <Button onClick={handleSaveFoodora} disabled={isSavingFoodora}>
             {t('admin.common.save')}

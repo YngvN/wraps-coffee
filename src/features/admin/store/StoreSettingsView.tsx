@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { BackButton, Card, ImageUploadField, Input, NavRowList, SlideTransition, TranslatedText } from '../../../components'
+import { BackButton, Card, HelpTip, ImageUploadField, Input, NavRowList, SlideTransition, TranslatedText } from '../../../components'
 import { useLanguage } from '../../../i18n'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
 import { AppearanceSettingsView } from './AppearanceSettingsView'
@@ -111,13 +111,23 @@ export function StoreSettingsView() {
             </div>
           </Card>
 
-          <Card title={t('admin.store.logosCardTitle')}>
-            <p className="store-settings-view__hint">{t('admin.store.logosHint')}</p>
+          <Card
+            title={
+              <>
+                {t('admin.store.logosCardTitle')} <HelpTip text={t('admin.store.logosHint')} />
+              </>
+            }
+          >
             <LogoListEditor logos={storeSettings.logos} onChange={(logos) => setStoreSettings({ ...storeSettings, logos })} />
           </Card>
 
-          <Card title={t('admin.store.faviconCardTitle')}>
-            <p className="store-settings-view__hint">{t('admin.store.faviconHint')}</p>
+          <Card
+            title={
+              <>
+                {t('admin.store.faviconCardTitle')} <HelpTip text={t('admin.store.faviconHint')} />
+              </>
+            }
+          >
             <ImageUploadField
               id="store-favicon"
               value={storeSettings.favicon ?? ''}

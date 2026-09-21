@@ -14,8 +14,8 @@ import {
 
 /**
  * `screenEntity`'s own sibling for everything inside `paneSlots` — that entity's own doc comment
- * deliberately excludes `layout`/`paneSlots` entirely (see `screen.ts` and CLAUDE.md's "Screens
- * feature: two editors" section); this is what fills that gap. Covers two independent capabilities,
+ * deliberately excludes `layout`/`paneSlots` entirely (see `screen.ts` and the `screens` skill);
+ * this is what fills that gap. Covers two independent capabilities,
  * gated separately:
  * - `customCss`/`customHtml`/`customHtmlPlacement` — always offered (subject to the normal
  *   `section: 'screens'` role/section gate every entity already has), validated against the

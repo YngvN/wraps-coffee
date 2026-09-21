@@ -607,7 +607,7 @@ export function getUpdatesStatus(): UpdatesStatus {
  * files are written by an out-of-band publish process (per this module's
  * doc comment — a manual copy or a future build-pipeline script, never a
  * route in this server), so none of the usual `writeFileSync`-plus-
- * `mirrorFile` call sites CLAUDE.md's Backup section describes ever run for
+ * `mirrorFile` call sites the `keep-in-sync` skill describes ever run for
  * them. Without this sweep, a manually-copied update would silently sit
  * outside backup coverage forever, only entering it if some *other* code
  * path happened to touch the same path through `mirrorFile` later — this

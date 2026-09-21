@@ -1,0 +1,43 @@
+@use '../../../styles/variables' as *;
+
+// Background/text come from the --screen-* custom properties (see
+// `getScreenColorVars`) so the letterbox bars around a differently-shaped
+// preview match the real display's own background rather than a generic
+// card colour — same reasoning as `.screen-card__preview`.
+.display-screen-preview {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--screen-bg);
+  color: var(--screen-text);
+
+  // An offline/reconnecting display isn't actually showing this any more.
+  &--dimmed {
+    opacity: 0.4;
+    filter: grayscale(0.6);
+  }
+
+  // No screen assigned: the display is showing the standby screensaver.
+  &--standby {
+    background: $color-surface;
+    color: $color-text-muted;
+  }
+}
+
+.display-screen-preview__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.display-screen-preview__placeholder {
+  padding: calc($spacing-unit / 2) $spacing-unit;
+  color: $color-text-muted;
+  font-size: 0.75rem;
+  text-align: center;
+}

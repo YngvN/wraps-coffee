@@ -33,7 +33,7 @@ const ASSISTANT_TAGS = ['claude', 'anthropic', 'ai', 'assistant', 'assistent', '
  * `SettingsView`, `StoreSettingsView`) expects to read via
  * `useSearchParams()` — building a new addressable entity/view should
  * always come with both a deep-link effect *and* an entry here, kept
- * together (see the "Deep-linkable admin views" section in `CLAUDE.md`).
+ * together (see the `admin-deep-links` skill).
  */
 export function useGlobalSearchIndex(): SearchResultEntry[] {
   const { t, language } = useLanguage()
@@ -231,9 +231,11 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
       url: `/admin/dashboard/displays?pendingMachineId=${request.machineID}`,
     }))
 
-    // Findable by name (its own self-reported label, or an admin's rename) and lands on the
-    // machine's own card in the regular grid via `?updateMachineId=` — see `DisplayManagerView.tsx`'s
-    // own deep-link effect for that param. Every machine, not just `mobile` ones, since this is
+    // Findable by name (its own self-reported label, or an admin's rename). `?updateMachineId=` now
+    // opens that machine's own details sheet (and highlights its card behind it) rather than only
+    // scrolling to it — everything the link is meant to reach moved into `DisplayDetailsModal`; see
+    // `DisplayManagerView.tsx`'s own deep-link effect for that param. The param name is deliberately
+    // unchanged so existing links keep working. Every machine, not just `mobile` ones, since this is
     // "find a display by name" generally, not specifically an update-channel search.
     const displayMachineEntries: SearchResultEntry[] = machines.map((machine) => ({
       id: `displayMachine:${machine.machineID}`,
