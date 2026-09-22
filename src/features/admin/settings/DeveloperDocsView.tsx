@@ -462,6 +462,36 @@ Hub → device:
         </pre>
       </Card>
 
+      <Card title={t('admin.settings.developerDocs.appUpdateTitle')}>
+        <p>{t('admin.settings.developerDocs.appUpdateIntro')}</p>
+        <pre>
+          <code>{`GET /app-update/config             (Authorization: Bearer <token>, admin only)
+→ 200 { "owner": string, "repo": string, "branch": string, "hasToken": boolean, "tokenHint": string | null }
+   The stored GitHub token itself is never returned — only its last 4 characters.
+
+POST /app-update/config            (Authorization: Bearer <token>, admin only)
+   body { "token"?: string, "owner"?: string, "repo"?: string, "branch"?: string }
+   Omitting "token" leaves the stored one untouched; "" clears it.
+→ 200 (same shape as GET)
+
+POST /app-update/check             (Authorization: Bearer <token>, admin only, no body)
+   One commit lookup + one recursive tree listing. Downloads no file contents.
+→ 200 { "ok": true, "updateAvailable": boolean, "plan": { sha, shortSha, commitMessage, committedAt,
+        installedVersion, remoteVersion, changed[], removed[], lockfileChanged, launcherScriptsChanged[] } }
+→ 502 { "ok": false, "error": "..." }   (no token, token rejected, repo not visible, GitHub unreachable)
+
+POST /app-update/apply             (Authorization: Bearer <token>, admin only)
+   body { "dryRun"?: boolean }   dryRun stops after the staged build, swapping nothing.
+→ 202 { "ok": true }              (the run outlives this request — poll /app-update/status)
+→ 409 { "ok": false, "error": "..." }   (already running, or already up to date)
+
+GET /app-update/status             (Authorization: Bearer <token>, admin only)
+→ 200 { "state": AppUpdateState | null, "installedVersion": string }
+   A failed request during an update is expected, not an error: the server is
+   deliberately killed during the swap. The UI treats it as the "restarting" phase.`}</code>
+        </pre>
+      </Card>
+
       <Card title={t('admin.settings.developerDocs.backupTitle')}>
         <p>{t('admin.settings.developerDocs.backupIntro')}</p>
         <pre>

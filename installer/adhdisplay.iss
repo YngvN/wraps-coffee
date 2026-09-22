@@ -67,7 +67,7 @@ AppName={#AppName}
 ; Must stay in sync with the root package.json's own "version" field (see
 ; CLAUDE.md's Versioning rule) - bumped together, in the same change, on
 ; every completed change.
-AppVersion=0.3.0
+AppVersion=0.3.1
 AppPublisher=ADHDisplay
 DefaultDirName=C:\ADHDisplay
 DisableDirPage=no
@@ -167,6 +167,13 @@ Source: "ollama-models\LICENSES.md"; DestDir: "{app}"; DestName: "OLLAMA-MODEL-L
 ; install) or only the previous version's copy (upgrade) for that early stop
 ; call to actually run.
 Source: "adhdisplay-control.ps1"; DestDir: "{app}"; Flags: ignoreversion
+; The in-app updater's swap helper (see server/appUpdate/apply.ts). Shipped
+; here rather than pulled from GitHub like the rest of the app, because it is
+; the script that performs the swap - it cannot update itself mid-run, and a
+; launcher script replaced underneath a running cmd.exe is how you brick a
+; kiosk. Changes to it therefore need this installer, same as the other root
+; scripts.
+Source: "apply-update.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "adhdisplay-control.ps1"; DestDir: "{tmp}"; Flags: dontcopy
 ; Signed release build, glob-matched since the filename embeds the exact
 ; version/versionCode (see adhdisplay-companion/scripts/build-tv-apk.js) - not
@@ -829,6 +836,9 @@ Filename: "powershell.exe"; Parameters: "-NoProfile -Command ""Remove-MpPreferen
 ; — see CurUninstallStepChanged above — and only when ADHDisplay's own
 ; installer is what put it there).
 Type: filesandordirs; Name: "{app}\node_modules"
+; Scratch from the in-app updater. Lives beside the install rather than inside
+; it (so it never lands in a backup zip), which is why it needs its own entry.
+Type: filesandordirs; Name: "{app}\..\ADHDisplayUpdate"
 Type: filesandordirs; Name: "{app}\dist"
 Type: filesandordirs; Name: "{app}\logs"
 Type: filesandordirs; Name: "{app}\server\data"

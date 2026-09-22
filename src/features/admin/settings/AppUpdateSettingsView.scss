@@ -1,0 +1,174 @@
+@use '../../../styles/mixins' as *;
+@use '../../../styles/variables' as *;
+
+// Settings → App updates. Every colour here is a design token, so light and
+// dark mode are handled by the variable layer rather than by a second set of
+// rules in this file.
+
+.app-update {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 1.5;
+}
+
+.app-update__card {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+
+  h2 {
+    margin: 0;
+    font-size: 1rem;
+  }
+}
+
+.app-update__versions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-unit * 2;
+}
+
+.app-update__label {
+  display: block;
+  font-size: 0.75rem;
+  color: $color-text-muted;
+}
+
+.app-update__hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: $color-text-muted;
+}
+
+.app-update__field {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  font-size: 0.875rem;
+
+  input {
+    padding: calc($spacing-unit * 0.75) $spacing-unit;
+    border: 1px solid $color-border;
+    border-radius: $radius-md;
+    background: transparent;
+    color: $color-text;
+    font: inherit;
+
+    &:focus-visible {
+      outline: 2px solid $color-accent;
+      outline-offset: 1px;
+    }
+  }
+}
+
+.app-update__actions {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  flex-wrap: wrap;
+}
+
+.app-update__saved {
+  font-size: 0.875rem;
+  color: $color-success;
+}
+
+.app-update__plan {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit * 0.75);
+}
+
+.app-update__plan-headline {
+  margin: 0;
+  font-weight: 600;
+}
+
+.app-update__commit {
+  margin: 0;
+  font-size: 0.875rem;
+  color: $color-text-muted;
+}
+
+.app-update__stats {
+  margin: 0;
+  padding-left: $spacing-unit * 2;
+  font-size: 0.875rem;
+}
+
+.app-update__files {
+  font-size: 0.8125rem;
+
+  summary {
+    cursor: pointer;
+    color: $color-accent;
+    border-radius: $radius-md;
+
+    // Hover is wrapped so it can't stick after a tap on the kiosk's own
+    // touchscreen; the pressed state is an inset shadow, same as every other
+    // clickable surface in this app.
+    @media (hover: hover) {
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+
+    &:active {
+      box-shadow: inset 0 1px 3px rgb(0 0 0 / 25%);
+    }
+  }
+
+  ul {
+    margin: calc($spacing-unit / 2) 0 0;
+    padding-left: $spacing-unit * 2;
+    max-height: 240px;
+    overflow-y: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+}
+
+.app-update__log {
+  margin: calc($spacing-unit / 2) 0 0;
+  padding: $spacing-unit;
+  max-height: 260px;
+  overflow: auto;
+  border-radius: $radius-md;
+  background: $color-error-bg;
+  color: $color-text;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+// --- Progress --------------------------------------------------------------
+
+.app-update__card--progress {
+  align-items: stretch;
+}
+
+.app-update__progress-head {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+}
+
+.app-update__step {
+  margin: 0;
+  font-size: 0.9375rem;
+}
+
+// Same shape as the upload progress bar in `ImageUploadField.scss` — there is
+// no shared ProgressBar component in this codebase yet.
+.app-update__bar {
+  height: 8px;
+  border-radius: 999px;
+  background: $color-border;
+  overflow: hidden;
+}
+
+.app-update__bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: $color-accent;
+  transition: width 0.4s ease;
+}

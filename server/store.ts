@@ -613,6 +613,52 @@ export function setAssistantModel(model: AssistantModel) {
   writeAnthropicCredentials({ ...readAnthropicCredentials(), model })
 }
 
+// --- GitHub credentials (in-app "Update app") -------------------------------
+//
+// Same "small standalone file, not a synced key" shape as the Anthropic/Wolt/
+// Foodora credentials above — this holds a real GitHub personal access token,
+// so it must never be broadcast to every LAN device the way a `SyncedKey`
+// value is. That is not a stylistic preference here: every paired display
+// subscribes to synced keys over the LAN WebSocket, so a token placed in one
+// would be handed to every screen in the cafe.
+//
+// `owner`/`repo`/`branch` live in the same file since they're the same small
+// settings blob (see `AppUpdateSettingsView.tsx`), and they default to the
+// repository this app is actually developed in, so a fresh install only needs
+// the token filled in. Read by `server/appUpdate/github.ts`.
+
+const GITHUB_CREDENTIALS_FILE = join(DATA_DIR, 'github-credentials.json')
+
+/** Where the in-app updater pulls from, plus the token it authenticates with. */
+export interface GithubCredentials {
+  /** A fine-grained PAT with `Contents: Read` on this one repository. `null` until an admin sets one — the updater reports "not configured" rather than attempting an anonymous call, since the repo is private and anonymous reads 404. */
+  token: string | null
+  owner: string
+  repo: string
+  /** The branch the kiosk tracks. Deliberately a plain branch rather than a tag: this repo publishes no releases (see `.github/workflows/build-installer.yml`, which is `workflow_dispatch`-only and ends at `upload-artifact`). */
+  branch: string
+}
+
+const EMPTY_GITHUB_CREDENTIALS: GithubCredentials = { token: null, owner: 'YngvN', repo: 'wraps-coffee', branch: 'main' }
+
+export function getGithubCredentials(): GithubCredentials {
+  if (!existsSync(GITHUB_CREDENTIALS_FILE)) return EMPTY_GITHUB_CREDENTIALS
+  return { ...EMPTY_GITHUB_CREDENTIALS, ...(JSON.parse(readFileSync(GITHUB_CREDENTIALS_FILE, 'utf-8')) as Partial<GithubCredentials>) }
+}
+
+/**
+ * Merges a partial settings change into the stored blob. `token` is only
+ * overwritten when the caller passes a string — `undefined` leaves the existing
+ * token untouched, which is what lets the admin form save an owner/repo/branch
+ * change without the UI ever having to round-trip the real token back to the
+ * server (it only ever receives a masked one).
+ */
+export function setGithubCredentials(patch: Partial<GithubCredentials>) {
+  const next: GithubCredentials = { ...getGithubCredentials(), ...patch }
+  writeFileSync(GITHUB_CREDENTIALS_FILE, JSON.stringify(next), 'utf-8')
+  mirrorFile(GITHUB_CREDENTIALS_FILE)
+}
+
 // --- Product-name resolution ladder: confirmed aliases + harvest log --------
 //
 // Same "small standalone file, not a synced key" shape as the settings above

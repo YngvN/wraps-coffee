@@ -286,6 +286,21 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
         url: '/admin/dashboard/settings/integrations',
       },
       { id: 'settingsPage:developers', type: 'settingsPage', title: t('admin.settings.developersTitle'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings/developers' },
+      ...(session?.role === 'admin'
+        ? [
+            // Admin only, matching this sub-view's own stricter gate in
+            // `SettingsView` and on every `/app-update/*` route — it runs code
+            // pulled from GitHub, not just an edit.
+            {
+              id: 'settingsPage:appupdate',
+              type: 'settingsPage' as const,
+              title: t('admin.settings.appUpdate.title'),
+              subtitle: settingsTypeLabel,
+              keywords: t('admin.settings.appUpdate.searchKeywords').split(','),
+              url: '/admin/dashboard/settings/appupdate',
+            },
+          ]
+        : []),
       ...(session?.role !== 'limited'
         ? [
             // Same admin/subadmin gate as the row itself in `SettingsView` —

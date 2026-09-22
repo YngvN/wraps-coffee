@@ -1,3 +1,4 @@
+import type { AppUpdateCheckResult, AppUpdateConfig, AppUpdateState } from '../types/appUpdate'
 import type { DisplayConnectionType } from '../types/displayMachine'
 import type { FoodoraCredentials, WoltCredentials } from '../types/delivery'
 import type { NearbyStop, WeatherHour } from '../types/integrations'
@@ -1457,5 +1458,70 @@ export async function restoreScreensSnapshotForScreen(token: string, tier: Scree
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string }
     throw new Error(body.error ?? 'Could not restore this screen from the snapshot')
+  }
+}
+
+// --- In-app updater (Settings → App updates, `server/appUpdate/`) ------------
+//
+// All admin-only: this family downloads and executes code from the internet.
+// Note `getAppUpdateStatus`'s deliberate tolerance of a failed request — during
+// the swap there is no server running to answer, and that is expected rather
+// than an error.
+
+/** Which repository the kiosk tracks, and whether a token is stored. The real token is never returned. */
+export async function getAppUpdateConfig(token: string): Promise<AppUpdateConfig> {
+  const response = await fetch(`${serverBaseUrl()}/app-update/config`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!response.ok) throw new Error('Could not load update settings')
+  return (await response.json()) as AppUpdateConfig
+}
+
+/** Saves any subset of the update settings. Omitting `githubToken` leaves the stored token untouched; passing `''` clears it. */
+export async function setAppUpdateConfig(
+  token: string,
+  patch: { token?: string; owner?: string; repo?: string; branch?: string },
+): Promise<AppUpdateConfig> {
+  const response = await fetch(`${serverBaseUrl()}/app-update/config`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(patch),
+  })
+  if (!response.ok) throw new Error('Could not save update settings')
+  return (await response.json()) as AppUpdateConfig
+}
+
+/** Asks GitHub what has changed. One commit lookup plus one tree listing — no file contents are downloaded. */
+export async function checkForAppUpdate(token: string): Promise<AppUpdateCheckResult> {
+  const response = await fetch(`${serverBaseUrl()}/app-update/check`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return (await response.json()) as AppUpdateCheckResult
+}
+
+/** Starts an update. Returns as soon as it is under way — follow it with `getAppUpdateStatus`. */
+export async function applyAppUpdate(token: string, dryRun = false): Promise<{ ok: boolean; error?: string }> {
+  const response = await fetch(`${serverBaseUrl()}/app-update/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ dryRun }),
+  })
+  return (await response.json()) as { ok: boolean; error?: string }
+}
+
+/**
+ * Current update progress, or `null` when the server is unreachable.
+ *
+ * `null` is a meaningful answer here rather than a failure: the server is
+ * deliberately killed partway through an update, so the poller treats an
+ * unreachable server as the "restarting" phase and keeps waiting. A thrown
+ * error would make every update look like it had failed.
+ */
+export async function getAppUpdateStatus(token: string): Promise<{ state: AppUpdateState | null; installedVersion: string } | null> {
+  try {
+    const response = await fetch(`${serverBaseUrl()}/app-update/status`, { headers: { Authorization: `Bearer ${token}` } })
+    if (!response.ok) return null
+    return (await response.json()) as { state: AppUpdateState | null; installedVersion: string }
+  } catch {
+    return null
   }
 }

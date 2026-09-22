@@ -38,6 +38,7 @@ import {
   type DeviceClientMessage,
   type DeviceServerMessage,
 } from './deviceSocket'
+import * as appUpdate from './appUpdate'
 import * as updates from './updates'
 import { handleDeleteUpload, handleRenameUpload, handleServeUpload, handleStorageUsage, handleUpload, listUploads } from './uploads'
 import { handleVideoRetry, handleVideoUpload, startAbandonedVideoUploadSweep } from './videoUploads'
@@ -1748,6 +1749,115 @@ const httpServer = createServer((req, res) => {
   // routes above, this doesn't touch any secret and only ever downloads a
   // model, never runs arbitrary input — but still admin/subadmin-gated,
   // same posture as the rest of this feature's settings.
+  // --- In-app updater (`server/appUpdate/`) ---------------------------------
+  //
+  // Pulls the newest code from GitHub and applies it, so shipping a change no
+  // longer means re-running the Windows installer on the kiosk. Deliberately
+  // namespaced `/app-update/*`, NOT `/updates/*` — that family serves Expo OTA
+  // bundles to the Companion Android TV app and is a different feature.
+  //
+  // Every route here is admin-only, not admin/subadmin: this family downloads
+  // and executes code from the internet (`npm install` alone runs arbitrary
+  // postinstall scripts), which is a strictly higher bar than editing content.
+
+  if (req.method === 'GET' && url.pathname === '/app-update/config') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role !== 'admin') {
+      sendJson(res, 403, { error: 'Only admin accounts can manage app updates' })
+      return
+    }
+    sendJson(res, 200, appUpdate.getPublicConfig())
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/app-update/config') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role !== 'admin') {
+      sendJson(res, 403, { error: 'Only admin accounts can manage app updates' })
+      return
+    }
+    readJsonBody(req)
+      .then((body) => {
+        const { token, owner, repo, branch } = body as { token?: string | null; owner?: string; repo?: string; branch?: string }
+        // `token: undefined` leaves the stored one alone, so the form can save
+        // an owner/branch change without the client ever holding the real
+        // token; an explicit empty string clears it.
+        appUpdate.saveConfig({
+          ...(token === undefined ? {} : { token: token === '' ? null : token }),
+          ...(owner ? { owner } : {}),
+          ...(repo ? { repo } : {}),
+          ...(branch ? { branch } : {}),
+        })
+        sendJson(res, 200, appUpdate.getPublicConfig())
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // Cheap: one commit lookup plus one recursive tree listing, no file contents.
+  if (req.method === 'POST' && url.pathname === '/app-update/check') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role !== 'admin') {
+      sendJson(res, 403, { error: 'Only admin accounts can manage app updates' })
+      return
+    }
+    void appUpdate.check().then((result) => sendJson(res, result.ok ? 200 : 502, result))
+    return
+  }
+
+  // Returns 202 as soon as the run is under way — a full update takes minutes,
+  // and on a real apply this process does not survive to send a response.
+  if (req.method === 'POST' && url.pathname === '/app-update/apply') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role !== 'admin') {
+      sendJson(res, 403, { error: 'Only admin accounts can manage app updates' })
+      return
+    }
+    readJsonBody(req)
+      .then(async (body) => {
+        const { dryRun } = body as { dryRun?: boolean }
+        console.log(`[app-update] ${session.username} started an update${dryRun ? ' (dry run)' : ''}`)
+        const result = await appUpdate.start(Boolean(dryRun))
+        sendJson(res, result.ok ? 202 : 409, result)
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // Polled every couple of seconds while an update runs. Unauthenticated reads
+  // are refused, but note the client treats a *failed* request as the
+  // "restarting" phase rather than an error — during the swap there is no
+  // server here to answer at all.
+  if (req.method === 'GET' && url.pathname === '/app-update/status') {
+    const session = store.getSession(bearerToken(req) ?? '')
+    if (!session) {
+      sendJson(res, 401, { error: 'Authentication required' })
+      return
+    }
+    if (session.role !== 'admin') {
+      sendJson(res, 403, { error: 'Only admin accounts can manage app updates' })
+      return
+    }
+    sendJson(res, 200, { state: appUpdate.getState(), installedVersion: APP_VERSION })
+    return
+  }
+
   if (req.method === 'POST' && url.pathname === '/assistant/ollama-pull') {
     const session = store.getSession(bearerToken(req) ?? '')
     if (!session) {
@@ -2892,6 +3002,11 @@ startNewsImageCacheSweep()
 startAbandonedVideoUploadSweep()
 startUpdateFailureSweep()
 updates.sweepUpdatesDirForBackup()
+// An update that was mid-apply when this process's predecessor was killed left
+// a `running` record behind with nobody to finish it. Resolve it now, against
+// the version actually running, so the admin UI reaches a terminal state
+// instead of spinning forever. See `server/appUpdate/state.ts`.
+appUpdate.reconcileAfterRestart(APP_VERSION)
 // After store.load() — snapshot capture reads store.get('admin.screens'), and this also registers
 // the lazy-pinning hook against uploads.ts's own delete path (see screensSnapshots.ts's own doc
 // comment on `startScreensSnapshotScheduler`).

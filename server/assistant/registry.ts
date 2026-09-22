@@ -87,6 +87,17 @@ export const ASSISTANT_ENTITIES: AssistantEntity<any>[] = [
   ordersEntity,
 ]
 
+// Deliberately NOT registered: Settings → App updates (`server/appUpdate/`,
+// `AppUpdateSettingsView.tsx`). An entity adapter exists so the assistant can
+// draft a change an admin then confirms and saves through the normal write
+// path — but that section has no data to draft. Its only inputs are a GitHub
+// personal access token (a secret, which must never reach a `fillFieldsSchema`,
+// a `reviewChangeRows` diff or an assistant trace, and is exactly the
+// live-state-dependent shape that `confabulationRiskFields` exists to strip)
+// and a branch name; its only action is an irreversible machine-level update
+// that reboots the kiosk. Neither is a data write, so there is nothing here the
+// draft-then-confirm contract could safely carry. Leave it out.
+
 /** Whether `session` is allowed to use `entity` at all — `section: null` entities (Users, credentials, backup, cleanup) require `role !== 'limited'`; section-scoped entities require that section in `allowedSections` when the session is `limited`. */
 export function sessionCanUseEntity(entity: AssistantEntity<unknown>, session: AssistantSession): boolean {
   if (session.role !== 'limited') return true

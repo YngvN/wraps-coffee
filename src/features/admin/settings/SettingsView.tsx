@@ -16,6 +16,7 @@ import { StoreSettingsView } from '../store/StoreSettingsView'
 import { AdvancedSettingsView } from './AdvancedSettingsView'
 import { BackupSettingsView } from './BackupSettingsView'
 import { ConnectWebsiteView } from './website/ConnectWebsiteView'
+import { AppUpdateSettingsView } from './AppUpdateSettingsView'
 import { DeveloperDocsView } from './DeveloperDocsView'
 import { TestingSettingsView } from './TestingSettingsView'
 import './SettingsView.scss'
@@ -23,9 +24,9 @@ import './SettingsView.scss'
 const CLOCK_FORMATS: ClockFormat[] = ['24h', '12h']
 const DATE_FORMATS: DateFormat[] = ['dmy', 'mdy']
 
-type SubView = 'main' | 'developers' | 'advanced' | 'backup' | 'store' | 'testing' | 'integrations' | 'website'
+type SubView = 'main' | 'developers' | 'advanced' | 'backup' | 'store' | 'testing' | 'integrations' | 'website' | 'appupdate'
 /** Every `SubView` that has a real URL segment of its own under `/admin/dashboard/settings/`. */
-const ROUTED_SUB_VIEWS: SubView[] = ['developers', 'advanced', 'backup', 'store', 'testing', 'integrations', 'website']
+const ROUTED_SUB_VIEWS: SubView[] = ['developers', 'advanced', 'backup', 'store', 'testing', 'integrations', 'website', 'appupdate']
 
 /** Admin-wide settings: the interface language, the cafe's own Standard pane language (the default kiosk panes render their content in, independent of the interface language above — see `useDefaultPaneLanguage`, overridable per pane from its own "Language" sub-menu), the shared clock format (24-hour or 12-hour AM/PM) and date format (day-month-year or month-day-year — used everywhere a wall-clock time/plain date is shown: the weather forecast, admin timestamps, uploaded-image/message-board-post dates, the screensaver schedule's own time pickers, and a "time" pane's own shorthand date), which sidebar items this cafe's dashboard shows (different cafes use different features — a cafe with no online ordering or no digital signage can hide those tabs entirely), "Integrations" (transit/weather/news/delivery-platform setup — see `IntegrationsView`, reached as a submenu here rather than its own sidebar item, same as Store), a "For developers" sub-view documenting the local server's own API, and (admin/subadmin only) an "Advanced" sub-view for how a screen's own link should be addressed (see `AdvancedSettingsView`). More device/account-level preferences land here over time. */
 export function SettingsView() {
@@ -121,6 +122,13 @@ export function SettingsView() {
           { id: 'backup', label: t('admin.settings.backup.title'), onClick: () => openSubView('backup') },
           { id: 'testing', label: t('admin.settings.testing.title'), onClick: () => openSubView('testing') },
         ]),
+    // Admin only, a stricter gate than the block above: this sub-view pulls
+    // code from GitHub and runs `npm install`/`npm run build` on the kiosk,
+    // which is a higher bar than editing a credential. `server/index.ts`
+    // enforces the same gate on every `/app-update/*` route.
+    ...(session?.role === 'admin'
+      ? [{ id: 'appupdate', label: t('admin.settings.appUpdate.title'), onClick: () => openSubView('appupdate') }]
+      : []),
   ]
 
   return (
@@ -137,6 +145,15 @@ export function SettingsView() {
           </div>
           <TranslatedText as="p" id="admin.settings.website.description" className="admin-page-description" />
           <ConnectWebsiteView />
+        </div>
+      ) : subView === 'appupdate' ? (
+        <div className="settings-view">
+          <div className="settings-view__docs-header">
+            <BackButton onClick={closeSubView}>{t('admin.common.backTo', { destination: t('admin.settings.title') })}</BackButton>
+            <TranslatedText as="h1" id="admin.settings.appUpdate.title" />
+          </div>
+          <TranslatedText as="p" id="admin.settings.appUpdate.description" className="admin-page-description" />
+          <AppUpdateSettingsView />
         </div>
       ) : subView === 'developers' ? (
         <div className="settings-view">
