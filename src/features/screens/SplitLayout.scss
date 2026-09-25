@@ -4,6 +4,12 @@
   position: relative;
   width: 100%;
   height: 100%;
+  // Keeps every z-index inside the layout (borders 7, dividers 8, corner
+  // handles 9…) scoped to it. Without its own stacking context those chrome
+  // layers compete at page level and paint over page-level overlays like
+  // the screensaver (`ScreenDisplay.scss`, z-index 5), which then looks like
+  // a separate black tile per pane with the grid still drawn on top.
+  isolation: isolate;
   font-family: var(--screen-font-body, #{$font-sans});
 
   // Catches any `<h1>`/`<h2>` rendered by a slide with no explicit

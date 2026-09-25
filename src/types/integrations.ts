@@ -148,12 +148,19 @@ export interface DepartureInfo {
   cancelled: boolean
 }
 
+/** One stop's departures as fetched from Entur (`fetchEnturDepartures` in `src/lib/entur.ts`) — shared by the server's poller and a display's own direct poller. */
+export interface StopDepartures {
+  stopName: string
+  departures: DepartureInfo[]
+}
+
 /**
  * The local server's own `admin.transitDepartures` synced key — one entry
  * per Entur stop id currently configured under Ruter's or Entur's own
  * `selectedStops` (see `IntegrationsConfig`), kept fresh by `transitPoller.ts`
- * on the server and pushed to every connected display/companion app, rather
- * than each client fetching independently. Read via `useTransitDepartures`;
+ * on the server and pushed to every connected display/companion app. Read via
+ * `useTransitDepartures`, which prefers a display's own fresher direct fetch
+ * when it has one (see `directTransitPoller.ts`) and falls back to this;
  * never written by a client directly — the poller is the sole writer.
  */
 export type TransitDeparturesSnapshot = Record<

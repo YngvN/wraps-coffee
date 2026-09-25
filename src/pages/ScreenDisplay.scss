@@ -49,7 +49,9 @@
 
 // Sits above the slots but below the toolbar (z-index: 10, see
 // ScreenToolbar.scss) so the lock icon / "Edit appearance" button stay
-// reachable while the screensaver's active.
+// reachable while the screensaver's active. Covering the whole layout at
+// only z-index 5 relies on `.split-layout` being `isolation: isolate`
+// (SplitLayout.scss) — otherwise its pane borders/dividers paint over this.
 .screen-display__screensaver {
   position: fixed;
   inset: 0;

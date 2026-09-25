@@ -2,7 +2,7 @@ import type { FormEvent } from 'react'
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
-import { Alert, Button, Card, Input, TranslatedText } from '../../../components'
+import { Alert, Button, Card, Checkbox, Input, TranslatedText } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanOrigin } from '../../../hooks/useLanOrigin'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
@@ -21,7 +21,9 @@ const REDIRECT_TARGET_PATTERN = /^\/screens\/editor\/[^/]+$/
  * `?redirect=` query param points back to a screen's own editor URL (see
  * `ScreenDisplay`, which sends here when its `/screens/editor/:screenId`
  * route is opened with no session on this browser origin yet) — straight
- * back to that screen, now with a session on this origin. A wrong password
+ * back to that screen, now with a session on this origin. "Stay signed in"
+ * (on by default) keeps the session across browser restarts; unchecked, it
+ * ends when the tab/browser closes (see `useAdminSession`). A wrong password
  * or an unreachable server both surface as an inline error — nothing
  * navigates away until the server actually confirms the login.
  *
@@ -39,6 +41,7 @@ export function AdminLogin() {
   const [storeSettings] = useStoreSettings()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [staySignedIn, setStaySignedIn] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showQr, setShowQr] = useState(false)
@@ -51,7 +54,7 @@ export function AdminLogin() {
     setSubmitting(true)
     try {
       const session = await login(username, password)
-      setActiveSession(session)
+      setActiveSession(session, staySignedIn)
       const redirectTarget = searchParams.get('redirect')
       navigate(redirectTarget && REDIRECT_TARGET_PATTERN.test(redirectTarget) ? redirectTarget : '/admin/dashboard/overview')
     } catch (err) {
@@ -82,6 +85,12 @@ export function AdminLogin() {
             onChange={(event) => setPassword(event.target.value)}
             autoComplete="current-password"
             required
+          />
+          <Checkbox
+            id="admin-stay-signed-in"
+            label={t('admin.login.staySignedIn')}
+            checked={staySignedIn}
+            onChange={(event) => setStaySignedIn(event.target.checked)}
           />
           {error && <Alert variant="error">{error}</Alert>}
           <Button type="submit" disabled={submitting}>

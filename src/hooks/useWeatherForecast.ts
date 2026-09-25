@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchWeather } from '../lib/localServer'
+import { fetchMetForecast } from '../lib/metForecast'
 import type { WeatherHour } from '../types/integrations'
 import { weatherLocationKey } from '../utils/weatherLocationKey'
 
 /** Weather changes slowly enough that a ~10 minute poll keeps `WeatherSlide` fresh without hammering MET's free API. */
 const POLL_INTERVAL_MS = 10 * 60_000
 
-/** How long a cached forecast is still trusted as "better than nothing" once the live fetch starts failing (e.g. the local server or the internet connection itself is down). Past this age it's treated the same as no cache at all. */
+/** How long the direct MET fetch gets before falling through to the local server — a browser fetch has no timeout of its own, so a hung request would otherwise keep the server backup from ever being tried. */
+const DIRECT_FETCH_TIMEOUT_MS = 15_000
+
+/** How long a cached forecast is still trusted as "better than nothing" once both live fetches start failing (MET directly and the local server's route). Past this age it's treated the same as no cache at all. */
 const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 const CACHE_KEY_PREFIX = 'weather-cache:'
@@ -78,7 +82,7 @@ interface WeatherForecastState {
  * view: `WeatherSlide` typically unmounts and remounts on each such
  * transition (a different pane kind was showing in between), which would
  * otherwise restart this hook from scratch right as the pane becomes
- * visible. Same pattern as `useTransitDepartures.ts`'s own `seedFromCache`.
+ * visible.
  */
 function seedFromCache(lat: number, lon: number, hours: number): { full: FullForecast | null; state: WeatherForecastState } {
   const cached = readCache(lat, lon)
@@ -90,9 +94,14 @@ function seedFromCache(lat: number, lon: number, hours: number): { full: FullFor
 }
 
 /**
- * Polls `GET /integrations/weather` for `(lat, lon)` every ~10 minutes. The
- * server always returns MET's entire multi-day hourly timeseries (see
- * `handleWeather`'s own doc comment) regardless of `hours` — this hook keeps
+ * Refreshes the forecast for `(lat, lon)` every ~10 minutes, internet first
+ * with the local server as the backup: MET directly (`fetchMetForecast`, so a
+ * display with internet stays live while the local server is down), else
+ * `GET /integrations/weather` (so a display that can reach the server but
+ * not the internet stays live), else the cache below. Both return MET's
+ * entire multi-day hourly timeseries (see `handleWeather`'s own doc comment)
+ * regardless of `hours`, and MET's `Expires` header lets the browser's HTTP
+ * cache absorb several panes asking for the same location — this hook keeps
  * that full response in `fullRef` (mirrored into `localStorage` via
  * `writeCache`, so it survives a reload) and only *displays* `hours` worth
  * of it, via `selectUpcoming`. That split is what makes offline fallback
@@ -140,7 +149,8 @@ export function useWeatherForecast(lat: number | undefined, lon: number | undefi
       if (!cancelled) setState(seed.state)
     })
     const refresh = () => {
-      fetchWeather(lat, lon, hours)
+      fetchMetForecast(lat, lon, hours, undefined, AbortSignal.timeout(DIRECT_FETCH_TIMEOUT_MS))
+        .catch(() => fetchWeather(lat, lon, hours))
         .then((result) => {
           if (cancelled) return
           const forecast: FullForecast = { hourly: result.hourly, todayLowC: result.todayLowC, todayHighC: result.todayHighC, fetchedAt: Date.now() }

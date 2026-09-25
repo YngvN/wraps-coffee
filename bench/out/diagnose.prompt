@@ -1,0 +1,8 @@
+Diagnose a defect. Below are MEASURED FACTS and the relevant source.
+State the single ROOT CAUSE and give the EXACT replacement code.
+At most 12 lines. No preamble, no restating the facts back to me.
+If the facts are consistent with more than one cause, say which ONE measurement
+would separate them, and stop.
+
+=== MEASURED FACTS ===
+Symptom (user report): on the kiosk route /screens/:screenId of a multi-pane screen, the screensaver appears to be applied per pane instead of once over the whole screen. Facts measured: (1) ScreenDisplay.tsx renders exactly ONE overlay <div class=screen-display__screensaver> as a sibling AFTER the split layout, not inside any pane; ScreenDisplay is mounted once per route. (2) .screen-display__screensaver is position:fixed; inset:0; z-index:5; background:#000. (3) Pane-layer elements declare higher z-index: SplitBorderLine.scss z-index 7, SplitLayoutDivider.scss z-index 8, PaneCornerHandle z-index 9, SplitLayout.scss has z-index 9 (line ~326) and 10 (line ~340), and z-index 4/5 near lines 153/163. (4) On the editor route the layout may be wrapped in ScaledScreenPreview which applies transform: translate/scale to its inner box; the overlay is outside that wrapper. Question: which elements paint above the overlay (or confine it) so the black looks per-pane, and which stacking context/CSS rule is responsible? Name file+selector. Do not propose unrelated changes.

@@ -1,0 +1,83 @@
+[qwen-27b: 6483+2069 tok]
+ROOT CAUSE: `.split-layout__pane` establishes a new stacking context via `container-type: size`, trapping its high `z-index` descendants (e.g., `.split-layout__pane-dim` at z-index 10) within the pane's local context. Since the pane itself has no explicit `z-index` (auto), it paints below the screensaver overlay (z-index 5) in the root context, but the visual effect of "per-pane" dimming/blackout is caused by the pane's content or specific high-z-index children (like `.split-layout__pane-dim` if active, or simply the pane's opaque background if present) interacting with the overlay. However, the facts state the overlay is `position: fixed` and a sibling *after* the layout. The "per-pane" appearance is actually caused by the **pane's own background or content** being visible *through* or *around* the overlay if the overlay isn't covering them, OR more likely, the **pane's `overflow: hidden` and `container-type`** are not the issue, but rather the **z-index of the pane's content**.
+
+Wait, the facts say the overlay is `position: fixed; inset: 0; z-index: 5`. The panes have `z-index` up to 10 *inside* their own stacking contexts. If the pane root (`.split-layout__pane`) does not have a `z-index` that creates a stacking context *above* the overlay, the overlay should cover them. But `container-type: size` **does** create a stacking context. Therefore, the entire pane (including its high-z-index children) is treated as a single unit with `z-index: auto` (0) in the root context. The overlay is `z-index: 5`. The overlay should cover the panes.
+
+The "per-pane" look implies the overlay is *not* covering the panes uniformly. The only way this happens is if the overlay is **confined** or if the panes are **above** it.
+Fact 4 mentions `ScaledScreenPreview` applies `transform`. If the overlay is *outside* the wrapper, it is in the root context. The panes are *inside* the wrapper. If the wrapper has a `transform`, it creates a stacking context. If the wrapper's stacking context is `z-index: auto`, it is 0. The overlay is 5. Overlay wins.
+
+However, if the **pane** itself has a `z-index` that is *not* auto, it would compete. The facts list `z-index: 4` and `5` in `SplitLayout.scss` lines 153/163. Let's look at `.split-layout__pane--selected` (z-index 4) and `.split-layout__pane-drop-overlay` (z-index 5). These are inside the pane.
+
+The critical defect is that **`.split-layout__pane`** (or its parent `.layout-tree__split`) likely has a `z-index` or `transform` that places it *above* the overlay, or the overlay is being clipped.
+Actually, the most common cause for "per-pane" screensaver is that the **overlay is inside the pane** or **the pane has a higher z-index**.
+Fact 1 says: "renders exactly ONE overlay... as a sibling AFTER the split layout".
+Fact 3 says: "Pane-layer elements declare higher z-index... SplitLayout.scss has z-index 9... and 10".
+If `.split-layout__pane` has `z-index: auto`, it doesn't compete. But if **`.layout-tree__split`** or **`.split-layout`** has a `z-index` > 5, it wins.
+The facts don't explicitly state `.split-layout` has a z-index, but they list `SplitLayout.scss` having z-index 9 and 10. If those are on the pane or split container, and they are in the root context (if no transform/stacking context ancestor), they would cover the overlay.
+But `container-type: size` on `.split-layout__pane` creates a stacking context. So the pane's internal z-indexes (9, 10) are trapped. The pane itself is `z-index: auto`.
+So the overlay (z-index 5) should cover the pane (z-index 0).
+
+Unless... the **overlay** is being clipped by `overflow: hidden` on an ancestor? No, it's `position: fixed`.
+
+Let's re-read Fact 4: "On the editor route... wrapped in ScaledScreenPreview which applies transform... the overlay is outside that wrapper."
+If the overlay is outside, it's in the root. The wrapper is in the root.
+If the wrapper has `transform`, it creates a stacking context.
+If the wrapper has `z-index: auto`, it is 0.
+Overlay is 5. Overlay wins.
+
+Is it possible the **overlay** is `z-index: 5` but the **pane** has `z-index: 10` *and* is **not** in a stacking context?
+`container-type: size` **does** create a stacking context. So the pane's z-index is trapped.
+
+Wait, look at **`.split-layout__pane-dim`** (z-index 10). It is inside the pane. Trapped.
+Look at **`.split-layout__pane-pulse`** (z-index 9). Trapped.
+
+What if the **overlay** is actually **inside** a pane? Fact 1 says "sibling AFTER the split layout".
+
+Let's look at **`.screen-display`**. It is `position: fixed`.
+The overlay is `.screen-display__screensaver`.
+
+The only way the black looks "per-pane" is if the overlay is **not** covering the panes, or if the panes are **above** the overlay.
+If the panes are above, they must have a higher effective z-index.
+This happens if the **pane** (or its ancestor) has a `z-index` > 5 in the root context.
+Does `.split-layout` or `.layout-tree__split` have a z-index?
+The facts say `SplitLayout.scss` has z-index 9 and 10. If these are on `.split-layout` or `.layout-tree__split`, and they are **not** in a stacking context (no transform, no container-type on the *split* itself, only on the *pane*), then they compete with the overlay.
+`.layout-tree__split` has `overflow: hidden` but no `container-type`. It does **not** create a stacking context by default (unless it has z-index, transform, etc.).
+If `.layout-tree__split` has `z-index: 9` (from the fact "SplitLayout.scss has z-index 9"), and it is in the root context, it will paint **above** the overlay (z-index 5).
+This would make the entire split layout (and thus all panes) appear above the screensaver, making the screensaver invisible or only visible in gaps. But the symptom is "applied per pane", implying the black is visible *on* the panes but maybe not covering the borders or something? Or maybe the black is visible *between* panes?
+Actually, if the split layout is above the overlay, the overlay is hidden. The user sees the content.
+If the overlay is above the split layout, the user sees black.
+
+"Applied per pane" usually means the black covers the pane content but not the borders, or vice versa.
+If the **borders** (z-index 7, 8, 9) are **above** the overlay, and the **pane content** is **below** the overlay, you get black panes with visible borders.
+This requires:
+1. Pane content z-index < 5.
+2. Border z-index > 5.
+
+The borders (`.split-border-line` z-index 7, `.split-layout__divider` z-index 8) are inside `.layout-tree__split`.
+If `.layout-tree__split` does **not** create a stacking context, these z-indexes compete in the root context.
+`.split-layout__pane` **does** create a stacking context (via `container-type`). So the pane's content is trapped at z-index 0 (effectively).
+The overlay is z-index 5.
+So:
+- Pane content (trapped, eff. 0) < Overlay (5) -> Pane is black.
+- Border (z-index 7, in root context if split has no stacking context) > Overlay (5) -> Border is visible.
+
+This matches "applied per pane" (black panes, visible borders).
+
+ROOT CAUSE: `.layout-tree__split` does not establish a stacking context, allowing its children's high `z-index` values (borders/dividers) to compete in the root context and paint above the screensaver overlay (z-index 5), while the panes (which do establish stacking contexts via `container-type`) are trapped below it.
+
+EXACT REPLACEMENT CODE:
+Add `isolation: isolate;` to `.layout-tree__split` to force it into its own stacking context, trapping the high z-index borders below the overlay.
+
+```scss
+.layout-tree__split {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  gap: 4px;
+  isolation: isolate; // Add this line
+}
+```

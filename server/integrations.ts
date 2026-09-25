@@ -1,9 +1,9 @@
 import type { ServerResponse } from 'node:http'
-import type { DepartureInfo, NearbyStop } from '../src/types/integrations'
+import { ENTUR_CLIENT_NAME, fetchEnturDepartures } from '../src/lib/entur'
+import { fetchMetHourly, todayLowHigh } from '../src/lib/metForecast'
+import type { NearbyStop, StopDepartures, WeatherHour } from '../src/types/integrations'
 import { sendJson } from './http'
 
-/** Identifies this app to Entur's APIs, per their usage terms — no personal/secret info needed, just a stable `<company>-<application>` string. */
-const ENTUR_CLIENT_NAME = 'adhdisplay-cafe-kiosk'
 /** MET Norway's terms ask for an identifying `User-Agent`, ideally with a way to reach the operator — override via the `WEATHER_USER_AGENT` env var to include a real contact if desired; functions fine without it either way. */
 const WEATHER_USER_AGENT = process.env.WEATHER_USER_AGENT ?? 'adhdisplay-kiosk (self-hosted cafe display)'
 
@@ -108,100 +108,11 @@ export async function handleStopSearch(res: ServerResponse, query: string) {
 
 // --- Transit departures (Entur JourneyPlanner) ------------------------------
 
-interface EstimatedCall {
-  aimedDepartureTime: string
-  expectedDepartureTime: string
-  realtime: boolean
-  cancellation: boolean
-  destinationDisplay: { frontText: string }
-  quay: { publicCode: string | null } | null
-  serviceJourney: {
-    line: {
-      publicCode: string
-      name: string | null
-      transportMode: string
-      authority: { id: string; name: string } | null
-      presentation: { colour: string | null; textColour: string | null } | null
-    }
-  }
-}
-interface StopPlaceDeparturesResponse {
-  data: { stopPlace: { name: string; estimatedCalls: EstimatedCall[] } | null }
-}
-
-interface StopDepartures {
-  stopName: string
-  departures: DepartureInfo[]
-}
-
 const departuresCache = new Map<string, CacheEntry<StopDepartures>>()
 
-/**
- * Always fetched from Entur regardless of how many departures a slide is
- * actually configured to *show* (`count`, admin-capped at 20 in
- * `SlideFields.tsx`) — a schedule is effectively indefinite, so a display
- * that goes offline should have far more than just the next `count`
- * departures buffered client-side (see `useTransitDepartures.ts`'s own
- * `fullRef`) to keep trimming from as departures pass, the same way
- * `handleWeather` below always caches Yr's full multi-day forecast rather
- * than only the admin-chosen display window.
- */
-const TRANSIT_FETCH_BUFFER = 100
-
-const DEPARTURES_QUERY = `
-  query StopPlaceDepartures($id: String!, $numberOfDepartures: Int!) {
-    stopPlace(id: $id) {
-      name
-      estimatedCalls(numberOfDepartures: $numberOfDepartures, includeCancelledTrips: false) {
-        aimedDepartureTime
-        expectedDepartureTime
-        realtime
-        cancellation
-        destinationDisplay { frontText }
-        quay { publicCode }
-        serviceJourney { line { publicCode name transportMode authority { id name } presentation { colour textColour } } }
-      }
-    }
-  }
-`
-
-/** Entur returns `presentation.colour`/`textColour` as bare hex (e.g. `"76A300"`) — prefixes it with `#` to match this app's own `lineColors[].hex` convention (`TransitLineColorListEditor.tsx`), so the client can use it directly as a CSS value with no further normalizing. */
-function normalizeHex(value: string | null | undefined): string | undefined {
-  if (!value) return undefined
-  return value.startsWith('#') ? value : `#${value}`
-}
-
-/** Fetches the next `TRANSIT_FETCH_BUFFER` departures from stop `stopId` (regardless of `count` — see its own doc comment), cached briefly per `stopId` so several concurrent callers (the poller, an on-demand HTTP request) don't each hit Entur independently. Returns the full buffered list; the caller is responsible for only *displaying* `count` of them. Shared by `handleDepartures` (the on-demand HTTP route) and `transitPoller.ts` (the background poller that owns `admin.transitDepartures`). */
+/** `fetchEnturDepartures` (`src/lib/entur.ts`, shared with every display's own direct poller), cached briefly per `stopId` so several concurrent callers (the poller, an on-demand HTTP request) don't each hit Entur independently. Returns the full buffered list (see `TRANSIT_FETCH_BUFFER`); the caller is responsible for only *displaying* `count` of them. Shared by `handleDepartures` (the on-demand HTTP route) and `transitPoller.ts` (the background poller that owns `admin.transitDepartures`). */
 export async function fetchStopDepartures(stopId: string, count: number): Promise<StopDepartures> {
-  return cached(departuresCache, stopId, DEPARTURES_CACHE_MS, async () => {
-    const response = await fetch('https://api.entur.io/journey-planner/v3/graphql', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'ET-Client-Name': ENTUR_CLIENT_NAME },
-      body: JSON.stringify({ query: DEPARTURES_QUERY, variables: { id: stopId, numberOfDepartures: Math.max(count, TRANSIT_FETCH_BUFFER) } }),
-    })
-    if (!response.ok) throw new Error(`journey planner failed: ${response.status}`)
-    const body = (await response.json()) as StopPlaceDeparturesResponse
-    if (!body.data.stopPlace) throw new Error(`unknown stop place: ${stopId}`)
-
-    return {
-      stopName: body.data.stopPlace.name,
-      departures: body.data.stopPlace.estimatedCalls.map((call) => ({
-        line: call.serviceJourney.line.publicCode,
-        lineName: call.serviceJourney.line.name ?? undefined,
-        mode: call.serviceJourney.line.transportMode,
-        authorityId: call.serviceJourney.line.authority?.id ?? undefined,
-        authorityName: call.serviceJourney.line.authority?.name ?? undefined,
-        lineColor: normalizeHex(call.serviceJourney.line.presentation?.colour),
-        lineTextColor: normalizeHex(call.serviceJourney.line.presentation?.textColour),
-        destination: call.destinationDisplay.frontText,
-        expectedDepartureTime: call.expectedDepartureTime,
-        aimedDepartureTime: call.aimedDepartureTime,
-        realtime: call.realtime,
-        platform: call.quay?.publicCode ?? undefined,
-        cancelled: call.cancellation,
-      })),
-    }
-  })
+  return cached(departuresCache, stopId, DEPARTURES_CACHE_MS, () => fetchEnturDepartures(stopId, count))
 }
 
 /** The on-demand HTTP route — kept for manual/debugging use even though the transit pane itself now reads `admin.transitDepartures` (kept fresh server-side by `transitPoller.ts`) instead of calling this directly. */
@@ -217,88 +128,14 @@ export async function handleDepartures(res: ServerResponse, stopId: string, coun
 
 // --- Weather forecast (MET Norway / Yr) -------------------------------------
 
-interface LocationforecastResponse {
-  properties: {
-    timeseries: {
-      time: string
-      data: {
-        instant: {
-          details: {
-            air_temperature: number
-            wind_speed?: number
-            wind_from_direction?: number
-            relative_humidity?: number
-            air_pressure_at_sea_level?: number
-            ultraviolet_index_clear_sky?: number
-          }
-        }
-        next_1_hours?: {
-          summary: { symbol_code: string }
-          details: { precipitation_amount: number; probability_of_precipitation?: number }
-        }
-      }
-    }[]
-  }
-}
+const weatherCache = new Map<string, CacheEntry<WeatherHour[]>>()
 
-interface WeatherHourResult {
-  time: string
-  temperatureC: number
-  precipitationMm: number
-  symbolCode: string
-  windSpeedMs?: number
-  windFromDirectionDeg?: number
-  humidityPercent?: number
-  precipitationProbabilityPercent?: number
-  uvIndex?: number
-  pressureHpa?: number
-}
-
-const weatherCache = new Map<string, CacheEntry<WeatherHourResult[]>>()
-
-/** Whether `isoTime` falls on the same (server-local) calendar date as `reference` — used to isolate "today's" entries out of the full cached timeseries for `todayLowC`/`todayHighC`, independent of however many hours the caller asked to have listed. */
-function isSameLocalDate(isoTime: string, reference: Date): boolean {
-  const date = new Date(isoTime)
-  return date.getFullYear() === reference.getFullYear() && date.getMonth() === reference.getMonth() && date.getDate() === reference.getDate()
-}
-
-/** Fetches an hourly forecast for `(lat, lon)`, cached ~10 minutes (coordinates rounded to ~100m so nearby requests share a cache entry). Uses MET's "complete" dataset rather than "compact" — the same core fields, plus wind/humidity/pressure/UV/precipitation-probability for the optional display toggles in the admin's Weather (Yr) settings. Returns the *entire* multi-day cached timeseries, not just an `hours`-long slice — MET gives several days of hourly forecast per request regardless of `hours`, and truncating it here would throw away data a display could otherwise buffer client-side for offline use (a schedule/forecast this far ahead is worth keeping around even if only `hours` of it is shown live — see `useWeatherForecast.ts`'s own `fullRef`). `hours` is only used for the `todayLowC`/`todayHighC` midnight-edge fallback below; the caller/client is responsible for slicing `hourly` down to what it actually displays. `todayLowC`/`todayHighC` are computed fresh on every request (not baked into the ~10-minute cache) from the full timeseries, so they stay today's real low/high regardless of how few hours the admin chose to list. */
+/** Fetches an hourly forecast for `(lat, lon)` via `fetchMetHourly` (`src/lib/metForecast.ts`, shared with every display's own direct fetch), cached ~10 minutes (coordinates rounded to ~100m so nearby requests share a cache entry). Uses MET's "complete" dataset rather than "compact" — the same core fields, plus wind/humidity/pressure/UV/precipitation-probability for the optional display toggles in the admin's Weather (Yr) settings. Returns the *entire* multi-day cached timeseries, not just an `hours`-long slice — MET gives several days of hourly forecast per request regardless of `hours`, and truncating it here would throw away data a display could otherwise buffer client-side for offline use (a schedule/forecast this far ahead is worth keeping around even if only `hours` of it is shown live — see `useWeatherForecast.ts`). `hours` is only used for the `todayLowC`/`todayHighC` midnight-edge fallback below; the caller/client is responsible for slicing `hourly` down to what it actually displays. `todayLowC`/`todayHighC` are computed fresh on every request (not baked into the ~10-minute cache) from the full timeseries, so they stay today's real low/high regardless of how few hours the admin chose to list. */
 export async function handleWeather(res: ServerResponse, lat: number, lon: number, hours: number) {
   const cacheKey = `${lat.toFixed(3)},${lon.toFixed(3)}`
   try {
-    const hourly = await cached(weatherCache, cacheKey, WEATHER_CACHE_MS, async () => {
-      const url = `https://api.met.no/weatherapi/locationforecast/2.0/complete?lat=${lat}&lon=${lon}`
-      const response = await fetch(url, { headers: { 'User-Agent': WEATHER_USER_AGENT } })
-      if (!response.ok) throw new Error(`locationforecast failed: ${response.status}`)
-      const body = (await response.json()) as LocationforecastResponse
-
-      return body.properties.timeseries
-        .filter((entry) => entry.data.next_1_hours)
-        .map((entry) => {
-          const instant = entry.data.instant.details
-          const next1h = entry.data.next_1_hours!
-          return {
-            time: entry.time,
-            temperatureC: instant.air_temperature,
-            precipitationMm: next1h.details.precipitation_amount,
-            symbolCode: next1h.summary.symbol_code,
-            windSpeedMs: instant.wind_speed,
-            windFromDirectionDeg: instant.wind_from_direction,
-            humidityPercent: instant.relative_humidity,
-            precipitationProbabilityPercent: next1h.details.probability_of_precipitation,
-            uvIndex: instant.ultraviolet_index_clear_sky,
-            pressureHpa: instant.air_pressure_at_sea_level,
-          }
-        })
-    })
-
-    const now = new Date()
-    const todayEntries = hourly.filter((entry) => isSameLocalDate(entry.time, now))
-    const lowHighSource = todayEntries.length > 0 ? todayEntries : hourly.slice(0, hours)
-    const todayLowC = lowHighSource.length > 0 ? Math.min(...lowHighSource.map((entry) => entry.temperatureC)) : undefined
-    const todayHighC = lowHighSource.length > 0 ? Math.max(...lowHighSource.map((entry) => entry.temperatureC)) : undefined
-
-    sendJson(res, 200, { hourly, todayLowC, todayHighC })
+    const hourly = await cached(weatherCache, cacheKey, WEATHER_CACHE_MS, () => fetchMetHourly(lat, lon, WEATHER_USER_AGENT))
+    sendJson(res, 200, { hourly, ...todayLowHigh(hourly, hours) })
   } catch (error) {
     console.error('[integrations] weather lookup failed:', error)
     sendJson(res, 502, { error: 'Could not reach Yr for a forecast' })

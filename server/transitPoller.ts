@@ -13,12 +13,15 @@ import * as store from './store'
  * display/companion app sees the exact same data, pushed the moment it
  * changes, and a freshly connected/swapped display gets a correct snapshot
  * immediately via the sync protocol's own snapshot-on-subscribe — see
- * `admin.transitDepartures` in `src/types/sync.ts`.
+ * `admin.transitDepartures` in `src/types/sync.ts`. Displays with their own
+ * internet access also poll Entur directly (`src/lib/directTransitPoller.ts`)
+ * and use whichever is fresher, so this snapshot is the backup that keeps a
+ * display live when it can reach this server but not the internet.
  */
 
 const POLL_INTERVAL_MS = 30_000
 
-/** Always fetched per stop regardless of any one pane's own configured display count — mirrors `TRANSIT_FETCH_BUFFER` in `integrations.ts`, since this snapshot is shared across every pane that might reference the stop. */
+/** Always fetched per stop regardless of any one pane's own configured display count — mirrors `TRANSIT_FETCH_BUFFER` in `src/lib/entur.ts`, since this snapshot is shared across every pane that might reference the stop. */
 const DEPARTURES_PER_STOP = 100
 
 type ApplyUpdate = (key: SyncedKey, value: unknown) => void
