@@ -1171,7 +1171,32 @@
           "videoPreviewLabel": "Video preview",
           "videoRestartOnStageOneLabel": "Restart when back at step 1",
           "videoRestartOnStageOneHint": "Resets this video back to its own beginning every time the screen's shared step rotation comes back around to step 1, instead of it staying wherever it naturally got to.",
-          "resizeToFitVideoLabel": "Resize pane to fit video"
+          "resizeToFitVideoLabel": "Resize pane to fit video",
+          "slotOrdersGroupLabel": "Orders",
+          "slotOrdersStaffLabel": "Order board (staff, touch)",
+          "slotOrdersCustomerLabel": "Pickup board (customers)",
+          "ordersSourcesLabel": "Order sources",
+          "ordersSourcesHint": "Which orders this pane shows. Website orders are the ones placed on your own site.",
+          "ordersTouchControlLabel": "Touch control",
+          "ordersTouchControlHint": "Lets an approved companion tablet showing this screen move orders between columns. Off, the board is read-only.",
+          "ordersGroupDeliveryLabel": "Separate Wolt/Foodora orders into their own lane",
+          "ordersChimeLabel": "Chime and flash on new orders",
+          "ordersAgeWarnLabel": "Age warning after (min)",
+          "ordersAgeLateLabel": "Age alert after (min)",
+          "ordersHistoryHoursLabel": "History reaches back (hours)",
+          "ordersNoteKeywordsLabel": "Highlight notes containing",
+          "ordersNoteKeywordsHint": "Comma-separated words, e.g. allergies. A matching note is shown in red.",
+          "ordersReadyAutoHideLabel": "Hide ready orders after (min)",
+          "ordersReadyAutoHideHint": "0 keeps a ready order on the board until it is picked up.",
+          "createOrderBoard": "Create order board",
+          "createPickupBoard": "Create pickup board",
+          "orderBoardDefaultName": "Order board",
+          "pickupBoardDefaultName": "Pickup board",
+          "ordersSource": {
+            "website": "Website",
+            "wolt": "Wolt",
+            "foodora": "Foodora"
+          }
         },
         "displayManager": {
           "title": "Displays",
@@ -1453,7 +1478,9 @@
             "websiteTablesTitle": "What is written where",
             "websiteMovedHint": "The connection settings themselves now live in Settings → Connect to website, which walks through them step by step and checks the result.",
             "appUpdateTitle": "App updates",
-            "appUpdateIntro": "server/appUpdate/ pulls the newest code from GitHub and applies it in place, so a change no longer needs the Windows installer (see Settings → App updates). The install is an unpacked source tree, not a git checkout, and there is no git binary on the machine — so the diff is computed from git blob hashes via the Trees API and only changed files are downloaded. Not to be confused with /updates/*, which serves Expo OTA bundles to the Companion Android TV app."
+            "appUpdateIntro": "server/appUpdate/ pulls the newest code from GitHub and applies it in place, so a change no longer needs the Windows installer (see Settings → App updates). The install is an unpacked source tree, not a git checkout, and there is no git binary on the machine — so the diff is computed from git blob hashes via the Trees API and only changed files are downloaded. Not to be confused with /updates/*, which serves Expo OTA bundles to the Companion Android TV app.",
+            "displayOrdersTitle": "Touch order board",
+            "displayOrdersIntro": "Used by an orders pane in staff mode on a companion tablet (see Screens → pane content → Orders). The kiosk page has no session, so the companion passes its own machine id into the page as ?deviceId=, and the server only accepts it from an approved display currently showing a staff orders pane with Touch control on."
           },
           "description": "Interface language, the store's default pane language, clock format, and which sidebar sections this dashboard shows.",
           "developersDescription": "Reference documentation for the local server's own HTTP and WebSocket API, for building a custom client against this store's data.",
@@ -2420,7 +2447,51 @@
           "backgroundImageLabel": "Background image",
           "slotLabel": "Pane {{number}}"
         },
-        "videoTapForSound": "Tap for sound"
+        "videoTapForSound": "Tap for sound",
+        "orders": {
+          "column": {
+            "incoming": "Incoming",
+            "doing": "Doing",
+            "done": "Done"
+          },
+          "lane": {
+            "pickup": "Pickup",
+            "delivery": "Delivery"
+          },
+          "history": "History",
+          "historyEmpty": "No picked-up or cancelled orders yet today",
+          "pickedUp": "Picked up",
+          "cancelled": "Cancelled",
+          "backToDone": "Back to Done",
+          "toMake": "To make",
+          "empty": "No orders",
+          "moveBack": "Move back",
+          "moveForward": "Move forward",
+          "moved": "{{name}} moved to {{column}}",
+          "undo": "Undo",
+          "close": "Close",
+          "pickupAt": "Pickup {{time}}",
+          "ageMinutes": "{{count}} min",
+          "itemCount": "Items: {{count}}",
+          "phone": "Phone",
+          "total": "Total",
+          "cancel": "Cancel order",
+          "cancelConfirm": "Cancel this order?",
+          "cancelYes": "Yes, cancel",
+          "cancelNo": "Keep it",
+          "pushFailed": "Not saved, try again",
+          "offline": "Not connected, last updated {{time}}",
+          "beingMade": "Being made",
+          "readyForPickup": "Ready",
+          "settings": "Settings",
+          "themeLabel": "Look",
+          "theme": {
+            "light": "Light",
+            "dark": "Dark"
+          },
+          "languageLabel": "Language",
+          "languageAuto": "Automatic"
+        }
       },
       "displayWindow": {
         "showScreensLabel": "Show available screens"
@@ -3627,7 +3698,32 @@
           "videoPreviewLabel": "Videoforhåndsvisning",
           "videoRestartOnStageOneLabel": "Start på nytt når skjermen er tilbake på steg 1",
           "videoRestartOnStageOneHint": "Starter denne videoen på nytt hver gang skjermens felles trinnrotasjon kommer tilbake til steg 1, i stedet for at den blir stående der den naturlig har kommet til.",
-          "resizeToFitVideoLabel": "Tilpass felt til video"
+          "resizeToFitVideoLabel": "Tilpass felt til video",
+          "slotOrdersGroupLabel": "Bestillinger",
+          "slotOrdersStaffLabel": "Bestillingstavle (ansatte, berøring)",
+          "slotOrdersCustomerLabel": "Hentetavle (kunder)",
+          "ordersSourcesLabel": "Bestillingskilder",
+          "ordersSourcesHint": "Hvilke bestillinger denne ruten viser. Nettsidebestillinger er de som legges inn på deres egen nettside.",
+          "ordersTouchControlLabel": "Berøringsstyring",
+          "ordersTouchControlHint": "Lar et godkjent følgeapp-nettbrett som viser denne skjermen flytte bestillinger mellom kolonnene. Av: tavlen kan bare leses.",
+          "ordersGroupDeliveryLabel": "Skill Wolt/Foodora-bestillinger ut i eget felt",
+          "ordersChimeLabel": "Lyd og blink ved nye bestillinger",
+          "ordersAgeWarnLabel": "Aldersvarsel etter (min)",
+          "ordersAgeLateLabel": "Aldersalarm etter (min)",
+          "ordersHistoryHoursLabel": "Historikk går tilbake (timer)",
+          "ordersNoteKeywordsLabel": "Uthev merknader som inneholder",
+          "ordersNoteKeywordsHint": "Kommaseparerte ord, f.eks. allergier. En merknad som treffer vises i rødt.",
+          "ordersReadyAutoHideLabel": "Skjul klare bestillinger etter (min)",
+          "ordersReadyAutoHideHint": "0 lar en klar bestilling stå til den er hentet.",
+          "createOrderBoard": "Lag bestillingstavle",
+          "createPickupBoard": "Lag hentetavle",
+          "orderBoardDefaultName": "Bestillingstavle",
+          "pickupBoardDefaultName": "Hentetavle",
+          "ordersSource": {
+            "website": "Nettside",
+            "wolt": "Wolt",
+            "foodora": "Foodora"
+          }
         },
         "displayManager": {
           "title": "Skjermenheter",
@@ -3909,7 +4005,9 @@
             "websiteTablesTitle": "Hva skrives hvor",
             "websiteMovedHint": "Selve tilkoblingsinnstillingene ligger nå under Innstillinger → Koble til nettsted, som går gjennom dem steg for steg og sjekker resultatet.",
             "appUpdateTitle": "Appoppdateringer",
-            "appUpdateIntro": "server/appUpdate/ henter nyeste kode fra GitHub og installerer den direkte, slik at en endring ikke lenger krever Windows-installereren (se Innstillinger → Appoppdateringer). Installasjonen er et utpakket kildetre, ikke et git-utsjekk, og det finnes ingen git på maskinen — derfor beregnes diffen fra git-blob-hasher via Trees-APIet, og bare endrede filer lastes ned. Må ikke forveksles med /updates/*, som leverer Expo OTA-pakker til Companion-appen for Android TV."
+            "appUpdateIntro": "server/appUpdate/ henter nyeste kode fra GitHub og installerer den direkte, slik at en endring ikke lenger krever Windows-installereren (se Innstillinger → Appoppdateringer). Installasjonen er et utpakket kildetre, ikke et git-utsjekk, og det finnes ingen git på maskinen — derfor beregnes diffen fra git-blob-hasher via Trees-APIet, og bare endrede filer lastes ned. Må ikke forveksles med /updates/*, som leverer Expo OTA-pakker til Companion-appen for Android TV.",
+            "displayOrdersTitle": "Bestillingstavle med berøring",
+            "displayOrdersIntro": "Brukes av en bestillingsrute i ansattmodus på et følgeapp-nettbrett (se Skjermer → ruteinnhold → Bestillinger). Kioskssiden har ingen innlogging, så følgeappen sender sin egen maskin-id inn til siden som ?deviceId=, og serveren godtar den bare fra en godkjent skjerm som akkurat nå viser en bestillingsrute i ansattmodus med berøringsstyring på."
           },
           "description": "Grensesnittspråk, butikkens standardspråk for paneler, klokkeformat, og hvilke sidemeny-seksjoner dette dashbordet viser.",
           "developersDescription": "Referansedokumentasjon for den lokale serverens eget HTTP- og WebSocket-API, for å bygge en egen klient mot butikkens data.",
@@ -4876,7 +4974,51 @@
           "backgroundImageLabel": "Bakgrunnsbilde",
           "slotLabel": "Panel {{number}}"
         },
-        "videoTapForSound": "Trykk for lyd"
+        "videoTapForSound": "Trykk for lyd",
+        "orders": {
+          "column": {
+            "incoming": "Innkommende",
+            "doing": "Lages",
+            "done": "Ferdig"
+          },
+          "lane": {
+            "pickup": "Henting",
+            "delivery": "Levering"
+          },
+          "history": "Historikk",
+          "historyEmpty": "Ingen hentede eller kansellerte bestillinger i dag",
+          "pickedUp": "Hentet",
+          "cancelled": "Kansellert",
+          "backToDone": "Tilbake til Ferdig",
+          "toMake": "Å lage",
+          "empty": "Ingen bestillinger",
+          "moveBack": "Flytt tilbake",
+          "moveForward": "Flytt frem",
+          "moved": "{{name}} flyttet til {{column}}",
+          "undo": "Angre",
+          "close": "Lukk",
+          "pickupAt": "Hentes {{time}}",
+          "ageMinutes": "{{count}} min",
+          "itemCount": "Varer: {{count}}",
+          "phone": "Telefon",
+          "total": "Totalt",
+          "cancel": "Kanseller bestilling",
+          "cancelConfirm": "Kansellere denne bestillingen?",
+          "cancelYes": "Ja, kanseller",
+          "cancelNo": "Behold",
+          "pushFailed": "Ikke lagret, prøv igjen",
+          "offline": "Ikke tilkoblet, sist oppdatert {{time}}",
+          "beingMade": "Lages nå",
+          "readyForPickup": "Ferdig",
+          "settings": "Innstillinger",
+          "themeLabel": "Utseende",
+          "theme": {
+            "light": "Lys",
+            "dark": "Mørk"
+          },
+          "languageLabel": "Språk",
+          "languageAuto": "Automatisk"
+        }
       },
       "displayWindow": {
         "showScreensLabel": "Vis tilgjengelige skjermer"

@@ -10,13 +10,14 @@ import { useScreensaverSchedule } from '../../../hooks/useScreensaverSchedule'
 import { useLanguage } from '../../../i18n'
 import { goBack } from '../../../lib/backStack'
 import { getLanIp, getScreenAddressSettings } from '../../../lib/localServer'
-import type { ScreenConfig } from '../../../types/screen'
+import type { OrdersPaneMode, ScreenConfig } from '../../../types/screen'
 import { DEFAULT_SCREEN_ADDRESS_SETTINGS, type ScreenAddressSettings } from '../../../types/screenAddress'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
 import { copyToClipboard } from '../../../utils/clipboard'
 import { generateId } from '../../../utils/id'
 import { countLeaves } from '../../../utils/layoutTree'
 import { deriveMdnsName } from '../../../utils/mdnsName'
+import { buildOrderBoardScreen } from './orderBoardTemplates'
 import { ScreenCard } from './ScreenCard'
 import { ScreenForm, type ScreenFormTarget } from './ScreenForm'
 import { ScreenRestoreSnapshotModal } from './ScreenRestoreSnapshotModal'
@@ -138,6 +139,13 @@ export function ScreensView() {
     closeForm()
   }
 
+  /** Adds a ready-made order board (staff) or pickup board (customer) screen, then opens it in the form so it can be renamed or adjusted straight away. See `buildOrderBoardScreen`. */
+  const handleCreateOrderBoard = (mode: OrdersPaneMode) => {
+    const screen = buildOrderBoardScreen(mode, t(mode === 'staff' ? 'admin.screens.orderBoardDefaultName' : 'admin.screens.pickupBoardDefaultName'))
+    setScreens((current) => [...current, screen])
+    openForm(screen)
+  }
+
   const handleDelete = (screen: ScreenConfig) => {
     if (!window.confirm(t('admin.common.confirmDelete'))) return
     setScreens((current) => current.filter((existing) => existing.screenID !== screen.screenID))
@@ -231,6 +239,14 @@ export function ScreensView() {
               <button type="button" className="screens-view__toolbar-action screens-view__add-row" onClick={() => openForm(null)}>
                 <PlusIcon />
                 {t('admin.screens.addScreen')}
+              </button>
+              <button type="button" className="screens-view__toolbar-action" onClick={() => handleCreateOrderBoard('staff')}>
+                <PlusIcon />
+                {t('admin.screens.createOrderBoard')}
+              </button>
+              <button type="button" className="screens-view__toolbar-action" onClick={() => handleCreateOrderBoard('customer')}>
+                <PlusIcon />
+                {t('admin.screens.createPickupBoard')}
               </button>
 
 

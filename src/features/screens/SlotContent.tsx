@@ -10,6 +10,7 @@ import { EventMonthSlide } from './EventMonthSlide'
 import { ImageSlide } from './ImageSlide'
 import { MessageBoardSlide } from './MessageBoardSlide'
 import { NewsSlide } from './NewsSlide'
+import { OrdersBoardSlide, OrdersCustomerSlide } from './orders'
 import { QrCodeSlide } from './QrCodeSlide'
 import { TimeSlide } from './TimeSlide'
 import { TransitSlide } from './TransitSlide'
@@ -137,5 +138,19 @@ export function SlotContent({ slot, newsSlots, stageTick, stage, onRequestStageA
     return (
       <MessageBoardSlide boardId={slot.boardId} displayMode={slot.displayMode} postId={slot.postId} order={slot.order} rotateSeconds={slot.rotateSeconds} count={slot.count} />
     )
+  if (slot.kind === 'orders') {
+    if (slot.mode === 'customer') return <OrdersCustomerSlide sources={slot.sources} readyAutoHideMinutes={slot.readyAutoHideMinutes} />
+    return (
+      <OrdersBoardSlide
+        touchControl={slot.touchControl}
+        sources={slot.sources}
+        historyHours={slot.historyHours}
+        groupDelivery={slot.groupDelivery}
+        chime={slot.chime}
+        ageWarnMinutes={slot.ageWarnMinutes}
+        noteKeywords={slot.noteKeywords}
+      />
+    )
+  }
   return null
 }

@@ -1,0 +1,117 @@
+@use '../../../styles/variables' as *;
+
+// Customer pickup board (`OrdersCustomerSlide`). Signage, not a touch UI: it follows the screen's own
+// theme — colours from the contrast-computed `--screen-*` variables, fonts from the screen (headings
+// via `SplitLayout.scss`'s `.split-layout h2`), background from the pane — unlike the staff board's
+// fixed palette. Row text follows the pane's item text-size control and the column titles are only a
+// little larger than the rows. Only the Wolt/Foodora cell colours are fixed: they're the platforms' own.
+
+.orders-customer {
+  --ob-text: var(--screen-text);
+  --ob-muted: var(--screen-text-muted);
+  --ob-column: color-mix(in srgb, var(--screen-text) 7%, transparent);
+  --ob-card: color-mix(in srgb, var(--screen-text) 13%, transparent);
+  --ob-success: #{$color-success};
+  --ob-success-soft: color-mix(in srgb, #{$color-success} 20%, transparent);
+  --orders-wolt: #009de0;
+  --orders-foodora: #d70f64;
+
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1em;
+  height: 100%;
+  padding: var(--pane-padding, 0.6em);
+  overflow: hidden;
+  color: var(--ob-text);
+  font-size: var(--slide-item-title-size, 5.5cqmin);
+}
+
+.orders-customer__column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  min-height: 0;
+  padding: 0.4em 0.6em;
+  border-radius: 14px;
+  background: var(--ob-column);
+
+  &--ready {
+    background: var(--ob-success-soft);
+
+    .orders-customer__row {
+      animation: orders-customer-ready 1.2s ease-out 3;
+    }
+  }
+}
+
+@keyframes orders-customer-ready {
+  0% {
+    box-shadow: 0 0 0 0 var(--ob-success);
+  }
+  100% {
+    box-shadow: 0 0 0 0.4em transparent;
+  }
+}
+
+.orders-customer__title {
+  margin: 0;
+  font-size: 1.15em;
+  // The screen's heading fonts often ship a single weight; a forced bold would be synthesised.
+  font-weight: normal;
+  line-height: 1.2;
+}
+
+.orders-customer__list {
+  position: relative;
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 0.3em;
+  min-height: 0;
+  // `overflow: hidden` (a long queue must never spill out of the column) would also clip the ready
+  // pulse, which spreads 0.4em outside each row — so the list gets that much room on every side,
+  // cancelled by an equal negative margin to keep the rows exactly where they were.
+  margin: -0.4em;
+  padding: 0.4em;
+  overflow: hidden;
+  list-style: none;
+  // Shrinks every row together when the queue outgrows the pane — see `useFitRowScale`, which relies
+  // on everything inside this list being sized in `em`.
+  font-size: calc(1em * var(--row-scale, 1));
+}
+
+.orders-customer__row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+  min-width: 0;
+  padding: 0.25em 0.3em;
+  border-radius: 0.3em;
+  background: var(--ob-card);
+
+  // Delivery orders are marked by their platform's own colour instead of a logo — legible at any row
+  // size. White text on both brand colours passes contrast.
+  &--wolt {
+    background: var(--orders-wolt);
+    color: #fff;
+  }
+
+  &--foodora {
+    background: var(--orders-foodora);
+    color: #fff;
+  }
+}
+
+.orders-customer__number {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

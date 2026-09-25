@@ -3,7 +3,7 @@ import { createServer } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { WebSocketServer, type WebSocket } from 'ws'
 import type { DisplayMachine, DisplayMonitor, DisplayPairingRequest, DisplayScreenOverride, DisplayUpdateProgress } from '../src/types/displayMachine'
-import type { OrderRecord, OrderStatus } from '../src/types/order'
+import type { OrderRecord } from '../src/types/order'
 import type { Product } from '../src/types/product'
 import type { PaneId, ScreenConfig, ScreenSlot } from '../src/types/screen'
 import type { ScreenAddressSettings } from '../src/types/screenAddress'
@@ -26,6 +26,7 @@ import { handleNewsImage, startNewsImageCacheSweep } from './newsImageCache'
 import { bearerToken, CORS_HEADERS, readJsonBody, sendJson } from './http'
 import * as mdns from './mdns'
 import * as neonBridge from './neonBridge'
+import { isOrderStatus, screenAllowsOrderTouch, setOrderStatus, type OrderKey, type OrderStatusDeps } from './orderStatus'
 import * as websiteConnectionTest from './websiteConnectionTest'
 import * as store from './store'
 import * as storageCleanup from './storageCleanup'
@@ -968,26 +969,58 @@ const httpServer = createServer((req, res) => {
     const orderId = url.pathname.slice('/wolt/status/'.length)
     readJsonBody(req)
       .then(async (body) => {
-        const { status } = body as { status?: OrderStatus }
-        if (!status) {
-          sendJson(res, 400, { error: 'Missing status' })
+        const { status } = body as { status?: unknown }
+        if (!isOrderStatus(status)) {
+          sendJson(res, 400, { error: 'Missing or invalid status' })
           return
         }
-        const orders = (store.get('admin.woltOrders')?.value as OrderRecord[] | undefined) ?? []
-        const order = orders.find((candidate) => candidate.id === orderId)
-        if (!order) {
-          sendJson(res, 404, { error: 'Wolt order not found' })
-          return
-        }
-        try {
-          await woltAdapter.pushStatus(store.getWoltCredentials(), order.externalId ?? order.id, status)
-          const updated = orders.map((candidate) => (candidate.id === orderId ? { ...candidate, status } : candidate))
-          applyUpdate('admin.woltOrders', updated)
+        const result = await setOrderStatus(orderStatusDeps, orderId, status, 'admin.woltOrders')
+        if (result.ok) {
           console.log(`[wolt] ${session.username} pushed status "${status}" for order ${orderId}`)
           sendJson(res, 200, { ok: true })
-        } catch (error) {
-          console.error('[wolt] status push failed:', error)
+        } else if (result.reason === 'notFound') {
+          sendJson(res, 404, { error: 'Wolt order not found' })
+        } else {
+          console.error('[wolt] status push failed:', result.error)
           sendJson(res, 502, { error: 'Could not push this status update to Wolt' })
+        }
+      })
+      .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
+    return
+  }
+
+  // Touch order board (an `'orders'` pane in staff mode, see `src/features/screens/orders/`). Same
+  // LAN-trust posture as the heartbeat and remote-nav routes: the caller is identified only by its
+  // machine id, which the companion passes into the kiosk page as `?deviceId=`. It is accepted only if
+  // that machine is approved (present in `admin.displayMachines`, which a `mobile` device only reaches
+  // through an admin's Approve click) *and* the screen it's currently showing has a staff orders pane
+  // with Touch control on — so a customer-facing pickup board, or any other screen, can't change
+  // anything. The change itself goes through `setOrderStatus`, one order at a time, never a whole-array
+  // write from the client (which would erase an order a poller inserted at the same moment).
+  if (req.method === 'POST' && url.pathname === '/display-orders/status') {
+    readJsonBody(req)
+      .then(async (body) => {
+        const { deviceId, orderId, status } = body as { deviceId?: unknown; orderId?: unknown; status?: unknown }
+        if (typeof deviceId !== 'string' || typeof orderId !== 'string' || !isOrderStatus(status)) {
+          sendJson(res, 400, { error: 'Expected deviceId, orderId and a valid status' })
+          return
+        }
+        const machines = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
+        const screenId = machines.some((machine) => machine.machineID === deviceId) ? resolveEffectiveScreen(deviceId) : null
+        const screens = (store.get('admin.screens')?.value as ScreenConfig[] | undefined) ?? []
+        if (!screenAllowsOrderTouch(screens.find((screen) => screen.screenID === screenId))) {
+          sendJson(res, 403, { error: 'This display is not allowed to change orders' })
+          return
+        }
+        const result = await setOrderStatus(orderStatusDeps, orderId, status)
+        if (result.ok) {
+          console.log(`[orders] display ${deviceId} set order ${orderId} to "${status}"`)
+          sendJson(res, 200, { ok: true })
+        } else if (result.reason === 'notFound') {
+          sendJson(res, 404, { error: 'Order not found' })
+        } else {
+          console.error('[orders] status push failed:', result.error)
+          sendJson(res, 502, { error: 'The delivery platform rejected this status change' })
         }
       })
       .catch(() => sendJson(res, 400, { error: 'Malformed request body' }))
@@ -1070,25 +1103,19 @@ const httpServer = createServer((req, res) => {
     const orderId = url.pathname.slice('/foodora/status/'.length)
     readJsonBody(req)
       .then(async (body) => {
-        const { status } = body as { status?: OrderStatus }
-        if (!status) {
-          sendJson(res, 400, { error: 'Missing status' })
+        const { status } = body as { status?: unknown }
+        if (!isOrderStatus(status)) {
+          sendJson(res, 400, { error: 'Missing or invalid status' })
           return
         }
-        const orders = (store.get('admin.foodoraOrders')?.value as OrderRecord[] | undefined) ?? []
-        const order = orders.find((candidate) => candidate.id === orderId)
-        if (!order) {
-          sendJson(res, 404, { error: 'Foodora order not found' })
-          return
-        }
-        try {
-          await foodoraAdapter.pushStatus(store.getFoodoraCredentials(), order.externalId ?? order.id, status)
-          const updated = orders.map((candidate) => (candidate.id === orderId ? { ...candidate, status } : candidate))
-          applyUpdate('admin.foodoraOrders', updated)
+        const result = await setOrderStatus(orderStatusDeps, orderId, status, 'admin.foodoraOrders')
+        if (result.ok) {
           console.log(`[foodora] ${session.username} pushed status "${status}" for order ${orderId}`)
           sendJson(res, 200, { ok: true })
-        } catch (error) {
-          console.error('[foodora] status push failed:', error)
+        } else if (result.reason === 'notFound') {
+          sendJson(res, 404, { error: 'Foodora order not found' })
+        } else {
+          console.error('[foodora] status push failed:', result.error)
           sendJson(res, 502, { error: 'Could not push this status update to Foodora' })
         }
       })
@@ -2641,6 +2668,15 @@ function pickRandomScreenID(): string | null {
   const screens = (store.get('admin.screens')?.value as ScreenConfig[] | undefined) ?? []
   if (screens.length === 0) return null
   return screens[Math.floor(Math.random() * screens.length)].screenID
+}
+
+/** Store access and side effects for `setOrderStatus` (see `server/orderStatus.ts` for why they're injected). */
+const orderStatusDeps: OrderStatusDeps = {
+  readOrders: (key: OrderKey) => (store.get(key)?.value as OrderRecord[] | undefined) ?? [],
+  applyUpdate: (key, value) => applyUpdate(key, value),
+  pushWebsite: (key, value) => neonBridge.pushIfRelevant(key, value),
+  pushWolt: (externalId, status) => woltAdapter.pushStatus(store.getWoltCredentials(), externalId, status),
+  pushFoodora: (externalId, status) => foodoraAdapter.pushStatus(store.getFoodoraCredentials(), externalId, status),
 }
 
 /**

@@ -7,6 +7,14 @@ interface DisplayScreenProps {
   connection: ServerConnection
   screenId: string
   /**
+   * This device's own machine id, forwarded into the page URL as `deviceId` so a touch order board on
+   * the loaded screen can identify which approved device is changing an order (the kiosk page itself
+   * has no session — see `POST /display-orders/status` in the main app's `server/index.ts`).
+   * Deliberately *not* named `displayMachineId`: the kiosk page treats that param as a cue to follow
+   * the machine's own assignment itself, which would fight this app's remote-nav overrides.
+   */
+  machineID: string
+  /**
    * This unit's own admin-set image-resolution ceiling, from the heartbeat response
    * (`HeartbeatResult.maxImagePx`). Forwarded into the page URL because the kiosk page cannot read it
    * for itself — it is unauthenticated, and `admin.displayMachines` is a permissioned synced key. See
@@ -61,12 +69,12 @@ const HISTORY_RELEASE_DELAY_MS = 10_000
  * commit and the very first load (`opacity` starts at 0, so there's no
  * separate "is this the first render" branch needed).
  */
-export function DisplayScreen({ connection, screenId, maxImagePx = 'auto', renderWidthPx = 'auto' }: DisplayScreenProps) {
+export function DisplayScreen({ connection, screenId, machineID, maxImagePx = 'auto', renderWidthPx = 'auto' }: DisplayScreenProps) {
   // Both params are included even when `'auto'` so the URL is stable for a given configuration — a
   // param that appears and disappears would make the WebView re-navigate (and re-load the whole kiosk
   // page) on the first heartbeat after launch, since `source.uri` changing is what triggers a
   // navigation.
-  const url = `${contentOrigin(connection)}/screens/${screenId}?unattended=1&maxImagePx=${maxImagePx}&renderWidthPx=${renderWidthPx}`
+  const url = `${contentOrigin(connection)}/screens/${screenId}?unattended=1&maxImagePx=${maxImagePx}&renderWidthPx=${renderWidthPx}&deviceId=${encodeURIComponent(machineID)}`
   const opacity = useRef(new Animated.Value(0)).current
   const webViewRef = useRef<WebView>(null)
   const releaseTimer = useRef<ReturnType<typeof setTimeout>>()

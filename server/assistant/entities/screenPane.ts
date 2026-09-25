@@ -118,7 +118,7 @@ interface ScreenPaneFields {
  * `content` as a *whole* is treated as one confabulation-risk field, stripped entirely under a
  * `'safe'` ingestion posture (weaker/local models) — not one entry per risky nested field
  * (`catalogueId`, `stopId`, `boardId`, …, see this entity's own `fillFieldsSchema` for the full list
- * across all 13 content kinds). This is a deliberate simplification, not an oversight: `stripSchemaFields`
+ * across all 14 content kinds). This is a deliberate simplification, not an oversight: `stripSchemaFields`
  * (`server/assistant/types.ts`) only ever deletes a *top-level* schema property — it has no concept of
  * reaching into `content`'s own nested `anyOf` branches to strip one field from within them. Given that
  * constraint, stripping the whole `content` capability wholesale under `'safe'` is both the simplest
@@ -135,7 +135,7 @@ const CONTENT_CONFABULATION_RISK_FIELDS = ['content']
 // two ways, both disclosed: (1) no per-slide `backgroundImage`/`padding` override (stays admin-only via
 // `PaneEditor.tsx` for now — a real, bounded scope cut, not an oversight); (2) `transit`'s own
 // `lineColors` (a manual per-operator color-override array) is omitted — an unlikely target for a chat
-// request, and the one genuinely complex nested-array field across all 13 kinds.
+// request, and the one genuinely complex nested-array field across all 14 kinds.
 
 const TEXT_SIZES_SCHEMA = nullable({
   type: 'object',
@@ -286,6 +286,22 @@ function buildContentSchema(): Record<string, unknown> {
         textSizes: TEXT_SIZES_SCHEMA,
       },
       ['kind', 'boardId', 'displayMode', 'postId', 'order', 'rotateSeconds', 'count', 'textSizes'],
+    ),
+    contentBranch(
+      {
+        kind: { type: 'string', enum: ['orders'] },
+        mode: { type: 'string', enum: ['staff', 'customer'], description: 'staff — the touch kanban for employees; customer — the read-only pickup board facing customers (no phone numbers, items or prices).' },
+        touchControl: nullable({ type: 'boolean', description: 'Staff mode only — lets an approved companion tablet showing this screen move orders by touch.' }),
+        sources: nullable({ type: 'array', items: { type: 'string', enum: ['website', 'wolt', 'foodora'] }, description: 'The FULL replacement set of order sources shown. Null shows all of them.' }),
+        historyHours: nullable({ type: 'number' }),
+        groupDelivery: nullable({ type: 'boolean', description: 'Staff mode only — split each column into Pickup and Delivery lanes.' }),
+        chime: nullable({ type: 'boolean' }),
+        ageWarnMinutes: nullable({ type: 'array', items: { type: 'number' }, description: 'Staff mode only — exactly two numbers, [amber, red], minutes since an order was placed.' }),
+        noteKeywords: nullable({ type: 'array', items: { type: 'string' }, description: 'Staff mode only — the FULL replacement list of words that highlight an order’s notes in red.' }),
+        readyAutoHideMinutes: nullable({ type: 'number', description: 'Customer mode only — hide a ready order this many minutes after it became ready.' }),
+        textSizes: TEXT_SIZES_SCHEMA,
+      },
+      ['kind', 'mode', 'touchControl', 'sources', 'historyHours', 'groupDelivery', 'chime', 'ageWarnMinutes', 'noteKeywords', 'readyAutoHideMinutes', 'textSizes'],
     ),
     contentBranch(
       {

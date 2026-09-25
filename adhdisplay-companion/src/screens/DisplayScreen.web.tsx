@@ -5,6 +5,8 @@ import { contentOrigin, type ServerConnection } from '../lib/serverConnection'
 interface DisplayScreenProps {
   connection: ServerConnection
   screenId: string
+  /** Forwarded as `deviceId` for a touch order board — see `DisplayScreen.tsx`'s prop of the same name. */
+  machineID: string
 }
 
 /**
@@ -25,8 +27,8 @@ interface DisplayScreenProps {
  * always plain `http://`, and a "secure" top-level origin would block this
  * iframe outright as mixed content instead of just loading it.
  */
-export function DisplayScreen({ connection, screenId }: DisplayScreenProps) {
-  const url = `${contentOrigin(connection)}/screens/${screenId}?unattended=1`
+export function DisplayScreen({ connection, screenId, machineID }: DisplayScreenProps) {
+  const url = `${contentOrigin(connection)}/screens/${screenId}?unattended=1&deviceId=${encodeURIComponent(machineID)}`
 
   return (
     <View style={styles.container}>

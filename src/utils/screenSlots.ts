@@ -1,11 +1,11 @@
 import type { BackgroundImage, ScreenSlotContent } from '../types/screen'
 
-/** A content kind that has text of its own, and so can carry its own `textSizes` — unlike `'none'` (nothing to show) or `'image'` (no text at all). An `'event'` slide only qualifies outside its own `'image'` display mode, which (like the `'image'` kind) has no text of its own either. */
+/** A content kind that has text of its own, and so can carry its own `textSizes` — unlike `'none'` (nothing to show) or `'image'` (no text at all). An `'orders'` pane qualifies for its customer mode's sake; the staff board sizes itself for touch and ignores them. An `'event'` slide only qualifies outside its own `'image'` display mode, which (like the `'image'` kind) has no text of its own either. */
 export function hasOwnTextSizeFields(
   content: ScreenSlotContent,
-): content is Extract<ScreenSlotContent, { kind: 'catalogue' } | { kind: 'event' } | { kind: 'transit' } | { kind: 'weather' } | { kind: 'messageboard' } | { kind: 'announcement' }> {
+): content is Extract<ScreenSlotContent, { kind: 'catalogue' } | { kind: 'event' } | { kind: 'transit' } | { kind: 'weather' } | { kind: 'messageboard' } | { kind: 'announcement' } | { kind: 'orders' }> {
   if (content.kind === 'event') return content.displayMode !== 'image'
-  return content.kind === 'catalogue' || content.kind === 'transit' || content.kind === 'weather' || content.kind === 'messageboard' || content.kind === 'announcement'
+  return content.kind === 'catalogue' || content.kind === 'transit' || content.kind === 'weather' || content.kind === 'messageboard' || content.kind === 'announcement' || content.kind === 'orders'
 }
 
 /** A content kind that's an image with `resizeToFit` on and an actual URL set — one of the two kinds whose pane temporarily overrides its own ratio fields to fit the media (see `mediaResizeRatioPatch`) and is subject to the "one at a time per stage" conflict check (see `isResizeToFitConflict`). */

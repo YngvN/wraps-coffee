@@ -1,4 +1,5 @@
 import type { LanguageCode } from '../i18n/translate'
+import type { OrderSource } from './order'
 
 /** How an image slide's picture fills its slot: shrunk to fit without cropping (the default), or scaled to fill the entire container, cropping as needed. */
 export type ImageFit = 'contain' | 'cover'
@@ -268,6 +269,28 @@ export type ScreenSlotContent =
       textSizes?: TextSizes
     } & OwnBackgroundImageFields)
   | ({
+      kind: 'orders'
+      /** `'staff'` — the kanban (Incoming → Doing → Done, plus History) meant for a touch tablet; `'customer'` — a read-only pickup board ("Being made" / "Ready for pickup") showing no phone numbers, items or prices. */
+      mode: OrdersPaneMode
+      /** Staff mode only: whether an approved companion device showing this pane may change order status by touch. Off, the board is read-only. Ignored (and never honoured server-side) in customer mode — see `screenAllowsOrderTouch`. */
+      touchControl?: boolean
+      /** Which order sources to show. Unset means all of them. */
+      sources?: OrderSource[]
+      /** Staff mode only: how many hours back the History drawer reaches (never past the start of today). Falls back to `DEFAULT_ORDERS_HISTORY_HOURS`. */
+      historyHours?: number
+      /** Staff mode only: splits each column into a Pickup lane (website) and a Delivery lane (Wolt/Foodora). Falls back to `true`. */
+      groupDelivery?: boolean
+      /** Staff mode only: chime and flash when a new order arrives. Falls back to `true`. */
+      chime?: boolean
+      /** Staff mode only: `[amber, red]` — minutes since an order was placed at which its age badge changes colour. Falls back to `DEFAULT_ORDERS_AGE_WARN_MINUTES`. */
+      ageWarnMinutes?: [number, number]
+      /** Staff mode only: words (case-insensitive) that highlight an order's notes in red, e.g. allergies. Falls back to `DEFAULT_ORDERS_NOTE_KEYWORDS`. */
+      noteKeywords?: string[]
+      /** Customer mode only: hides a Ready order this many minutes after the board first saw it Ready. Unset means it stays until it's completed. */
+      readyAutoHideMinutes?: number
+      textSizes?: TextSizes
+    } & OwnBackgroundImageFields)
+  | ({
       kind: 'time'
       /** Falls back to `'time'` (a live clock) when unset. */
       displayMode?: TimeDisplayMode
@@ -292,6 +315,18 @@ export type ScreenSlotContent =
        */
       fontSize?: number
     } & OwnBackgroundImageFields)
+
+/** Which audience an `'orders'` pane is for — see that slot kind's own `mode` field. */
+export type OrdersPaneMode = 'staff' | 'customer'
+
+/** Fallback for an `'orders'` pane's own `historyHours`. */
+export const DEFAULT_ORDERS_HISTORY_HOURS = 12
+
+/** Fallback for an `'orders'` pane's own `ageWarnMinutes`. */
+export const DEFAULT_ORDERS_AGE_WARN_MINUTES: [number, number] = [10, 20]
+
+/** Fallback for an `'orders'` pane's own `noteKeywords` — English and Norwegian, since notes arrive in either. */
+export const DEFAULT_ORDERS_NOTE_KEYWORDS = ['allergy', 'allergic', 'nut', 'gluten', 'lactose', 'vegan', 'allergi', 'nøtt', 'nøtter', 'laktose']
 
 /** How a `'messageboard'` slide shows its board's posts: one admin-picked post, an auto-rotating carousel, or every post stacked in a scrollable column. */
 export type MessageBoardDisplayMode = 'single' | 'rotating' | 'list'

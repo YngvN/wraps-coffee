@@ -43,6 +43,7 @@ import { formatOrdinal } from '../../utils/formatOrdinal'
 import { getSmallUrl, getThumbnailUrl } from '../../utils/responsiveImage'
 import { TRANSIT_MODES } from '../../utils/transitModes'
 import { MessagePickerModal } from './MessagePickerModal'
+import { OrdersSlideFields } from './OrdersSlideFields'
 import { TransitLineColorListEditor } from './TransitLineColorListEditor'
 import './SlideFields.scss'
 
@@ -59,6 +60,8 @@ const WEATHER_ICON_PACKS: WeatherIconPack[] = ['outline', 'system']
 
 /**
  * Decodes a `<select>` option value back into a `ScreenSlotContent`. An
+ * `orders:staff`/`orders:customer` value picks an `'orders'` pane's own
+ * `mode` (a new staff board starts with Touch control on). An
  * "image"/"qrcode"/"messageboard"/"announcement" slide starts with an empty
  * URL/board id/title+description, filled in via its own field below the
  * selector. A `transit:ruter`/`transit:entur` value picks which brand's own
@@ -88,6 +91,13 @@ function optionValueToContent(value: string, currentContent: ScreenSlotContent, 
   }
   if (value === 'news') return { kind: 'news', sourceIds: [] }
   if (value === 'messageboard') return { kind: 'messageboard' }
+  if (value === 'orders:staff' || value === 'orders:customer') {
+    const mode = value === 'orders:customer' ? 'customer' : 'staff'
+    // Switching audience on an existing orders pane keeps its other settings (sources etc.) —
+    // staff-only fields are simply ignored in customer mode, not cleared.
+    if (currentContent.kind === 'orders') return { ...currentContent, mode }
+    return mode === 'staff' ? { kind: 'orders', mode, touchControl: true } : { kind: 'orders', mode }
+  }
   if (value === 'announcement') return { kind: 'announcement', title: '', description: '' }
   if (value === 'time') return { kind: 'time' }
   if (value.startsWith('event:')) {
@@ -538,7 +548,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
     <div className="slide-fields">
       <select
         aria-label={label}
-        value={content.kind === 'event' ? `event:${content.displayMode ?? 'calendar'}` : content.kind === 'transit' ? `transit:${content.brand ?? 'ruter'}` : content.kind}
+        value={content.kind === 'event' ? `event:${content.displayMode ?? 'calendar'}` : content.kind === 'transit' ? `transit:${content.brand ?? 'ruter'}` : content.kind === 'orders' ? `orders:${content.mode}` : content.kind}
         onChange={(event) => onChange(optionValueToContent(event.target.value, content, suggestedEventOrdinal, integrationsConfig))}
       >
         <option value="none">{t('admin.screens.slotNoneLabel')}</option>
@@ -563,6 +573,10 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
         {(integrationsConfig.news.enabled || content.kind === 'news') && <option value="news">{t('admin.screens.slotNewsLabel')}</option>}
         <option value="time">{t('admin.screens.slotTimeLabel')}</option>
         <option value="messageboard">{t('admin.screens.slotMessageBoardLabel')}</option>
+        <optgroup label={t('admin.screens.slotOrdersGroupLabel')}>
+          <option value="orders:staff">{t('admin.screens.slotOrdersStaffLabel')}</option>
+          <option value="orders:customer">{t('admin.screens.slotOrdersCustomerLabel')}</option>
+        </optgroup>
         <option value="announcement">{t('admin.screens.slotAnnouncementLabel')}</option>
       </select>
 
@@ -1091,6 +1105,8 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
         ) : (
           <p className="slide-fields__hint">{t('admin.screens.messageBoardNoBoardsLabel')}</p>
         ))}
+
+      {content.kind === 'orders' && <OrdersSlideFields id={id} content={content} onChange={onChange} />}
 
       {content.kind === 'event' && (content.displayMode ?? 'calendar') === 'calendar' && (
         <label className="slide-fields__number-field">

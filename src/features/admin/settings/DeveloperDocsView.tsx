@@ -661,6 +661,20 @@ POST /foodora/status/<orderId>     (Authorization: Bearer <token>, admin/subadmi
         </pre>
       </Card>
 
+      <Card title={t('admin.settings.developerDocs.displayOrdersTitle')}>
+        <p>{t('admin.settings.developerDocs.displayOrdersIntro')}</p>
+        <pre>
+          <code>{`POST /display-orders/status       (public — no token; trusted by device id, same LAN-trust posture as the heartbeat)
+{ "deviceId": string, "orderId": string, "status": "received" | "accepted" | "preparing" | "ready" | "completed" | "cancelled" }
+→ 200 { "ok": true }               (one order patched in whichever of "admin.orders"/"admin.woltOrders"/"admin.foodoraOrders" holds it;
+                                    website orders are pushed to Neon, Wolt/Foodora orders to their platform first)
+→ 400 { "error": "..." }           (missing field, or not a valid status)
+→ 403 { "error": "..." }           (not an approved display, or the screen it is showing has no staff orders pane with Touch control on)
+→ 404 { "error": "..." }           (no order with that id)
+→ 502 { "error": "..." }           (Wolt/Foodora rejected the change — nothing was changed locally)`}</code>
+        </pre>
+      </Card>
+
       <Card title={t('admin.settings.developerDocs.assistantTitle')}>
         <p>{t('admin.settings.developerDocs.assistantIntro')}</p>
         <pre>

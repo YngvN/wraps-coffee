@@ -1,0 +1,640 @@
+@use '../../../styles/variables' as *;
+
+// Staff order board (`OrdersBoardSlide`) and its card, arrows, detail sheet and history drawer.
+//
+// Sized for touch rather than signage: the base font scales with the pane (`cqmin`) but is clamped to
+// a readable range, and every button is at least 56px tall.
+
+// The staff board's own fixed palette — deliberately NOT the screen's `--screen-*` variables or the
+// app's `data-theme` tokens, so it looks identical on every screen and in every app theme. It switches
+// between these two via its own ⚙ menu (`data-orders-theme`, see `useOrdersTheme`). The customer
+// board is the opposite: it follows the screen's theme, see `OrdersCustomer.scss`.
+.orders-board {
+  --ob-bg: #f4f1ea;
+  --ob-column: #e9e4d8;
+  --ob-card: #ffffff;
+  --ob-text: #1f1b16;
+  --ob-muted: #6b6358;
+  --ob-line: rgba(31, 27, 22, 0.14);
+  --ob-press: rgba(31, 27, 22, 0.28);
+  --ob-button: #e3ddd0;
+  --ob-button-hover: #d8d1c2;
+  --ob-accent: #c8952c;
+  --ob-accent-text: #1f1b16;
+  --ob-danger: #c62f2f;
+  --ob-danger-text: #ffffff;
+  --ob-amber: #f2b632;
+  --ob-amber-text: #3a2600;
+  --ob-success: #2f8a4c;
+  --ob-success-soft: #dcefe1;
+  --ob-shadow: rgba(0, 0, 0, 0.18);
+  --orders-wolt: #009de0;
+  --orders-foodora: #d70f64;
+
+  background: var(--ob-bg);
+  color: var(--ob-text);
+  font-family: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+// `SplitLayout.scss` gives every `h1`/`h2` inside a screen the screen's own heading fonts
+// (`.split-layout h1/h2`); the staff board keeps one font throughout, so its headings outrank that rule.
+.split-layout .orders-board :is(h1, h2, h3) {
+  font-family: inherit;
+  letter-spacing: normal;
+}
+
+.orders-board[data-orders-theme='dark'] {
+  --ob-bg: #16171a;
+  --ob-column: #1f2125;
+  --ob-card: #2a2d32;
+  --ob-text: #f1efe9;
+  --ob-muted: #a39f97;
+  --ob-line: rgba(241, 239, 233, 0.14);
+  --ob-press: rgba(0, 0, 0, 0.45);
+  --ob-button: #383c42;
+  --ob-button-hover: #444950;
+  --ob-accent: #d9a53c;
+  --ob-shadow: rgba(0, 0, 0, 0.5);
+}
+
+.orders-board {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  height: 100%;
+  padding: var(--pane-padding, 0.8em);
+  overflow: hidden;
+  color: var(--ob-text);
+  font-size: clamp(14px, 2.2cqmin, 26px);
+  touch-action: manipulation;
+  user-select: none;
+
+  button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+.orders-board__offline {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 25;
+  padding: 0.5em 1em;
+  background: var(--ob-danger);
+  color: var(--ob-danger-text);
+  font-weight: 700;
+  text-align: center;
+}
+
+.orders-board__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  min-height: 56px;
+}
+
+.orders-board__to-make {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35em 0.5em;
+  min-width: 0;
+}
+
+.orders-board__to-make-label {
+  font-weight: 700;
+  color: var(--ob-muted);
+}
+
+.orders-board__to-make-item {
+  padding: 0.15em 0.6em;
+  border-radius: 999px;
+  background: var(--ob-card);
+  font-weight: 700;
+}
+
+.orders-board__muted {
+  margin: 0;
+  color: var(--ob-muted);
+}
+
+.orders-board__count {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 0.4em;
+  border-radius: 999px;
+  background: var(--ob-card);
+  font-size: 0.85em;
+  text-align: center;
+}
+
+.orders-board__history-button,
+.order-arrows__button,
+.order-card__open,
+.order-sheet__close,
+.order-sheet__action,
+.order-history__restore,
+.order-history__open {
+  border: none;
+  background: var(--ob-button);
+
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background: var(--ob-button-hover);
+    }
+  }
+
+  &:active:not(:disabled) {
+    box-shadow: inset 0 3px 10px var(--ob-press);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+}
+
+.orders-board__history-button {
+  min-height: 56px;
+  padding: 0 1em;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.orders-board__columns {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6em;
+  min-height: 0;
+}
+
+.orders-board__column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: 14px;
+  background: var(--ob-column);
+}
+
+.orders-board__column-title {
+  margin: 0;
+  padding: 0.5em 0.7em;
+  border-bottom: 1px solid var(--ob-line);
+  font-size: 1.15em;
+}
+
+.orders-board__cards {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.5em;
+  padding: 0.5em;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.orders-board__lane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+
+  & + & {
+    margin-top: 0.4em;
+    padding-top: 0.6em;
+    border-top: 2px dashed var(--ob-line);
+  }
+}
+
+.orders-board__lane-title {
+  margin: 0;
+  font-size: 0.8em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ob-muted);
+}
+
+// --- Card ---
+
+.order-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-left: 0.35em solid transparent;
+  border-radius: 10px;
+  background: var(--ob-card);
+
+  &--wolt {
+    border-left-color: var(--orders-wolt);
+    background: color-mix(in srgb, var(--orders-wolt) 12%, var(--ob-card));
+  }
+
+  &--foodora {
+    border-left-color: var(--orders-foodora);
+    background: color-mix(in srgb, var(--orders-foodora) 12%, var(--ob-card));
+  }
+
+  &--failed {
+    outline: 2px solid var(--ob-danger);
+  }
+
+  &--flash {
+    animation: order-card-flash 0.6s ease-in-out 4;
+  }
+
+  &:not(.order-card--interactive) {
+    padding: 0.5em 0.7em;
+  }
+}
+
+// A new order pulses its whole card in the accent colour (not just a thin ring, which was too faint to
+// notice across a counter in on-device testing).
+@keyframes order-card-flash {
+  50% {
+    background: color-mix(in srgb, var(--ob-accent) 55%, var(--ob-card));
+    box-shadow: 0 0 0 6px var(--ob-accent);
+  }
+}
+
+.order-card__open {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  padding: 0.5em 0.7em 0.3em;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+  text-align: left;
+}
+
+.order-card__top {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.order-card__logo {
+  height: 1.1em;
+  width: auto;
+  max-width: 4.5em;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.order-card__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-card__age {
+  flex-shrink: 0;
+  padding: 0 0.4em;
+  border-radius: 999px;
+  font-size: 0.85em;
+  font-weight: 700;
+
+  &--warn {
+    background: var(--ob-amber);
+    color: var(--ob-amber-text);
+  }
+
+  &--late {
+    background: var(--ob-danger);
+    color: var(--ob-danger-text);
+  }
+}
+
+.order-card__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5em;
+  font-size: 0.9em;
+  color: var(--ob-muted);
+}
+
+.order-card__pickup--overdue {
+  color: var(--ob-danger);
+  font-weight: 700;
+}
+
+.order-card__notes {
+  margin: 0;
+  font-size: 0.9em;
+  font-style: italic;
+
+  &--alert {
+    padding: 0.2em 0.45em;
+    border-radius: 6px;
+    background: var(--ob-danger);
+    color: var(--ob-danger-text);
+    font-style: normal;
+    font-weight: 700;
+  }
+}
+
+.order-card__error {
+  margin: 0;
+  color: var(--ob-danger);
+  font-size: 0.85em;
+  font-weight: 700;
+}
+
+// --- Arrows ---
+
+.order-arrows {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4em;
+  padding: 0 0.4em 0.4em;
+
+  &--large {
+    gap: 0.8em;
+    padding: 0;
+  }
+}
+
+.order-arrows__button {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  max-width: 50%;
+  border-radius: 10px;
+
+  &--forward {
+    margin-left: auto;
+    background: color-mix(in srgb, var(--ob-accent) 45%, var(--ob-button));
+  }
+
+  svg {
+    width: 1.8em;
+    height: 1.8em;
+  }
+
+  .order-arrows--large & {
+    min-width: 96px;
+    min-height: 72px;
+  }
+}
+
+.order-arrows__spacer {
+  flex: 1;
+  max-width: 50%;
+}
+
+// --- Detail sheet and history drawer (in-pane overlays) ---
+
+.order-sheet,
+.order-history {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.order-sheet {
+  align-items: center;
+  justify-content: center;
+  padding: 1em;
+}
+
+.order-sheet__panel,
+.order-history__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7em;
+  max-height: 100%;
+  padding: 1em;
+  overflow-y: auto;
+  border-radius: 14px;
+  background: var(--ob-bg);
+  box-shadow: 0 10px 40px var(--ob-shadow);
+}
+
+.order-sheet__panel {
+  width: min(34em, 100%);
+  border-left: 0.4em solid var(--ob-line);
+
+  &.order-card--wolt {
+    border-left-color: var(--orders-wolt);
+  }
+
+  &.order-card--foodora {
+    border-left-color: var(--orders-foodora);
+  }
+}
+
+.order-sheet__header,
+.order-history__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+
+  h2 {
+    flex: 1;
+    margin: 0;
+    font-size: 1.4em;
+  }
+}
+
+.order-sheet__title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.order-sheet__column {
+  padding: 0.15em 0.6em;
+  border-radius: 999px;
+  background: var(--ob-card);
+  font-weight: 700;
+}
+
+.order-sheet__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 10px;
+
+  svg {
+    width: 1.4em;
+    height: 1.4em;
+  }
+}
+
+.order-sheet__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em 1.2em;
+  color: var(--ob-muted);
+}
+
+.order-sheet__items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    display: flex;
+    gap: 0.6em;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid var(--ob-line);
+  }
+}
+
+.order-sheet__quantity {
+  min-width: 2.2em;
+  font-weight: 700;
+}
+
+.order-sheet__item-name {
+  flex: 1;
+}
+
+.order-sheet__total {
+  font-weight: 700;
+  text-align: right;
+}
+
+.order-sheet__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8em;
+
+  .order-arrows {
+    flex: 1;
+    justify-content: flex-end;
+  }
+}
+
+.order-sheet__confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.order-sheet__action {
+  min-height: 56px;
+  padding: 0 1em;
+  border-radius: 10px;
+  font-weight: 700;
+
+  &--danger {
+    background: var(--ob-danger);
+    color: var(--ob-danger-text);
+  }
+
+  &--danger-outline {
+    background: transparent;
+    box-shadow: inset 0 0 0 2px var(--ob-danger);
+    color: var(--ob-danger);
+  }
+}
+
+.order-history {
+  justify-content: flex-end;
+}
+
+.order-history__panel {
+  width: min(26em, 90%);
+  border-radius: 14px 0 0 14px;
+}
+
+.order-history__empty {
+  margin: 0;
+  color: var(--ob-muted);
+}
+
+.order-history__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.order-history__row {
+  display: flex;
+  gap: 0.4em;
+
+  &--cancelled .order-history__open {
+    opacity: 0.55;
+    text-decoration: line-through;
+  }
+}
+
+.order-history__restore {
+  display: flex;
+  align-items: center;
+  gap: 0.2em;
+  min-height: 56px;
+  padding: 0 0.7em;
+  border-radius: 10px;
+  font-weight: 700;
+
+  svg {
+    width: 1.3em;
+    height: 1.3em;
+  }
+}
+
+.order-history__open {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0 0.5em;
+  min-height: 56px;
+  padding: 0.3em 0.7em;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.order-history__name {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-history__status {
+  grid-row: 2;
+  font-size: 0.85em;
+  color: var(--ob-muted);
+}
+
+.order-history__time {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  color: var(--ob-muted);
+}
+
+// The shared `UndoToast` normally follows the app theme; inside a board it follows the board's own.
+.orders-board .undo-toast {
+  background: var(--ob-text);
+  color: var(--ob-bg);
+  box-shadow: 0 6px 24px var(--ob-shadow);
+}
+
+.orders-board .undo-toast__action {
+  background: var(--ob-accent);
+  color: var(--ob-accent-text);
+}

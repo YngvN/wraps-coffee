@@ -270,7 +270,7 @@ export default function App() {
       )}
       {state.stage === 'displaying' && (
         <>
-          <DisplayScreen connection={state.connection} screenId={remoteNav.renderScreenId ?? state.screenId} maxImagePx={maxImagePx} renderWidthPx={renderWidthPx} />
+          <DisplayScreen connection={state.connection} screenId={remoteNav.renderScreenId ?? state.screenId} machineID={machineID ?? ''} maxImagePx={maxImagePx} renderWidthPx={renderWidthPx} />
           <RemoteNavPreview hud={remoteNav.hud} />
           <RemoteNavHud hud={remoteNav.hud} />
         </>

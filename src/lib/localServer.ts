@@ -564,6 +564,24 @@ export async function pushWoltOrderStatus(token: string, orderId: string, status
   }
 }
 
+/**
+ * Changes one order's status from a touch order board (an `'orders'` pane in staff mode). There is no
+ * session: the kiosk page is unauthenticated, so the server trusts `deviceId` (the approved companion's
+ * machine id, passed in as `?deviceId=`) and only if the screen that device is showing has Touch control
+ * on — see `POST /display-orders/status` in `server/index.ts`. Rejects with the server's own message.
+ */
+export async function pushDisplayOrderStatus(deviceId: string, orderId: string, status: OrderStatus): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/display-orders/status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deviceId, orderId, status }),
+  })
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? `Order status change failed (${response.status})`)
+  }
+}
+
 /** The saved Foodora POS Integration API credentials (see the Integrations page's Foodora card, and Settings → Testing for the environment checkbox), or `venueId`/`apiKey` both `null` if none have been saved yet. `admin`/`subadmin` only. */
 export async function getFoodoraCredentials(token: string): Promise<FoodoraCredentials> {
   const response = await fetch(`${serverBaseUrl()}/foodora/credentials`, { headers: { Authorization: `Bearer ${token}` } })

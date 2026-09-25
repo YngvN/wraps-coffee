@@ -520,6 +520,7 @@ const CONTENT_KIND_LABEL_KEYS: Record<string, string> = {
   news: 'admin.screens.slotNewsLabel',
   time: 'admin.screens.slotTimeLabel',
   messageboard: 'admin.screens.slotMessageBoardLabel',
+  orders: 'admin.screens.slotOrdersGroupLabel',
   announcement: 'admin.screens.slotAnnouncementLabel',
 }
 

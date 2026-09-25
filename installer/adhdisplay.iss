@@ -67,7 +67,7 @@ AppName={#AppName}
 ; Must stay in sync with the root package.json's own "version" field (see
 ; CLAUDE.md's Versioning rule) - bumped together, in the same change, on
 ; every completed change.
-AppVersion=0.3.4
+AppVersion=0.3.8
 AppPublisher=ADHDisplay
 DefaultDirName=C:\ADHDisplay
 DisableDirPage=no
