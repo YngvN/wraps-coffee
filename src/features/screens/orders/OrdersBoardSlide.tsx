@@ -7,6 +7,7 @@ import { useLanguage } from '../../../i18n'
 import type { OrderRecord, OrderSource } from '../../../types/order'
 import { DEFAULT_ORDERS_AGE_WARN_MINUTES, DEFAULT_ORDERS_HISTORY_HOURS, DEFAULT_ORDERS_NOTE_KEYWORDS } from '../../../types/screen'
 import { formatClockTime } from '../../../utils/clockFormat'
+import { BoardClock } from './BoardClock'
 import { OrderCard } from './OrderCard'
 import { BOARD_COLUMNS, columnOf, customerOrderLabel, historyOrders, laneOf, sortByPickup, summariseItems, type BoardColumn, type OrderLane } from './orderColumns'
 import { OrderDetailSheet } from './OrderDetailSheet'
@@ -18,6 +19,8 @@ import { useOfflineSince } from './useOfflineSince'
 import { useOrderBoard } from './useOrderBoard'
 import { useOrdersLanguage, type OrdersLanguage } from './useOrdersLanguage'
 import { useOrdersTheme } from './useOrdersTheme'
+import { useBoardPrinting } from './useBoardPrinting'
+import { readDeviceId } from './readDeviceId'
 import './OrdersBoard.scss'
 
 interface OrdersBoardSlideProps {
@@ -30,14 +33,9 @@ interface OrdersBoardSlideProps {
   noteKeywords?: string[]
 }
 
-/** The companion's own machine id, which it appends to the kiosk URL as `?deviceId=` — `null` anywhere else (admin previews, a plain browser tab), which keeps the board read-only there. Deliberately not `displayMachineId`: `ScreenDisplay` treats that param as an assignment redirect. */
-function readDeviceId(): string | null {
-  return new URLSearchParams(window.location.search).get('deviceId')
-}
-
 /**
  * The staff order board for an `'orders'` pane in `'staff'` mode: Incoming → Doing → Done, each
- * optionally split into Pickup and Delivery lanes, a "To make" strip summing the items in Doing, a
+ * optionally split into Pickup and Delivery lanes, a clock and a "To make" strip summing the items in Doing, a
  * History drawer for today's picked-up/cancelled orders, an undo toast after every move, and a ⚙ menu
  * for the board's own light/dark look and language (both remembered per device). Its colours and font
  * are fixed, independent of the screen — see `OrdersBoard.scss`.
@@ -69,6 +67,7 @@ function OrdersBoard({
   const [openId, setOpenId] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [theme, setTheme] = useOrdersTheme()
+  const printing = useBoardPrinting(interactive ? deviceId : null)
 
   const byColumn = useMemo(() => {
     const groups: Record<BoardColumn, OrderRecord[]> = {
@@ -116,6 +115,8 @@ function OrdersBoard({
           flashing={flashing.has(order.id)}
           onOpen={() => setOpenId(order.id)}
           onMove={(to) => board.move(order, to)}
+          onPrint={printing.available ? () => printing.print(order) : undefined}
+          printStatus={printing.status[order.id]}
         />
       ))}
     </AnimatePresence>
@@ -143,6 +144,7 @@ function OrdersBoard({
         )}
 
         <div className="orders-board__bar">
+          <BoardClock />
           <div className="orders-board__to-make">
             <span className="orders-board__to-make-label">{t('screenDisplay.orders.toMake')}</span>
             {toMake.length === 0 ? (
@@ -156,7 +158,7 @@ function OrdersBoard({
               {t('screenDisplay.orders.history')} <span className="orders-board__count">{history.length}</span>
             </button>
           )}
-          <OrdersSettingsMenu theme={theme} onThemeChange={setTheme} language={languageChoice} onLanguageChange={onLanguageChange} />
+          <OrdersSettingsMenu theme={theme} onThemeChange={setTheme} language={languageChoice} onLanguageChange={onLanguageChange} printing={interactive ? printing : undefined} />
         </div>
 
         <LayoutGroup>
@@ -212,6 +214,8 @@ function OrdersBoard({
               failedMessage={board.failed[openOrder.id]}
               onMove={(to) => board.move(openOrder, to)}
               onClose={() => setOpenId(null)}
+              onPrint={printing.available ? () => printing.print(openOrder) : undefined}
+              printStatus={printing.status[openOrder.id]}
             />
           )}
         </AnimatePresence>

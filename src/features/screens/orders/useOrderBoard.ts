@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useFoodoraOrders } from '../../../hooks/useFoodoraOrders'
 import { useOrders } from '../../../hooks/useOrders'
+import { useRegisterOrders } from '../../../hooks/useRegisterOrders'
 import { useWoltOrders } from '../../../hooks/useWoltOrders'
 import { pushDisplayOrderStatus } from '../../../lib/localServer'
 import type { OrderRecord, OrderSource, OrderStatus } from '../../../types/order'
@@ -52,11 +53,12 @@ export function useOrderBoard(sources: OrderSource[] | undefined, deviceId: stri
   const [websiteOrders] = useOrders()
   const [woltOrders] = useWoltOrders()
   const [foodoraOrders] = useFoodoraOrders()
+  const [registerOrders] = useRegisterOrders()
   const [pending, setPending] = useState<Record<string, OrderStatus>>({})
   const [failed, setFailed] = useState<Record<string, string>>({})
   const [lastMove, setLastMove] = useState<OrderMove | null>(null)
 
-  const live = useMemo(() => filterBySources([...websiteOrders, ...woltOrders, ...foodoraOrders], sources), [websiteOrders, woltOrders, foodoraOrders, sources])
+  const live = useMemo(() => filterBySources([...websiteOrders, ...woltOrders, ...foodoraOrders, ...registerOrders], sources), [websiteOrders, woltOrders, foodoraOrders, registerOrders, sources])
 
   // A pending entry is only needed until the live data agrees with it — dropped here during render
   // (React's recommended pattern for state derived from props) rather than in an effect, so there's

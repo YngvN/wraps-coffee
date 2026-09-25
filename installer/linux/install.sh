@@ -82,6 +82,14 @@ echo ""
 echo "Installing dependencies (this can take several minutes)..."
 npm install
 
+# The screens' fonts are self-hosted from public/fonts/, which is gitignored, so a fresh clone has
+# none and every screen falls back to the system font. Downloaded here before the build (Vite copies
+# them into dist/), the same step the Windows installer's CI build runs. Files already on disk are
+# skipped, so an Update only fetches what's new. A failed download leaves the app working with
+# fallback fonts rather than aborting the install.
+echo "Downloading fonts for offline use (about 36 MB the first time)..."
+npm run fonts:fetch || echo "Font download failed — screens will use fallback fonts until you run 'npm run fonts:fetch' and 'npm run build' again."
+
 echo "Building the app..."
 npm run build
 

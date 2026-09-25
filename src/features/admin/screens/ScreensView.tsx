@@ -18,6 +18,7 @@ import { generateId } from '../../../utils/id'
 import { countLeaves } from '../../../utils/layoutTree'
 import { deriveMdnsName } from '../../../utils/mdnsName'
 import { buildOrderBoardScreen } from './orderBoardTemplates'
+import { buildRegisterScreen } from './registerTemplates'
 import { ScreenCard } from './ScreenCard'
 import { ScreenForm, type ScreenFormTarget } from './ScreenForm'
 import { ScreenRestoreSnapshotModal } from './ScreenRestoreSnapshotModal'
@@ -146,6 +147,13 @@ export function ScreensView() {
     openForm(screen)
   }
 
+  /** Adds a ready-made register screen (one full-screen register pane), then opens it in the form. See `buildRegisterScreen`. */
+  const handleCreateRegister = () => {
+    const screen = buildRegisterScreen(t('admin.screens.registerDefaultName'))
+    setScreens((current) => [...current, screen])
+    openForm(screen)
+  }
+
   const handleDelete = (screen: ScreenConfig) => {
     if (!window.confirm(t('admin.common.confirmDelete'))) return
     setScreens((current) => current.filter((existing) => existing.screenID !== screen.screenID))
@@ -247,6 +255,10 @@ export function ScreensView() {
               <button type="button" className="screens-view__toolbar-action" onClick={() => handleCreateOrderBoard('customer')}>
                 <PlusIcon />
                 {t('admin.screens.createPickupBoard')}
+              </button>
+              <button type="button" className="screens-view__toolbar-action" onClick={handleCreateRegister}>
+                <PlusIcon />
+                {t('admin.screens.createRegister')}
               </button>
 
 

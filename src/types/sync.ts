@@ -30,6 +30,8 @@ export const SYNCED_KEYS = [
   'admin.woltOrders',
   'admin.foodoraConfig',
   'admin.foodoraOrders',
+  'admin.printers',
+  'admin.registerOrders',
 ] as const
 
 export type SyncedKey = (typeof SYNCED_KEYS)[number]
@@ -88,8 +90,21 @@ export interface ErrorMessage {
   detail?: string
 }
 
+/**
+ * Sent by the server to every socket every `HEARTBEAT_INTERVAL_MS`, so a page can tell a live but
+ * quiet connection from a dead one. Protocol-level WebSocket pings are invisible to page script, and
+ * some WebViews (the Companion tablet's, notably) never fire `close` when the server goes away — see
+ * `syncClient.ts`'s watchdog.
+ */
+export interface HeartbeatMessage {
+  type: 'heartbeat'
+}
+
+/** How often the server sends `HeartbeatMessage`. */
+export const HEARTBEAT_INTERVAL_MS = 10_000
+
 export type ClientMessage = HelloMessage | WriteMessage
-export type ServerMessage = SnapshotMessage | UpdateMessage | ErrorMessage
+export type ServerMessage = SnapshotMessage | UpdateMessage | ErrorMessage | HeartbeatMessage
 
 // --- Neon bridge sync configuration ------------------------------------------
 //

@@ -16,6 +16,7 @@ import { useIntegrationsConfig } from '../../../hooks/useIntegrationsConfig'
 import { useLocalStorage } from '../../../hooks/useLocalStorage'
 import { useMessageBoardPosts } from '../../../hooks/useMessageBoardPosts'
 import { useMessageBoards } from '../../../hooks/useMessageBoards'
+import { usePrinterSettings } from '../../../hooks/usePrinterSettings'
 import { useOrders } from '../../../hooks/useOrders'
 import { useProducts } from '../../../hooks/useProducts'
 import { useScreens } from '../../../hooks/useScreens'
@@ -52,6 +53,7 @@ import type { ContactInfo } from '../../../types/contactInfo'
 import type { CustomFieldDefinition } from '../../../types/customFields'
 import type { EventRecord } from '../../../types/event'
 import type { MessageBoard, MessageBoardPost } from '../../../types/messageBoard'
+import type { PrinterDraft } from '../../../types/printer'
 import { NEWS_SOURCES } from '../../../types/news'
 import type { OrderRecord } from '../../../types/order'
 import type { Price, Product } from '../../../types/product'
@@ -81,6 +83,7 @@ import { EventForm } from '../events/EventForm'
 import { NAV_ITEMS } from '../layout/adminNavItems'
 import { AdminRightPanel } from '../layout/AdminRightPanel'
 import { MessageBoardPostForm } from '../messageBoard/MessageBoardPostForm'
+import { PrinterMiniForm } from './PrinterMiniForm'
 import { CatalogueForm } from '../products/CatalogueForm'
 import { CategoryForm } from '../products/CategoryForm'
 import { CustomFieldListEditor } from '../products/CustomFieldListEditor'
@@ -109,6 +112,7 @@ import {
   buildIntegrationToggleChangeRows,
   buildMediaLibraryChangeRows,
   buildMessageBoardChangeRows,
+  buildPrinterChangeRows,
   buildMessageBoardPostChangeRows,
   buildOrdersChangeRows,
   buildProductChangeRows,
@@ -362,6 +366,7 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
   const [catalogues, setCatalogues] = useCatalogues()
   const [categoryPrices, setCategoryPrices] = useCategoryPrices()
   const [boards, setBoards] = useMessageBoards()
+  const [printerSettings, setPrinterSettings] = usePrinterSettings()
   const [posts, setPosts] = useMessageBoardPosts()
   const [screens, setScreens] = useScreens()
   const [appearanceSettings, setAppearanceSettings] = useAppearanceThemes()
@@ -988,6 +993,37 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
         return <MessageBoardMiniForm name={boardDraft.name} issues={issues} renderIssues={renderIssues} onSave={saveBoardName} onCancel={flow.cancel} />
       }
 
+      if (entity === 'printer') {
+        const printerDraft = draft as PrinterDraft
+        const foundPrinter = itemID ? printerSettings.printers.find((existing) => existing.id === itemID) : undefined
+        const currentPrinter = foundPrinter ? { ...foundPrinter, isDefault: foundPrinter.id === printerSettings.defaultPrinterId } : null
+        // Same save rules as Settings → Printers: upsert the printer (without the draft-only `isDefault`), and keep
+        // `defaultPrinterId` pointing at a printer that exists — this one if it should be the default, otherwise
+        // unchanged, or the first other printer if this one just stopped being the default.
+        const savePrinter = ({ isDefault, ...printer }: PrinterDraft) => {
+          const exists = printerSettings.printers.some((existing) => existing.id === printer.id)
+          const printers = exists ? printerSettings.printers.map((existing) => (existing.id === printer.id ? printer : existing)) : [...printerSettings.printers, printer]
+          const keptDefault = printerSettings.defaultPrinterId === printer.id ? (printers.find((other) => other.id !== printer.id)?.id ?? null) : printerSettings.defaultPrinterId
+          const defaultPrinterId = isDefault ? printer.id : (keptDefault ?? printers[0]?.id ?? null)
+          setPrinterSettings({ printers, defaultPrinterId })
+          flow.onCommitted()
+        }
+        if (!isEditingDraft) {
+          return (
+            <>
+              {renderIssues(issues)}
+              <AssistantReviewSummary
+                rows={buildPrinterChangeRows(t, currentPrinter, printerDraft)}
+                onConfirm={() => savePrinter(printerDraft)}
+                onEdit={() => setIsEditingDraft(true)}
+                onCancel={flow.cancel}
+              />
+            </>
+          )
+        }
+        return <PrinterMiniForm draft={printerDraft} issues={renderIssues(issues)} onSave={savePrinter} onCancel={flow.cancel} />
+      }
+
       if (entity === 'messageBoardPost') {
         const postDraft = draftWithImage as MessageBoardPost
         const currentPost = itemID ? posts.find((existing) => existing.id === itemID) ?? null : null
@@ -1379,6 +1415,12 @@ export function AssistantPanel({ open, onClose }: AssistantPanelProps) {
                   flow.onCommitted()
                 } else if (entity === 'messageBoardPost') {
                   setPosts(posts.filter((existing) => existing.id !== itemID))
+                  flow.onCommitted()
+                } else if (entity === 'printer') {
+                  // Same as Settings → Printers' Remove: drop it, and hand "default" to the first remaining printer if it had it.
+                  const printers = printerSettings.printers.filter((existing) => existing.id !== itemID)
+                  const defaultPrinterId = printerSettings.defaultPrinterId === itemID ? (printers[0]?.id ?? null) : printerSettings.defaultPrinterId
+                  setPrinterSettings({ printers, defaultPrinterId })
                   flow.onCommitted()
                 } else if (entity === 'theme') {
                   setAppearanceSettings({ ...appearanceSettings, themes: appearanceSettings.themes.filter((existing) => existing.id !== itemID) })

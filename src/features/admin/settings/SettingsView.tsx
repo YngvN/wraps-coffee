@@ -18,15 +18,17 @@ import { BackupSettingsView } from './BackupSettingsView'
 import { ConnectWebsiteView } from './website/ConnectWebsiteView'
 import { AppUpdateSettingsView } from './AppUpdateSettingsView'
 import { DeveloperDocsView } from './DeveloperDocsView'
+import { PrintersSettingsView } from './printers/PrintersSettingsView'
+import { RegisterSettingsView } from './register/RegisterSettingsView'
 import { TestingSettingsView } from './TestingSettingsView'
 import './SettingsView.scss'
 
 const CLOCK_FORMATS: ClockFormat[] = ['24h', '12h']
 const DATE_FORMATS: DateFormat[] = ['dmy', 'mdy']
 
-type SubView = 'main' | 'developers' | 'advanced' | 'backup' | 'store' | 'testing' | 'integrations' | 'website' | 'appupdate'
+type SubView = 'main' | 'developers' | 'advanced' | 'backup' | 'store' | 'testing' | 'integrations' | 'website' | 'appupdate' | 'printers' | 'register'
 /** Every `SubView` that has a real URL segment of its own under `/admin/dashboard/settings/`. */
-const ROUTED_SUB_VIEWS: SubView[] = ['developers', 'advanced', 'backup', 'store', 'testing', 'integrations', 'website', 'appupdate']
+const ROUTED_SUB_VIEWS: SubView[] = ['developers', 'advanced', 'backup', 'store', 'testing', 'integrations', 'website', 'appupdate', 'printers', 'register']
 
 /** Admin-wide settings: the interface language, the cafe's own Standard pane language (the default kiosk panes render their content in, independent of the interface language above — see `useDefaultPaneLanguage`, overridable per pane from its own "Language" sub-menu), the shared clock format (24-hour or 12-hour AM/PM) and date format (day-month-year or month-day-year — used everywhere a wall-clock time/plain date is shown: the weather forecast, admin timestamps, uploaded-image/message-board-post dates, the screensaver schedule's own time pickers, and a "time" pane's own shorthand date), which sidebar items this cafe's dashboard shows (different cafes use different features — a cafe with no online ordering or no digital signage can hide those tabs entirely), "Integrations" (transit/weather/news/delivery-platform setup — see `IntegrationsView`, reached as a submenu here rather than its own sidebar item, same as Store), a "For developers" sub-view documenting the local server's own API, and (admin/subadmin only) an "Advanced" sub-view for how a screen's own link should be addressed (see `AdvancedSettingsView`). More device/account-level preferences land here over time. */
 export function SettingsView() {
@@ -111,6 +113,8 @@ export function SettingsView() {
   const subViewRows: NavRowItem[] = [
     { id: 'store', label: t('admin.store.title'), onClick: () => openSubView('store') },
     { id: 'integrations', label: t('admin.settings.integrations.title'), onClick: () => openSubView('integrations') },
+    { id: 'printers', label: t('admin.settings.printers.title'), onClick: () => openSubView('printers') },
+    { id: 'register', label: t('admin.settings.register.title'), onClick: () => openSubView('register') },
     { id: 'developers', label: t('admin.settings.developersTitle'), onClick: () => openSubView('developers') },
     ...(session?.role === 'limited'
       ? []
@@ -181,6 +185,24 @@ export function SettingsView() {
           </div>
           <TranslatedText as="p" id="admin.settings.backup.description" className="admin-page-description" />
           <BackupSettingsView />
+        </div>
+      ) : subView === 'printers' ? (
+        <div className="settings-view">
+          <div className="settings-view__docs-header">
+            <BackButton onClick={closeSubView}>{t('admin.common.backTo', { destination: t('admin.settings.title') })}</BackButton>
+            <TranslatedText as="h1" id="admin.settings.printers.title" />
+          </div>
+          <TranslatedText as="p" id="admin.settings.printers.description" className="admin-page-description" />
+          <PrintersSettingsView />
+        </div>
+      ) : subView === 'register' ? (
+        <div className="settings-view">
+          <div className="settings-view__docs-header">
+            <BackButton onClick={closeSubView}>{t('admin.common.backTo', { destination: t('admin.settings.title') })}</BackButton>
+            <TranslatedText as="h1" id="admin.settings.register.title" />
+          </div>
+          <TranslatedText as="p" id="admin.settings.register.description" className="admin-page-description" />
+          <RegisterSettingsView />
         </div>
       ) : subView === 'testing' ? (
         <div className="settings-view">

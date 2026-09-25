@@ -3,7 +3,11 @@ import { FetchedLogo } from '../../../components'
 import { useLanguage } from '../../../i18n'
 import type { OrderRecord, OrderStatus } from '../../../types/order'
 import { OrderArrows } from './OrderArrows'
-import { ageLevel, matchesNoteKeyword, minutesSince } from './orderColumns'
+import { OrderSummary } from './OrderSummary'
+import { PrintButton, PrintError } from './PrintButton'
+import type { PrintStatus } from './useBoardPrinting'
+import { ageLevel, columnOf, matchesNoteKeyword, minutesSince } from './orderColumns'
+import { orderNumber } from '../../../lib/orderNumber'
 
 interface OrderCardProps {
   order: OrderRecord
@@ -19,6 +23,9 @@ interface OrderCardProps {
   flashing: boolean
   onOpen: () => void
   onMove: (to: OrderStatus) => void
+  /** Present when this board can print — the card then shows a print button between its arrows while it's in Done. */
+  onPrint?: () => void
+  printStatus?: PrintStatus
 }
 
 /**
@@ -45,9 +52,10 @@ function isOverdue(pickupTime: string, now: Date): boolean {
  * One order on the staff board: customer, pickup time (red once overdue), how long ago it was placed
  * (amber/red past the pane's thresholds), item count, a red notes line when the notes match an
  * allergy-type keyword, and the platform logo plus brand stripe for Wolt/Foodora orders. Tapping the
- * card body opens its details; the arrows move it without opening anything.
+ * card body opens its details; the arrows move it without opening anything. Under the buttons, every card
+ * lists what was ordered (`OrderSummary`); in Done, a print button sits between the arrows when the board can print.
  */
-export function OrderCard({ order, now, ageWarnMinutes, noteKeywords, interactive, locked, failedMessage, flashing, onOpen, onMove }: OrderCardProps) {
+export function OrderCard({ order, now, ageWarnMinutes, noteKeywords, interactive, locked, failedMessage, flashing, onOpen, onMove, onPrint, printStatus }: OrderCardProps) {
   const { t } = useLanguage()
   const age = minutesSince(order.createdAt, now)
   const itemCount = order.items.reduce((sum, item) => sum + item.quantity, 0)
@@ -68,12 +76,14 @@ export function OrderCard({ order, now, ageWarnMinutes, noteKeywords, interactiv
         {(order.source === 'wolt' || order.source === 'foodora') && (
           <FetchedLogo slug={order.source} label={t(order.source === 'wolt' ? 'admin.orders.sourceWolt' : 'admin.orders.sourceFoodora')} className="order-card__logo" />
         )}
+        <span className="order-card__number">{orderNumber(order)}</span>
         <span className="order-card__name">{order.customerName}</span>
         <span className={`order-card__age order-card__age--${ageLevel(age, ageWarnMinutes)}`}>{t('screenDisplay.orders.ageMinutes', { count: age })}</span>
       </div>
       <div className="order-card__meta">
+        {/* A counter sale has no agreed pickup time — say where it came from instead. */}
         <span className={isOverdue(order.pickupTime, now) ? 'order-card__pickup order-card__pickup--overdue' : 'order-card__pickup'}>
-          {t('screenDisplay.orders.pickupAt', { time: order.pickupTime })}
+          {order.pickupTime ? t('screenDisplay.orders.pickupAt', { time: order.pickupTime }) : t('screenDisplay.orders.counterSale')}
         </span>
         <span>{t('screenDisplay.orders.itemCount', { count: itemCount })}</span>
       </div>
@@ -90,15 +100,20 @@ export function OrderCard({ order, now, ageWarnMinutes, noteKeywords, interactiv
     return (
       <motion.div layoutId={order.id} className={classes} {...CARD_MOTION}>
         {body}
+        <OrderSummary order={order} />
       </motion.div>
     )
+
+  const printButton = onPrint && columnOf(order.status) === 'done' ? <PrintButton status={printStatus} onPrint={onPrint} /> : undefined
 
   return (
     <motion.div layoutId={order.id} className={classes} {...CARD_MOTION}>
       <button type="button" className="order-card__open" onClick={onOpen}>
         {body}
       </button>
-      <OrderArrows order={order} onMove={onMove} disabled={locked} />
+      <OrderArrows order={order} onMove={onMove} disabled={locked} middle={printButton} />
+      {printButton && <PrintError status={printStatus} />}
+      <OrderSummary order={order} />
     </motion.div>
   )
 }

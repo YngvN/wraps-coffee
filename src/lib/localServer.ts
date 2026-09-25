@@ -4,6 +4,7 @@ import type { FoodoraCredentials, WoltCredentials } from '../types/delivery'
 import type { NearbyStop, WeatherHour } from '../types/integrations'
 import type { NewsHeadline } from '../types/news'
 import type { OrderStatus } from '../types/order'
+import type { ConfiguredPrinter, DiscoveredPrinter } from '../types/printer'
 import type { ScreenAddressSettings } from '../types/screenAddress'
 import type { AdminRole, AdminSession, DashboardSection, NeonSyncConfig } from '../types/sync'
 import type { WebsiteConnectionTestResult } from '../types/websiteProvider'
@@ -579,6 +580,44 @@ export async function pushDisplayOrderStatus(deviceId: string, orderId: string, 
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string }
     throw new Error(body.error ?? `Order status change failed (${response.status})`)
+  }
+}
+
+/** Every receipt printer the server can find right now — a network scan plus the server machine's own print queues (see `GET /printers/discover`). Takes a few seconds. Needs an account that can manage store settings. */
+export async function discoverPrinters(token: string): Promise<DiscoveredPrinter[]> {
+  const response = await fetch(`${serverBaseUrl()}/printers/discover`, { headers: { Authorization: `Bearer ${token}` } })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Printer search failed')
+  }
+  return ((await response.json()) as { printers: DiscoveredPrinter[] }).printers
+}
+
+/** Prints a sample receipt on `printer` (saved or not yet saved) in `language`. Rejects with the printer's own error. */
+export async function testPrinter(token: string, printer: ConfiguredPrinter, language: string): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/printers/test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ printer, language }),
+  })
+  if (response.status === 401) throw new SessionExpiredError('Your session is no longer valid.')
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? 'Test print failed')
+  }
+}
+
+/** Prints one order's receipt from an order board, on a configured printer (`'default'` — Settings → Printers' default). Same device trust as `pushDisplayOrderStatus`. */
+export async function printOrderFromDisplay(deviceId: string, orderId: string, printerId: string, language: string): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/display-orders/print`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deviceId, orderId, printerId, language }),
+  })
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? `Printing failed (${response.status})`)
   }
 }
 

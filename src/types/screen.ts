@@ -291,6 +291,15 @@ export type ScreenSlotContent =
       textSizes?: TextSizes
     } & OwnBackgroundImageFields)
   | ({
+      kind: 'register'
+      /** Which catalogues' products are offered as tiles. Unset means every catalogue. */
+      catalogueIds?: string[]
+      /** Prints a receipt on the tablet's chosen printer after every sale. Falls back to `false`. */
+      autoPrintReceipt?: boolean
+      /** Whether scanning a customer's pickup QR code completes their website order. Falls back to `true`. */
+      allowPickupScan?: boolean
+    } & OwnBackgroundImageFields)
+  | ({
       kind: 'time'
       /** Falls back to `'time'` (a live clock) when unset. */
       displayMode?: TimeDisplayMode

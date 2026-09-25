@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react'
-import { Button, Checkbox, ImageUploadField, Input, LanguageTabs, NumberInput, Textarea } from '../../../components'
+import { Button, Checkbox, HelpTip, ImageUploadField, Input, LanguageTabs, NumberInput, Textarea } from '../../../components'
 import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { availableLanguages, useLanguage, type LanguageCode } from '../../../i18n'
 import type { Category } from '../../../types/category'
 import type { CustomFieldDefinition } from '../../../types/customFields'
 import { ALLERGEN_OPTIONS, DIETARY_TAG_ORDER, type AllergenCode, type DietaryTag, type Discount, type Price, type Product } from '../../../types/product'
 import { initialActiveLanguages } from '../../../utils/bilingual'
+import { ProductBarcodeField } from './ProductBarcodeField'
 import './ProductForm.scss'
 
 type PriceMode = 'inherit' | 'flat' | 'dual'
@@ -107,6 +108,8 @@ export function ProductForm({ product, catalogueId, defaultCategoryId, catalogue
   const [trackStock, setTrackStock] = useState(product?.trackStock ?? false)
   const [stockQuantity, setStockQuantity] = useState(product?.stockQuantity ?? 0)
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string | number | boolean>>(product?.customFieldValues ?? {})
+  const [barcode, setBarcode] = useState(product?.barcode ?? '')
+  const [readyToServe, setReadyToServe] = useState(product?.readyToServe ?? false)
 
   /** The selected category's own custom-field schema (e.g. "Bedrooms" for a "Houses" category) — changes as `category` changes, since a different category can define entirely different fields. */
   const customFieldDefs: CustomFieldDefinition[] = catalogueCategories.find((option) => option.id === category)?.customFields ?? []
@@ -154,6 +157,8 @@ export function ProductForm({ product, catalogueId, defaultCategoryId, catalogue
       trackStock,
       stockQuantity,
       customFieldValues: relevantCustomFieldValues(customFieldValues, customFieldDefs),
+      barcode: barcode.trim() || undefined,
+      readyToServe: readyToServe || undefined,
     })
   }
 
@@ -264,6 +269,29 @@ export function ProductForm({ product, catalogueId, defaultCategoryId, catalogue
           />
         ))}
       </fieldset>
+
+      <ProductBarcodeField
+        itemID={product?.itemID}
+        value={barcode}
+        onChange={setBarcode}
+        onFound={(entry) => {
+          // Suggestions only fill what's still empty, so a lookup never overwrites the admin's own text.
+          if (!name.no && !name.en) setName({ no: entry.name.no, en: entry.name.en })
+          if (!image && entry.image) setImage(entry.image)
+          if (allergens.length === 0) setAllergens(entry.allergens)
+          setReadyToServe(true)
+        }}
+      />
+      <Checkbox
+        id="product-ready-to-serve"
+        label={
+          <>
+            {t('admin.products.readyToServeLabel')} <HelpTip text={t('admin.products.readyToServeHint')} />
+          </>
+        }
+        checked={readyToServe}
+        onChange={(event) => setReadyToServe(event.target.checked)}
+      />
 
       <Checkbox id="product-available" label={t('admin.products.availableLabel')} checked={available} onChange={(event) => setAvailable(event.target.checked)} />
 

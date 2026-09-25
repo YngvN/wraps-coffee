@@ -6,10 +6,12 @@ import { useClockFormatPreference } from '../../../hooks/useClockFormatPreferenc
 import { useDateFormatPreference } from '../../../hooks/useDateFormatPreference'
 import { useFoodoraOrders } from '../../../hooks/useFoodoraOrders'
 import { useOrders } from '../../../hooks/useOrders'
+import { useRegisterOrders } from '../../../hooks/useRegisterOrders'
 import { useWoltOrders } from '../../../hooks/useWoltOrders'
 import { useLanguage } from '../../../i18n'
 import { reportError } from '../../../lib/errorNotifications'
 import { pushFoodoraOrderStatus, pushWoltOrderStatus } from '../../../lib/localServer'
+import { pushRegisterOrderStatus } from '../../../lib/registerAdminApi'
 import type { OrderRecord, OrderStatus } from '../../../types/order'
 import { formatDateTime } from '../../../utils/clockFormat'
 import './OrdersView.scss'
@@ -34,15 +36,29 @@ export function OrdersView() {
   const [orders, setOrders] = useOrders()
   const [woltOrders, setWoltOrders] = useWoltOrders()
   const [foodoraOrders, setFoodoraOrders] = useFoodoraOrders()
+  const [registerOrders] = useRegisterOrders()
   const [searchParams, setSearchParams] = useSearchParams()
   /** The order `?orderId=` deep-linked in on (see the notification bell's "new order" links) — read straight from the URL rather than mirrored into its own `useState` (no React state to seed/clear, just this one derived read), so the highlight disappears exactly when the param is stripped below. */
   const highlightedOrderId = searchParams.get('orderId')
   const orderRefs = useRef<Record<string, HTMLLIElement | null>>({})
 
-  /** Website orders (`admin.orders`, Neon-owned), Wolt orders (`admin.woltOrders`, `woltPoller`-owned), and Foodora orders (`admin.foodoraOrders`, `foodoraPoller`-owned) live in separate synced keys — see those hooks' own doc comments — merged here purely for display, newest first. */
-  const allOrders = useMemo(() => [...orders, ...woltOrders, ...foodoraOrders].sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [orders, woltOrders, foodoraOrders])
+  /** Website orders (`admin.orders`, Neon-owned), Wolt orders (`admin.woltOrders`, `woltPoller`-owned), Foodora orders (`admin.foodoraOrders`, `foodoraPoller`-owned) and counter sales (`admin.registerOrders`, created only by the register) live in separate synced keys — see those hooks' own doc comments — merged here purely for display, newest first. */
+  const allOrders = useMemo(
+    () => [...orders, ...woltOrders, ...foodoraOrders, ...registerOrders].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [orders, woltOrders, foodoraOrders, registerOrders],
+  )
 
   const updateStatus = (order: OrderRecord, status: OrderStatus) => {
+    if (order.source === 'register') {
+      // Changed on the server one order at a time: a whole-array write from here could erase a sale the
+      // register made at the same moment.
+      if (session) {
+        pushRegisterOrderStatus(session.token, order.id, status).catch((error) => {
+          reportError(t('admin.orders.registerStatusPushError'), error instanceof Error ? error.message : undefined)
+        })
+      }
+      return
+    }
     if (order.source === 'wolt') {
       setWoltOrders(woltOrders.map((candidate) => (candidate.id === order.id ? { ...candidate, status } : candidate)))
       if (session) {
@@ -115,6 +131,9 @@ export function OrdersView() {
                   <div>
                     {order.source === 'wolt' && <FetchedLogo slug="wolt" label={t('admin.orders.sourceWolt')} className="orders-view__source-badge" />}
                     {order.source === 'foodora' && <FetchedLogo slug="foodora" label={t('admin.orders.sourceFoodora')} className="orders-view__source-badge" />}
+                    {order.source === 'register' && (
+                      <Badge variant="info">{order.displayNumber ? t('admin.orders.sourceRegisterNumber', { number: order.displayNumber }) : t('admin.orders.sourceRegister')}</Badge>
+                    )}
                     <span className="orders-view__customer">{order.customerName}</span>
                     <span className="orders-view__phone">{order.customerPhone}</span>
                   </div>

@@ -1,0 +1,52 @@
+// A card's order summary (`OrderSummary`), under its buttons. Uses the staff board's `--ob-*` palette.
+
+.order-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  margin: 0 0.4em 0.4em;
+  padding: 0.35em 0.5em;
+  border-radius: 8px;
+  background: var(--ob-column);
+  font-size: 0.85em;
+
+  // Read-only cards have no buttons above; the summary then sits right under the card body.
+  .order-card:not(.order-card--interactive) & {
+    margin: 0.4em 0 0;
+  }
+}
+
+.order-summary__items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.order-summary__quantity {
+  display: inline-block;
+  min-width: 1.8em;
+  font-weight: 700;
+}
+
+.order-summary__total {
+  align-self: flex-end;
+  font-weight: 700;
+  color: var(--ob-muted);
+}
+
+// A register sale's item already handed over at the counter — nothing to make.
+.order-summary__item--served {
+  color: var(--ob-muted);
+}
+
+.order-summary__served {
+  margin-left: 0.4em;
+  padding: 0 0.4em;
+  border-radius: 999px;
+  background: var(--ob-card);
+  font-size: 0.85em;
+  font-weight: 700;
+}

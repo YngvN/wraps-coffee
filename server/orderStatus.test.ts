@@ -3,7 +3,7 @@ import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
 import type { OrderRecord, OrderStatus } from '../src/types/order'
 import type { ScreenConfig } from '../src/types/screen'
-import { isOrderStatus, screenAllowsOrderTouch, setOrderStatus, type OrderKey, type OrderStatusDeps } from './orderStatus'
+import { isOrderStatus, screenAllowsOrderTouch, screenHasRegister, setOrderStatus, type OrderKey, type OrderStatusDeps } from './orderStatus'
 
 function order(id: string, status: OrderStatus = 'received', extra: Partial<OrderRecord> = {}): OrderRecord {
   return { id, items: [], totalPrice: 0, customerName: 'A', customerPhone: '', pickupTime: '12:00', status, createdAt: '2026-09-25T10:00:00Z', ...extra }
@@ -11,7 +11,7 @@ function order(id: string, status: OrderStatus = 'received', extra: Partial<Orde
 
 /** An in-memory store plus a log of every side effect, with a hook to run code while a platform push is in flight. */
 function makeDeps(initial: Partial<Record<OrderKey, OrderRecord[]>>, options: { failPush?: boolean; duringPush?: (data: Record<OrderKey, OrderRecord[]>) => void } = {}) {
-  const data: Record<OrderKey, OrderRecord[]> = { 'admin.orders': [], 'admin.woltOrders': [], 'admin.foodoraOrders': [], ...initial }
+  const data: Record<OrderKey, OrderRecord[]> = { 'admin.orders': [], 'admin.woltOrders': [], 'admin.foodoraOrders': [], 'admin.registerOrders': [], ...initial }
   const log: string[] = []
   const push = (platform: string) => async (externalId: string, status: OrderStatus) => {
     log.push(`${platform}:${externalId}:${status}`)
@@ -94,4 +94,19 @@ test('screenAllowsOrderTouch: only a staff pane with touchControl, at any stage'
   assert.equal(screenAllowsOrderTouch(screenWith({ kind: 'orders', mode: 'customer', touchControl: true })), false)
   assert.equal(screenAllowsOrderTouch(screenWith(undefined)), false)
   assert.equal(screenAllowsOrderTouch(undefined), false)
+})
+
+test('register order: patched locally, never pushed anywhere', async () => {
+  const { data, log, deps } = makeDeps({ 'admin.registerOrders': [order('r1', 'received', { source: 'register' })] })
+  const result = await setOrderStatus(deps, 'r1', 'preparing')
+  assert.equal(result.ok, true)
+  assert.equal(data['admin.registerOrders'][0].status, 'preparing')
+  assert.deepEqual(log, ['apply:admin.registerOrders'])
+})
+
+test('screenHasRegister: true only with a register pane at some stage', () => {
+  const screen = (content: unknown) => ({ screenID: 's', paneSlots: { p1: { content: { 0: content } } } }) as unknown as ScreenConfig
+  assert.equal(screenHasRegister(screen({ kind: 'register' })), true)
+  assert.equal(screenHasRegister(screen({ kind: 'orders', mode: 'staff', touchControl: true })), false)
+  assert.equal(screenHasRegister(undefined), false)
 })

@@ -8,6 +8,7 @@ import { integrationToggleEntity } from './entities/integrationToggle'
 import { displayManagerEntity } from './entities/displayManager'
 import { mediaLibraryEntity } from './entities/mediaLibrary'
 import { messageBoardEntity } from './entities/messageBoard'
+import { printerEntity } from './entities/printer'
 import { messageBoardPostEntity } from './entities/messageBoardPost'
 import { ordersEntity } from './entities/orders'
 import { productEntity } from './entities/product'
@@ -73,6 +74,7 @@ export const ASSISTANT_ENTITIES: AssistantEntity<any>[] = [
   categoryEntity,
   categoryCustomFieldEntity,
   messageBoardEntity,
+  printerEntity,
   messageBoardPostEntity,
   appearanceThemeColorEntity,
   themeEntity,

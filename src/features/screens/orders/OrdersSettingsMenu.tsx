@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { availableLanguages, useLanguage } from '../../../i18n'
+import type { BoardPrinting } from './useBoardPrinting'
 import type { OrdersLanguage } from './useOrdersLanguage'
 import type { OrdersTheme } from './useOrdersTheme'
 import './OrdersSettingsMenu.scss'
@@ -10,6 +11,10 @@ interface OrdersSettingsMenuProps {
   onThemeChange: (theme: OrdersTheme) => void
   language: OrdersLanguage
   onLanguageChange: (language: OrdersLanguage) => void
+  /** Omitted on a read-only board, which can't print. */
+  printing?: BoardPrinting
+  /** Extra settings rows below the shared ones — the Register adds its scan sound and camera choice here. Use `OrdersSettingsChoice` for a matching look. */
+  children?: ReactNode
 }
 
 /** A gear glyph, `currentColor`-stroked like the shared icons in `src/components/`. Local to the board since nothing else needs one yet. */
@@ -30,13 +35,22 @@ const THEMES: OrdersTheme[] = ['light', 'dark']
  * of the app's languages, listed from `availableLanguages` so a new language appears here by itself).
  * Tapping outside the menu closes it.
  */
-export function OrdersSettingsMenu({ theme, onThemeChange, language, onLanguageChange }: OrdersSettingsMenuProps) {
+export function OrdersSettingsMenu({ theme, onThemeChange, language, onLanguageChange, printing, children }: OrdersSettingsMenuProps) {
   const { t } = useLanguage()
   const [open, setOpen] = useState(false)
 
   return (
     <div className="orders-settings">
-      <button type="button" className="orders-settings__button" onClick={() => setOpen((value) => !value)} aria-label={t('screenDisplay.orders.settings')} aria-expanded={open}>
+      <button
+        type="button"
+        className="orders-settings__button"
+        onClick={() => {
+          if (!open) printing?.refreshUsbPrinters()
+          setOpen((value) => !value)
+        }}
+        aria-label={t('screenDisplay.orders.settings')}
+        aria-expanded={open}
+      >
         <GearIcon />
       </button>
       <AnimatePresence>
@@ -81,10 +95,57 @@ export function OrdersSettingsMenu({ theme, onThemeChange, language, onLanguageC
                   </button>
                 ))}
               </div>
+              {printing && (
+                <>
+                  <span className="orders-settings__label">{t('screenDisplay.orders.printerLabel')}</span>
+                  {printing.options.length === 0 ? (
+                    <span className="orders-settings__hint">{t('screenDisplay.orders.noPrinters')}</span>
+                  ) : (
+                    <div className="orders-settings__segmented orders-settings__segmented--wrap">
+                      {[{ id: 'default', label: t('screenDisplay.orders.printerDefault') }, ...printing.options].map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={printing.choice === option.id}
+                          className={printing.choice === option.id ? 'orders-settings__option orders-settings__option--active' : 'orders-settings__option'}
+                          onClick={() => printing.setChoice(option.id)}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+              {children}
             </motion.div>
           </>
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+/** One labelled segmented choice in the ⚙ menu, styled like the menu's own Look and Language rows — for settings passed in as `children`. */
+export function OrdersSettingsChoice<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: { value: T; label: string }[]; onChange: (value: T) => void }) {
+  return (
+    <>
+      <span className="orders-settings__label">{label}</span>
+      <div className="orders-settings__segmented">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="menuitemradio"
+            aria-checked={value === option.value}
+            className={value === option.value ? 'orders-settings__option orders-settings__option--active' : 'orders-settings__option'}
+            onClick={() => onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </>
   )
 }

@@ -1,0 +1,41 @@
+// Settings → Register (`RegisterSettingsView`): the staff PIN card. Uses the app's own theme tokens,
+// so light and dark mode come for free.
+
+.register-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  max-width: 32rem;
+
+  h2 {
+    margin: 0;
+  }
+}
+
+.register-settings__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.register-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.register-settings__status,
+.register-settings__hint {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.register-settings__ok {
+  margin: 0;
+  color: var(--color-success);
+}
+
+.register-settings__error {
+  margin: 0;
+  color: var(--color-error);
+}

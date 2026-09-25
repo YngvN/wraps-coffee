@@ -11,6 +11,7 @@ import { ImageSlide } from './ImageSlide'
 import { MessageBoardSlide } from './MessageBoardSlide'
 import { NewsSlide } from './NewsSlide'
 import { OrdersBoardSlide, OrdersCustomerSlide } from './orders'
+import { RegisterSlide } from './register'
 import { QrCodeSlide } from './QrCodeSlide'
 import { TimeSlide } from './TimeSlide'
 import { TransitSlide } from './TransitSlide'
@@ -152,5 +153,6 @@ export function SlotContent({ slot, newsSlots, stageTick, stage, onRequestStageA
       />
     )
   }
+  if (slot.kind === 'register') return <RegisterSlide catalogueIds={slot.catalogueIds} autoPrintReceipt={slot.autoPrintReceipt} allowPickupScan={slot.allowPickupScan} />
   return null
 }

@@ -1,0 +1,113 @@
+@use '../../../../styles/variables' as *;
+
+// Settings → Printers. Admin dashboard styling (the app's own light/dark tokens), unlike the order board.
+
+.printers-settings {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+}
+
+.printers-settings__list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit;
+  margin: 0 0 $spacing-unit;
+  padding: 0;
+  list-style: none;
+}
+
+.printers-settings__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-unit;
+  padding: $spacing-unit;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+}
+
+.printers-settings__row-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  min-width: 14rem;
+}
+
+.printers-settings__row-controls,
+.printers-settings__actions,
+.printers-settings__inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-unit;
+}
+
+.printers-settings__inline > * {
+  flex: 1;
+  min-width: 8rem;
+}
+
+.printers-settings__name {
+  display: flex;
+  align-items: center;
+  gap: $spacing-unit;
+  font-weight: 600;
+}
+
+.printers-settings__default {
+  display: inline-flex;
+  align-items: center;
+  gap: calc($spacing-unit / 2);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.printers-settings__manual {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 1.5;
+  max-width: 32rem;
+}
+
+.printers-settings__field {
+  display: flex;
+  flex-direction: column;
+  gap: calc($spacing-unit / 2);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.printers-settings__muted {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-unit;
+  color: $color-text-muted;
+  font-size: 0.875rem;
+}
+
+.printers-settings__ok {
+  color: $color-success;
+  font-size: 0.875rem;
+}
+
+.printers-settings__error {
+  margin: 0;
+  color: $color-error;
+  font-size: 0.875rem;
+}
+
+// The receipt-language picker at the top of the page.
+.printers-settings__language {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+
+  select {
+    min-height: 2.5rem;
+  }
+}

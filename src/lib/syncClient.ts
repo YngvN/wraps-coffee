@@ -1,5 +1,5 @@
 import { wsUrl } from './localServer'
-import type { ClientMessage, ServerMessage, SyncedKey } from '../types/sync'
+import { HEARTBEAT_INTERVAL_MS, type ClientMessage, type ServerMessage, type SyncedKey } from '../types/sync'
 
 type Listener = (value: unknown) => void
 type SnapshotEntry = { seeded: boolean; value: unknown; revision?: number }
@@ -9,6 +9,8 @@ type ConnectionListener = (connected: boolean) => void
 const INITIAL_RECONNECT_DELAY_MS = 500
 const MAX_RECONNECT_DELAY_MS = 10_000
 const WRITE_DEBOUNCE_MS = 400
+/** Silence (no message at all, heartbeats included) after which an open socket is treated as dead — two and a half missed heartbeats. */
+const HEARTBEAT_TIMEOUT_MS = HEARTBEAT_INTERVAL_MS * 2.5
 
 /** Per-key subscriber registry — every mounted `useLocalStorage` instance for a synced key registers here. */
 const listeners = new Map<SyncedKey, Set<Listener>>()
@@ -31,6 +33,12 @@ let socket: WebSocket | null = null
 let authToken: string | null = null
 let reconnectDelay = INITIAL_RECONNECT_DELAY_MS
 let connected = false
+/** When the current socket last received anything. */
+let lastMessageAt = 0
+/** Whether the current socket's server sends heartbeats — the watchdog only arms once one arrives, so a page talking to an older server never mistakes quiet for dead. */
+let heartbeatSeen = false
+/** Sockets the watchdog gave up on. Their own late `close` event (if it ever comes) must not schedule a second reconnect. */
+const abandonedSockets = new WeakSet<WebSocket>()
 
 function notify(key: SyncedKey, value: unknown) {
   for (const listener of listeners.get(key) ?? []) listener(value)
@@ -124,6 +132,8 @@ function ensureSocket(): WebSocket {
   socket = ws
 
   ws.addEventListener('open', () => {
+    lastMessageAt = Date.now()
+    heartbeatSeen = false
     reconnectDelay = INITIAL_RECONNECT_DELAY_MS
     setConnected(true)
     // A reconnect means the server's interest map for this connection was
@@ -132,6 +142,7 @@ function ensureSocket(): WebSocket {
   })
 
   ws.addEventListener('message', (event) => {
+    lastMessageAt = Date.now()
     let message: ServerMessage
     try {
       message = JSON.parse(event.data as string)
@@ -141,15 +152,43 @@ function ensureSocket(): WebSocket {
     if (message.type === 'snapshot') handleSnapshot(message.state)
     else if (message.type === 'update') applyIfNewer(message.key, message.value, message.revision)
     else if (message.type === 'error') for (const listener of errorListeners) listener(message.message, message.detail)
+    else if (message.type === 'heartbeat') heartbeatSeen = true
   })
 
   ws.addEventListener('close', () => {
+    if (abandonedSockets.has(ws)) return
     setConnected(false)
     scheduleReconnect()
   })
+  startWatchdog()
   ws.addEventListener('error', () => ws.close())
 
   return ws
+}
+
+let watchdog: ReturnType<typeof setInterval> | undefined
+
+/**
+ * Checks every few seconds that the open socket is still hearing from the server. The Companion
+ * tablet's WebView was seen never firing `close` with the server stopped, leaving the page showing
+ * stale data as if live; this is what notices. A silent socket is abandoned (its late `close`, if any,
+ * is ignored), reported disconnected at once, and replaced through the normal reconnect backoff.
+ */
+function startWatchdog() {
+  if (watchdog) return
+  watchdog = setInterval(() => {
+    const ws = socket
+    if (!ws || ws.readyState !== WebSocket.OPEN || !heartbeatSeen) return
+    if (Date.now() - lastMessageAt <= HEARTBEAT_TIMEOUT_MS) return
+    abandonedSockets.add(ws)
+    try {
+      ws.close()
+    } catch {
+      // Already broken — nothing to close.
+    }
+    setConnected(false)
+    scheduleReconnect()
+  }, HEARTBEAT_INTERVAL_MS / 2)
 }
 
 /** Attaches `token` to every subsequent `publish()` call; `null` (e.g. after logout) makes writes silently no-op again. */

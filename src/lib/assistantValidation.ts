@@ -6,7 +6,9 @@ import type { EventRecord } from '../types/event'
 import type { IntegrationsConfig } from '../types/integrations'
 import type { MessageBoard, MessageBoardPost } from '../types/messageBoard'
 import { MESSAGE_BOARD_BODY_MAX_LENGTH, MESSAGE_BOARD_TITLE_MAX_LENGTH } from '../types/messageBoard'
+import type { PrinterDraft } from '../types/printer'
 import { ALLERGEN_OPTIONS, DIETARY_TAG_ORDER, type Product } from '../types/product'
+import { isValidGtin } from './gtin'
 
 /** A single field-level problem found in an AI-assistant-proposed draft — `code` maps to an `admin.assistant.validation.<code>` i18n key. Framework-agnostic: importable from both `server/*` (the pre-review check) and `src/*` (the client's own re-check right before Save, in case the admin edited the draft in the review form). */
 export interface AssistantValidationIssue {
@@ -24,7 +26,7 @@ function priceIssues(price: Product['price'], fieldLabel: string): AssistantVali
 }
 
 /** Checks a proposed Product draft — non-negative numbers, discount bounds, category/allergen/dietary-tag values within the real, live enums, and the `category`-xor-`catalogueId` invariant (see `Product.catalogueId`'s own doc comment): exactly one of them should be set, and whichever one is should reference something real. */
-export function validateProductDraft(draft: Product, categories: Category[], catalogues: Catalogue[]): AssistantValidationIssue[] {
+export function validateProductDraft(draft: Product, categories: Category[], catalogues: Catalogue[], products: Product[] = []): AssistantValidationIssue[] {
   const issues: AssistantValidationIssue[] = [...priceIssues(draft.price, 'price')]
 
   if (draft.discount?.type === 'percentage' && (draft.discount.percentage < 0 || draft.discount.percentage > 100)) {
@@ -51,6 +53,12 @@ export function validateProductDraft(draft: Product, categories: Category[], cat
     if (!validDietaryTags.has(tag)) issues.push({ code: 'unknownDietaryTag', params: { value: tag } })
   }
   if (draft.trackStock && (draft.stockQuantity ?? 0) < 0) issues.push({ code: 'negativeNumber', params: { field: 'stock quantity' } })
+  if (draft.barcode) {
+    if (!isValidGtin(draft.barcode)) issues.push({ code: 'invalidBarcode', params: { value: draft.barcode } })
+    // A barcode identifies one product at the register, so two products can't share it.
+    const owner = products.find((product) => product.barcode === draft.barcode && product.itemID !== draft.itemID)
+    if (owner) issues.push({ code: 'duplicateBarcode', params: { value: draft.barcode, product: owner.name.no || owner.name.en } })
+  }
 
   const category = categories.find((candidate) => candidate.id === draft.category)
   for (const [fieldId, value] of Object.entries(draft.customFieldValues ?? {})) {
@@ -131,6 +139,20 @@ export function validateCategoryDraft(draft: Category, defaultPrice: Product['pr
 /** Checks a proposed Message Board draft — just a non-empty name (rename/create share this). */
 export function validateMessageBoardDraft(draft: MessageBoard): AssistantValidationIssue[] {
   return draft.name.trim() ? [] : [{ code: 'nameRequired' }]
+}
+
+/** Checks a proposed receipt printer (see `server/assistant/entities/printer.ts`): a name, a paper width the receipt layout supports, and an address for a network printer or a queue name for a server print queue. */
+export function validatePrinterDraft(draft: PrinterDraft): AssistantValidationIssue[] {
+  const issues: AssistantValidationIssue[] = []
+  if (!draft.name.trim()) issues.push({ code: 'nameRequired' })
+  if (draft.paperWidthMm !== 58 && draft.paperWidthMm !== 80) issues.push({ code: 'printerPaperWidthInvalid' })
+  if (draft.transport === 'network') {
+    if (!draft.host?.trim()) issues.push({ code: 'printerAddressRequired' })
+    if (draft.port !== undefined && (!Number.isInteger(draft.port) || draft.port < 1 || draft.port > 65535)) issues.push({ code: 'printerPortInvalid' })
+  } else if (!draft.systemName?.trim()) {
+    issues.push({ code: 'printerQueueRequired' })
+  }
+  return issues
 }
 
 /** Checks a proposed Message Board post draft — length limits (matching `MessageBoardPostForm`'s own `maxLength`s), a real target board, and (if set) a parseable expiry date. */

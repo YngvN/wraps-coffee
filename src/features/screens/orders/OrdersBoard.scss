@@ -43,8 +43,10 @@
   letter-spacing: normal;
 }
 
+// Also the register's palette (`RegisterSlide` renders inside `.orders-board`). The dark background is
+// pure black, so the columns and cards stand out and it blends into the tablet's bezel.
 .orders-board[data-orders-theme='dark'] {
-  --ob-bg: #16171a;
+  --ob-bg: #000000;
   --ob-column: #1f2125;
   --ob-card: #2a2d32;
   --ob-text: #f1efe9;
@@ -282,6 +284,15 @@
   max-width: 4.5em;
   flex-shrink: 0;
   object-fit: contain;
+}
+
+// The order's number ("K7M2Q", "W3F9A", a counter sale's "K12") — what staff call out, see `orderNumber`.
+.order-card__number {
+  padding: 0 0.45em;
+  border-radius: 6px;
+  background: var(--ob-accent);
+  color: var(--ob-accent-text);
+  font-weight: 800;
 }
 
 .order-card__name {

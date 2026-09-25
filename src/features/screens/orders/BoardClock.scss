@@ -1,0 +1,9 @@
+// The staff board's clock (`BoardClock`), top left of its bar.
+.orders-board__clock {
+  flex-shrink: 0;
+  padding-right: 0.4em;
+  font-size: 1.6em;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}

@@ -185,6 +185,23 @@ a Screen to this device from Display Manager clears it.
 Stage-level (left/right) navigation within a single multi-stage Screen is not built yet —
 screen-level (up/down) navigation only, for now.
 
+## Touch order board and USB receipt printers
+
+The WebView page is touch-enabled: an order board (the main app's `'orders'` pane in staff mode)
+is operated by tapping. The app passes its own machine id into the page URL as `?deviceId=`
+(deliberately not `displayMachineId`, which the kiosk page treats as an assignment redirect), and
+the server only accepts order changes and print requests from an approved machine whose current
+screen has a staff order board with Touch control on.
+
+A receipt printer can be plugged straight into the tablet by USB. `plugins/withUsbPrinter.js`
+generates a native `UsbPrinterModule` (Android USB host API: lists printer-class devices and
+known receipt-printer vendors, asks Android's "Allow access?" once per printer, sends raw
+ESC/POS in bulk transfers). The page reaches it through a small request/reply bridge over
+`postMessage` (`src/lib/webViewBridge.ts` here, `src/lib/companionBridge.ts` in the main app):
+the page builds the receipt itself and the app only moves the bytes. `usb.host` is declared as
+optional, so the app still installs on devices without USB host support (Android TV sticks).
+Builds before 0.3.9 have no module; the page then simply lists no USB printers.
+
 ## Platform notes
 
 ### Android

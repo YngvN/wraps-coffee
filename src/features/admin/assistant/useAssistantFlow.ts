@@ -33,6 +33,7 @@ export type AssistantEntityKey =
   | 'category'
   | 'categoryCustomField'
   | 'messageBoard'
+  | 'printer'
   | 'messageBoardPost'
   | 'appearanceThemeColor'
   | 'theme'
@@ -126,6 +127,7 @@ const ENTITY_SECTIONS: Record<AssistantEntityKey, DashboardSection | null> = {
   category: 'products',
   categoryCustomField: 'products',
   messageBoard: 'messageboard',
+  printer: 'store',
   messageBoardPost: 'messageboard',
   // Deliberately stricter than the raw write path: `admin.appearanceThemes`
   // has no real `DashboardSection` gate today, but these two are treated as

@@ -68,4 +68,8 @@ export interface Product {
   stockQuantity?: number
   /** Values for the owning category's own `customFields` (see `src/types/customFields.ts`), keyed by each field's `id` — e.g. `{ 'field-123': 3 }` for a 3-bedroom house. A missing entry just means "not set" for that field; an entry for a field the category no longer defines (removed, or the product was moved to a different category) is inert dead data, same posture as an orphaned `CategoryPrices` entry. */
   customFieldValues?: Record<string, string | number | boolean>
+  /** The product's GTIN/EAN barcode (8, 12, 13 or 14 digits, check digit valid — see `server/barcodes/gtin.ts`). A register scan of this code adds the product to the cart. */
+  barcode?: string
+  /** Handed over at the counter as-is (a soda, a packaged snack) instead of being made in the kitchen. A register order made only of these goes straight to History; one with anything else goes to Incoming (see `initialRegisterStatus` in `src/lib/registerPricing.ts`). */
+  readyToServe?: boolean
 }

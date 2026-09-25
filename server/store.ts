@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { mirrorFile } from './backup'
 import { DEFAULT_DASHBOARD_SCREENSAVER_SETTINGS } from '../src/types/dashboardScreensaver'
 import { DEFAULT_INTEGRATIONS_CONFIG } from '../src/types/integrations'
+import { DEFAULT_PRINTER_SETTINGS } from '../src/types/printer'
 import { DEFAULT_SCREEN_ADDRESS_SETTINGS, type ScreenAddressSettings } from '../src/types/screenAddress'
 import { DEFAULT_SIDEBAR_SETTINGS } from '../src/types/sidebarSettings'
 import { DEFAULT_NEON_SYNC_CONFIG, SYNCED_KEYS, clampPollIntervalSeconds, type AdminRole, type DashboardSection, type NeonSyncConfig, type SyncedKey } from '../src/types/sync'
@@ -77,6 +78,7 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.displayUpdateState': null,
   'admin.displayScreenOverride': null,
   'admin.integrations': null,
+  'admin.printers': null,
   'admin.transitDepartures': null,
   'admin.sidebarSettings': null,
   'admin.orders': null,
@@ -86,6 +88,7 @@ const SEED_FILES: Record<SyncedKey, string | null> = {
   'admin.woltOrders': null,
   'admin.foodoraConfig': null,
   'admin.foodoraOrders': null,
+  'admin.registerOrders': null,
 }
 
 /** Hardcoded defaults for the synced keys with no bundled seed file. */
@@ -105,6 +108,7 @@ const HARDCODED_DEFAULTS: Partial<Record<SyncedKey, unknown>> = {
   // individually (see `ScreenSlot.language`).
   'admin.paneLanguage': 'no',
   'admin.integrations': DEFAULT_INTEGRATIONS_CONFIG,
+  'admin.printers': DEFAULT_PRINTER_SETTINGS,
   // No bundled seed — populated entirely by the local server's own
   // background poller (see `transitPoller.ts`), same posture as
   // `admin.woltOrders`/`admin.foodoraOrders`.
@@ -124,6 +128,9 @@ const HARDCODED_DEFAULTS: Partial<Record<SyncedKey, unknown>> = {
   // No bundled seed — Foodora orders only ever arrive via the local
   // server's own background poller (see `foodoraPoller.ts`).
   'admin.foodoraOrders': [],
+  // No bundled seed — register orders are only ever created by the Register pane's own
+  // checkout route (see `server/register/`).
+  'admin.registerOrders': [],
 }
 
 function dataFilePath(key: SyncedKey): string {

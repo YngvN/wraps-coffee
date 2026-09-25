@@ -127,6 +127,23 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse, ho
     return
   }
 
+  const filename = await ingestImageBuffer(buffer, isScreenPreview)
+  if (!filename) {
+    sendJson(res, 415, { error: 'Unsupported file — expected a decodable image' })
+    return
+  }
+  sendJson(res, 201, { url: `http://${host}/uploads/${filename}` })
+}
+
+/**
+ * Stores an image the server already holds in memory — an upload's body, or a photo the server
+ * downloaded itself (a barcode's Open Food Facts photo, see `server/barcodes/`) — exactly as
+ * `handleUpload` does: original plus every WebP variant, all mirrored to the backup. Returns the
+ * stored filename (served at `/uploads/<filename>`), or `null` when `buffer` isn't a decodable image.
+ * Callers bound the buffer's size themselves (`MAX_UPLOAD_BYTES` for uploads).
+ */
+export async function ingestImageBuffer(input: Buffer, isScreenPreview = false): Promise<string | null> {
+  let buffer = input
   // Sniffed from the file's own bytes rather than trusted from the `Content-Type` header — see
   // `SHARP_FORMAT_TO_EXT`'s own doc comment for why the header alone isn't reliable enough here.
   let format: string | undefined
@@ -135,10 +152,7 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse, ho
   } catch {
     // Not decodable as an image at all.
   }
-  if (!format) {
-    sendJson(res, 415, { error: 'Unsupported file — expected a decodable image' })
-    return
-  }
+  if (!format) return null
   let ext = SHARP_FORMAT_TO_EXT[format]
   if (!ext) {
     // A real image `sharp` can read but that isn't safe to store/serve as-is (HEIC/HEIF, TIFF,
@@ -146,8 +160,7 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse, ho
     try {
       buffer = await sharp(buffer).jpeg({ quality: 90 }).toBuffer()
     } catch {
-      sendJson(res, 415, { error: 'Unsupported file — expected a decodable image' })
-      return
+      return null
     }
     ext = 'jpg'
   }
@@ -174,7 +187,7 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse, ho
   }
 
   console.log(`[uploads] saved ${filename} (${buffer.length} bytes)`)
-  sendJson(res, 201, { url: `http://${host}/uploads/${filename}` })
+  return filename
 }
 
 /** The sharp pipeline behind each variant suffix — the single definition `handleUpload` and the lazy backfill in `handleServeUpload` both use, so a size can never be generated at one width on upload and a different one on demand. */

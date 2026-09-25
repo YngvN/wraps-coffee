@@ -130,6 +130,8 @@ interface ProductFields {
   trackStock: boolean | null
   stockQuantity: number | null
   outOfStock: boolean | null
+  readyToServe: boolean | null
+  barcode: string | null
   customFieldValues?: Record<string, string | number | boolean | null>
 }
 
@@ -141,7 +143,8 @@ export const productEntity: AssistantEntity<Product> = {
   section: 'products',
   imageField: 'image',
   destructive: (action) => action === 'delete',
-  confabulationRiskFields: ['discountMode', 'discountPercentage', 'discountAmount', 'allergens', 'dietaryTags', 'trackStock', 'stockQuantity', 'outOfStock'],
+  // `barcode` especially: a model asked about anything else must never invent digits for it.
+  confabulationRiskFields: ['discountMode', 'discountPercentage', 'discountAmount', 'allergens', 'dietaryTags', 'trackStock', 'stockQuantity', 'outOfStock', 'readyToServe', 'barcode'],
 
   fillFieldsSchema(_action, context: AssistantFillContext, knownDraft?: Partial<Product>): AssistantJsonSchema {
     const location = locationOptions()
@@ -170,6 +173,14 @@ export const productEntity: AssistantEntity<Product> = {
       trackStock: nullable({ type: 'boolean' }),
       stockQuantity: nullable({ type: 'number' }),
       outOfStock: nullable({ type: 'boolean' }),
+      readyToServe: nullable({
+        type: 'boolean',
+        description: 'Handed over at the counter as-is (a soda, a packaged snack) instead of being made in the kitchen. Leave null unless the message says so.',
+      }),
+      barcode: nullable({
+        type: 'string',
+        description: "The product's EAN/GTIN barcode digits, exactly as the admin wrote them. Leave null unless the message gives the digits; never make one up.",
+      }),
     }
     const required = [
       'location',
@@ -188,6 +199,8 @@ export const productEntity: AssistantEntity<Product> = {
       'trackStock',
       'stockQuantity',
       'outOfStock',
+      'readyToServe',
+      'barcode',
     ]
 
     // Which fields are even fillable depends on the target category, which may only be known from the current record (update) or the prior pass's own draft (a create's own follow-up correction) — never on a create's very first pass, since that call is what picks the category in the first place. See `AssistantEntity.fillFieldsSchema`'s own doc comment.
@@ -326,12 +339,14 @@ export const productEntity: AssistantEntity<Product> = {
       trackStock: fields.trackStock ?? base.trackStock,
       stockQuantity: fields.stockQuantity ?? base.stockQuantity,
       outOfStock: fields.outOfStock ?? base.outOfStock,
+      readyToServe: fields.readyToServe ?? base.readyToServe,
+      barcode: fields.barcode?.replace(/\s/g, '') || base.barcode,
       customFieldValues: mergeCustomFieldValues(base, fields, category),
     }
   },
 
   validate(_action, draft: Product): AssistantValidationIssue[] {
-    return validateProductDraft(draft, liveCategories(), liveCatalogues())
+    return validateProductDraft(draft, liveCategories(), liveCatalogues(), liveProducts())
   },
 
   reviewComponent(action) {
@@ -370,6 +385,8 @@ export const productEntity: AssistantEntity<Product> = {
       { key: 'price', label: 'Current price', type: 'number', description: 'The real price a customer pays right now — already the discounted price if one applies.' },
       { key: 'originalPrice', label: 'Price before discount', type: 'number', description: 'The price before any discount — same as "price" when there is no discount.' },
       { key: 'stockQuantity', label: 'Stock quantity', type: 'number' },
+      { key: 'readyToServe', label: 'Handed over at the counter', type: 'boolean', description: 'Sold as-is at the register (a soda, a packaged snack) rather than made in the kitchen.' },
+      { key: 'barcode', label: 'Barcode', type: 'string', description: "The product's EAN/GTIN barcode, empty when it has none." },
       { key: 'allergens', label: 'Allergens', type: 'string', description: 'Comma-separated list of allergen codes.' },
       { key: 'dietaryTags', label: 'Dietary tags', type: 'string', description: 'Comma-separated list of dietary tags (e.g. vegan, gluten-free).' },
     ]
@@ -396,6 +413,8 @@ export const productEntity: AssistantEntity<Product> = {
           price: effective ? priceToNumber(effective.discounted ?? effective.original) : null,
           originalPrice: effective ? priceToNumber(effective.original) : null,
           stockQuantity: product.stockQuantity ?? null,
+          readyToServe: Boolean(product.readyToServe),
+          barcode: product.barcode ?? '',
           allergens: (product.allergens ?? []).join(', '),
           dietaryTags: (product.dietaryTags ?? []).join(', '),
         },

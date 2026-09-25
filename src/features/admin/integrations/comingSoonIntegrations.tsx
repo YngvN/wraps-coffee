@@ -10,7 +10,6 @@ import {
   KahootLogo,
   KlarnaLogo,
   MailchimpLogo,
-  PaypalLogo,
   PhilipsHueLogo,
   PlausibleAnalyticsLogo,
   SentryLogo,
@@ -98,8 +97,6 @@ export interface ComingSoonIntegration {
 
 export const COMING_SOON_INTEGRATIONS: ComingSoonIntegration[] = [
   // Betaling, Salg & Kassesystem (POS)
-  { id: 'zettle', categoryId: 'payments', logos: [<FetchedLogo key="zettle" slug="zettle" label="Zettle" className="logo-chip" />, <PaypalLogo key="paypal" />], tags: ['pos', 'kasse', 'kassesystem', 'kassaapparat', 'kasseapparat', 'betaling', 'betalingsterminal', 'kortterminal', 'card reader', 'payment terminal', 'checkout', 'register'] },
-  { id: 'vippsMobilepay', categoryId: 'payments', logos: [<FetchedLogo key="vipps" slug="vipps-mobilepay" label="Vipps MobilePay" />], tags: ['pos', 'kasse', 'kassaapparat', 'kasseapparat', 'betaling', 'payment', 'mobilbetaling', 'mobile payment', 'qr', 'vipps', 'mobilepay', 'checkout', 'register'] },
   { id: 'stripe', categoryId: 'payments', logos: [<StripeLogo key="stripe" />], tags: ['betaling', 'payment', 'nettbutikk', 'online payment', 'checkout', 'abonnement', 'subscription', 'kort', 'card'] },
   { id: 'klarna', categoryId: 'payments', logos: [<KlarnaLogo key="klarna" />], tags: ['betaling', 'payment', 'delbetaling', 'buy now pay later', 'bnpl', 'faktura', 'invoice', 'checkout', 'kasse', 'pos'] },
 

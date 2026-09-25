@@ -300,6 +300,23 @@ function preserveLocalProductOrder(remote: Product[], local: Product[]): Product
   return [...known, ...unknown]
 }
 
+/**
+ * Carries the Register's own product fields (`barcode`, `readyToServe`) over from the local copy
+ * onto pulled products. The website's `products` table has no columns for them, so without this
+ * every reconnect's pull would silently erase every barcode staff had set up.
+ */
+function keepLocalRegisterFields(pulled: Product[], local: Product[]): Product[] {
+  const localById = new Map(local.map((product) => [product.itemID, product]))
+  return pulled.map((product) => {
+    const own = localById.get(product.itemID)
+    if (!own || (own.barcode === undefined && own.readyToServe === undefined)) return product
+    const merged = { ...product }
+    if (own.barcode !== undefined) merged.barcode = own.barcode
+    if (own.readyToServe !== undefined) merged.readyToServe = own.readyToServe
+    return merged
+  })
+}
+
 async function pull(activeClient: Client, key: SyncedKey): Promise<unknown> {
   switch (key) {
     case 'admin.products':
@@ -389,7 +406,7 @@ async function reconcile(activeClient: Client) {
         // replacing it — see `preserveLocalProductOrder`.
         applyUpdateRef?.(
           key,
-          key === 'admin.products' ? preserveLocalProductOrder(remote as Product[], (local as Product[] | undefined) ?? []) : remote,
+          key === 'admin.products' ? keepLocalRegisterFields(preserveLocalProductOrder(remote as Product[], (local as Product[] | undefined) ?? []), (local as Product[] | undefined) ?? []) : remote,
         )
       }
     } catch (error) {

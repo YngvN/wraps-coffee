@@ -9,7 +9,8 @@ import type { PaneId, ScreenConfig, ScreenSlot } from '../src/types/screen'
 import type { ScreenAddressSettings } from '../src/types/screenAddress'
 import type { WindowLaunchSettings } from '../src/types/windowLaunch'
 import type { StoreSettings } from '../src/types/storeSettings'
-import { SYNCED_KEYS, clampPollIntervalSeconds, type AdminRole, type ClientMessage, type DashboardSection, type NeonSyncConfig, type ServerMessage, type SyncedKey } from '../src/types/sync'
+import { DEFAULT_PRINTER_SETTINGS, type PrinterSettings } from '../src/types/printer'
+import { HEARTBEAT_INTERVAL_MS, SYNCED_KEYS, clampPollIntervalSeconds, type AdminRole, type ClientMessage, type DashboardSection, type NeonSyncConfig, type ServerMessage, type SyncedKey } from '../src/types/sync'
 import { logProductNameFoldedCollisions, withRecomputedNameFolded } from '../src/lib/productNameFold'
 import { PANE_CUSTOM_CSS_POLICY_VERSION, validatePaneCustomCss } from '../src/utils/paneCustomCss'
 import { PANE_CUSTOM_HTML_POLICY_VERSION, sanitizePaneCustomHtml, validatePaneCustomHtml } from '../src/utils/paneCustomHtml'
@@ -26,7 +27,10 @@ import { handleNewsImage, startNewsImageCacheSweep } from './newsImageCache'
 import { bearerToken, CORS_HEADERS, readJsonBody, sendJson } from './http'
 import * as mdns from './mdns'
 import * as neonBridge from './neonBridge'
-import { isOrderStatus, screenAllowsOrderTouch, setOrderStatus, type OrderKey, type OrderStatusDeps } from './orderStatus'
+import { ORDER_KEYS, isOrderStatus, screenAllowsOrderTouch, setOrderStatus, type OrderKey, type OrderStatusDeps } from './orderStatus'
+import { handlePrinterRoute, type PrinterRouteDeps } from './printers/routes'
+import { createRegisterServices } from './register/setup'
+import { startOrderRetention } from './retention'
 import * as websiteConnectionTest from './websiteConnectionTest'
 import * as store from './store'
 import * as storageCleanup from './storageCleanup'
@@ -65,6 +69,7 @@ const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
   'admin.events': 'events',
   'admin.contactInfo': 'store',
   'admin.storeSettings': 'store',
+  'admin.printers': 'store',
   'admin.screens': 'screens',
   'admin.textSizePresets': 'screens',
   'admin.screensaverSchedule': 'screens',
@@ -81,6 +86,7 @@ const SECTION_BY_KEY: Partial<Record<SyncedKey, DashboardSection>> = {
   'admin.woltOrders': 'orders',
   'admin.foodoraConfig': 'orders',
   'admin.foodoraOrders': 'orders',
+  'admin.registerOrders': 'orders',
 }
 
 function isSyncedKey(value: unknown): value is SyncedKey {
@@ -220,6 +226,12 @@ const httpServer = createServer((req, res) => {
 
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`)
   const host = req.headers.host ?? `localhost:${PORT}`
+
+  // Receipt printing (Settings → Printers, and the order board's print buttons) — see `server/printers/routes.ts`.
+  if (handlePrinterRoute(req, res, url, printerRouteDeps)) return
+
+  // The Register pane (counter sales, pickup scans, barcodes, payments) — see `server/register/setup.ts`.
+  if (register.handle(req, res, url, host)) return
 
   if (req.method === 'POST' && url.pathname === '/login') {
     readJsonBody(req)
@@ -1005,10 +1017,7 @@ const httpServer = createServer((req, res) => {
           sendJson(res, 400, { error: 'Expected deviceId, orderId and a valid status' })
           return
         }
-        const machines = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
-        const screenId = machines.some((machine) => machine.machineID === deviceId) ? resolveEffectiveScreen(deviceId) : null
-        const screens = (store.get('admin.screens')?.value as ScreenConfig[] | undefined) ?? []
-        if (!screenAllowsOrderTouch(screens.find((screen) => screen.screenID === screenId))) {
+        if (!deviceMayChangeOrders(deviceId)) {
           sendJson(res, 403, { error: 'This display is not allowed to change orders' })
           return
         }
@@ -2469,6 +2478,13 @@ setInterval(() => {
   }
 }, PING_INTERVAL_MS)
 
+// An application-level heartbeat on top of the protocol pings above: page script can't see pings,
+// and a WebView that never fires `close` (seen on the Companion tablet) needs *something* to miss
+// before it can tell a dead server from a quiet one — see the watchdog in `src/lib/syncClient.ts`.
+setInterval(() => {
+  for (const socket of wss.clients) send(socket, { type: 'heartbeat' })
+}, HEARTBEAT_INTERVAL_MS)
+
 function send(socket: WebSocket, message: ServerMessage) {
   if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message))
 }
@@ -2504,6 +2520,10 @@ function broadcastError(message: string, detail?: string) {
  * `trackStock` on; a manual stock edit from the admin UI needs none of this,
  * it's already a normal authenticated write to `admin.products` that goes
  * through the generic WS `write` handler on its own.
+ *
+ * Runs the same way for `admin.registerOrders` (counter sales, see
+ * `server/register/`): a sale reserves stock, cancelling it on the board
+ * restores it. Each key is diffed against its own previous value.
  */
 function reconcileStockForOrders(previousOrders: OrderRecord[], incomingOrders: OrderRecord[]) {
   const previousByID = new Map(previousOrders.map((order) => [order.id, order]))
@@ -2680,6 +2700,63 @@ const orderStatusDeps: OrderStatusDeps = {
 }
 
 /**
+ * Whether `deviceId` may act on orders from an order board (change a status, print a receipt): an
+ * approved machine (present in `admin.displayMachines`) whose current screen has a staff orders pane
+ * with Touch control on. The one rule behind both `/display-orders/*` routes.
+ */
+function deviceMayChangeOrders(deviceId: string): boolean {
+  const machines = (store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []
+  if (!machines.some((machine) => machine.machineID === deviceId)) return false
+  const screenId = resolveEffectiveScreen(deviceId)
+  const screens = (store.get('admin.screens')?.value as ScreenConfig[] | undefined) ?? []
+  return screenAllowsOrderTouch(screens.find((screen) => screen.screenID === screenId))
+}
+
+/** Store access for the receipt-printing routes (see `server/printers/routes.ts`). */
+const printerRouteDeps: PrinterRouteDeps = {
+  getSettings: () => (store.get('admin.printers')?.value as PrinterSettings | undefined) ?? DEFAULT_PRINTER_SETTINGS,
+  getStoreName: () => (store.get('admin.storeSettings')?.value as StoreSettings | undefined)?.name ?? '',
+  findOrder: (orderId) => {
+    for (const key of ORDER_KEYS) {
+      const order = orderStatusDeps.readOrders(key).find((candidate) => candidate.id === orderId)
+      if (order) return order
+    }
+    return undefined
+  },
+  // A register prints its own sales' receipts, so it may print as well as a touch order board.
+  deviceMayChangeOrders: (deviceId) => deviceMayChangeOrders(deviceId) || register.deviceMayUseRegister(deviceId),
+  mayManagePrinters: (token) => {
+    const session = store.getSession(token)
+    if (!session) return false
+    return session.role !== 'limited' || Boolean(session.allowedSections?.includes('store'))
+  },
+}
+
+/** Whether `token` is a session that may edit `section` — admin/subadmin always, a limited account only with that section. */
+function sessionMaySection(token: string, section: DashboardSection): boolean {
+  const session = store.getSession(token)
+  if (!session) return false
+  return session.role !== 'limited' || Boolean(session.allowedSections?.includes(section))
+}
+
+/** The Register's server side (see `server/register/setup.ts`). */
+const register = createRegisterServices({
+  appVersion: APP_VERSION,
+  readKey: (key, fallback) => (store.get(key)?.value as typeof fallback | undefined) ?? fallback,
+  applyUpdate: (key, value) => applyUpdate(key, value),
+  pushProductsToWebsite: (products) => neonBridge.pushIfRelevant('admin.products', products),
+  isApprovedMachine: (deviceId) => ((store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []).some((machine) => machine.machineID === deviceId),
+  effectiveScreenId: (deviceId) => resolveEffectiveScreen(deviceId),
+  completeWebsiteOrder: async (orderId) => (await setOrderStatus(orderStatusDeps, orderId, 'completed', 'admin.orders')).ok,
+  setRegisterOrderStatus: async (orderId, status) => (await setOrderStatus(orderStatusDeps, orderId, status, 'admin.registerOrders')).ok,
+  sessionMay: sessionMaySection,
+  isFullAdmin: (token) => {
+    const session = store.getSession(token)
+    return Boolean(session && session.role !== 'limited')
+  },
+})
+
+/**
  * `effectiveScreen = override ?? assignment`, resolved in exactly one
  * place, hub-side (Remote Screen Navigation spec §D9) — the display never
  * decides which of the two it's showing. A companion device always has
@@ -2782,8 +2859,8 @@ function sanitizeIncomingScreensCustomContent(screens: ScreenConfig[]): ScreenCo
 function applyUpdate(key: SyncedKey, value: unknown) {
   // --- Phase 1: pre-write (reads the outgoing state, or rewrites `value`) ---
 
-  if (key === 'admin.orders') {
-    reconcileStockForOrders((store.get('admin.orders')?.value as OrderRecord[] | undefined) ?? [], value as OrderRecord[])
+  if (key === 'admin.orders' || key === 'admin.registerOrders') {
+    reconcileStockForOrders((store.get(key)?.value as OrderRecord[] | undefined) ?? [], value as OrderRecord[])
   }
   if (key === 'admin.displayUpdateState') {
     // Rewrites `value`: an entry whose device had no open socket comes back already marked
@@ -3034,6 +3111,7 @@ neonBridge.start(applyUpdate, broadcastError)
 woltPoller.start(applyUpdate)
 foodoraPoller.start(applyUpdate)
 transitPoller.start(applyUpdate)
+startOrderRetention({ readOrders: (key) => orderStatusDeps.readOrders(key), applyUpdate: (key, value) => applyUpdate(key, value), now: () => new Date() })
 startNewsImageCacheSweep()
 startAbandonedVideoUploadSweep()
 startUpdateFailureSweep()

@@ -292,7 +292,7 @@ function buildContentSchema(): Record<string, unknown> {
         kind: { type: 'string', enum: ['orders'] },
         mode: { type: 'string', enum: ['staff', 'customer'], description: 'staff — the touch kanban for employees; customer — the read-only pickup board facing customers (no phone numbers, items or prices).' },
         touchControl: nullable({ type: 'boolean', description: 'Staff mode only — lets an approved companion tablet showing this screen move orders by touch.' }),
-        sources: nullable({ type: 'array', items: { type: 'string', enum: ['website', 'wolt', 'foodora'] }, description: 'The FULL replacement set of order sources shown. Null shows all of them.' }),
+        sources: nullable({ type: 'array', items: { type: 'string', enum: ['website', 'wolt', 'foodora', 'register'] }, description: 'The FULL replacement set of order sources shown. Null shows all of them.' }),
         historyHours: nullable({ type: 'number' }),
         groupDelivery: nullable({ type: 'boolean', description: 'Staff mode only — split each column into Pickup and Delivery lanes.' }),
         chime: nullable({ type: 'boolean' }),
@@ -302,6 +302,15 @@ function buildContentSchema(): Record<string, unknown> {
         textSizes: TEXT_SIZES_SCHEMA,
       },
       ['kind', 'mode', 'touchControl', 'sources', 'historyHours', 'groupDelivery', 'chime', 'ageWarnMinutes', 'noteKeywords', 'readyAutoHideMinutes', 'textSizes'],
+    ),
+    contentBranch(
+      {
+        kind: { type: 'string', enum: ['register'] },
+        catalogueIds: nullable({ type: 'array', items: { type: 'string' }, description: 'The FULL replacement set of catalogue ids whose products the register sells. Null sells every catalogue.' }),
+        autoPrintReceipt: nullable({ type: 'boolean', description: 'Print a receipt after every sale.' }),
+        allowPickupScan: nullable({ type: 'boolean', description: "Whether scanning a customer's pickup QR code completes their website order. Null means on." }),
+      },
+      ['kind', 'catalogueIds', 'autoPrintReceipt', 'allowPickupScan'],
     ),
     contentBranch(
       {

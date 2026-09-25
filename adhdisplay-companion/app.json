@@ -2,7 +2,7 @@
   "expo": {
     "name": "ADHDisplay Companion",
     "slug": "adhdisplay-companion",
-    "version": "0.3.8",
+    "version": "0.3.17",
     "orientation": "landscape",
     "userInterfaceStyle": "dark",
     "icon": "./assets/icon.png",
@@ -32,11 +32,14 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#111111"
       },
-      "versionCode": 305,
+      "versionCode": 317,
       "permissions": [
         "ACCESS_NETWORK_STATE",
         "ACCESS_WIFI_STATE",
         "CHANGE_WIFI_MULTICAST_STATE"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "plugins": [
@@ -47,6 +50,15 @@
       "./plugins/withPackageInstaller.js",
       "./plugins/withLockTask.js",
       "./plugins/withKeyEventBridge.js",
+      "./plugins/withUsbPrinter.js",
+      "./plugins/withDualCameraScan.js",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "The register can scan barcodes and pickup codes with the camera, only while its camera switch is on.",
+          "recordAudioAndroid": false
+        }
+      ],
       "expo-asset",
       "expo-updates",
       [

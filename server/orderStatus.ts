@@ -18,10 +18,11 @@ export function isOrderStatus(value: unknown): value is OrderStatus {
   return typeof value === 'string' && (ORDER_STATUSES as readonly string[]).includes(value)
 }
 
-/** The three synced keys orders live in — one per source (see `OrderSource`). */
-export type OrderKey = 'admin.orders' | 'admin.woltOrders' | 'admin.foodoraOrders'
+/** The synced keys orders live in — one per source (see `OrderSource`). */
+export type OrderKey = 'admin.orders' | 'admin.woltOrders' | 'admin.foodoraOrders' | 'admin.registerOrders'
 
-const ORDER_KEYS: readonly OrderKey[] = ['admin.orders', 'admin.woltOrders', 'admin.foodoraOrders']
+/** Every `OrderKey`, in the order they're searched. */
+export const ORDER_KEYS: readonly OrderKey[] = ['admin.orders', 'admin.woltOrders', 'admin.foodoraOrders', 'admin.registerOrders']
 
 /** What `setOrderStatus` needs from the server around it. */
 export interface OrderStatusDeps {
@@ -64,13 +65,14 @@ function patchOne(deps: OrderStatusDeps, key: OrderKey, orderId: string, status:
  * before it, so a poll that landed while the push was in flight survives.
  *
  * `onlyKey` restricts the search to one source (the admin Wolt/Foodora routes, which address an
- * order by source-specific id); omitted, all three keys are searched (the order board).
+ * order by source-specific id); omitted, every order key is searched (the order board). Register
+ * orders have no platform to push to, so they change locally straight away, like website orders.
  */
 export async function setOrderStatus(deps: OrderStatusDeps, orderId: string, status: OrderStatus, onlyKey?: OrderKey): Promise<SetOrderStatusResult> {
   const key = findOrderKey(deps, orderId, onlyKey ? [onlyKey] : ORDER_KEYS)
   if (!key) return { ok: false, reason: 'notFound' }
 
-  if (key !== 'admin.orders') {
+  if (key === 'admin.woltOrders' || key === 'admin.foodoraOrders') {
     const order = deps.readOrders(key).find((candidate) => candidate.id === orderId)
     if (!order) return { ok: false, reason: 'notFound' }
     try {
@@ -96,4 +98,10 @@ export function screenAllowsOrderTouch(screen: ScreenConfig | undefined): boolea
   return Object.values(screen.paneSlots ?? {}).some((slot) =>
     Object.values(slot.content ?? {}).some((content) => content?.kind === 'orders' && content.mode === 'staff' && content.touchControl === true),
   )
+}
+
+/** Whether `screen` has a Register pane at any stage — the condition under which an approved device showing this screen may use the register routes (see `server/register/routes.ts`). */
+export function screenHasRegister(screen: ScreenConfig | undefined): boolean {
+  if (!screen) return false
+  return Object.values(screen.paneSlots ?? {}).some((slot) => Object.values(slot.content ?? {}).some((content) => content?.kind === 'register'))
 }

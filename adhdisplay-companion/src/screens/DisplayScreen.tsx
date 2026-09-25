@@ -1,7 +1,10 @@
 import { useEffect, useRef } from 'react'
-import { Animated, Platform, StyleSheet } from 'react-native'
+import { Animated, AppState, Platform, StyleSheet } from 'react-native'
 import { WebView } from 'react-native-webview'
 import { contentOrigin, type ServerConnection } from '../lib/serverConnection'
+import { CameraScanOverlay } from '../components/CameraScanOverlay'
+import { cameraScan } from '../lib/cameraScan'
+import { handleWebViewMessage } from '../lib/webViewBridge'
 
 interface DisplayScreenProps {
   connection: ServerConnection
@@ -92,8 +95,26 @@ export function DisplayScreen({ connection, screenId, machineID, maxImagePx = 'a
     return () => clearTimeout(releaseTimer.current)
   }, [screenId])
 
+  // The camera is only ever on for the screen that asked for it: a screen change (or leaving this
+  // screen altogether) releases it, even if the page never got to say so itself.
+  useEffect(() => {
+    return () => cameraScan.stop()
+  }, [screenId])
+
+  // A USB/Bluetooth barcode scanner "types" into whichever view has keyboard focus, and after a launch
+  // nothing does until someone touches the screen — so the Register pane's scanner stayed dead until
+  // the first tap. Give the WebView focus whenever its page loads and whenever the app comes back to
+  // the foreground.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (status) => {
+      if (status === 'active') webViewRef.current?.requestFocus()
+    })
+    return () => subscription.remove()
+  }, [])
+
   const handleLoadEnd = () => {
     Animated.timing(opacity, { toValue: 1, duration: 320, useNativeDriver: true }).start()
+    webViewRef.current?.requestFocus()
 
     // Deliberately `clearHistory` and NOT `clearCache`: the goal is to drop the *previous page's*
     // retained state, while keeping the HTTP cache that makes the kiosk's own repeat image/font
@@ -119,6 +140,9 @@ export function DisplayScreen({ connection, screenId, machineID, maxImagePx = 'a
         applicationNameForUserAgent="ADHDisplayKiosk"
         injectedJavaScriptBeforeContentLoaded="window.localStorage.setItem('theme', 'dark'); true;"
         onLoadEnd={handleLoadEnd}
+        // Requests from the page for things only this app can do — a USB receipt printer plugged into
+        // the tablet, and the Register's camera scanning (see webViewBridge.ts).
+        onMessage={(event) => handleWebViewMessage(event, webViewRef)}
         // Exposes this WebView over `webview_devtools_remote` so the diagnostics harness can attach a
         // CDP tracer (diagnostics/pane-resize-stutter/scripts/07-tv-cdp-trace.ts). react-native-webview
         // already enables debugging when React Native's own BuildConfig.DEBUG is set, but that is an
@@ -127,6 +151,7 @@ export function DisplayScreen({ connection, screenId, machineID, maxImagePx = 'a
         // file. Stays false in release builds, which is what keeps a shipped kiosk non-inspectable.
         webviewDebuggingEnabled={__DEV__}
       />
+      <CameraScanOverlay webViewRef={webViewRef} />
     </Animated.View>
   )
 }

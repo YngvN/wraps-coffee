@@ -9,6 +9,7 @@ import type { WebsiteThemeProjection } from '../src/utils/websiteTheme'
 import type { MessageBoardPost } from '../src/types/messageBoard'
 import { computeProductOrderRanks } from '../src/utils/productCatalogue'
 import { isProductOutOfStock } from '../src/utils/productStock'
+import { anonymiseIfExpired } from '../src/utils/orderRetention'
 
 /**
  * Row ↔ app-type mapping and the push/pull SQL for every key the Neon bridge
@@ -404,23 +405,53 @@ interface OrderRow {
   notes: string | null
   status: OrderRecord['status']
   created_at: string
+  /** Only selected once the website's `0003_order-pickup-code` migration has run — see `hasPickupCodeColumn`. */
+  pickup_code?: string | null
 }
 
+/** Per-connection memo of whether `orders.pickup_code` exists yet. */
+const pickupCodeColumnByClient = new WeakMap<Client, boolean>()
+
+/**
+ * Whether the website's `orders` table has its `pickup_code` column yet (added by wraps-ulven's
+ * `0003_order-pickup-code` migration). Checked once per connection, so this app and the website can
+ * be deployed in either order: before the migration, orders simply arrive without a pickup code.
+ */
+async function hasPickupCodeColumn(client: Client): Promise<boolean> {
+  const known = pickupCodeColumnByClient.get(client)
+  if (known !== undefined) return known
+  const { rows } = await client.query("select 1 from information_schema.columns where table_name = 'orders' and column_name = 'pickup_code'")
+  pickupCodeColumnByClient.set(client, rows.length > 0)
+  return rows.length > 0
+}
+
+/**
+ * Every website order, newest first. Orders past the 7-day retention window arrive with their
+ * customer details already cleared (`anonymiseIfExpired`), the same rule `server/retention.ts`
+ * applies locally — otherwise every pull would bring cleared names back until the website's own
+ * cleanup job caught up.
+ */
 export async function pullOrders(client: Client): Promise<OrderRecord[]> {
+  const pickupColumn = (await hasPickupCodeColumn(client)) ? ', pickup_code' : ''
   const { rows } = await client.query<OrderRow>(
-    'select id, items, total_price, customer_name, customer_phone, pickup_time, notes, status, created_at from orders order by created_at desc',
+    `select id, items, total_price, customer_name, customer_phone, pickup_time, notes, status, created_at${pickupColumn} from orders order by created_at desc`,
   )
-  return rows.map((row) => ({
-    id: row.id,
-    items: row.items,
-    totalPrice: Number(row.total_price),
-    customerName: row.customer_name,
-    customerPhone: row.customer_phone,
-    pickupTime: row.pickup_time,
-    notes: row.notes ?? undefined,
-    status: row.status,
-    createdAt: new Date(row.created_at).toISOString(),
-  }))
+  const now = new Date()
+  return rows.map((row) => {
+    const order: OrderRecord = {
+      id: row.id,
+      items: row.items,
+      totalPrice: Number(row.total_price),
+      customerName: row.customer_name,
+      customerPhone: row.customer_phone,
+      pickupTime: row.pickup_time,
+      notes: row.notes ?? undefined,
+      status: row.status,
+      createdAt: new Date(row.created_at).toISOString(),
+    }
+    if (row.pickup_code) order.pickupCode = row.pickup_code
+    return anonymiseIfExpired(order, now)
+  })
 }
 
 /** Only ever `UPDATE`s the mutable `status` field by id — never inserts/deletes, since an order's existence and its core fields (items, customer, price) are Neon's (the public site's) to own. */

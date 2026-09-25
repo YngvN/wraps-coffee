@@ -63,6 +63,7 @@ import { ActivationToggle } from './ActivationToggle'
 import { ComingSoonSection } from './ComingSoonSection'
 import { IntegrationSearchBar } from './IntegrationSearchBar'
 import { IntegrationSearchResults } from './IntegrationSearchResults'
+import { PaymentIntegrationCards } from './PaymentIntegrationCards'
 import './IntegrationsView.scss'
 
 /** Every base symbol code `WeatherSymbolIcon` recognizes, paired with its own i18n label — shown as a legend in the "View weather icons" modal so the admin can see what each glyph on a live forecast slide means. Yr appends `_day`/`_night`/`_polartwilight` to these at runtime; passing the bare base code here (no suffix) always renders as `WeatherSymbolIcon`'s own "day" branch. */
@@ -1647,6 +1648,7 @@ export function IntegrationsView() {
               {!foodoraConfig.enabled && foodoraSubmenu}
               {!hasSavedAssistantKey && assistantSubmenu}
               {assistantProvider !== 'local' && ollamaSubmenu}
+              <PaymentIntegrationCards />
               {config.weather.enabled &&
                 config.transit.enabled &&
                 config.entur.enabled &&

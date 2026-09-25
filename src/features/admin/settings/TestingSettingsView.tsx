@@ -4,6 +4,7 @@ import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
 import { getFoodoraCredentials, getWoltCredentials, setFoodoraCredentials, setWoltCredentials } from '../../../lib/localServer'
 import type { FoodoraCredentials, WoltCredentials } from '../../../types/delivery'
+import { PaymentTestingToggle } from './PaymentTestingToggle'
 import './TestingSettingsView.scss'
 
 /**
@@ -20,7 +21,8 @@ import './TestingSettingsView.scss'
  *
  * Foodora's own block has no real hostnames to show yet (no confirmed base
  * URL exists — see `foodoraAdapter.ts`), so its hint text says so instead
- * of naming a development/production host like Wolt's does.
+ * of naming a development/production host like Wolt's does. The Zettle and
+ * Vipps MobilePay blocks below them are `PaymentTestingToggle`s.
  */
 export function TestingSettingsView() {
   const { t } = useLanguage()
@@ -136,6 +138,9 @@ export function TestingSettingsView() {
           {foodoraSaved && <span className="testing-settings__saved">{t('admin.settings.testing.saved')}</span>}
         </div>
       )}
+
+      <PaymentTestingToggle kind="zettle" />
+      <PaymentTestingToggle kind="vipps" />
     </div>
   )
 }

@@ -6,7 +6,7 @@ import { DEFAULT_ORDERS_AGE_WARN_MINUTES, DEFAULT_ORDERS_HISTORY_HOURS, DEFAULT_
 
 type OrdersContent = Extract<ScreenSlotContent, { kind: 'orders' }>
 
-const ALL_SOURCES: OrderSource[] = ['website', 'wolt', 'foodora']
+const ALL_SOURCES: OrderSource[] = ['website', 'wolt', 'foodora', 'register']
 
 interface OrdersSlideFieldsProps {
   /** Prefix for this pane's own input ids. */
@@ -32,7 +32,7 @@ export function OrdersSlideFields({ id, content, onChange }: OrdersSlideFieldsPr
   const sources = content.sources ?? ALL_SOURCES
   const toggleSource = (source: OrderSource, checked: boolean) => {
     const next = ALL_SOURCES.filter((candidate) => (candidate === source ? checked : sources.includes(candidate)))
-    // All three checked is the same as unset — stored as unset, so a future fourth source is included by default.
+    // Every source checked is the same as unset — stored as unset, so a future source is included by default.
     onChange({ ...content, sources: next.length === ALL_SOURCES.length ? undefined : next })
   }
 

@@ -10,6 +10,7 @@ import type { DisplayMaxImagePx, DisplayRenderWidth } from '../../../types/displ
 import type { EventRecord } from '../../../types/event'
 import type { MessageBoard, MessageBoardPost } from '../../../types/messageBoard'
 import { NEWS_SOURCES } from '../../../types/news'
+import { DEFAULT_RAW_PRINTER_PORT, type PrinterDraft } from '../../../types/printer'
 import type { OrderRecord } from '../../../types/order'
 import { ALLERGEN_OPTIONS, DIETARY_TAG_ORDER, type AllergenCode, type DietaryTag, type Discount, type Price, type Product } from '../../../types/product'
 import type { PreviewAspectRatio, ScreenConfig } from '../../../types/screen'
@@ -178,6 +179,8 @@ export function buildProductChangeRows(
     String(draft.stockQuantity ?? ''),
     fieldConfidence?.stockQuantity,
   )
+  pushRow(rows, t('admin.products.readyToServeLabel'), isCreate ? null : formatBoolean(t, current.readyToServe), formatBoolean(t, draft.readyToServe), fieldConfidence?.readyToServe)
+  pushRow(rows, t('admin.products.barcodeLabel'), isCreate ? null : (current.barcode ?? ''), draft.barcode ?? '', fieldConfidence?.barcode)
 
   const owningCategory = categories.find((category) => category.id === draft.category)
   for (const field of owningCategory?.customFields ?? []) {
@@ -348,6 +351,24 @@ export function buildCategoryCustomFieldChangeRows(t: Translate, reviewLanguage:
   return draft.fields
     .filter((field) => !current.some((existing) => existing.id === field.id))
     .map((field) => ({ label: t('admin.products.customFieldsLabel'), oldValue: null, newValue: `${field.label[reviewLanguage]} (${field.type})` }))
+}
+
+/** Where a printer is, as one review value: its address (with the port only when it isn't the standard one) or its print queue. */
+function printerLocation(t: Translate, printer: PrinterDraft): string {
+  if (printer.transport === 'system') return `${t('admin.settings.printers.transport.system')}: ${printer.systemName ?? ''}`
+  const port = printer.port && printer.port !== DEFAULT_RAW_PRINTER_PORT ? `:${printer.port}` : ''
+  return `${printer.host ?? ''}${port}`
+}
+
+/** Review rows for a receipt printer (Settings → Printers): name, where it is, paper width, and whether it's the default. */
+export function buildPrinterChangeRows(t: Translate, current: PrinterDraft | null, draft: PrinterDraft): ReviewChangeRow[] {
+  const rows: ReviewChangeRow[] = []
+  pushRow(rows, t('admin.settings.printers.name'), current === null ? null : current.name, draft.name)
+  pushRow(rows, t('admin.settings.printers.connection'), current === null ? null : printerLocation(t, current), printerLocation(t, draft))
+  pushRow(rows, t('admin.settings.printers.paperWidth'), current === null ? null : `${current.paperWidthMm} mm`, `${draft.paperWidthMm} mm`)
+  pushRow(rows, t('admin.settings.printers.cashDrawer'), current === null ? null : formatBoolean(t, current.cashDrawer), formatBoolean(t, draft.cashDrawer))
+  pushRow(rows, t('admin.settings.printers.default'), current === null ? null : formatBoolean(t, current.isDefault), formatBoolean(t, draft.isDefault))
+  return rows
 }
 
 export function buildMessageBoardChangeRows(t: Translate, current: MessageBoard | null, draft: MessageBoard): ReviewChangeRow[] {

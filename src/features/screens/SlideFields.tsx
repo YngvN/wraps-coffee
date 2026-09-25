@@ -44,6 +44,7 @@ import { getSmallUrl, getThumbnailUrl } from '../../utils/responsiveImage'
 import { TRANSIT_MODES } from '../../utils/transitModes'
 import { MessagePickerModal } from './MessagePickerModal'
 import { OrdersSlideFields } from './OrdersSlideFields'
+import { RegisterSlideFields } from './RegisterSlideFields'
 import { TransitLineColorListEditor } from './TransitLineColorListEditor'
 import './SlideFields.scss'
 
@@ -98,6 +99,7 @@ function optionValueToContent(value: string, currentContent: ScreenSlotContent, 
     if (currentContent.kind === 'orders') return { ...currentContent, mode }
     return mode === 'staff' ? { kind: 'orders', mode, touchControl: true } : { kind: 'orders', mode }
   }
+  if (value === 'register') return currentContent.kind === 'register' ? currentContent : { kind: 'register' }
   if (value === 'announcement') return { kind: 'announcement', title: '', description: '' }
   if (value === 'time') return { kind: 'time' }
   if (value.startsWith('event:')) {
@@ -576,6 +578,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
         <optgroup label={t('admin.screens.slotOrdersGroupLabel')}>
           <option value="orders:staff">{t('admin.screens.slotOrdersStaffLabel')}</option>
           <option value="orders:customer">{t('admin.screens.slotOrdersCustomerLabel')}</option>
+          <option value="register">{t('admin.screens.slotRegisterLabel')}</option>
         </optgroup>
         <option value="announcement">{t('admin.screens.slotAnnouncementLabel')}</option>
       </select>
@@ -1107,6 +1110,7 @@ export function SlideFields({ id, content, onChange, label, resizeToFitBlocked, 
         ))}
 
       {content.kind === 'orders' && <OrdersSlideFields id={id} content={content} onChange={onChange} />}
+      {content.kind === 'register' && <RegisterSlideFields id={id} content={content} onChange={onChange} />}
 
       {content.kind === 'event' && (content.displayMode ?? 'calendar') === 'calendar' && (
         <label className="slide-fields__number-field">

@@ -1,0 +1,570 @@
+// The Register pane (`RegisterSlide`): top bar, product tiles, cart and scan notice. It sits inside
+// `.orders-board`, so it shares the staff board's fixed `--ob-*` palette, font and light/dark switch
+// (see `OrdersBoard.scss`). Every control is at least 56px tall and has a pressed state; hover styles
+// only apply on devices that can hover, so nothing stays highlighted after a tap. Dialogs are in
+// `RegisterDialogs.scss`.
+
+@use './RegisterDialogs';
+
+// One press/hover recipe for every register button, matching the board's own.
+%register-button {
+  min-height: 56px;
+  border: none;
+  border-radius: 10px;
+  background: var(--ob-button);
+  font-weight: 700;
+
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background: var(--ob-button-hover);
+    }
+  }
+
+  &:active:not(:disabled) {
+    box-shadow: inset 0 3px 10px var(--ob-press);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+}
+
+.register {
+  --register-camera-on: #c62f2f;
+}
+
+.register__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.register__bar-spacer {
+  flex: 1;
+}
+
+.register__bar-button,
+.register__camera-switch,
+.register__camera-preview,
+.register__chip,
+.register__tab,
+.register__clear,
+.register__stepper button,
+.register__line-remove,
+.register__tile-edit {
+  @extend %register-button;
+}
+
+.register__bar-button {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0 1em;
+}
+
+.register__lock--open {
+  background: var(--ob-amber);
+  color: var(--ob-amber-text);
+}
+
+// The camera privacy switch: grey while off; a solid red pill with a pulsing dot while the camera
+// actually runs, so nobody can miss that it's on.
+.register__camera {
+  display: flex;
+  gap: 0.3em;
+}
+
+.register__camera-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0 1em;
+}
+
+.register__camera--on .register__camera-switch {
+  background: var(--register-camera-on);
+  color: #fff;
+
+  &::before {
+    content: '';
+    width: 0.6em;
+    height: 0.6em;
+    border-radius: 50%;
+    background: #fff;
+    animation: register-camera-pulse 1.4s ease-in-out infinite;
+  }
+}
+
+.register__camera-preview {
+  padding: 0 0.9em;
+  font-weight: 600;
+}
+
+@keyframes register-camera-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .register__camera--on .register__camera-switch::before {
+    animation: none;
+  }
+}
+
+.register__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18em, 34%);
+  gap: 0.6em;
+  flex: 1;
+  min-height: 0;
+}
+
+// --- Products ---
+
+.register__products {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  min-height: 0;
+}
+
+.register__tabs,
+.register__chips {
+  display: flex;
+  gap: 0.4em;
+  overflow-x: auto;
+  flex-shrink: 0;
+  scrollbar-width: none;
+}
+
+.register__tab,
+.register__chip {
+  flex-shrink: 0;
+  padding: 0 1em;
+  white-space: nowrap;
+}
+
+.register__tab--active,
+.register__chip--active {
+  background: var(--ob-accent);
+  color: var(--ob-accent-text);
+
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background: var(--ob-accent);
+    }
+  }
+}
+
+.register__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5em, 1fr));
+  grid-auto-rows: min-content;
+  gap: 0.5em;
+  overflow-y: auto;
+  padding-bottom: 4em; // room for the scan notice
+}
+
+.register__tile {
+  position: relative;
+  display: flex;
+  border-radius: 12px;
+  background: var(--ob-card);
+  box-shadow: 0 1px 3px var(--ob-shadow);
+}
+
+.register__tile-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.3em;
+  min-height: 7em;
+  padding: 0.5em;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  text-align: left;
+
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background: var(--ob-button);
+    }
+  }
+
+  &:active:not(:disabled) {
+    box-shadow: inset 0 3px 10px var(--ob-press);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+  }
+}
+
+.register__tile-image {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--ob-column);
+
+  &--empty {
+    display: block;
+  }
+}
+
+.register__tile-name {
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.register__tile-price {
+  margin-top: auto;
+  color: var(--ob-muted);
+  font-weight: 600;
+}
+
+.register__tile--sold-out {
+  opacity: 0.55;
+
+  .register__tile-price {
+    color: var(--ob-danger);
+  }
+}
+
+.register__tile-edit {
+  position: absolute;
+  top: 0.3em;
+  right: 0.3em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+}
+
+.register__tile--new {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  min-height: 7em;
+  border: 2px dashed var(--ob-line);
+  background: transparent;
+  box-shadow: none;
+  font-weight: 700;
+
+  &:active {
+    box-shadow: inset 0 3px 10px var(--ob-press);
+  }
+}
+
+// --- Cart ---
+
+.register__cart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  min-height: 0;
+  padding: 0.6em;
+  border-radius: 14px;
+  background: var(--ob-column);
+}
+
+.register__lines {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.35em;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+// Name on its own row, controls under it: the cart column is narrow, and two 56px stepper buttons
+// plus price and remove leave no room for a readable name beside them.
+.register__line {
+  display: grid;
+  grid-template-areas:
+    'name name name'
+    'stepper price remove';
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.25em 0.4em;
+  padding: 0.35em 0.5em;
+  border-radius: 10px;
+  background: var(--ob-card);
+}
+
+.register__line-name {
+  grid-area: name;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.register__line-flag {
+  margin-left: 0.4em;
+  color: var(--ob-danger);
+  font-size: 0.8em;
+  font-weight: 700;
+}
+
+.register__stepper {
+  grid-area: stepper;
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+
+  button {
+    width: 56px;
+    font-size: 1.3em;
+  }
+}
+
+.register__quantity {
+  min-width: 1.6em;
+  font-weight: 700;
+  text-align: center;
+}
+
+.register__line-price {
+  grid-area: price;
+  white-space: nowrap;
+  font-weight: 600;
+  text-align: right;
+}
+
+.register__line-remove {
+  grid-area: remove;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+}
+
+.register__empty {
+  padding: 1em;
+  text-align: center;
+}
+
+.register__name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  font-size: 0.9em;
+  color: var(--ob-muted);
+
+  input {
+    min-height: 48px;
+    padding: 0 0.7em;
+    border: 1px solid var(--ob-line);
+    border-radius: 10px;
+    background: var(--ob-card);
+    color: var(--ob-text);
+    font: inherit;
+  }
+}
+
+.register__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 1.3em;
+
+  strong {
+    font-size: 1.4em;
+  }
+}
+
+.register__blocked {
+  margin: 0;
+  color: var(--ob-danger);
+  font-weight: 600;
+}
+
+.register__cart-actions {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 0.5em;
+}
+
+.register__clear {
+  padding: 0 0.8em;
+}
+
+.register__pay {
+  @extend %register-button;
+  min-height: 64px;
+  background: var(--ob-success);
+  color: #fff;
+  font-size: 1.2em;
+
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background: var(--ob-success);
+      filter: brightness(1.08);
+    }
+  }
+}
+
+// --- Scan notice ---
+
+.register__notice-slot {
+  position: absolute;
+  inset: auto 0 0.8em;
+  z-index: 15;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.register__notice {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  max-width: 90%;
+  padding: 0.6em 1.1em;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px var(--ob-shadow);
+  font-weight: 700;
+  pointer-events: auto;
+
+  &--ok {
+    background: var(--ob-success);
+    color: #fff;
+  }
+
+  &--attention {
+    background: var(--ob-amber);
+    color: var(--ob-amber-text);
+  }
+
+  &--error {
+    background: var(--ob-danger);
+    color: var(--ob-danger-text);
+  }
+}
+
+// A narrow pane (the tablet held upright, or a split screen): cart below the products.
+@container (max-width: 640px) {
+  .register__body {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+}
+
+// --- Search and sort (RegisterProductToolbar) ---
+
+.register__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5em;
+  flex-shrink: 0;
+}
+
+.register__search {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 12em;
+
+  input {
+    width: 100%;
+    min-height: 56px;
+    padding: 0 3.2em 0 2.6em;
+    border: 1px solid var(--ob-line);
+    border-radius: 12px;
+    background: var(--ob-card);
+    color: var(--ob-text);
+    font: inherit;
+
+    &::-webkit-search-cancel-button {
+      display: none; // replaced by our own 56px clear button
+    }
+  }
+}
+
+.register__search-icon {
+  position: absolute;
+  left: 0.8em;
+  width: 1.2em;
+  height: 1.2em;
+  color: var(--ob-muted);
+  pointer-events: none;
+}
+
+.register__search-clear {
+  position: absolute;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+
+  svg {
+    width: 1.1em;
+    height: 1.1em;
+  }
+
+  &:active {
+    box-shadow: inset 0 3px 10px var(--ob-press);
+  }
+}
+
+.register__sort {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.register__sort-icon {
+  width: 1.2em;
+  height: 1.2em;
+  color: var(--ob-muted);
+}
+
+.register__search-count {
+  margin: 0;
+  color: var(--ob-muted);
+  font-weight: 600;
+}
+
+// Icons inside the top bar's buttons.
+.register__bar-button svg,
+.register__camera-switch svg {
+  width: 1.2em;
+  height: 1.2em;
+  flex-shrink: 0;
+}
+
+// A category's name above its products, in menu order when the tiles mix categories. Spans the whole row.
+.register__group-header {
+  grid-column: 1 / -1;
+  margin: 0.6em 0 0;
+  color: var(--ob-muted);
+  font-size: 0.85em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+// The category a tile belongs to, under its name, when the tiles mix categories outside menu order.
+.register__tile-place {
+  color: var(--ob-muted);
+  font-size: 0.8em;
+  font-weight: 600;
+}

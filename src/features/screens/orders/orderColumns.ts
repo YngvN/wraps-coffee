@@ -1,4 +1,5 @@
 import type { OrderRecord, OrderSource, OrderStatus } from '../../../types/order'
+import { orderNumber } from '../../../lib/orderNumber'
 
 /** The four columns of the order board. `history` is the overflow column for finished/cancelled orders. */
 export type BoardColumn = 'incoming' | 'doing' | 'done' | 'history'
@@ -115,11 +116,12 @@ export function matchesNoteKeyword(notes: string | undefined, keywords: string[]
   })
 }
 
-/** Sums item quantities across all orders, grouped by item name (trimmed), sorted by quantity descending then name ascending. */
+/** Sums item quantities across all orders, grouped by item name (trimmed), sorted by quantity descending then name ascending. Items a register order already handed over at the counter (`servedAtCounter`) aren't counted — the kitchen has nothing to make for them. */
 export function summariseItems(orders: OrderRecord[]): { name: string; quantity: number }[] {
   const totals = new Map<string, number>()
   for (const order of orders) {
     for (const item of order.items) {
+      if (order.servedAtCounter?.includes(item.itemID)) continue
       const name = item.name.trim()
       totals.set(name, (totals.get(name) ?? 0) + item.quantity)
     }
@@ -127,7 +129,7 @@ export function summariseItems(orders: OrderRecord[]): { name: string; quantity:
   return [...totals.entries()].map(([name, quantity]) => ({ name, quantity })).sort((a, b) => b.quantity - a.quantity || a.name.localeCompare(b.name))
 }
 
-/** Formats a customer as a short display name (e.g. "Jane D.") plus the last 4 characters of the order id, uppercased. */
+/** Formats a customer as a short display name (e.g. "Jane D.") plus the order's number to call (see `orderNumber`: `K7M2Q` for a website order, `W…`/`F…` for Wolt/Foodora, `K12` for a counter sale). */
 export function customerOrderLabel(order: OrderRecord): { name: string; number: string } {
   const words = order.customerName
     .trim()
@@ -139,6 +141,6 @@ export function customerOrderLabel(order: OrderRecord): { name: string; number: 
   } else if (words.length > 1) {
     name = `${words[0]} ${words[words.length - 1].charAt(0).toUpperCase()}.`
   }
-  const number = order.id.slice(-4).toUpperCase()
+  const number = orderNumber(order)
   return { name, number }
 }

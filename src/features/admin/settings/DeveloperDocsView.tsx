@@ -3,6 +3,7 @@ import { Button, Card } from '../../../components'
 import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
 import { getDeveloperKey, regenerateDeveloperKey } from '../../../lib/localServer'
+import { RegisterDeveloperDocs } from './RegisterDeveloperDocs'
 import './DeveloperDocsView.scss'
 
 /** Every `SYNCED_KEY` (see `src/types/sync.ts`) paired with its own one-line description key — kept in sync with that list by hand; see the `keep-in-sync` skill. */
@@ -37,6 +38,8 @@ const SYNCED_KEY_DOCS: { key: string; descKey: string }[] = [
   { key: 'admin.woltOrders', descKey: 'admin.settings.developerDocs.keyWoltOrders' },
   { key: 'admin.foodoraConfig', descKey: 'admin.settings.developerDocs.keyFoodoraConfig' },
   { key: 'admin.foodoraOrders', descKey: 'admin.settings.developerDocs.keyFoodoraOrders' },
+  { key: 'admin.printers', descKey: 'admin.settings.developerDocs.keyPrinters' },
+  { key: 'admin.registerOrders', descKey: 'admin.settings.developerDocs.keyRegisterOrders' },
 ]
 
 /**
@@ -182,6 +185,11 @@ POST /users/<id>/password         (Authorization: Bearer <token>, admin/subadmin
           <code>{`{ "type": "update", "key": "admin.products", "value": [...], "revision": 43 }`}</code>
         </pre>
         <p>{t('admin.settings.developerDocs.syncRevisionText')}</p>
+
+        <p>{t('admin.settings.developerDocs.syncHeartbeatText')}</p>
+        <pre>
+          <code>{`{ "type": "heartbeat" }`}</code>
+        </pre>
 
         <p>{t('admin.settings.developerDocs.syncWriteText')}</p>
         <pre>
@@ -666,14 +674,36 @@ POST /foodora/status/<orderId>     (Authorization: Bearer <token>, admin/subadmi
         <pre>
           <code>{`POST /display-orders/status       (public — no token; trusted by device id, same LAN-trust posture as the heartbeat)
 { "deviceId": string, "orderId": string, "status": "received" | "accepted" | "preparing" | "ready" | "completed" | "cancelled" }
-→ 200 { "ok": true }               (one order patched in whichever of "admin.orders"/"admin.woltOrders"/"admin.foodoraOrders" holds it;
+→ 200 { "ok": true }               (one order patched in whichever of "admin.orders"/"admin.woltOrders"/"admin.foodoraOrders"/"admin.registerOrders" holds it;
                                     website orders are pushed to Neon, Wolt/Foodora orders to their platform first)
 → 400 { "error": "..." }           (missing field, or not a valid status)
 → 403 { "error": "..." }           (not an approved display, or the screen it is showing has no staff orders pane with Touch control on)
 → 404 { "error": "..." }           (no order with that id)
-→ 502 { "error": "..." }           (Wolt/Foodora rejected the change — nothing was changed locally)`}</code>
+→ 502 { "error": "..." }           (Wolt/Foodora rejected the change — nothing was changed locally)
+
+POST /display-orders/print        (public — no token; same device trust as /display-orders/status)
+{ "deviceId": string, "orderId": string, "printerId"?: string | "default" }   (printed in "admin.printers".receiptLanguage — Norwegian unless set; a "language" field is ignored)
+→ 200 { "ok": true }               (the order's receipt was sent to a printer configured in "admin.printers")
+→ 403 { "error": "..." }           (not an approved display showing a staff orders pane with Touch control on, or a Register pane)
+→ 404 { "error": "..." }           (no order with that id)
+→ 409 { "error": "..." }           (no such printer, and no default printer set up)
+→ 502 { "error": "..." }           (the printer could not be reached or refused the job)
+
+GET /printers/discover            (Authorization: Bearer <token>; admin/subadmin, or "limited" with the "store" section)
+→ 200 { "printers": [{ "transport": "network" | "system", "name": string, "host"?: string, "port"?: number,
+                       "systemName"?: string, "source": "mdns" | "scan" | "system", "likelyReceipt": boolean }] }
+   (scans the server's /24 subnet(s) for port 9100 and mDNS "_pdl-datastream._tcp", plus the OS print queues; takes a few seconds)
+
+POST /printers/test               (same access as /printers/discover)
+{ "printer": { "transport": "network", "host": string, "port"?: number, "paperWidthMm": 58 | 80 }
+           | { "transport": "system", "systemName": string, "paperWidthMm": 58 | 80 } }   (printed in the store's receipt language; a "language" field is ignored)
+→ 200 { "ok": true }               (a sample receipt was printed)
+→ 400 { "error": "..." }           (no address / queue name)
+→ 502 { "error": "..." }           (the printer could not be reached or refused the job)`}</code>
         </pre>
       </Card>
+
+      <RegisterDeveloperDocs />
 
       <Card title={t('admin.settings.developerDocs.assistantTitle')}>
         <p>{t('admin.settings.developerDocs.assistantIntro')}</p>

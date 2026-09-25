@@ -263,12 +263,20 @@
   gap: 4px;
   font-size: 0.875rem;
 
-  input {
+  input,
+  select {
     padding: calc($spacing-unit / 2);
     border-radius: 8px;
     border: 1px solid $color-border;
     background: $color-surface;
     color: $color-text;
+  }
+
+  // A checkbox with its label beside it (e.g. the printer mini form's "Default").
+  &--inline {
+    flex-direction: row;
+    align-items: center;
+    gap: $spacing-unit;
   }
 }
 

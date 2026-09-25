@@ -130,3 +130,18 @@ test('customerOrderLabel shortens the surname and takes the id tail', () => {
   assert.equal(customerOrderLabel(order('x', 'ready', { customerName: 'anne marie berg' })).name, 'anne B.')
   assert.equal(customerOrderLabel(order('ab')).number, 'AB')
 })
+
+test('register orders: counter number as label, counter-served items not in To make', () => {
+  const base = { items: [], totalPrice: 0, customerName: '', customerPhone: '', pickupTime: '', status: 'preparing' as const, createdAt: '2026-09-25T10:00:00Z' }
+  assert.equal(customerOrderLabel({ ...base, id: 'abcdef', displayNumber: 'K12' }).number, 'K12')
+  const order = {
+    ...base,
+    id: 'r1',
+    servedAtCounter: ['soda'],
+    items: [
+      { itemID: 'soda', name: 'Brus', quantity: 2, unitPrice: 30 },
+      { itemID: 'wrap', name: 'Wrap', quantity: 1, unitPrice: 120 },
+    ],
+  }
+  assert.deepEqual(summariseItems([order]), [{ name: 'Wrap', quantity: 1 }])
+})

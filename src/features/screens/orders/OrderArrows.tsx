@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { ChevronLeftIcon, ChevronRightIcon } from '../../../components'
 import { useLanguage } from '../../../i18n'
 import type { OrderRecord, OrderStatus } from '../../../types/order'
@@ -11,6 +11,8 @@ interface OrderArrowsProps {
   disabled?: boolean
   /** `'large'` for the detail sheet. */
   size?: 'normal' | 'large'
+  /** A control placed between ← and → — the print button on Done cards and in the details view. */
+  middle?: ReactNode
 }
 
 /**
@@ -19,7 +21,7 @@ interface OrderArrowsProps {
  * than disabled, so a wet thumb can't land on a dead button. Taps stop propagating, so pressing an
  * arrow on a card never also opens that card's details.
  */
-export function OrderArrows({ order, onMove, disabled, size = 'normal' }: OrderArrowsProps) {
+export function OrderArrows({ order, onMove, disabled, size = 'normal', middle }: OrderArrowsProps) {
   const { t } = useLanguage()
   const back = prevStatus(order.status)
   const forward = nextStatus(order.status)
@@ -38,6 +40,7 @@ export function OrderArrows({ order, onMove, disabled, size = 'normal' }: OrderA
       ) : (
         <span className="order-arrows__spacer" />
       )}
+      {middle}
       {forward && (
         <button
           type="button"

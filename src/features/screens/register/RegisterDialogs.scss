@@ -1,0 +1,496 @@
+// The Register's dialogs — Pay, PIN pad, product editor and pickup result. Each opens in the order
+// board's in-pane sheet (`.order-sheet*`, see `OrdersBoard.scss`); these rules only lay out what's
+// inside. Same palette, 56px targets and pressed states as `RegisterSlide.scss`.
+
+.register-sheet--pay,
+.register-sheet--pickup {
+  width: min(30em, 100%);
+}
+
+.register-sheet--pin {
+  width: min(22em, 100%);
+}
+
+.register-sheet--editor {
+  width: min(44em, 100%);
+}
+
+.register-pay__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5em;
+
+  > button {
+    flex: 1;
+    min-width: 8em;
+  }
+}
+
+// --- Pay ---
+
+.register-pay {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8em;
+
+  &--center {
+    align-items: center;
+    text-align: center;
+  }
+}
+
+.register-pay__total {
+  margin: 0;
+  font-size: 2.2em;
+  font-weight: 800;
+  text-align: center;
+}
+
+.register-pay__methods {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5em;
+}
+
+.register-pay__method,
+.register-pay__cash-option {
+  min-height: 88px;
+  padding: 0.4em;
+  border: none;
+  border-radius: 12px;
+  background: var(--ob-card);
+  box-shadow: 0 1px 3px var(--ob-shadow);
+  font-weight: 700;
+
+  @media (hover: hover) {
+    &:hover {
+      background: var(--ob-button);
+    }
+  }
+
+  &:active {
+    box-shadow: inset 0 3px 10px var(--ob-press);
+  }
+}
+
+.register-pay__method--vipps {
+  background: #ff5b24;
+  color: #fff;
+
+  @media (hover: hover) {
+    &:hover {
+      background: #ff5b24;
+      filter: brightness(1.06);
+    }
+  }
+}
+
+.register-pay__hint {
+  margin: 0;
+  color: var(--ob-muted);
+  font-size: 0.9em;
+}
+
+.register-pay__cash {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6em, 1fr));
+  gap: 0.4em;
+}
+
+.register-pay__cash-option {
+  min-height: 64px;
+
+  &--active {
+    background: var(--ob-accent);
+    color: var(--ob-accent-text);
+  }
+}
+
+.register-pay__change {
+  margin: 0;
+  font-size: 1.4em;
+  font-weight: 700;
+  text-align: center;
+}
+
+.register-pay__qr {
+  padding: 0.6em;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.register-pay__number {
+  margin: 0;
+  font-size: 3em;
+  font-weight: 800;
+}
+
+// --- PIN pad ---
+
+.register-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.8em;
+}
+
+.register-pin__message {
+  margin: 0;
+  text-align: center;
+
+  &--error {
+    color: var(--ob-danger);
+    font-weight: 700;
+  }
+}
+
+.register-pin__dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.6em;
+}
+
+.register-pin__dot {
+  width: 0.9em;
+  height: 0.9em;
+  border: 2px solid var(--ob-muted);
+  border-radius: 50%;
+
+  &--filled {
+    border-color: var(--ob-text);
+    background: var(--ob-text);
+  }
+}
+
+.register-pin__keys {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4em;
+}
+
+.register-pin__key {
+  min-height: 64px;
+  border: none;
+  border-radius: 12px;
+  background: var(--ob-card);
+  font-size: 1.5em;
+  font-weight: 700;
+
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background: var(--ob-button);
+    }
+  }
+
+  &:active:not(:disabled) {
+    box-shadow: inset 0 3px 10px var(--ob-press);
+  }
+}
+
+// --- Product editor ---
+
+.register-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7em;
+
+  input:not([type='checkbox']),
+  select {
+    min-height: 48px;
+    padding: 0 0.7em;
+    border: 1px solid var(--ob-line);
+    border-radius: 10px;
+    background: var(--ob-card);
+    color: var(--ob-text);
+    font: inherit;
+  }
+}
+
+.register-editor__hint,
+.register-editor__credit {
+  margin: 0;
+  color: var(--ob-muted);
+}
+
+.register-editor__photo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em;
+
+  img,
+  .register__tile-image {
+    width: 7em;
+    aspect-ratio: 4 / 3;
+    border-radius: 8px;
+    object-fit: cover;
+  }
+}
+
+.register-editor__photo-button {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.register-editor__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14em, 1fr));
+  gap: 0.6em;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2em;
+    font-size: 0.9em;
+    color: var(--ob-muted);
+  }
+}
+
+.register-editor__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6em;
+  min-height: 48px;
+
+  input {
+    width: 1.5em;
+    height: 1.5em;
+    margin-top: 0.1em;
+    accent-color: var(--ob-accent);
+  }
+
+  small {
+    display: block;
+    color: var(--ob-muted);
+  }
+}
+
+.register-editor__stock {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.register-editor__allergens {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.register-editor__allergen-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em;
+}
+
+.register-editor__warning {
+  margin: 0;
+  padding: 0.4em 0.7em;
+  border-radius: 8px;
+  background: var(--ob-amber);
+  color: var(--ob-amber-text);
+  font-size: 0.9em;
+
+  &--strong {
+    font-weight: 700;
+  }
+}
+
+// --- Pickup ---
+
+.register-pickup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7em;
+}
+
+.register-pickup__headline {
+  margin: 0;
+  padding: 0.6em;
+  border-radius: 10px;
+  font-size: 1.5em;
+  font-weight: 800;
+  text-align: center;
+}
+
+.register-pickup--ok .register-pickup__headline {
+  background: var(--ob-success);
+  color: #fff;
+}
+
+.register-pickup--attention .register-pickup__headline {
+  background: var(--ob-amber);
+  color: var(--ob-amber-text);
+}
+
+.register-pickup--error .register-pickup__headline {
+  background: var(--ob-danger);
+  color: var(--ob-danger-text);
+}
+
+.register-pickup__customer {
+  margin: 0;
+  font-size: 1.3em;
+  font-weight: 700;
+}
+
+.register-pickup__items {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.register-pickup__code {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+
+  input {
+    min-height: 64px;
+    padding: 0 0.7em;
+    border: 1px solid var(--ob-line);
+    border-radius: 10px;
+    background: var(--ob-card);
+    color: var(--ob-text);
+    font: inherit;
+    font-size: 1.6em;
+    letter-spacing: 0.2em;
+    text-align: center;
+    text-transform: uppercase;
+  }
+}
+
+// --- Order history ---
+
+.register-sheet--history {
+  width: min(52em, 100%);
+  height: 100%;
+}
+
+.register-history {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  min-height: 0;
+}
+
+.register-history__search {
+  min-height: 56px;
+  padding: 0 0.8em;
+  border: 1px solid var(--ob-line);
+  border-radius: 10px;
+  background: var(--ob-card);
+  color: var(--ob-text);
+  font: inherit;
+}
+
+.register-history__day {
+  h3 {
+    margin: 0.4em 0 0.3em;
+    color: var(--ob-muted);
+    font-size: 0.9em;
+    text-transform: capitalize;
+  }
+
+  ul {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35em;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+}
+
+.register-history__order {
+  display: grid;
+  grid-template-areas:
+    'main side'
+    'items side'
+    'error error';
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.15em 0.8em;
+  align-items: center;
+  padding: 0.5em 0.7em;
+  border-radius: 10px;
+  background: var(--ob-card);
+
+  .order-print__error {
+    grid-area: error;
+  }
+
+  &--cancelled {
+    opacity: 0.6;
+  }
+}
+
+.register-history__main {
+  grid-area: main;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2em 0.7em;
+}
+
+.register-history__number {
+  font-weight: 800;
+}
+
+.register-history__source,
+.register-history__name {
+  color: var(--ob-muted);
+}
+
+.register-history__items {
+  grid-area: items;
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.9em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.register-history__side {
+  grid-area: side;
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+}
+
+// --- Payment icons ---
+
+.register-pay__method {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  min-height: 112px;
+}
+
+.register-pay__method-icon {
+  width: 2.2em;
+  height: 2.2em;
+}
+
+// The Vipps wordmark on the orange button is white (it inherits the button's text colour).
+.register-pay__vipps-logo {
+  width: 4.2em;
+  height: auto;
+}
+
+.register-pay__qr-logo {
+  width: 6em;
+  height: auto;
+  color: #ff5b24;
+}
+
+.register-pay__done-icon {
+  width: 3.2em;
+  height: 3.2em;
+  color: var(--ob-success);
+}
