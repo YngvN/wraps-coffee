@@ -38,8 +38,12 @@ export interface OrderStatusDeps {
   pushFoodora: (externalId: string, status: OrderStatus) => Promise<void>
 }
 
-/** `notFound` — no order with that id in the key(s) searched; `pushFailed` — the delivery platform rejected the change, so nothing was changed locally either. */
-export type SetOrderStatusResult = { ok: true; order: OrderRecord } | { ok: false; reason: 'notFound' | 'pushFailed'; error?: unknown }
+/**
+ * `notFound` — no order with that id in the key(s) searched; `pushFailed` — the delivery platform
+ * rejected the change, so nothing was changed locally either; `registerSaleFinal` — a register sale
+ * can't be cancelled: it's a completed, journaled sale, and only a return receipt can undo it.
+ */
+export type SetOrderStatusResult = { ok: true; order: OrderRecord } | { ok: false; reason: 'notFound' | 'pushFailed' | 'registerSaleFinal'; error?: unknown }
 
 /** Finds which key currently holds `orderId`, searching only `keys`. */
 function findOrderKey(deps: OrderStatusDeps, orderId: string, keys: readonly OrderKey[]): OrderKey | undefined {
@@ -66,11 +70,13 @@ function patchOne(deps: OrderStatusDeps, key: OrderKey, orderId: string, status:
  *
  * `onlyKey` restricts the search to one source (the admin Wolt/Foodora routes, which address an
  * order by source-specific id); omitted, every order key is searched (the order board). Register
- * orders have no platform to push to, so they change locally straight away, like website orders.
+ * orders have no platform to push to, so they change locally straight away, like website orders —
+ * except that one is never cancelled (see `registerSaleFinal`); its kitchen status moves freely.
  */
 export async function setOrderStatus(deps: OrderStatusDeps, orderId: string, status: OrderStatus, onlyKey?: OrderKey): Promise<SetOrderStatusResult> {
   const key = findOrderKey(deps, orderId, onlyKey ? [onlyKey] : ORDER_KEYS)
   if (!key) return { ok: false, reason: 'notFound' }
+  if (key === 'admin.registerOrders' && status === 'cancelled') return { ok: false, reason: 'registerSaleFinal' }
 
   if (key === 'admin.woltOrders' || key === 'admin.foodoraOrders') {
     const order = deps.readOrders(key).find((candidate) => candidate.id === orderId)

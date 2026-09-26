@@ -2,8 +2,13 @@ import { useEffect, useState } from 'react'
 
 const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'touchstart', 'keydown', 'wheel'] as const
 
-/** True once `timeoutMs` has passed with no mouse movement, touch, key press, scroll, or click — reset back to `false` by any of those. Always `false` while `enabled` is false, and resets immediately if `enabled`/`timeoutMs` change. */
-export function useIdleTimer(timeoutMs: number, enabled: boolean): boolean {
+/**
+ * True once `timeoutMs` has passed with no mouse movement, touch, key press, scroll, or click — reset
+ * back to `false` by any of those. Always `false` while `enabled` is false, and resets immediately if
+ * `enabled`/`timeoutMs` change. A change of `wakeSignal` also counts as activity: the order board passes
+ * its newest order's id, so a new order wakes it from the screensaver without anyone touching it.
+ */
+export function useIdleTimer(timeoutMs: number, enabled: boolean, wakeSignal?: unknown): boolean {
   const [idle, setIdle] = useState(false)
 
   useEffect(() => {
@@ -24,7 +29,7 @@ export function useIdleTimer(timeoutMs: number, enabled: boolean): boolean {
       ACTIVITY_EVENTS.forEach((event) => window.removeEventListener(event, reset))
       clearTimeout(timeoutId)
     }
-  }, [timeoutMs, enabled])
+  }, [timeoutMs, enabled, wakeSignal])
 
   // Masks a possibly-stale `true` left over from before `enabled` turned
   // false, without needing to reset `idle` synchronously inside the effect

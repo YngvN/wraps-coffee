@@ -294,7 +294,10 @@ export type ScreenSlotContent =
       kind: 'register'
       /** Which catalogues' products are offered as tiles. Unset means every catalogue. */
       catalogueIds?: string[]
-      /** Prints a receipt on the tablet's chosen printer after every sale. Falls back to `false`. */
+      /**
+       * No longer used: a register sale now always prints its legal receipt (kassasystemforskrifta). Kept
+       * only so screens saved with it still type-check; nothing reads it.
+       */
       autoPrintReceipt?: boolean
       /** Whether scanning a customer's pickup QR code completes their website order. Falls back to `true`. */
       allowPickupScan?: boolean

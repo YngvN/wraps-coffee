@@ -110,3 +110,11 @@ test('screenHasRegister: true only with a register pane at some stage', () => {
   assert.equal(screenHasRegister(screen({ kind: 'orders', mode: 'staff', touchControl: true })), false)
   assert.equal(screenHasRegister(undefined), false)
 })
+
+test('a register sale can never be cancelled, only moved on the board', async () => {
+  const { data, log, deps } = makeDeps({ 'admin.registerOrders': [order('r1', 'received', { source: 'register' })] })
+  const result = await setOrderStatus(deps, 'r1', 'cancelled')
+  assert.deepEqual(result, { ok: false, reason: 'registerSaleFinal' })
+  assert.equal(data['admin.registerOrders'][0].status, 'received')
+  assert.deepEqual(log, [])
+})

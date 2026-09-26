@@ -5,10 +5,11 @@ import { useLanguage } from '../../../i18n'
 import { useStoreSettings } from '../../../hooks/useStoreSettings'
 import { AppearanceSettingsView } from './AppearanceSettingsView'
 import { ContactInfoView } from './ContactInfoView'
+import { LegalDetailsView } from './LegalDetailsView'
 import { LogoListEditor } from './LogoListEditor'
 import './StoreSettingsView.scss'
 
-type SubView = 'main' | 'contact' | 'appearance'
+type SubView = 'main' | 'contact' | 'appearance' | 'legal'
 
 /**
  * Company branding for this store/business: name, slogan, one or more
@@ -17,7 +18,8 @@ type SubView = 'main' | 'contact' | 'appearance'
  * tab title, and the favicon updates the browser tab icon, all live (see
  * `StoreBrandingEffect`). "Contact info" (phone/email/address/hours) and
  * "Appearance" (screen-display color themes/fonts — see
- * `AppearanceSettingsView`) each open as their own sub-view here, same
+ * `AppearanceSettingsView`) and "Company details" (the legal details register
+ * receipts need, see `LegalDetailsView`) each open as their own sub-view here, same
  * `SlideTransition`/`BackButton` pattern as Settings → "For
  * developers"/"Advanced". Rendered from `SettingsView` as a submenu; its own
  * "main" state's Back level (returning to Settings) is registered by
@@ -34,7 +36,7 @@ export function StoreSettingsView() {
    * info and Appearance are each their own addressable page, and browser Back closes them
    * natively instead of via the `useBackLevel` shim this view used to need.
    */
-  const subView: SubView = subsection === 'contact' || subsection === 'appearance' ? subsection : 'main'
+  const subView: SubView = subsection === 'contact' || subsection === 'appearance' || subsection === 'legal' ? subsection : 'main'
   /** `1` while opening the sub-view (slides in from the right, see `SlideTransition`), `-1` while going back. */
   const [direction, setDirection] = useState<1 | -1>(1)
   const [searchParams] = useSearchParams()
@@ -42,6 +44,11 @@ export function StoreSettingsView() {
   const openContactInfo = () => {
     setDirection(1)
     navigate('/admin/dashboard/settings/store/contact')
+  }
+
+  const openLegalDetails = () => {
+    setDirection(1)
+    navigate('/admin/dashboard/settings/store/legal')
   }
 
   const openAppearance = () => {
@@ -75,6 +82,14 @@ export function StoreSettingsView() {
             <TranslatedText as="h1" id="admin.contact.title" />
           </div>
           <ContactInfoView />
+        </div>
+      ) : subView === 'legal' ? (
+        <div className="store-settings-view">
+          <div className="store-settings-view__sub-header">
+            <BackButton onClick={closeSubView}>{t('admin.common.backTo', { destination: t('admin.store.title') })}</BackButton>
+            <TranslatedText as="h1" id="admin.legal.title" />
+          </div>
+          <LegalDetailsView />
         </div>
       ) : subView === 'appearance' ? (
         <div className="store-settings-view">
@@ -139,6 +154,7 @@ export function StoreSettingsView() {
           <NavRowList
             items={[
               { id: 'contact', label: t('admin.contact.title'), onClick: openContactInfo },
+              { id: 'legal', label: t('admin.legal.title'), onClick: openLegalDetails },
               { id: 'appearance', label: t('admin.appearance.title'), onClick: openAppearance },
             ]}
           />

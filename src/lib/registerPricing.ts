@@ -10,6 +10,8 @@ import type { CategoryPrices, Price, Product } from '../types/product'
 import { getEffectivePrice } from '../utils/price'
 import { defaultPriceForProduct } from '../utils/productCatalogue'
 import { isProductOutOfStock } from '../utils/productStock'
+import { osloDate } from './osloTime'
+import { vatRatePercent } from './vat'
 
 /** Whether the customer takes the order away or eats in — picks the matching half of a dual `Price`. */
 export type Serving = 'takeaway' | 'eatIn'
@@ -90,7 +92,7 @@ export function priceCart(lines: CartLineInput[], catalogue: PricingCatalogue, s
     if (isProductOutOfStock(product) && !line.allowSoldOut) return { ok: false, reason: 'soldOut', productId: line.productId }
     const unitPrice = unitPriceFor(product, catalogue, serving)
     if (unitPrice === undefined) return { ok: false, reason: 'noPrice', productId: line.productId }
-    items.push({ itemID: product.itemID, name: product.name.no || product.name.en, quantity: line.quantity, unitPrice })
+    items.push({ itemID: product.itemID, name: product.name.no || product.name.en, quantity: line.quantity, unitPrice, vatRate: vatRatePercent(product.vatCategory, serving) })
     soldProducts.push(product)
   }
 
@@ -105,16 +107,14 @@ export function priceCart(lines: CartLineInput[], catalogue: PricingCatalogue, s
   }
 }
 
-/** The local calendar day of an ISO timestamp, as `YYYY-MM-DD` in the server's own time zone. */
-function localDay(date: Date): string {
-  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
-}
-
-/** The next counter number for today ("K1", "K2", …) — restarts every day, counting only register orders created today. */
+/**
+ * The next counter number for today ("K1", "K2", …) — restarts every Oslo day, counting only register
+ * orders created today. Only for calling the order out; the legal receipt number is separate.
+ */
 export function nextDisplayNumber(existing: OrderRecord[], now: Date): string {
-  const today = localDay(now)
+  const today = osloDate(now)
   const highest = existing
-    .filter((order) => order.displayNumber && localDay(new Date(order.createdAt)) === today)
+    .filter((order) => order.displayNumber && osloDate(new Date(order.createdAt)) === today)
     .reduce((max, order) => Math.max(max, Number(order.displayNumber?.slice(1)) || 0), 0)
   return `K${highest + 1}`
 }

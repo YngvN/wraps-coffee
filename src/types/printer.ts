@@ -25,6 +25,12 @@ export interface ConfiguredPrinter {
   paperWidthMm: 58 | 80
   /** A cash drawer is plugged into this printer's drawer port, so it may be sent the "open drawer" pulse (see `buildDrawerKick`). Printers without one are never sent it. */
   cashDrawer?: boolean
+  /**
+   * Whether this printer reports its drawer's state (a network printer only), and which sensor level
+   * means "open" — drawers differ. When set, the register won't record a sale while the drawer is open
+   * (kassasystemforskrifta § 2-6). Absent or `'off'`: not read.
+   */
+  drawerSensor?: 'off' | 'openWhenHigh' | 'openWhenLow'
 }
 
 /** The `admin.printers` synced key. */

@@ -35,7 +35,8 @@ export function OrderDetailSheet({ order, noteKeywords, locked, failedMessage, o
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const column = columnOf(order.status)
   const columnLabel = column === 'history' ? t(`screenDisplay.orders.${order.status === 'cancelled' ? 'cancelled' : 'pickedUp'}`) : t(`screenDisplay.orders.column.${column}`)
-  const canCancel = order.status !== 'cancelled' && order.status !== 'completed'
+  // A register sale is already paid and journaled: only a return receipt can undo it, never "cancel".
+  const canCancel = order.status !== 'cancelled' && order.status !== 'completed' && order.source !== 'register'
 
   return (
     <motion.div className="order-sheet" onClick={onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>

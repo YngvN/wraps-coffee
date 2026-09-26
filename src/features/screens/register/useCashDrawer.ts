@@ -6,14 +6,14 @@ import type { OrdersPrinterChoice } from '../../../types/printer'
 import type { ScanNotice } from './useRegisterScans'
 
 /**
- * Opens the cash drawer from the register: after a cash sale (once per sale), or by hand with the
- * staff PIN. The server decides whether it may and pulses the printer that holds the drawer; when that
+ * Opens the cash drawer from the register: after a cash sale or a cash refund (once each), or by hand
+ * by whoever is signed in. The server decides whether it may and pulses the printer that holds the drawer; when that
  * printer is plugged into this tablet by USB, the server only authorises and logs it, and the pulse is
  * sent from here. Every outcome is shown as a notice.
  */
 export function useCashDrawer(deviceId: string | null, printerChoice: OrdersPrinterChoice, notify: (notice: ScanNotice) => void) {
   return useCallback(
-    async (request: { reason: 'sale'; orderId: string } | { reason: 'manual'; unlockToken: string }) => {
+    async (request: { reason: 'sale'; orderId: string } | { reason: 'return'; orderId: string; returnNumber: number } | { reason: 'manual' }) => {
       if (!deviceId) return
       try {
         const result = await openCashDrawer(deviceId, { ...request, printerId: printerChoice })

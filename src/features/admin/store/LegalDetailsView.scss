@@ -1,0 +1,19 @@
+@use '../../../styles/variables' as *;
+
+.legal-details-view,
+.legal-details-view__fields {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-unit * 2;
+}
+
+// Postal code beside the city on wide screens, stacked on a phone.
+.legal-details-view__postal {
+  display: grid;
+  grid-template-columns: minmax(6rem, 10rem) 1fr;
+  gap: $spacing-unit * 2;
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
+}

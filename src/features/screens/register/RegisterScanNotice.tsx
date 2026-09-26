@@ -19,12 +19,19 @@ const TONE: Record<ScanNotice['kind'], 'ok' | 'attention' | 'error'> = {
   draft: 'attention',
   unknownBarcode: 'error',
   lookupUnavailable: 'error',
+  managerNeeded: 'attention',
   unreadable: 'error',
   pickupDisabled: 'error',
   offline: 'error',
   drawerOpened: 'ok',
   drawerFailed: 'error',
   drawerNoPrinter: 'error',
+  receiptPrinted: 'ok',
+  copyPrinted: 'ok',
+  proFormaPrinted: 'ok',
+  returnMade: 'ok',
+  trainingPrinted: 'attention',
+  receiptRefused: 'error',
 }
 
 /** The short banner after each product scan, coloured like its scan sound (ok / needs a look / failed). Replaced by the next scan, gone after a few seconds. */
@@ -39,7 +46,9 @@ export function RegisterScanNotice({ notice, onDismiss, onQuickAdd }: RegisterSc
 
   const value = notice?.notice
   const text = value
-    ? t(`screenDisplay.register.notice.${value.kind}`, {
+    ? value.kind === 'receiptRefused'
+      ? t(`screenDisplay.register.receiptRefused.${value.reason}`)
+      : t(`screenDisplay.register.notice.${value.kind}`, {
         name: 'name' in value ? value.name : '',
         code: 'code' in value ? value.code : '',
       })

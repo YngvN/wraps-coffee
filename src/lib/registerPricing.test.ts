@@ -98,15 +98,27 @@ test('placement: only ready-to-serve goes to History, anything else to Incoming'
   assert.deepEqual(result.ok && result.cart.servedAtCounter, ['soda'])
 })
 
-test('counter numbers count up per day and restart the next day', () => {
+test('counter numbers count up per Oslo day and restart the next day', () => {
   const order = (displayNumber: string, createdAt: string) => ({ displayNumber, createdAt }) as OrderRecord
-  const now = new Date(2026, 8, 25, 12, 0)
+  // UTC timestamps, so the test means the same on any machine: Oslo is UTC+2 in September.
+  const now = new Date('2026-09-25T10:00:00Z')
   assert.equal(nextDisplayNumber([], now), 'K1')
-  const existing = [
-    order('K1', new Date(2026, 8, 25, 9, 0).toISOString()),
-    order('K7', new Date(2026, 8, 25, 11, 0).toISOString()),
-    order('K40', new Date(2026, 8, 24, 11, 0).toISOString()),
-  ]
+  const existing = [order('K1', '2026-09-25T07:00:00Z'), order('K7', '2026-09-25T09:00:00Z'), order('K40', '2026-09-24T09:00:00Z')]
   assert.equal(nextDisplayNumber(existing, now), 'K8')
-  assert.equal(nextDisplayNumber(existing, new Date(2026, 8, 26, 8, 0)), 'K1')
+  // 22:30 UTC is already 00:30 the next day in Oslo.
+  assert.equal(nextDisplayNumber(existing, new Date('2026-09-25T22:30:00Z')), 'K1')
+})
+
+test('each line snapshots its VAT rate from the product category and the serving', () => {
+  const products = [product('wrap', { price: 149 }), product('mug', { price: 99, vatCategory: 'standard' })]
+  const lines = [
+    { productId: 'wrap', quantity: 1 },
+    { productId: 'mug', quantity: 1 },
+  ]
+  const rates = (serving: 'takeaway' | 'eatIn') => {
+    const result = priceCart(lines, catalogue(products), serving)
+    return result.ok ? result.cart.items.map((item) => item.vatRate) : []
+  }
+  assert.deepEqual(rates('takeaway'), [15, 25])
+  assert.deepEqual(rates('eatIn'), [25, 25])
 })

@@ -5,6 +5,7 @@
  */
 import type { CartLineInput, Serving } from '../../../lib/registerPricing'
 import { MAX_LINE_QUANTITY } from '../../../lib/registerPricing'
+import type { CartJournalEvent } from '../../../lib/registerApi'
 
 /** The cart's state. */
 export interface CartState {
@@ -58,4 +59,22 @@ export function cartReducer(state: CartState, action: CartAction): CartState {
     case 'reset':
       return emptyCart(action.clientOrderId, state.serving)
   }
+}
+
+/**
+ * What `action` on `cart` means for the journal: taking a line out or lowering its quantity is a line
+ * correction (with how many came off), and staff clearing a cart with items in it (`clear`, not the
+ * reset after a sale) is a void. Anything else — adding, raising a quantity, the serving, the name —
+ * is `null`.
+ */
+export function cartJournalEvent(cart: CartState, action: CartAction | { type: 'clear' }): CartJournalEvent | null {
+  if (action.type === 'clear') {
+    return cart.lines.length > 0 ? { kind: 'void', lines: cart.lines.map(({ productId, quantity }) => ({ productId, quantity })), serving: cart.serving } : null
+  }
+  if (action.type !== 'remove' && action.type !== 'setQuantity') return null
+  const line = cart.lines.find((candidate) => candidate.productId === action.productId)
+  if (!line) return null
+  const next = action.type === 'remove' ? 0 : Math.max(0, action.quantity)
+  if (next >= line.quantity) return null
+  return { kind: 'lineCorrection', correction: next === 0 ? 'removed' : 'decreased', lines: [{ productId: line.productId, quantity: line.quantity - next }], serving: cart.serving }
 }

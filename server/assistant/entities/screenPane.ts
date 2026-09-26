@@ -307,10 +307,9 @@ function buildContentSchema(): Record<string, unknown> {
       {
         kind: { type: 'string', enum: ['register'] },
         catalogueIds: nullable({ type: 'array', items: { type: 'string' }, description: 'The FULL replacement set of catalogue ids whose products the register sells. Null sells every catalogue.' }),
-        autoPrintReceipt: nullable({ type: 'boolean', description: 'Print a receipt after every sale.' }),
         allowPickupScan: nullable({ type: 'boolean', description: "Whether scanning a customer's pickup QR code completes their website order. Null means on." }),
       },
-      ['kind', 'catalogueIds', 'autoPrintReceipt', 'allowPickupScan'],
+      ['kind', 'catalogueIds', 'allowPickupScan'],
     ),
     contentBranch(
       {

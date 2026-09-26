@@ -1,108 +1,151 @@
-import { useEffect, useState } from 'react'
-import { Button, Card, Input } from '../../../../components'
+import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Alert, Button, Card, Input } from '../../../../components'
+import { useStoreSettings } from '../../../../hooks/useStoreSettings'
+import { missingLegalDetails } from '../../../../utils/storeLegal'
 import { useAdminSession } from '../../../../hooks/useAdminSession'
 import { useLanguage } from '../../../../i18n'
-import { fetchRegisterPinStatus, saveRegisterPin } from '../../../../lib/registerAdminApi'
+import { fetchRegisterStaffList, saveRegisterStaff, type RegisterStaffInput, type RegisterStaffMember } from '../../../../lib/registerAdminApi'
+import { CashRegistersCard } from './CashRegistersCard'
+import { JournalHealthCard } from './JournalHealthCard'
+import { ZReportsCard } from './ZReportsCard'
+import { SaftCard } from './SaftCard'
+import { RegisterStaffRow } from './RegisterStaffRow'
 import './RegisterSettingsView.scss'
 
-/** Where the PIN form is: idle, saving, or showing the outcome of the last save. */
-type SaveState = { kind: 'idle' } | { kind: 'saving' } | { kind: 'saved' | 'removed' } | { kind: 'error'; message: string }
-
 /**
- * Settings → Register: the one staff PIN every Register pane asks for before products can be added
- * or edited at the counter. The server keeps only a hash of it and never sends it back, so this page
- * can only say whether one is set, set a new one, or remove it. Saving locks every register that was
- * unlocked with the old PIN.
+ * Settings → Register: the staff who may use the registers (each with their own 4-digit PIN and a role —
+ * a manager can also edit products), the numbered cash registers, the Z reports, the SAF-T export (with
+ * each category's article group), and the electronic journal's health.
+ * The server keeps only PIN hashes and never sends them back. Warns at the top while the company
+ * details receipts need are incomplete, since the registers refuse to sell until they are.
  */
 export function RegisterSettingsView() {
   const { t } = useLanguage()
   const { session } = useAdminSession()
-  const [isSet, setIsSet] = useState<boolean | null>(null)
-  const [pin, setPin] = useState('')
-  const [repeat, setRepeat] = useState('')
-  const [state, setState] = useState<SaveState>({ kind: 'idle' })
   const token = session?.token
+  const [staff, setStaff] = useState<RegisterStaffMember[] | null>(null)
+  const [name, setName] = useState('')
+  const [pin, setPin] = useState('')
+  const [role, setRole] = useState<RegisterStaffMember['role']>('staff')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [storeSettings] = useStoreSettings()
+  const navigate = useNavigate()
+  const legalMissing = missingLegalDetails(storeSettings).length > 0
 
   useEffect(() => {
     if (!token) return
     let alive = true
-    fetchRegisterPinStatus(token)
-      .then((value) => {
-        if (alive) setIsSet(value)
+    fetchRegisterStaffList(token)
+      .then((list) => {
+        if (alive) setStaff(list)
       })
-      .catch(() => undefined)
+      .catch((reason: unknown) => {
+        if (alive) setError(reason instanceof Error ? reason.message : String(reason))
+      })
     return () => {
       alive = false
     }
   }, [token])
 
-  const valid = /^\d{4,6}$/.test(pin)
-  const mismatch = repeat !== '' && repeat !== pin
+  const errorText = useCallback(
+    (reason: unknown) => {
+      const code = reason instanceof Error ? reason.message : String(reason)
+      const known = ['noName', 'badRole', 'badPin', 'duplicateEmployeeNumber', 'unknownStaff']
+      return known.includes(code) ? t(`admin.settings.register.staffError.${code}`) : code
+    },
+    [t],
+  )
 
-  const save = async (next: string | null) => {
+  const save = async (input: RegisterStaffInput, id?: string) => {
     if (!token) return
-    setState({ kind: 'saving' })
+    setError(null)
     try {
-      await saveRegisterPin(token, next)
-      setIsSet(next !== null)
-      setPin('')
-      setRepeat('')
-      setState({ kind: next === null ? 'removed' : 'saved' })
-    } catch (error) {
-      setState({ kind: 'error', message: error instanceof Error ? error.message : String(error) })
+      const saved = await saveRegisterStaff(token, input, id)
+      setStaff((list) => (id ? (list ?? []).map((member) => (member.id === id ? saved : member)) : [...(list ?? []), saved]))
+    } catch (reason) {
+      setError(errorText(reason))
+      throw reason
     }
   }
 
+  const add = async () => {
+    setBusy(true)
+    try {
+      await save({ name, pin, role })
+      setName('')
+      setPin('')
+      setRole('staff')
+    } catch {
+      // Shown by `save`.
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const pinValid = /^\d{4}$/.test(pin)
+  const sorted = [...(staff ?? [])].sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name, 'nb'))
+
   return (
-    <Card className="register-settings">
-      <h2>{t('admin.settings.register.pinTitle')}</h2>
-      <p className="register-settings__status">
-        {isSet === null ? t('admin.settings.register.pinLoading') : isSet ? t('admin.settings.register.pinIsSet') : t('admin.settings.register.pinNotSet')}
-      </p>
-      <form
-        className="register-settings__form"
-        onSubmit={(event) => {
-          event.preventDefault()
-          if (valid && !mismatch && repeat === pin) void save(pin)
-        }}
-      >
-        <Input
-          id="register-pin"
-          label={isSet ? t('admin.settings.register.newPinLabel') : t('admin.settings.register.pinLabel')}
-          type="password"
-          inputMode="numeric"
-          autoComplete="new-password"
-          maxLength={6}
-          value={pin}
-          onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))}
-          error={pin !== '' && !valid ? t('admin.settings.register.pinFormat') : undefined}
-        />
-        <Input
-          id="register-pin-repeat"
-          label={t('admin.settings.register.repeatPinLabel')}
-          type="password"
-          inputMode="numeric"
-          autoComplete="new-password"
-          maxLength={6}
-          value={repeat}
-          onChange={(event) => setRepeat(event.target.value.replace(/\D/g, ''))}
-          error={mismatch ? t('admin.settings.register.pinMismatch') : undefined}
-        />
-        <div className="register-settings__actions">
-          <Button type="submit" disabled={!valid || repeat !== pin || state.kind === 'saving'}>
-            {t('admin.settings.register.savePin')}
+    <>
+      {legalMissing && (
+        <Alert variant="warning" title={t('admin.settings.register.legalMissingTitle')}>
+          <p>{t('admin.settings.register.legalMissingBody')}</p>
+          <Button type="button" onClick={() => navigate('/admin/dashboard/settings/store/legal')}>
+            {t('admin.legal.title')}
           </Button>
-          {isSet && (
-            <Button type="button" variant="danger" onClick={() => void save(null)} disabled={state.kind === 'saving'}>
-              {t('admin.settings.register.removePin')}
+        </Alert>
+      )}
+      <Card className="register-settings">
+        <h2>{t('admin.settings.register.staffTitle')}</h2>
+        <p className="register-settings__hint">{t('admin.settings.register.staffHint')}</p>
+        {staff === null && !error && <p className="register-settings__status">{t('admin.settings.register.loading')}</p>}
+        {staff?.length === 0 && <p className="register-settings__status">{t('admin.settings.register.noStaffYet')}</p>}
+        <ul className="register-staff">
+          {sorted.map((member) => (
+            <RegisterStaffRow key={member.id} member={member} onSave={(input) => save(input, member.id)} />
+          ))}
+        </ul>
+        <form
+          className="register-staff__form register-staff__form--add"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (name.trim() && pinValid) void add()
+          }}
+        >
+          <h3>{t('admin.settings.register.addStaff')}</h3>
+          <Input id="new-staff-name" label={t('admin.settings.register.staffName')} value={name} maxLength={40} onChange={(event) => setName(event.target.value)} />
+          <Input
+            id="new-staff-pin"
+            label={t('admin.settings.register.pinLabel')}
+            type="password"
+            inputMode="numeric"
+            autoComplete="new-password"
+            maxLength={4}
+            value={pin}
+            onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))}
+            error={pin !== '' && !pinValid ? t('admin.settings.register.pinFormat') : undefined}
+          />
+          <label className="register-staff__field">
+            <span>{t('admin.settings.register.roleLabel')}</span>
+            <select value={role} onChange={(event) => setRole(event.target.value as RegisterStaffMember['role'])}>
+              <option value="staff">{t('admin.settings.register.role.staff')}</option>
+              <option value="manager">{t('admin.settings.register.role.manager')}</option>
+            </select>
+          </label>
+          <div className="register-settings__actions">
+            <Button type="submit" disabled={busy || !name.trim() || !pinValid}>
+              {t('admin.settings.register.addStaff')}
             </Button>
-          )}
-        </div>
-      </form>
-      {state.kind === 'saved' && <p className="register-settings__ok">{t('admin.settings.register.pinSaved')}</p>}
-      {state.kind === 'removed' && <p className="register-settings__ok">{t('admin.settings.register.pinRemoved')}</p>}
-      {state.kind === 'error' && <p className="register-settings__error">{state.message}</p>}
-      <p className="register-settings__hint">{t('admin.settings.register.pinHint')}</p>
-    </Card>
+          </div>
+        </form>
+        {error && <p className="register-settings__error">{error}</p>}
+      </Card>
+      <CashRegistersCard />
+      <ZReportsCard />
+      <SaftCard />
+      <JournalHealthCard />
+    </>
   )
 }

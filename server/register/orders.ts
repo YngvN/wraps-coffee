@@ -16,6 +16,8 @@ export interface RegisterOrderDeps {
   readCatalogue: () => PricingCatalogue
   now: () => Date
   newId: () => string
+  /** Journals a new sale as a signed receipt, before the order is saved; its receipt number goes on the order. */
+  journalSale: (order: OrderRecord) => NonNullable<OrderRecord['receipt']>
 }
 
 /** A checkout as the register sends it, minus the device check the route does first. */
@@ -28,6 +30,10 @@ export interface RegisterOrderInput {
   payment: Pick<OrderPayment, 'method' | 'provider' | 'reference'>
   /** Optional name to call out when the order is ready. Cleared after 7 days like any customer name. */
   customerName?: string
+  /** The cash register (tablet) making the sale — see `server/register/registers.ts`. */
+  registerNumber: number
+  /** The signed-in staff member making the sale. */
+  staffId?: string
   /** A cart already priced and *paid* through a payment provider (see `server/payments/intents.ts`). It's used as-is: the customer paid that amount, so a price edited meanwhile must not change it. */
   lockedCart?: PricedCart
 }
@@ -64,8 +70,13 @@ export function createRegisterOrder(deps: RegisterOrderDeps, input: RegisterOrde
     createdAt: now.toISOString(),
     displayNumber: nextDisplayNumber(existing, now),
     servedAtCounter: priced.cart.servedAtCounter,
+    serving: input.serving,
+    registerNumber: input.registerNumber,
+    staffId: input.staffId,
     payment: { ...input.payment, amount: priced.cart.totalPrice, paidAt: now.toISOString() },
   }
+  // The journal first: if it can't record the sale, the sale doesn't happen.
+  order.receipt = deps.journalSale(order)
   deps.writeOrders([...existing, order])
   return { ok: true, order, created: true }
 }

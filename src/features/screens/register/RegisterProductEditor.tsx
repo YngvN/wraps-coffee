@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Spinner } from '../../../components'
 import { useLanguage } from '../../../i18n'
 import type { Catalogue } from '../../../types/category'
-import type { Product } from '../../../types/product'
+import type { Product, VatCategory } from '../../../types/product'
+import { VAT_CATEGORIES } from '../../../lib/vat'
 import { saveRegisterProduct, uploadRegisterPhoto } from '../../../lib/registerApi'
 import { getThumbnailUrl } from '../../../utils/responsiveImage'
 import { RegisterAllergenPicker } from './RegisterAllergenPicker'
@@ -13,8 +14,6 @@ interface RegisterProductEditorProps {
   subject: EditorSubject
   deviceId: string
   catalogues: Catalogue[]
-  /** Resolves the live unlock token, opening the PIN pad first if needed; `null` if staff cancel. */
-  requireUnlock: () => Promise<string | null>
   /** Routes scans to this form's barcode field while it's open (`null` to stop). */
   setScanCapture: (target: ((code: string) => void) | null) => void
   onSaved: (product: Product, subject: EditorSubject) => void
@@ -26,9 +25,10 @@ interface RegisterProductEditorProps {
  * barcode (a scan while the form is open fills it), where it lives, ready-to-serve, stock, allergens
  * and a photo taken with the tablet. A barcode draft from Open Food Facts arrives prefilled, but
  * nothing is sold until staff give it a price and save — the server never creates a product itself.
- * Saving needs the staff PIN; the PIN pad opens on top if the register is locked.
+ * Only a signed-in manager gets here (the register offers editing to managers only), and the server
+ * checks that again on save.
  */
-export function RegisterProductEditor({ subject, deviceId, catalogues, requireUnlock, setScanCapture, onSaved, onClose }: RegisterProductEditorProps) {
+export function RegisterProductEditor({ subject, deviceId, catalogues, setScanCapture, onSaved, onClose }: RegisterProductEditorProps) {
   const { t, language } = useLanguage()
   const lang = language === 'en' ? 'en' : 'no'
   const options = useMemo(() => placementOptions(catalogues, lang, t('screenDisplay.register.directlyInCatalogue')), [catalogues, lang, t])
@@ -44,12 +44,10 @@ export function RegisterProductEditor({ subject, deviceId, catalogues, requireUn
 
   const takePhoto = async (file: File | undefined) => {
     if (!file) return
-    const token = await requireUnlock()
-    if (!token) return
     setBusy('photo')
     setError(null)
     try {
-      set({ image: await uploadRegisterPhoto(deviceId, token, file), imageCredit: undefined })
+      set({ image: await uploadRegisterPhoto(deviceId, file), imageCredit: undefined })
     } catch {
       setError(t('screenDisplay.register.photoFailed'))
     } finally {
@@ -60,12 +58,10 @@ export function RegisterProductEditor({ subject, deviceId, catalogues, requireUn
   const save = async () => {
     const built = draftToInput(draft)
     if (!built.ok) return setError(t('screenDisplay.register.productError.noPrice'))
-    const token = await requireUnlock()
-    if (!token) return
     setBusy('saving')
     setError(null)
     try {
-      const result = await saveRegisterProduct(deviceId, token, built.input)
+      const result = await saveRegisterProduct(deviceId, built.input)
       if (result.ok) onSaved(result.product, subject)
       else setError(t(`screenDisplay.register.productError.${result.reason}`))
     } catch {
@@ -135,6 +131,16 @@ export function RegisterProductEditor({ subject, deviceId, catalogues, requireUn
                       </option>
                     ))}
                 </optgroup>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>{t('screenDisplay.register.vatCategory')}</span>
+            <select value={draft.vatCategory} onChange={(event) => set({ vatCategory: event.target.value as VatCategory })}>
+              {VAT_CATEGORIES.map((option) => (
+                <option key={option} value={option}>
+                  {t(`admin.products.vatCategory.${option}`)}
+                </option>
               ))}
             </select>
           </label>

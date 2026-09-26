@@ -5,7 +5,7 @@
  */
 import type { BarcodeEntry } from '../../../types/barcode'
 import type { Catalogue } from '../../../types/category'
-import type { AllergenCode, Product } from '../../../types/product'
+import type { AllergenCode, Product, VatCategory } from '../../../types/product'
 
 /** Why the editor is open. */
 export type EditorSubject = { mode: 'edit'; product: Product } | { mode: 'create' } | { mode: 'draft'; entry: BarcodeEntry } | { mode: 'quickAdd'; barcode: string }
@@ -23,6 +23,7 @@ export interface ProductDraft {
   /** `"category:<id>"` or `"catalogue:<id>"` — see `placementOptions`. */
   placement: string
   readyToServe: boolean
+  vatCategory: VatCategory
   trackStock: boolean
   stockQuantity: string
   allergens: AllergenCode[]
@@ -60,6 +61,7 @@ export function initialDraft(subject: EditorSubject, defaultPlacement: string): 
     barcode: '',
     placement: defaultPlacement,
     readyToServe: false,
+    vatCategory: 'food',
     trackStock: false,
     stockQuantity: '',
     allergens: [],
@@ -97,6 +99,7 @@ export function initialDraft(subject: EditorSubject, defaultPlacement: string): 
     barcode: product.barcode ?? '',
     placement: product.category ? `category:${product.category}` : `catalogue:${product.catalogueId ?? ''}`,
     readyToServe: product.readyToServe ?? false,
+    vatCategory: product.vatCategory ?? 'food',
     trackStock: product.trackStock ?? false,
     stockQuantity: product.stockQuantity === undefined ? '' : String(product.stockQuantity),
     allergens: product.allergens,
@@ -125,6 +128,7 @@ export function draftToInput(draft: ProductDraft): { ok: true; input: Record<str
       barcode: draft.barcode.trim() || undefined,
       image: draft.image,
       readyToServe: draft.readyToServe,
+      vatCategory: draft.vatCategory,
       trackStock: draft.trackStock,
       stockQuantity: draft.trackStock ? (amount(draft.stockQuantity) ?? 0) : undefined,
       allergens: draft.allergens,

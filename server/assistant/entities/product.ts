@@ -1,7 +1,18 @@
 import { validateProductDraft } from '../../../src/lib/assistantValidation'
 import type { Catalogue, Category } from '../../../src/types/category'
 import type { CustomFieldDefinition } from '../../../src/types/customFields'
-import { ALLERGEN_OPTIONS, DIETARY_TAG_ORDER, type AllergenCode, type CategoryPrices, type DietaryTag, type Discount, type Price, type Product } from '../../../src/types/product'
+import {
+  ALLERGEN_OPTIONS,
+  DIETARY_TAG_ORDER,
+  type AllergenCode,
+  type CategoryPrices,
+  type DietaryTag,
+  type Discount,
+  type Price,
+  type Product,
+  type VatCategory,
+} from '../../../src/types/product'
+import { VAT_CATEGORIES } from '../../../src/lib/vat'
 import { resolveBilingualField } from '../../../src/utils/bilingual'
 import { getEffectivePrice, type EffectivePrice } from '../../../src/utils/price'
 import * as store from '../../store'
@@ -131,6 +142,7 @@ interface ProductFields {
   stockQuantity: number | null
   outOfStock: boolean | null
   readyToServe: boolean | null
+  vatCategory: VatCategory | null
   barcode: string | null
   customFieldValues?: Record<string, string | number | boolean | null>
 }
@@ -144,7 +156,7 @@ export const productEntity: AssistantEntity<Product> = {
   imageField: 'image',
   destructive: (action) => action === 'delete',
   // `barcode` especially: a model asked about anything else must never invent digits for it.
-  confabulationRiskFields: ['discountMode', 'discountPercentage', 'discountAmount', 'allergens', 'dietaryTags', 'trackStock', 'stockQuantity', 'outOfStock', 'readyToServe', 'barcode'],
+  confabulationRiskFields: ['discountMode', 'discountPercentage', 'discountAmount', 'allergens', 'dietaryTags', 'trackStock', 'stockQuantity', 'outOfStock', 'readyToServe', 'vatCategory', 'barcode'],
 
   fillFieldsSchema(_action, context: AssistantFillContext, knownDraft?: Partial<Product>): AssistantJsonSchema {
     const location = locationOptions()
@@ -177,6 +189,12 @@ export const productEntity: AssistantEntity<Product> = {
         type: 'boolean',
         description: 'Handed over at the counter as-is (a soda, a packaged snack) instead of being made in the kitchen. Leave null unless the message says so.',
       }),
+      vatCategory: nullable({
+        type: 'string',
+        enum: VAT_CATEGORIES,
+        description:
+          'How the product is taxed at the register: "food" (food and non-alcoholic drink, 15 % taken away / 25 % eaten in), "standard" (always 25 %, e.g. merchandise or alcohol), "exempt" (0 %). Leave null unless the message says so.',
+      }),
       barcode: nullable({
         type: 'string',
         description: "The product's EAN/GTIN barcode digits, exactly as the admin wrote them. Leave null unless the message gives the digits; never make one up.",
@@ -200,6 +218,7 @@ export const productEntity: AssistantEntity<Product> = {
       'stockQuantity',
       'outOfStock',
       'readyToServe',
+      'vatCategory',
       'barcode',
     ]
 
@@ -340,6 +359,8 @@ export const productEntity: AssistantEntity<Product> = {
       stockQuantity: fields.stockQuantity ?? base.stockQuantity,
       outOfStock: fields.outOfStock ?? base.outOfStock,
       readyToServe: fields.readyToServe ?? base.readyToServe,
+      // `food` is the default and stored as absent, like the product form does.
+      vatCategory: (fields.vatCategory ?? base.vatCategory) === 'food' ? undefined : (fields.vatCategory ?? base.vatCategory),
       barcode: fields.barcode?.replace(/\s/g, '') || base.barcode,
       customFieldValues: mergeCustomFieldValues(base, fields, category),
     }
@@ -386,6 +407,7 @@ export const productEntity: AssistantEntity<Product> = {
       { key: 'originalPrice', label: 'Price before discount', type: 'number', description: 'The price before any discount — same as "price" when there is no discount.' },
       { key: 'stockQuantity', label: 'Stock quantity', type: 'number' },
       { key: 'readyToServe', label: 'Handed over at the counter', type: 'boolean', description: 'Sold as-is at the register (a soda, a packaged snack) rather than made in the kitchen.' },
+      { key: 'vatCategory', label: 'VAT category', type: 'string', description: 'How the product is taxed at the register: food (15 % takeaway / 25 % eat-in), standard (25 %) or exempt (0 %).' },
       { key: 'barcode', label: 'Barcode', type: 'string', description: "The product's EAN/GTIN barcode, empty when it has none." },
       { key: 'allergens', label: 'Allergens', type: 'string', description: 'Comma-separated list of allergen codes.' },
       { key: 'dietaryTags', label: 'Dietary tags', type: 'string', description: 'Comma-separated list of dietary tags (e.g. vegan, gluten-free).' },
@@ -414,6 +436,7 @@ export const productEntity: AssistantEntity<Product> = {
           originalPrice: effective ? priceToNumber(effective.original) : null,
           stockQuantity: product.stockQuantity ?? null,
           readyToServe: Boolean(product.readyToServe),
+          vatCategory: product.vatCategory ?? 'food',
           barcode: product.barcode ?? '',
           allergens: (product.allergens ?? []).join(', '),
           dietaryTags: (product.dietaryTags ?? []).join(', '),

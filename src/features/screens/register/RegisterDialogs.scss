@@ -1,14 +1,10 @@
-// The Register's dialogs — Pay, PIN pad, product editor and pickup result. Each opens in the order
+// The Register's dialogs — Pay, the PIN pad (shown on the login screen), product editor and pickup result. Each opens in the order
 // board's in-pane sheet (`.order-sheet*`, see `OrdersBoard.scss`); these rules only lay out what's
 // inside. Same palette, 56px targets and pressed states as `RegisterSlide.scss`.
 
 .register-sheet--pay,
 .register-sheet--pickup {
   width: min(30em, 100%);
-}
-
-.register-sheet--pin {
-  width: min(22em, 100%);
 }
 
 .register-sheet--editor {
@@ -461,6 +457,13 @@
   gap: 0.6em;
 }
 
+// A sale whose one allowed copy has been printed: said instead of a print button.
+.register-history__copied {
+  color: var(--ob-muted);
+  font-size: 0.85em;
+  font-weight: 600;
+}
+
 // --- Payment icons ---
 
 .register-pay__method {
@@ -493,4 +496,98 @@
   width: 3.2em;
   height: 3.2em;
   color: var(--ob-success);
+}
+
+// --- Return sheet (`RegisterReturnSheet`) ---
+
+.register-return {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7em;
+}
+
+.register-return__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.register-return__line {
+  display: grid;
+  grid-template-columns: 1fr auto 5em;
+  align-items: center;
+  gap: 0.6em;
+
+  // The cart's own rules place these classes in named grid areas; here they just flow in order. Two
+  // classes deep, so this wins over those rules whichever stylesheet loads last.
+  .register-return & > * {
+    grid-area: auto;
+  }
+
+  small {
+    display: block;
+    color: var(--ob-muted);
+    font-weight: 400;
+  }
+
+  .register__line-price {
+    text-align: right;
+  }
+}
+
+.register-return__label {
+  font-size: 0.85em;
+  font-weight: 700;
+  color: var(--ob-muted);
+}
+
+.register-return__note {
+  min-height: 48px;
+  padding: 0 0.8em;
+  border: 1px solid var(--ob-line);
+  border-radius: 10px;
+  background: var(--ob-bg);
+  color: var(--ob-text);
+  font: inherit;
+}
+
+// --- Amount keypad (`RegisterAmountPad`): the float and the cash count ---
+
+.register-amount {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+}
+
+.register-amount__value {
+  margin: 0;
+  font-size: 2em;
+  font-weight: 800;
+  text-align: center;
+}
+
+// --- Report result (`RegisterReportSheet`) ---
+
+.register-report {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.35em 1em;
+  margin: 0;
+
+  dt {
+    color: var(--ob-muted);
+  }
+
+  dd {
+    margin: 0;
+    font-weight: 700;
+    text-align: right;
+  }
+}
+
+.register-report__off {
+  color: var(--ob-danger);
 }

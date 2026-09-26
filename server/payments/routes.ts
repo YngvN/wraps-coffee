@@ -2,11 +2,12 @@
  * HTTP routes for taking a register payment through a provider, and for the providers' credentials.
  *
  * Register side (same tablet trust as `server/register/routes.ts`):
- * - `POST /register/payments`                    — price the cart and start a provider payment;
+ * - `POST /register/payments`                    — price the cart and start a provider payment (a signed-in staff member, `sessionToken`);
  * - `GET  /register/payments/:id?deviceId=`      — poll it (asks the provider while pending);
  * - `POST /register/payments/:id/device-result`  — the tablet reports a payment it took on the device (Zettle SDK);
  * - `POST /register/payments/:id/cancel`         — abandon it.
- * Once paid, the order is created with the cart priced at the start, exactly once.
+ * Once paid, the order is created with the cart priced at the start, exactly once, and journaled as a
+ * signed sale by whoever started the payment.
  *
  * Admin side (admin/subadmin only, like `/wolt/credentials`):
  * - `GET`/`POST /vipps/credentials`, `GET`/`POST /zettle/credentials`.
@@ -18,17 +19,24 @@ import { parseCheckout } from '../register/checkoutInput'
 import { createRegisterOrder, type RegisterOrderDeps } from '../register/orders'
 import { priceCart } from '../../src/lib/registerPricing'
 import { withJsonBody } from '../register/routeHelpers'
+import { requireSession, type RegisterAccess } from '../register/access'
 import { EMPTY_CREDENTIALS, getVippsCredentials, getZettleCredentials, parseCredentials, setVippsCredentials, setZettleCredentials } from './credentials'
 import type { PaymentIntent, PaymentIntents } from './intents'
 import { offeredProviders, type PaymentProvider } from './types'
 
 /** What the routes need from the server around them. */
-export interface PaymentRouteDeps {
-  deviceMayUseRegister: (deviceId: string) => boolean
+export interface PaymentRouteDeps extends RegisterAccess {
   providers: PaymentProvider[]
   intents: PaymentIntents
   orders: RegisterOrderDeps
   storeName: () => string
+  /** Whether the company details receipts need are complete; nothing is sold until they are. */
+  legalReady: () => boolean
+  /** Whether `register` is in training mode: no provider payments then, only practice sales. */
+  isTraining: (register: number) => boolean
+  /** Whether the drawer on the tablet's printer reports being open (no sale then). */
+  drawerIsOpen: (printerId: unknown) => Promise<boolean>
+
   /** Whether the bearer token belongs to an admin/subadmin session. */
   isFullAdmin: (token: string) => boolean
 }
@@ -45,6 +53,7 @@ function orderForPaidIntent(deps: PaymentRouteDeps, intent: PaymentIntent): Orde
     ...intent.checkout,
     payment: { method: provider?.method ?? 'card', provider: intent.providerId, reference: intent.id },
     lockedCart: intent.cart,
+    registerNumber: deps.cashRegister(intent.deviceId).number,
   })
   if (!result.ok) {
     console.error(`[payments] paid intent ${intent.id} could not become an order:`, result.reason)
@@ -89,7 +98,13 @@ export function handlePaymentRoute(req: IncomingMessage, res: ServerResponse, ur
   if (req.method === 'POST' && path === '/register/payments') {
     withJsonBody(req, res, async (body) => {
       if (!checkDevice(body.deviceId)) return
-      const checkout = parseCheckout(body)
+      const session = requireSession(res, deps, body.deviceId, body.sessionToken)
+      if (!session) return
+      if (!deps.legalReady()) return sendJson(res, 409, { ok: false, reason: 'legalDetailsMissing' })
+      if (deps.isTraining(session.register)) return sendJson(res, 409, { ok: false, reason: 'training' })
+      if (await deps.drawerIsOpen(body.printerId)) return sendJson(res, 409, { ok: false, reason: 'drawerOpen' })
+      const parsed = parseCheckout(body)
+      const checkout = parsed && { ...parsed, staffId: session.staffId }
       const provider = offeredProviders(deps.providers).find((candidate) => candidate.id === body.provider)
       if (!checkout || !provider) return sendJson(res, 400, { error: 'Expected a cart and a configured payment provider' })
       const priced = priceCart(checkout.lines, deps.orders.readCatalogue(), checkout.serving)

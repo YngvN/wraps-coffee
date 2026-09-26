@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { ReceiptRefusal } from '../../../lib/registerReceiptApi'
 import type { BarcodeEntry } from '../../../types/barcode'
 import type { Product } from '../../../types/product'
 import { lookupBarcode, scanPickup, type PickupResult } from '../../../lib/registerApi'
@@ -11,9 +12,14 @@ export type ScanNotice =
   | { kind: 'added' | 'soldOutAdded'; name: string }
   | { kind: 'draft'; name: string }
   | { kind: 'unknownBarcode' | 'lookupUnavailable'; code: string }
+  /** A barcode that isn't a product yet, scanned by someone who isn't a manager (only managers add products). */
+  | { kind: 'managerNeeded'; code: string }
   | { kind: 'unreadable' | 'pickupDisabled' | 'offline' }
   /** Not scans, but shown the same way: the cash drawer opened, or why it didn't. */
   | { kind: 'drawerOpened' | 'drawerFailed' | 'drawerNoPrinter' }
+  /** A legal receipt printed (see `useRegisterReceipts`), or why it didn't. */
+  | { kind: 'receiptPrinted' | 'copyPrinted' | 'proFormaPrinted' | 'returnMade' | 'trainingPrinted' }
+  | { kind: 'receiptRefused'; reason: ReceiptRefusal }
 
 /** What the product editor should open for, after a scan it can't finish alone. */
 export type EditorRequest = { mode: 'draft'; entry: BarcodeEntry } | { mode: 'quickAdd'; barcode: string }

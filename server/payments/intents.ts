@@ -22,7 +22,7 @@ export interface PaymentIntent {
   deviceId: string
   providerId: PaymentProvider['id']
   /** The checkout as the tablet sent it, re-used unchanged to create the order once paid. */
-  checkout: Omit<RegisterOrderInput, 'payment' | 'lockedCart'>
+  checkout: Omit<RegisterOrderInput, 'payment' | 'lockedCart' | 'registerNumber'>
   cart: PricedCart
   start: PaymentStart
   state: PaymentState
@@ -52,6 +52,12 @@ export class PaymentIntents {
     const intent: PaymentIntent = { id, deviceId, providerId: provider.id, checkout, cart, start, state: 'pending', createdAt: this.now() }
     this.intents.set(id, intent)
     return intent
+  }
+
+  /** Whether `deviceId` has a payment still in progress — a Z report waits until it's settled. */
+  hasPending(deviceId: string): boolean {
+    this.sweep()
+    return [...this.intents.values()].some((intent) => intent.deviceId === deviceId && !isFinal(intent.state))
   }
 
   /** The intent `id`, but only for the tablet that started it. */

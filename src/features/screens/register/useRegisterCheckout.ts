@@ -3,6 +3,7 @@ import { chargeWithZettle } from '../../../lib/companionBridge'
 import {
   cancelPayment,
   checkoutByHand,
+  type TrainingPrint,
   pollPayment,
   reportDevicePayment,
   startPayment,
@@ -35,7 +36,8 @@ export type CheckoutPhase =
 interface Options {
   deviceId: string | null
   /** Called once per completed sale — clears the cart and prints the receipt if the pane says so. */
-  onSold: (order: OrderRecord) => void
+  /** A sale went through. `training` is set for a practice sale (training mode): saved nowhere, its receipt handled. */
+  onSold: (order: OrderRecord, training?: TrainingPrint) => void
 }
 
 /** Runs the register's Pay dialog for one checkout at a time. */
@@ -46,9 +48,9 @@ export function useRegisterCheckout({ deviceId, onSold }: Options) {
     soldRef.current = onSold
   })
 
-  const finish = (order: OrderRecord) => {
+  const finish = (order: OrderRecord, training?: TrainingPrint) => {
     setState({ phase: 'done', order })
-    soldRef.current(order)
+    soldRef.current(order, training)
   }
 
   /** Records the sale as paid by hand — the only way to take money until a provider is configured. */
@@ -57,7 +59,7 @@ export function useRegisterCheckout({ deviceId, onSold }: Options) {
     setState({ phase: 'working' })
     try {
       const result = await checkoutByHand(deviceId, checkout, method)
-      if (result.ok) finish(result.order)
+      if (result.ok) finish(result.order, result.training)
       else setState({ phase: 'refused', refusal: result })
     } catch (error) {
       setState({ phase: 'failed', message: error instanceof Error ? error.message : String(error) })

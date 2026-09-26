@@ -4,7 +4,8 @@
  *
  * The rules, enforced here rather than trusted from the tablet:
  * - after a cash sale: once per sale, only for a register order paid in cash in the last few minutes;
- * - by hand ("Åpne skuff"): only with a live unlock token from the staff PIN.
+ * - after a cash refund: once per return, only for a return of a cash sale made in the last few minutes;
+ * - by hand ("Åpne skuff"): only by a signed-in staff member (see `access.ts`).
  * Every opening is appended to a server-only log (`cash-drawer-log.json`, mirrored to the backup) with
  * the tablet, time, reason and sale — the start of the audit trail a till needs.
  */
@@ -13,15 +14,17 @@ import type { ConfiguredPrinter, PrinterSettings } from '../../src/types/printer
 import { readDataFile, writeDataFile } from '../dataFile'
 
 /** Why the drawer was opened. */
-export type DrawerReason = 'sale' | 'manual'
+export type DrawerReason = 'sale' | 'return' | 'manual'
 
 /** One logged opening. */
 export interface DrawerOpening {
   at: string
   deviceId: string
   reason: DrawerReason
-  /** The cash sale that opened it, for `reason: 'sale'`. */
+  /** The cash sale that opened it, for `reason: 'sale'` (or whose return did, for `'return'`). */
   orderId?: string
+  /** The return receipt's number, for `reason: 'return'`. */
+  returnNumber?: number
   /** The printer whose drawer port was pulsed, or `usb` for a printer on the tablet itself. */
   printer: string
 }
@@ -52,6 +55,24 @@ export function saleDrawerRefusal(order: OrderRecord | undefined, log: DrawerOpe
   if (order.payment?.method !== 'cash') return 'notCash'
   if (now - new Date(order.createdAt).getTime() > SALE_DRAWER_WINDOW_MS) return 'tooLate'
   if (log.some((entry) => entry.reason === 'sale' && entry.orderId === order.id)) return 'alreadyOpened'
+  return null
+}
+
+/**
+ * Why return `returnNumber` of `order` (its latest when not given) can't open the drawer, or `null` when
+ * it may: a cash refund, just made, not yet opened for.
+ */
+export function returnDrawerRefusal(
+  order: OrderRecord | undefined,
+  log: DrawerOpening[],
+  now: number,
+  returnNumber?: number,
+): 'unknownOrder' | 'notCash' | 'tooLate' | 'alreadyOpened' | null {
+  const latest = returnNumber === undefined ? order?.returns?.[order.returns.length - 1] : order?.returns?.find((done) => done.number === returnNumber)
+  if (!order || !latest) return 'unknownOrder'
+  if (latest.method !== 'cash') return 'notCash'
+  if (now - new Date(latest.at).getTime() > SALE_DRAWER_WINDOW_MS) return 'tooLate'
+  if (log.some((entry) => entry.reason === 'return' && entry.orderId === order.id && entry.returnNumber === latest.number)) return 'alreadyOpened'
   return null
 }
 

@@ -4,17 +4,17 @@
  *
  * Trust: the kiosk page is never logged in, so every route first checks the tablet — an approved
  * machine whose current screen has a Register pane (`deviceMayUseRegister`), the same LAN-trust
- * posture as `POST /display-orders/status`. Routes that change products also need an unlock token
- * from the staff PIN (`server/register/unlock.ts`), sent as `unlockToken` in the body (or the
- * `unlock` query parameter for the photo upload, whose body is the image).
+ * posture as `POST /display-orders/status`. Anything that changes something also needs the signed-in
+ * staff member's session token (`sessionToken` in the body, or the `session` query parameter for the
+ * photo upload, whose body is the image) — see `access.ts` and `signInRoutes.ts`. Changing products
+ * needs a manager.
  *
- * - `GET  /register/config?deviceId=`        — whether a PIN is set, and which payment providers are live;
- * - `POST /register/checkout`                — a sale paid by hand (card/cash/Vipps) → the order;
+ * - `GET  /register/config?deviceId=`        — how many staff can sign in, which payment providers are live, and this tablet's cash register number and name;
+ * - `POST /register/checkout`                — a sale paid by hand (card/cash/Vipps) → the order, journaled as a signed sale;
  * - `POST /register/pickup`                  — a scanned pickup QR or typed code completes a website order;
  * - `GET  /register/barcodes/:code?deviceId=` — barcode lookup (products → catalogue → Open Food Facts);
- * - `POST /register/unlock`, `/register/lock` — the staff PIN lock;
- * - `POST /register/products`                — add or edit one product (unlocked);
- * - `POST /register/uploads?deviceId=&unlock=` — a product photo from the tablet (unlocked).
+ * - `POST /register/products`                — add or edit one product (manager);
+ * - `POST /register/uploads?deviceId=&session=` — a product photo from the tablet (manager).
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { BarcodeLookupResult } from '../../src/types/barcode'
@@ -28,11 +28,13 @@ import { decidePickup, findPickupOrder } from './pickup'
 import { parseCheckout } from './checkoutInput'
 import { upsertRegisterProduct, type RegisterProductInput } from './products'
 import { stringField, withJsonBody } from './routeHelpers'
-import type { UnlockManager, PinRecord } from './unlock'
+import { checkDevice, requireSession, type RegisterAccess } from './access'
+import type { StaffMember } from './staff'
+import type { StaffSession } from './sessions'
+import { priceCart } from '../../src/lib/registerPricing'
 
 /** What the routes need from the server around them. */
-export interface RegisterRouteDeps {
-  deviceMayUseRegister: (deviceId: string) => boolean
+export interface RegisterRouteDeps extends RegisterAccess {
   /** Whether the tablet's Register pane has pickup scanning on (`allowPickupScan`, default on). */
   deviceMayScanPickups: (deviceId: string) => boolean
   orders: RegisterOrderDeps
@@ -41,9 +43,19 @@ export interface RegisterRouteDeps {
   completeWebsiteOrder: (orderId: string) => Promise<boolean>
   readProducts: () => Product[]
   readCatalogues: () => Catalogue[]
-  writeProducts: (products: Product[]) => void
-  unlock: UnlockManager
-  readPin: () => PinRecord | null
+  /** Saves the product list; `actor` (the staff id) is journaled with any price change. */
+  writeProducts: (products: Product[], actor: string) => void
+  readStaff: () => StaffMember[]
+  /** Whether the company details receipts need are complete; nothing is sold until they are. */
+  legalReady: () => boolean
+  /** Whether the drawer on the tablet's printer (`printerId`, see `drawerPrinter`) reports being open. */
+  drawerIsOpen: (printerId: unknown) => Promise<boolean>
+  /** Whether `register` is in training mode (then a sale is a practice sale, see `training.ts`). */
+  isTraining: (register: number) => boolean
+  /** Journals and prints a practice sale of `order` (priced, never saved) and answers the request. */
+  trainingCheckout: (res: ServerResponse, session: StaffSession, order: OrderRecord, printerId: unknown) => Promise<void>
+  /** Whether `register` still needs its opening float counted this period. */
+  floatNeeded: (register: number) => boolean
   lookupBarcode: (code: string, host: string) => Promise<BarcodeLookupResult>
   /** Links a barcode's catalogue entry to the product it was confirmed as (creating a staff entry when there was none). */
   linkBarcode: (product: Product) => void
@@ -56,39 +68,66 @@ export interface RegisterRouteDeps {
 
 const MANUAL_METHODS: readonly PaymentMethod[] = ['card', 'cash', 'vipps']
 
-/** 403s and returns `false` unless `deviceId` is an approved tablet showing a Register. */
-function checkDevice(res: ServerResponse, deps: RegisterRouteDeps, deviceId: unknown): deviceId is string {
-  if (typeof deviceId === 'string' && deps.deviceMayUseRegister(deviceId)) return true
-  sendJson(res, 403, { error: 'This display is not allowed to use the register' })
-  return false
-}
-
-/** 401s and returns `false` unless `token` is this tablet's live unlock token. */
-function checkUnlocked(res: ServerResponse, deps: RegisterRouteDeps, deviceId: string, token: unknown): boolean {
-  if (deps.unlock.check(deviceId, token)) return true
-  sendJson(res, 401, { error: 'The register is locked', reason: 'locked' })
-  return false
-}
-
 /** Handles the request if it's one of this module's routes; returns `false` to let `server/index.ts` carry on otherwise. */
 export function handleRegisterRoute(req: IncomingMessage, res: ServerResponse, url: URL, host: string, deps: RegisterRouteDeps): boolean {
   const path = url.pathname
   if (!path.startsWith('/register/')) return false
 
   if (req.method === 'GET' && path === '/register/config') {
-    if (checkDevice(res, deps, url.searchParams.get('deviceId'))) sendJson(res, 200, { pinSet: deps.readPin() !== null, providers: deps.offeredProviders() })
+    const deviceId = url.searchParams.get('deviceId')
+    if (checkDevice(res, deps, deviceId)) {
+      const { number, name } = deps.cashRegister(deviceId)
+      const staffCount = deps.readStaff().filter((member) => member.active && member.pin).length
+      sendJson(res, 200, {
+        staffCount,
+        legalReady: deps.legalReady(),
+        floatNeeded: deps.floatNeeded(number),
+        training: deps.isTraining(number),
+        providers: deps.offeredProviders(),
+        register: { number, name },
+      })
+    }
     return true
   }
 
   if (req.method === 'POST' && path === '/register/checkout') {
-    withJsonBody(req, res, (body) => {
+    withJsonBody(req, res, async (body) => {
       if (!checkDevice(res, deps, body.deviceId)) return
+      const session = requireSession(res, deps, body.deviceId, body.sessionToken)
+      if (!session) return
+      if (!deps.legalReady()) return sendJson(res, 409, { ok: false, reason: 'legalDetailsMissing' })
+      // kassasystemforskrifta § 2-6: no sale while an integrated drawer is open.
+      if (await deps.drawerIsOpen(body.printerId)) return sendJson(res, 409, { ok: false, reason: 'drawerOpen' })
       const checkout = parseCheckout(body)
       const method = body.method as PaymentMethod
       if (!checkout || !MANUAL_METHODS.includes(method)) return sendJson(res, 400, { error: 'Expected a cart, a total and a payment method' })
-      const result = createRegisterOrder(deps.orders, { ...checkout, payment: { method } })
+      if (deps.isTraining(session.register)) {
+        const priced = priceCart(checkout.lines, deps.orders.readCatalogue(), checkout.serving)
+        if (!priced.ok) return sendJson(res, 400, priced)
+        if (priced.cart.totalPrice !== checkout.expectedTotal) return sendJson(res, 409, { ok: false, reason: 'priceChanged', totalPrice: priced.cart.totalPrice })
+        const now = new Date().toISOString()
+        const practice = {
+          id: '',
+          source: 'register',
+          items: priced.cart.items,
+          totalPrice: priced.cart.totalPrice,
+          customerName: '',
+          customerPhone: '',
+          pickupTime: '',
+          status: 'completed',
+          createdAt: now,
+          serving: checkout.serving,
+          registerNumber: session.register,
+          staffId: session.staffId,
+          payment: { method, amount: priced.cart.totalPrice, paidAt: now },
+        } satisfies OrderRecord
+        return deps.trainingCheckout(res, session, practice, body.printerId)
+      }
+      const result = createRegisterOrder(deps.orders, { ...checkout, payment: { method }, registerNumber: session.register, staffId: session.staffId })
       if (result.ok) {
-        if (result.created) console.log(`[register] ${body.deviceId} sold ${result.order.displayNumber} (${result.order.totalPrice} kr, ${method})`)
+        if (result.created) {
+          console.log(`[register] ${body.deviceId} sold ${result.order.displayNumber} (${result.order.totalPrice} kr, ${method}) by ${session.name}`)
+        }
         return sendJson(res, result.created ? 201 : 200, { order: result.order })
       }
       sendJson(res, result.reason === 'priceChanged' ? 409 : 400, result)
@@ -98,7 +137,7 @@ export function handleRegisterRoute(req: IncomingMessage, res: ServerResponse, u
 
   if (req.method === 'POST' && path === '/register/pickup') {
     withJsonBody(req, res, async (body) => {
-      if (!checkDevice(res, deps, body.deviceId)) return
+      if (!checkDevice(res, deps, body.deviceId) || !requireSession(res, deps, body.deviceId, body.sessionToken)) return
       if (!deps.deviceMayScanPickups(body.deviceId)) return sendJson(res, 403, { result: 'disabled' })
       const request = typeof body.payload === 'string' ? parsePickupRequest(body.payload) : null
       if (!request) return sendJson(res, 400, { result: 'invalid' })
@@ -125,34 +164,16 @@ export function handleRegisterRoute(req: IncomingMessage, res: ServerResponse, u
     return true
   }
 
-  if (req.method === 'POST' && path === '/register/unlock') {
-    withJsonBody(req, res, (body) => {
-      if (!checkDevice(res, deps, body.deviceId)) return
-      const result = deps.unlock.attempt(body.deviceId, typeof body.pin === 'string' ? body.pin : '', deps.readPin())
-      if (result.ok) return sendJson(res, 200, { token: result.token, expiresAt: result.expiresAt })
-      const status = result.reason === 'noPin' ? 409 : result.reason === 'lockedOut' ? 429 : 401
-      sendJson(res, status, { reason: result.reason, retryAfterMs: result.retryAfterMs })
-    })
-    return true
-  }
-
-  if (req.method === 'POST' && path === '/register/lock') {
-    withJsonBody(req, res, (body) => {
-      if (!checkDevice(res, deps, body.deviceId)) return
-      deps.unlock.lock(body.deviceId)
-      sendJson(res, 200, { ok: true })
-    })
-    return true
-  }
-
   if (req.method === 'POST' && path === '/register/products') {
     withJsonBody(req, res, (body) => {
-      if (!checkDevice(res, deps, body.deviceId) || !checkUnlocked(res, deps, body.deviceId, body.unlockToken)) return
+      if (!checkDevice(res, deps, body.deviceId)) return
+      const session = requireSession(res, deps, body.deviceId, body.sessionToken, 'manager')
+      if (!session) return
       const input = body.product as RegisterProductInput | undefined
       if (!input || typeof input !== 'object') return sendJson(res, 400, { error: 'Expected a product' })
       const result = upsertRegisterProduct(deps.readProducts(), deps.readCatalogues(), input, deps.newId)
       if (!result.ok) return sendJson(res, 400, { reason: result.reason })
-      deps.writeProducts(result.products)
+      deps.writeProducts(result.products, session.staffId)
       if (result.product.barcode) deps.linkBarcode(result.product)
       console.log(`[register] ${body.deviceId} ${input.itemID ? 'edited' : 'added'} product ${result.product.itemID}`)
       sendJson(res, input.itemID ? 200 : 201, { product: result.product })
@@ -162,7 +183,7 @@ export function handleRegisterRoute(req: IncomingMessage, res: ServerResponse, u
 
   if (req.method === 'POST' && path === '/register/uploads') {
     const deviceId = url.searchParams.get('deviceId')
-    if (checkDevice(res, deps, deviceId) && checkUnlocked(res, deps, deviceId, stringField(url.searchParams.get('unlock'))))
+    if (checkDevice(res, deps, deviceId) && requireSession(res, deps, deviceId, stringField(url.searchParams.get('session')), 'manager'))
       deps.handleUpload(req, res, host).catch((error: unknown) => {
         console.error('[register] photo upload failed:', error)
         if (!res.headersSent) sendJson(res, 500, { error: 'The photo could not be saved' })

@@ -2,7 +2,7 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
 import { MAX_LINE_QUANTITY } from '../../../lib/registerPricing'
-import { cartReducer, emptyCart } from './cartReducer'
+import { cartJournalEvent, cartReducer, emptyCart } from './cartReducer'
 
 test('adding the same product bumps its line', () => {
   let cart = emptyCart('sale-1')
@@ -41,4 +41,20 @@ test('reset starts a new sale but keeps the serving choice', () => {
   cart = cartReducer(cart, { type: 'setCustomerName', name: 'Kari' })
   cart = cartReducer(cart, { type: 'reset', clientOrderId: 'sale-2' })
   assert.deepEqual(cart, { lines: [], serving: 'eatIn', clientOrderId: 'sale-2', customerName: '' })
+})
+
+test('cart changes the journal must record: removed or lowered lines, and clearing a full cart', () => {
+  const cart = { ...emptyCart('c1'), lines: [{ productId: 'wrap', quantity: 3 }] }
+  assert.deepEqual(cartJournalEvent(cart, { type: 'setQuantity', productId: 'wrap', quantity: 1 }), {
+    kind: 'lineCorrection',
+    correction: 'decreased',
+    lines: [{ productId: 'wrap', quantity: 2 }],
+    serving: 'takeaway',
+  })
+  assert.deepEqual(cartJournalEvent(cart, { type: 'remove', productId: 'wrap' })?.lines, [{ productId: 'wrap', quantity: 3 }])
+  assert.equal(cartJournalEvent(cart, { type: 'setQuantity', productId: 'wrap', quantity: 0 })?.kind === 'lineCorrection', true)
+  assert.equal(cartJournalEvent(cart, { type: 'setQuantity', productId: 'wrap', quantity: 4 }), null)
+  assert.equal(cartJournalEvent(cart, { type: 'add', productId: 'wrap' }), null)
+  assert.deepEqual(cartJournalEvent(cart, { type: 'clear' })?.kind, 'void')
+  assert.equal(cartJournalEvent(emptyCart('c2'), { type: 'clear' }), null)
 })

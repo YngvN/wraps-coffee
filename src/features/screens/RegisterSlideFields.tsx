@@ -43,16 +43,6 @@ export function RegisterSlideFields({ id, content, onChange }: RegisterSlideFiel
         ))}
       </CollapsibleSection>
       <Checkbox
-        id={`${id}-register-print`}
-        label={
-          <>
-            {t('admin.screens.registerAutoPrintLabel')} <HelpTip text={t('admin.screens.registerAutoPrintHint')} />
-          </>
-        }
-        checked={Boolean(content.autoPrintReceipt)}
-        onChange={(event) => onChange({ ...content, autoPrintReceipt: event.target.checked || undefined })}
-      />
-      <Checkbox
         id={`${id}-register-pickup`}
         label={
           <>

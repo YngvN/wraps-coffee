@@ -103,6 +103,16 @@ export function QrIcon(props: IconProps) {
   )
 }
 
+/** A report sheet with lines and a total bar — X/Z reports. */
+export function ReportIcon(props: IconProps) {
+  return (
+    <Line {...props}>
+      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" />
+      <path d="M9 8h6M9 12h6M9 16h3" />
+    </Line>
+  )
+}
+
 /** A barcode — the Scan button that turns camera scanning on and off. */
 export function BarcodeIcon(props: IconProps) {
   return (

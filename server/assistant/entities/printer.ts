@@ -21,6 +21,7 @@ interface PrinterFields {
   systemName: string | null
   paperWidthMm: 58 | 80 | null
   cashDrawer: boolean | null
+  drawerSensor: 'off' | 'openWhenHigh' | 'openWhenLow' | null
   isDefault: boolean | null
 }
 
@@ -53,9 +54,14 @@ export const printerEntity: AssistantEntity<PrinterDraft> = {
         systemName: nullable({ type: 'string', description: 'system only — the print queue\'s exact name as the message states it. Never guess one.' }),
         paperWidthMm: nullable({ type: 'number', enum: [58, 80], description: 'Receipt paper width in millimetres.' }),
         cashDrawer: nullable({ type: 'boolean', description: "Whether a cash drawer is plugged into this printer's drawer port, so the register may open it. Leave null unless the message says so." }),
+        drawerSensor: nullable({
+          type: 'string',
+          enum: ['off', 'openWhenHigh', 'openWhenLow'],
+          description: 'Network printers with a drawer only: whether the drawer reports being open, and which sensor level means open. Leave null unless the message says so.',
+        }),
         isDefault: nullable({ type: 'boolean', description: 'Whether order boards print to this printer unless a tablet picked another.' }),
       },
-      required: ['name', 'transport', 'host', 'port', 'systemName', 'paperWidthMm', 'cashDrawer', 'isDefault'],
+      required: ['name', 'transport', 'host', 'port', 'systemName', 'paperWidthMm', 'cashDrawer', 'drawerSensor', 'isDefault'],
       additionalProperties: false,
     }
   },
@@ -92,6 +98,7 @@ export const printerEntity: AssistantEntity<PrinterDraft> = {
       systemName: transport === 'system' ? (fields.systemName ?? base.systemName) : undefined,
       paperWidthMm: fields.paperWidthMm ?? base.paperWidthMm,
       cashDrawer: fields.cashDrawer ?? base.cashDrawer,
+      drawerSensor: (fields.drawerSensor ?? base.drawerSensor) === 'off' ? undefined : (fields.drawerSensor ?? base.drawerSensor),
       isDefault: fields.isDefault ?? base.isDefault,
     }
   },

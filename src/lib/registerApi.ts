@@ -1,15 +1,17 @@
 /**
  * The Register page's client for the local server's register, payment and barcode routes (see
  * `server/register/routes.ts` and `server/payments/routes.ts`). Every call names the tablet by its
- * machine id (`?deviceId=` on the kiosk URL); the server decides what that tablet may do. Failures the
- * register must react to (a changed price, a locked register, an order that isn't ready) come back as
- * values; only a network failure or an unexpected server error rejects.
+ * machine id (`?deviceId=` on the kiosk URL); the server decides what that tablet may do, and who is
+ * signed in (the session token is added by `registerHttp.ts`; signing in is `registerSessionApi.ts`).
+ * Failures the register must react to (a changed price, nobody signed in, an order that isn't ready)
+ * come back as values; only a network failure or an unexpected server error rejects.
  */
 import type { BarcodeLookupResult } from '../types/barcode'
 import type { OrderRecord, PaymentMethod, PaymentProviderId } from '../types/order'
 import type { Product } from '../types/product'
 import type { CartLineInput, Serving } from './registerPricing'
 import { serverBaseUrl } from './localServer'
+import { call, notifyRegisterSignedOut, query, registerSessionToken, unexpected } from './registerHttp'
 
 /** A cart ready to sell. `clientOrderId` is the register's own id for this sale, so a retried Pay never sells twice. */
 export interface RegisterCheckout {
@@ -19,10 +21,15 @@ export interface RegisterCheckout {
   /** The total shown to staff; the server refuses the sale if its own total differs. */
   expectedTotal: number
   customerName?: string
+  /** The tablet's printer, whose cash drawer must not be open when the sale is recorded. */
+  printerId?: string
 }
 
 /** A refused sale. `priceChanged` carries the server's total; the others name the offending product. */
-export type CheckoutRefusal = { reason: 'priceChanged'; totalPrice: number } | { reason: 'empty' | 'badQuantity' | 'unknownProduct' | 'noPrice' | 'soldOut'; productId?: string }
+export type CheckoutRefusal =
+  | { reason: 'priceChanged'; totalPrice: number }
+  | { reason: 'empty' | 'badQuantity' | 'unknownProduct' | 'noPrice' | 'soldOut'; productId?: string }
+  | { reason: 'legalDetailsMissing' | 'drawerOpen' | 'training'; productId?: undefined }
 
 /** How a pickup scan went. */
 export type PickupResult = { result: 'completed' | 'alreadyCompleted' | 'notReady' | 'cancelled'; order: OrderRecord } | { result: 'notFound' | 'invalid' | 'disabled' }
@@ -38,38 +45,46 @@ export interface RegisterPaymentIntent {
   order?: OrderRecord
 }
 
-/** Sends a JSON request and returns the status and parsed body; rejects only on a network failure. */
-async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<{ status: number; body: T }> {
-  const response = await fetch(`${serverBaseUrl()}${path}`, {
-    method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-  const parsed = (await response.json().catch(() => ({}))) as T
-  return { status: response.status, body: parsed }
+
+/** What `GET /register/config` tells a register tablet. */
+export interface RegisterConfig {
+  /** How many staff members can sign in (active, with a PIN). */
+  staffCount: number
+  /** Whether Settings → Store → Company details is complete; nothing can be sold or printed until it is. */
+  legalReady: boolean
+  /** Whether this register still needs its opening float counted this period (after the last Z report). */
+  floatNeeded: boolean
+  /** Whether this register is in training mode: sales are practice sales, printed as training receipts. */
+  training: boolean
+  providers: { id: PaymentProviderId; method: PaymentMethod }[]
+  /** This tablet's cash register: its fixed number (printed on receipts) and its name. */
+  register: { number: number; name: string }
 }
 
-/** Throws the server's own message for a status the caller didn't expect. */
-function unexpected(status: number, body: unknown): never {
-  throw new Error((body as { error?: string })?.error ?? `The server answered ${status}`)
-}
-
-const query = (deviceId: string) => `deviceId=${encodeURIComponent(deviceId)}`
-
-/** Whether a staff PIN is set, and which payment providers are live. */
-export async function fetchRegisterConfig(deviceId: string): Promise<{ pinSet: boolean; providers: { id: PaymentProviderId; method: PaymentMethod }[] }> {
-  const { status, body } = await call<{ pinSet: boolean; providers: { id: PaymentProviderId; method: PaymentMethod }[] }>('GET', `/register/config?${query(deviceId)}`)
+/** How many staff can sign in, which payment providers are live, and which cash register this tablet is. */
+export async function fetchRegisterConfig(deviceId: string): Promise<RegisterConfig> {
+  const { status, body } = await call<RegisterConfig>('GET', `/register/config?${query(deviceId)}`)
   return status === 200 ? body : unexpected(status, body)
 }
 
-/** Sells `checkout`, recorded as paid by hand with `method`. */
+/** A practice sale in training mode: saved nowhere, its training receipt already printed (`via: 'server'`) or handed back for this tablet's USB printer (`data`). */
+export interface TrainingPrint {
+  via?: 'server' | 'device'
+  data?: string
+}
+
+/** Sells `checkout`, recorded as paid by hand with `method` (a practice sale while the register is in training mode). */
 export async function checkoutByHand(
   deviceId: string,
   checkout: RegisterCheckout,
   method: PaymentMethod,
-): Promise<{ ok: true; order: OrderRecord } | ({ ok: false } & CheckoutRefusal)> {
-  const { status, body } = await call<{ order?: OrderRecord } & Partial<CheckoutRefusal>>('POST', '/register/checkout', { deviceId, ...checkout, method })
-  if ((status === 200 || status === 201) && body.order) return { ok: true, order: body.order }
+): Promise<{ ok: true; order: OrderRecord; training?: TrainingPrint } | ({ ok: false } & CheckoutRefusal)> {
+  const { status, body } = await call<{ order?: OrderRecord; training?: boolean; via?: 'server' | 'device'; data?: string } & Partial<CheckoutRefusal>>('POST', '/register/checkout', {
+    deviceId,
+    ...checkout,
+    method,
+  })
+  if ((status === 200 || status === 201) && body.order) return { ok: true, order: body.order, training: body.training ? { via: body.via, data: body.data } : undefined }
   if (status === 409 || (status === 400 && body.reason)) return { ok: false, ...(body as CheckoutRefusal) }
   return unexpected(status, body)
 }
@@ -87,40 +102,20 @@ export async function lookupBarcode(deviceId: string, code: string): Promise<Bar
   return status === 200 || status === 400 ? body : unexpected(status, body)
 }
 
-/** Tries the staff PIN. */
-export async function unlockRegister(
-  deviceId: string,
-  pin: string,
-): Promise<{ ok: true; token: string; expiresAt: number } | { ok: false; reason: 'noPin' | 'wrongPin' | 'lockedOut'; retryAfterMs?: number }> {
-  const { status, body } = await call<{ token?: string; expiresAt?: number; reason?: 'noPin' | 'wrongPin' | 'lockedOut'; retryAfterMs?: number }>('POST', '/register/unlock', {
-    deviceId,
-    pin,
-  })
-  if (status === 200 && body.token) return { ok: true, token: body.token, expiresAt: body.expiresAt ?? 0 }
-  if (body.reason) return { ok: false, reason: body.reason, retryAfterMs: body.retryAfterMs }
-  return unexpected(status, body)
-}
-
-/** Locks the register again at once. Best effort: the token expires by itself anyway. */
-export function lockRegister(deviceId: string): Promise<void> {
-  return call('POST', '/register/lock', { deviceId }).then(
-    () => undefined,
-    () => undefined,
-  )
-}
-
-/** Adds or edits a product (the register must be unlocked). `locked` means the unlock expired. */
-export async function saveRegisterProduct(deviceId: string, unlockToken: string, product: object): Promise<{ ok: true; product: Product } | { ok: false; reason: string }> {
-  const { status, body } = await call<{ product?: Product; reason?: string }>('POST', '/register/products', { deviceId, unlockToken, product })
+/** Adds or edits a product (a manager must be signed in). `signedOut`/`managerOnly` mean that's no longer so. */
+export async function saveRegisterProduct(deviceId: string, product: object): Promise<{ ok: true; product: Product } | { ok: false; reason: string }> {
+  const { status, body } = await call<{ product?: Product; reason?: string }>('POST', '/register/products', { deviceId, product })
   if ((status === 200 || status === 201) && body.product) return { ok: true, product: body.product }
   if (body.reason) return { ok: false, reason: body.reason }
   return unexpected(status, body)
 }
 
-/** Uploads a product photo taken on the tablet; resolves to its URL. */
-export async function uploadRegisterPhoto(deviceId: string, unlockToken: string, file: Blob): Promise<string> {
-  const response = await fetch(`${serverBaseUrl()}/register/uploads?${query(deviceId)}&unlock=${encodeURIComponent(unlockToken)}`, { method: 'POST', body: file })
-  const body = (await response.json().catch(() => ({}))) as { url?: string; error?: string }
+/** Uploads a product photo taken on the tablet (a manager must be signed in); resolves to its URL. */
+export async function uploadRegisterPhoto(deviceId: string, file: Blob): Promise<string> {
+  const session = encodeURIComponent(registerSessionToken() ?? '')
+  const response = await fetch(`${serverBaseUrl()}/register/uploads?${query(deviceId)}&session=${session}`, { method: 'POST', body: file })
+  const body = (await response.json().catch(() => ({}))) as { url?: string; error?: string; reason?: string }
+  if (response.status === 401 && body.reason === 'signedOut') notifyRegisterSignedOut()
   if (response.ok && body.url) return body.url
   return unexpected(response.status, body)
 }
@@ -160,8 +155,8 @@ export async function cancelPayment(deviceId: string, id: string): Promise<void>
   await call('POST', `/register/payments/${encodeURIComponent(id)}/cancel`, { deviceId })
 }
 
-/** Why the drawer didn't open: locked (manual without a live PIN unlock), a sale that may not open it, no printer, or the printer failed. */
-export type DrawerRefusal = 'locked' | 'unknownOrder' | 'notCash' | 'tooLate' | 'alreadyOpened' | 'noPrinter' | 'printerFailed'
+/** Why the drawer didn't open: nobody signed in, a sale that may not open it, no printer, or the printer failed. */
+export type DrawerRefusal = 'signedOut' | 'unknownOrder' | 'notCash' | 'tooLate' | 'alreadyOpened' | 'noPrinter' | 'printerFailed'
 
 /**
  * Opens the cash drawer (`POST /register/drawer`). `via: 'device'` means the tablet's own USB printer
@@ -169,10 +164,23 @@ export type DrawerRefusal = 'locked' | 'unknownOrder' | 'notCash' | 'tooLate' | 
  */
 export async function openCashDrawer(
   deviceId: string,
-  request: { reason: 'sale'; orderId: string; printerId: string } | { reason: 'manual'; unlockToken: string; printerId: string },
+  request: { reason: 'sale'; orderId: string; printerId: string } | { reason: 'return'; orderId: string; returnNumber: number; printerId: string } | { reason: 'manual'; printerId: string },
 ): Promise<{ ok: true; via: 'server' | 'device' } | { ok: false; reason: DrawerRefusal }> {
   const { status, body } = await call<{ ok?: boolean; via?: 'server' | 'device'; reason?: DrawerRefusal }>('POST', '/register/drawer', { deviceId, ...request })
   if (status === 200 && body.via) return { ok: true, via: body.via }
   if (body.reason) return { ok: false, reason: body.reason }
   return unexpected(status, body)
+}
+
+/** A cart change the journal must record — see `server/register/cartEventRoutes.ts`. */
+export type CartJournalEvent =
+  | { kind: 'lineCorrection'; correction: 'removed' | 'decreased'; lines: { productId: string; quantity: number }[]; serving: Serving }
+  | { kind: 'void'; lines: { productId: string; quantity: number }[]; serving: Serving }
+
+/**
+ * Tells the journal about a cart change before payment: a line taken out or lowered, or a cart with
+ * items cleared (see `cartJournalEvent`). Best effort: a lost event never blocks the cart.
+ */
+export async function sendCartEvent(deviceId: string, event: CartJournalEvent): Promise<void> {
+  await call('POST', '/register/cart-events', { deviceId, ...event }).catch(() => undefined)
 }

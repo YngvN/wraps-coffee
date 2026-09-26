@@ -14,14 +14,17 @@ interface RegisterCartProps {
   dispatch: (action: CartAction) => void
   onPay: () => void
   onClear: () => void
+  /** Prints a pro forma ("Foreløpig kvittering") of the cart. Omitted where nothing can print. */
+  onProForma?: () => void
 }
 
 /**
  * The current sale: Takeaway / Eat in, one row per product with − / + and remove, an optional name to
- * call out, the total, and a big Pay button. Lines show the live price for the chosen serving; the
+ * call out, the total, a pro forma ("Foreløpig") for a customer who wants to see the bill first, and a
+ * big Pay button. Lines show the live price for the chosen serving; the
  * server prices the sale again at Pay and refuses it if the total no longer matches.
  */
-export function RegisterCart({ cart, catalogue, total, blockedReason, dispatch, onPay, onClear }: RegisterCartProps) {
+export function RegisterCart({ cart, catalogue, total, blockedReason, dispatch, onPay, onClear, onProForma }: RegisterCartProps) {
   const { t, language } = useLanguage()
   const lang = language === 'en' ? 'en' : 'no'
   const productById = new Map<string, Product>(catalogue.products.map((product) => [product.itemID, product]))
@@ -102,10 +105,15 @@ export function RegisterCart({ cart, catalogue, total, blockedReason, dispatch, 
         <strong>{t('menu.price', { price: total })}</strong>
       </div>
       {blockedReason && <p className="register__blocked">{blockedReason}</p>}
-      <div className="register__cart-actions">
+      <div className={onProForma ? 'register__cart-actions register__cart-actions--three' : 'register__cart-actions'}>
         <button type="button" className="register__clear" onClick={onClear} disabled={cart.lines.length === 0}>
           {t('screenDisplay.register.clear')}
         </button>
+        {onProForma && (
+          <button type="button" className="register__clear" onClick={onProForma} disabled={blockedReason !== null}>
+            {t('screenDisplay.register.proForma')}
+          </button>
+        )}
         <button type="button" className="register__pay" onClick={onPay} disabled={blockedReason !== null}>
           {t('screenDisplay.register.pay')}
         </button>

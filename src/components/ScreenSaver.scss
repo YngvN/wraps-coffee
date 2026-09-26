@@ -1,0 +1,40 @@
+@use '../styles/variables' as *;
+
+// Always solid black in light and dark mode alike — the point is to rest the screen, not to follow a
+// theme. z-index above Modal's (1000) so it still covers the screen if something was left open.
+.screen-saver {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: #000;
+  cursor: pointer;
+}
+
+// Drifts to a new random spot every few seconds (see ScreenSaver.tsx); the top/left transition makes
+// each jump read as a slide rather than a jarring teleport.
+.screen-saver__text {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3em;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  opacity: 0.6;
+  font-family: $font-sans;
+  font-size: 2rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    top 1.5s ease,
+    left 1.5s ease;
+
+  small {
+    font-size: 0.6em;
+    font-weight: 500;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}

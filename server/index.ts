@@ -4,7 +4,10 @@ import { networkInterfaces } from 'node:os'
 import { WebSocketServer, type WebSocket } from 'ws'
 import type { DisplayMachine, DisplayMonitor, DisplayPairingRequest, DisplayScreenOverride, DisplayUpdateProgress } from '../src/types/displayMachine'
 import type { OrderRecord } from '../src/types/order'
-import type { Product } from '../src/types/product'
+import type { CategoryPrices, Product } from '../src/types/product'
+import type { Catalogue } from '../src/types/category'
+import type { Journal } from './journal/journal'
+import { cataloguePriceChanges, categoryPriceChanges, productPriceChanges } from './journal/priceChanges'
 import type { PaneId, ScreenConfig, ScreenSlot } from '../src/types/screen'
 import type { ScreenAddressSettings } from '../src/types/screenAddress'
 import type { WindowLaunchSettings } from '../src/types/windowLaunch'
@@ -111,6 +114,13 @@ function currentStoreName(): string {
 
 /** Tracks the last **normalised** (post-`sanitizeDisplayName`) store name that was actually advertised via `mdns.advertiseServerPresence`, so a Store Settings save that doesn't change the normalised name (an edit past the cap, a trailing-space-only change) doesn't flap the live mDNS advertisement for no real change. */
 let lastAdvertisedStoreName: string | null = null
+
+/**
+ * The register's electronic journal, once `createRegisterServices` has opened it. `applyUpdate` records
+ * price changes in it (see `journalPriceChanges`); declared up here so a write during startup, before
+ * the register exists, simply isn't journaled rather than failing.
+ */
+let registerJournal: Journal | null = null
 
 /** Re-advertises the server's presence with the current store name, but only if the **normalised** name actually changed since the last call — see `lastAdvertisedStoreName`. Called once at startup and again on every `admin.storeSettings` write. */
 function reAdvertiseServerPresenceIfStoreNameChanged() {
@@ -1027,6 +1037,8 @@ const httpServer = createServer((req, res) => {
           sendJson(res, 200, { ok: true })
         } else if (result.reason === 'notFound') {
           sendJson(res, 404, { error: 'Order not found' })
+        } else if (result.reason === 'registerSaleFinal') {
+          sendJson(res, 409, { error: 'A register sale cannot be cancelled; make a return instead', reason: result.reason })
         } else {
           console.error('[orders] status push failed:', result.error)
           sendJson(res, 502, { error: 'The delivery platform rejected this status change' })
@@ -2743,18 +2755,21 @@ function sessionMaySection(token: string, section: DashboardSection): boolean {
 const register = createRegisterServices({
   appVersion: APP_VERSION,
   readKey: (key, fallback) => (store.get(key)?.value as typeof fallback | undefined) ?? fallback,
-  applyUpdate: (key, value) => applyUpdate(key, value),
+  applyUpdate: (key, value, actor) => applyUpdate(key, value, actor),
   pushProductsToWebsite: (products) => neonBridge.pushIfRelevant('admin.products', products),
   isApprovedMachine: (deviceId) => ((store.get('admin.displayMachines')?.value as DisplayMachine[] | undefined) ?? []).some((machine) => machine.machineID === deviceId),
   effectiveScreenId: (deviceId) => resolveEffectiveScreen(deviceId),
   completeWebsiteOrder: async (orderId) => (await setOrderStatus(orderStatusDeps, orderId, 'completed', 'admin.orders')).ok,
   setRegisterOrderStatus: async (orderId, status) => (await setOrderStatus(orderStatusDeps, orderId, status, 'admin.registerOrders')).ok,
   sessionMay: sessionMaySection,
+  sessionUser: (token) => store.getSession(token)?.username ?? null,
   isFullAdmin: (token) => {
     const session = store.getSession(token)
     return Boolean(session && session.role !== 'limited')
   },
+  reportProblem: (message, detail) => broadcastError(message, detail),
 })
+registerJournal = register.journal
 
 /**
  * `effectiveScreen = override ?? assignment`, resolved in exactly one
@@ -2837,6 +2852,25 @@ function sanitizeIncomingScreensCustomContent(screens: ScreenConfig[]): ScreenCo
 }
 
 /**
+ * Records every price change in the register's journal (kassasystemforskrifta § 2-7): a product's
+ * price or discount, a category's default price, or a catalogue's default price. `actor` is who made
+ * the write (`admin:<username>`, a register staff id), or `null` for the server itself (a Neon pull).
+ */
+function journalPriceChanges(key: SyncedKey, value: unknown, actor: string | null) {
+  if (!registerJournal) return
+  const before = store.get(key)?.value
+  const changes =
+    key === 'admin.products'
+      ? productPriceChanges((before as Product[] | undefined) ?? [], value as Product[])
+      : key === 'admin.categoryPrices'
+        ? categoryPriceChanges((before as CategoryPrices | undefined) ?? {}, value as CategoryPrices)
+        : key === 'admin.catalogues'
+          ? cataloguePriceChanges((before as Catalogue[] | undefined) ?? [], value as Catalogue[])
+          : []
+  for (const change of changes) registerJournal.append({ register: null, actor, type: 'priceChange', data: { ...change } })
+}
+
+/**
  * Persists a synced-key write and broadcasts it to every interested LAN client — the one path both a
  * client's own WS `write` and the Neon bridge's own pulls go through, so neither has to duplicate the
  * other's plumbing.
@@ -2856,8 +2890,10 @@ function sanitizeIncomingScreensCustomContent(screens: ScreenConfig[]): ScreenCo
  *    rename/create pushed a `navigable-set` without it. Every diff those pushes need is computed in
  *    phase 1 into a local instead, so moving them down loses nothing.
  */
-function applyUpdate(key: SyncedKey, value: unknown) {
+function applyUpdate(key: SyncedKey, value: unknown, actor: string | null = null) {
   // --- Phase 1: pre-write (reads the outgoing state, or rewrites `value`) ---
+
+  journalPriceChanges(key, value, actor)
 
   if (key === 'admin.orders' || key === 'admin.registerOrders') {
     reconcileStockForOrders((store.get(key)?.value as OrderRecord[] | undefined) ?? [], value as OrderRecord[])
@@ -3012,6 +3048,13 @@ wss.on('connection', (socket) => {
         return
       }
 
+      // Register sales are legal records: only the server's register routes may write them (see
+      // `server/register/`). The admin Orders view changes a sale's kitchen status through a route too.
+      if (key === 'admin.registerOrders') {
+        console.warn(`[ws] rejected write to ${key} from ${session.username}: register sales are written only by the server`)
+        return
+      }
+
       if (session.role === 'limited') {
         const section = SECTION_BY_KEY[key]
         if (section && !session.allowedSections?.includes(section)) {
@@ -3020,7 +3063,7 @@ wss.on('connection', (socket) => {
         }
       }
 
-      applyUpdate(key, value)
+      applyUpdate(key, value, `admin:${session.username}`)
       neonBridge.pushIfRelevant(key, value)
       // Renaming the store should update a live mDNS advertisement
       // immediately, without needing to revisit Settings → Advanced.

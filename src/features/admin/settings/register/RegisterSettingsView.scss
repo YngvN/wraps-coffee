@@ -1,4 +1,5 @@
-// Settings → Register (`RegisterSettingsView`): the staff PIN card. Uses the app's own theme tokens,
+// Settings → Register (`RegisterSettingsView`, `CashRegistersCard`, `JournalHealthCard`): the staff,
+// cash register and journal cards. Uses the app's own theme tokens,
 // so light and dark mode come for free.
 
 .register-settings {
@@ -38,4 +39,105 @@
 .register-settings__error {
   margin: 0;
   color: var(--color-error);
+}
+
+// One cash register row in `CashRegistersCard`: its fixed number, the editable name, Save.
+.register-settings__register {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+
+  .input-field {
+    margin: 0;
+  }
+}
+
+.register-settings__register-number {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+// The staff list (`RegisterSettingsView`, `RegisterStaffRow`).
+.register-staff {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.register-staff__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.2rem 0.6rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--color-border);
+
+  &--inactive .register-staff__name {
+    color: var(--color-text-muted);
+    text-decoration: line-through;
+  }
+
+  &--editing {
+    display: block;
+  }
+
+  .btn {
+    grid-row: span 2;
+  }
+}
+
+.register-staff__name {
+  font-weight: 600;
+}
+
+.register-staff__meta {
+  grid-column: 1;
+  color: var(--color-text-muted);
+  font-size: 0.9em;
+}
+
+.register-staff__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+
+  h3 {
+    margin: 0.4rem 0 0;
+  }
+}
+
+.register-staff__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.register-journal__problems {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--color-error);
+}
+
+// The SAF-T card (`SaftCard`): the period fields side by side on wide screens, and one row per category.
+.register-saft__period {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.6rem;
+}
+
+.register-saft__group {
+  display: grid;
+  grid-template-columns: 1fr minmax(10rem, 16rem);
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--color-border);
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
 }

@@ -21,16 +21,29 @@ const SOURCES: HistorySource[] = ['all', 'register', 'website', 'delivery']
 interface RegisterHistorySheetProps {
   /** Omitted when this tablet can't print (then the list is read-only). */
   printing?: BoardPrinting
+  /** Prints a counter sale's legal receipt: its original if it never printed, else its one copy. */
+  onPrintSale: (order: OrderRecord) => void
+  /** Opens a return for a counter sale. Only given while a manager is signed in. */
+  onReturn?: (order: OrderRecord) => void
   onClose: () => void
+}
+
+/** Whether any of a sale is left to return. */
+function canStillReturn(order: OrderRecord): boolean {
+  const sold = order.items.reduce((sum, item) => sum + item.quantity, 0)
+  const returned = (order.returns ?? []).reduce((sum, done) => sum + done.lines.reduce((lineSum, line) => lineSum + line.quantity, 0), 0)
+  return returned < sold
 }
 
 /**
  * Order history at the register: every order — counter sales, website orders and delivery orders —
  * newest first and grouped by day, with a search (counter number, name, receipt number or item) and a
- * source filter. Each order can print its receipt again, e.g. for a customer who needs a copy. Names
+ * source filter. A counter sale shows its receipt number and can print its receipt — once more at most,
+ * as a "KOPI", after which it says the copy has been printed — and shows what's been returned of it,
+ * with a Return button for a manager; other orders print an order ticket. Names
  * and phone numbers are cleared after 7 days, so older orders show their number, time and contents.
  */
-export function RegisterHistorySheet({ printing, onClose }: RegisterHistorySheetProps) {
+export function RegisterHistorySheet({ printing, onPrintSale, onReturn, onClose }: RegisterHistorySheetProps) {
   const { t, language } = useLanguage()
   const [clockFormat] = useClockFormatPreference()
   const [website] = useOrders()
@@ -92,7 +105,28 @@ export function RegisterHistorySheet({ printing, onClose }: RegisterHistorySheet
                   <div className="register-history__side">
                     <strong>{t('menu.price', { price: order.totalPrice })}</strong>
                     {order.payment && <span>{t(`screenDisplay.register.method.${order.payment.method}`)}</span>}
-                    {printing?.available && <PrintButton status={printing.status[order.id]} onPrint={() => printing.print(order)} size="large" />}
+                    {order.receipt && <span>{t('screenDisplay.register.receiptNumber', { number: order.receipt.number })}</span>}
+                    {order.returns?.length ? (
+                      <span className="register__line-flag">
+                        {t('screenDisplay.register.returned', { amount: t('menu.price', { price: order.returns.reduce((sum, done) => sum + done.totalOre, 0) / 100 }) })}
+                      </span>
+                    ) : null}
+                    {onReturn && order.receipt && canStillReturn(order) && (
+                      <button type="button" className="register__bar-button" onClick={() => onReturn(order)}>
+                        {t('screenDisplay.register.returnButton')}
+                      </button>
+                    )}
+                    {order.receipt?.copyPrintedAt ? (
+                      <span className="register-history__copied">{t('screenDisplay.register.copyPrinted')}</span>
+                    ) : (
+                      printing?.available && (
+                        <PrintButton
+                          status={order.receipt ? undefined : printing.status[order.id]}
+                          onPrint={() => (order.receipt ? onPrintSale(order) : printing.print(order))}
+                          size="large"
+                        />
+                      )
+                    )}
                   </div>
                   {printing && <PrintError status={printing.status[order.id]} />}
                 </li>

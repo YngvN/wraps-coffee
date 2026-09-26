@@ -168,7 +168,8 @@ export function OrdersView() {
                 <label className="orders-view__status-field">
                   <span>{t('admin.orders.statusLabel')}</span>
                   <select value={order.status} onChange={(event) => updateStatus(order, event.target.value as OrderStatus)}>
-                    {STATUS_OPTIONS.map((status) => (
+                    {/* A register sale can't be cancelled (the server refuses): only a return receipt undoes it. */}
+                    {STATUS_OPTIONS.filter((status) => order.source !== 'register' || status !== 'cancelled').map((status) => (
                       <option key={status} value={status}>
                         {t(`admin.orders.status.${status}`)}
                       </option>

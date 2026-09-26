@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Spinner } from '../../../components'
 import { useLanguage } from '../../../i18n'
 import type { PaymentMethod, PaymentProviderId } from '../../../types/order'
+import { isPracticeSale } from './practiceSale'
 import type { Product } from '../../../types/product'
 import { CardIcon, CashIcon, DoneIcon, VippsLogo } from './RegisterIcons'
 import { RegisterSheet } from './RegisterSheet'
@@ -133,7 +134,13 @@ export function RegisterPayDialog({ total, state, providers, products, onPayByHa
       <div className="register-pay register-pay--center">
         <DoneIcon className="register-pay__done-icon" />
         <p className="register-pay__number">{state.order.displayNumber}</p>
-        <p>{state.order.status === 'completed' ? t('screenDisplay.register.handedOver') : t('screenDisplay.register.sentToKitchen')}</p>
+        <p>
+          {isPracticeSale(state.order)
+            ? t('screenDisplay.register.practiceSale')
+            : state.order.status === 'completed'
+              ? t('screenDisplay.register.handedOver')
+              : t('screenDisplay.register.sentToKitchen')}
+        </p>
         <div className="register-pay__row">
           {onPrint && (
             <button type="button" className="order-sheet__action" onClick={onPrint}>

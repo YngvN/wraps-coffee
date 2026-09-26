@@ -296,6 +296,14 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
         url: '/admin/dashboard/settings/store/contact',
       },
       {
+        id: 'settingsPage:legal',
+        type: 'settingsPage',
+        title: t('admin.legal.title'),
+        subtitle: settingsTypeLabel,
+        keywords: [t('admin.legal.orgNumberLabel'), t('admin.legal.companyNameLabel')],
+        url: '/admin/dashboard/settings/store/legal',
+      },
+      {
         id: 'settingsPage:integrations',
         type: 'settingsPage',
         title: t('admin.settings.integrations.title'),
@@ -316,7 +324,7 @@ export function useGlobalSearchIndex(): SearchResultEntry[] {
         type: 'settingsPage',
         title: t('admin.settings.register.title'),
         subtitle: settingsTypeLabel,
-        keywords: ['register', 'kasse', 'PIN', 'staff', 'ansatt', 'barcode', 'strekkode'],
+        keywords: ['register', 'kasse', 'PIN', 'staff', 'ansatt', t('admin.settings.register.staffTitle'), t('admin.settings.register.journalTitle'), t('admin.settings.register.registersTitle'), 'barcode', 'strekkode'],
         url: '/admin/dashboard/settings/register',
       },
       { id: 'settingsPage:developers', type: 'settingsPage', title: t('admin.settings.developersTitle'), subtitle: settingsTypeLabel, keywords: [], url: '/admin/dashboard/settings/developers' },

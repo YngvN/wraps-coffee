@@ -4,7 +4,8 @@ import { useDefaultPaneLanguage } from '../../../hooks/useDefaultPaneLanguage'
 import { availableLanguages, useLanguage, type LanguageCode } from '../../../i18n'
 import type { Category } from '../../../types/category'
 import type { CustomFieldDefinition } from '../../../types/customFields'
-import { ALLERGEN_OPTIONS, DIETARY_TAG_ORDER, type AllergenCode, type DietaryTag, type Discount, type Price, type Product } from '../../../types/product'
+import { ALLERGEN_OPTIONS, DIETARY_TAG_ORDER, type AllergenCode, type DietaryTag, type Discount, type Price, type Product, type VatCategory } from '../../../types/product'
+import { VAT_CATEGORIES } from '../../../lib/vat'
 import { initialActiveLanguages } from '../../../utils/bilingual'
 import { ProductBarcodeField } from './ProductBarcodeField'
 import './ProductForm.scss'
@@ -110,6 +111,7 @@ export function ProductForm({ product, catalogueId, defaultCategoryId, catalogue
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string | number | boolean>>(product?.customFieldValues ?? {})
   const [barcode, setBarcode] = useState(product?.barcode ?? '')
   const [readyToServe, setReadyToServe] = useState(product?.readyToServe ?? false)
+  const [vatCategory, setVatCategory] = useState<VatCategory>(product?.vatCategory ?? 'food')
 
   /** The selected category's own custom-field schema (e.g. "Bedrooms" for a "Houses" category) — changes as `category` changes, since a different category can define entirely different fields. */
   const customFieldDefs: CustomFieldDefinition[] = catalogueCategories.find((option) => option.id === category)?.customFields ?? []
@@ -159,6 +161,8 @@ export function ProductForm({ product, catalogueId, defaultCategoryId, catalogue
       customFieldValues: relevantCustomFieldValues(customFieldValues, customFieldDefs),
       barcode: barcode.trim() || undefined,
       readyToServe: readyToServe || undefined,
+      // `food` is the default, so it isn't stored.
+      vatCategory: vatCategory === 'food' ? undefined : vatCategory,
     })
   }
 
@@ -292,6 +296,18 @@ export function ProductForm({ product, catalogueId, defaultCategoryId, catalogue
         checked={readyToServe}
         onChange={(event) => setReadyToServe(event.target.checked)}
       />
+      <label className="product-form__field">
+        <span>
+          {t('admin.products.vatCategoryLabel')} <HelpTip text={t('admin.products.vatCategoryHint')} />
+        </span>
+        <select value={vatCategory} onChange={(event) => setVatCategory(event.target.value as VatCategory)}>
+          {VAT_CATEGORIES.map((option) => (
+            <option key={option} value={option}>
+              {t(`admin.products.vatCategory.${option}`)}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <Checkbox id="product-available" label={t('admin.products.availableLabel')} checked={available} onChange={(event) => setAvailable(event.target.checked)} />
 

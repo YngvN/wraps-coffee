@@ -46,6 +46,11 @@
   flex-direction: column;
   gap: 0.5em;
   min-width: 14em;
+  // Never taller than the screen below the bar: a menu hanging off the bottom made the tablet's WebView
+  // zoom the whole page out to fit it. The rest scrolls inside the menu instead.
+  max-height: calc(100vh - 6em);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0.8em;
   border-radius: 14px;
   background: var(--ob-card);

@@ -72,4 +72,12 @@ export interface Product {
   barcode?: string
   /** Handed over at the counter as-is (a soda, a packaged snack) instead of being made in the kitchen. A register order made only of these goes straight to History; one with anything else goes to Incoming (see `initialRegisterStatus` in `src/lib/registerPricing.ts`). */
   readyToServe?: boolean
+  /** How the product is taxed at the register; absent means `food`. See `vatRatePercent` in `src/lib/vat.ts`. */
+  vatCategory?: VatCategory
 }
+
+/**
+ * How a product is taxed. `food` (the default) is food and non-alcoholic drink: 15 % taken away, 25 %
+ * eaten in (serveringsmoms). `standard` is always 25 % (merchandise, alcohol). `exempt` is 0 %.
+ */
+export type VatCategory = 'food' | 'standard' | 'exempt'

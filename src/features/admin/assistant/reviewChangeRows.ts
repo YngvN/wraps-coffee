@@ -180,6 +180,13 @@ export function buildProductChangeRows(
     fieldConfidence?.stockQuantity,
   )
   pushRow(rows, t('admin.products.readyToServeLabel'), isCreate ? null : formatBoolean(t, current.readyToServe), formatBoolean(t, draft.readyToServe), fieldConfidence?.readyToServe)
+  pushRow(
+    rows,
+    t('admin.products.vatCategoryLabel'),
+    isCreate ? null : t(`admin.products.vatCategory.${current.vatCategory ?? 'food'}`),
+    t(`admin.products.vatCategory.${draft.vatCategory ?? 'food'}`),
+    fieldConfidence?.vatCategory,
+  )
   pushRow(rows, t('admin.products.barcodeLabel'), isCreate ? null : (current.barcode ?? ''), draft.barcode ?? '', fieldConfidence?.barcode)
 
   const owningCategory = categories.find((category) => category.id === draft.category)
@@ -367,6 +374,9 @@ export function buildPrinterChangeRows(t: Translate, current: PrinterDraft | nul
   pushRow(rows, t('admin.settings.printers.connection'), current === null ? null : printerLocation(t, current), printerLocation(t, draft))
   pushRow(rows, t('admin.settings.printers.paperWidth'), current === null ? null : `${current.paperWidthMm} mm`, `${draft.paperWidthMm} mm`)
   pushRow(rows, t('admin.settings.printers.cashDrawer'), current === null ? null : formatBoolean(t, current.cashDrawer), formatBoolean(t, draft.cashDrawer))
+  const sensor = (value: typeof draft.drawerSensor) =>
+    t(`admin.settings.printers.${value === 'openWhenHigh' ? 'drawerSensorHigh' : value === 'openWhenLow' ? 'drawerSensorLow' : 'drawerSensorOff'}`)
+  pushRow(rows, t('admin.settings.printers.drawerSensor'), current === null ? null : sensor(current.drawerSensor), sensor(draft.drawerSensor))
   pushRow(rows, t('admin.settings.printers.default'), current === null ? null : formatBoolean(t, current.isDefault), formatBoolean(t, draft.isDefault))
   return rows
 }

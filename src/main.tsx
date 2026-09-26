@@ -67,7 +67,7 @@ const router = createBrowserRouter([
               // behind a stripped `?view=` param, so each one can be bookmarked, shared and
               // refreshed into, and the browser's own Back works without a hand-rolled shim.
               // `:section` covers Store/Integrations/Advanced/Backup/Developers/Testing;
-              // `:subsection` covers Store's own Contact info and Appearance editors.
+              // `:subsection` covers Store's own Contact info, Company details and Appearance editors.
               { path: 'settings', element: <SettingsView /> },
               { path: 'settings/:section', element: <SettingsView /> },
               { path: 'settings/:section/:subsection', element: <SettingsView /> },

@@ -21,6 +21,12 @@ interface StoreSettingsFields {
  * `favicon` is the vision/asset `imageField` (same attach-image mechanism as
  * Product/Event); `logos` is append-only via chat (a new URL is added, not
  * regenerated), same reasoning as theme colors.
+ *
+ * `legal` (company name, org number, address — see `StoreLegalDetails`) is deliberately left out of
+ * the schema: it's printed on every legal receipt, a wrong org number there is a compliance problem,
+ * and it's exactly the live-value kind of field a local model has fabricated before. `mergeDraft`
+ * spreads `base`, so it passes through a chat edit untouched. Set it in Settings → Store → Company
+ * details only.
  */
 export const storeSettingsEntity: AssistantEntity<StoreSettings> = {
   key: 'storeSettings',

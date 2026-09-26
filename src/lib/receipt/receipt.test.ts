@@ -68,7 +68,7 @@ test('58 mm receipts wrap to 32 characters, and English labels work', () => {
   assert.ok(previewAsText(preview, 32).length > 0)
 })
 
-test('a register sale shows its counter number and payment, and skips empty customer lines', () => {
+test('a register sale prints as an order ticket: its counter number and items, no prices or payment', () => {
   const sale: OrderRecord = {
     id: 'reg-0001',
     source: 'register',
@@ -85,7 +85,10 @@ test('a register sale shows its counter number and payment, and skips empty cust
   const text = previewAsText(decodeEscPos(buildReceipt(sale, options)))
   assert.match(text, /#K7/)
   assert.match(text, /Kassesalg/)
-  assert.match(text, /Betalt:\s+Kontant/)
+  assert.match(text, /ORDRESEDDEL [–-] IKKE KVITTERING/)
+  assert.match(text, /1 x Cola/)
+  assert.doesNotMatch(text, /30 kr/)
+  assert.doesNotMatch(text, /TOTALT|Betalt|Kontant/)
   assert.doesNotMatch(text, /Kunde:/)
   assert.doesNotMatch(text, /Hentes:/)
 })

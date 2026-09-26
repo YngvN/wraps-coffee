@@ -1,4 +1,4 @@
-// Tests for adding and editing products from an unlocked register.
+// Tests for adding and editing products from a register, by a manager.
 import { strict as assert } from 'node:assert'
 import { test } from 'node:test'
 import type { Catalogue } from '../../src/types/category'
@@ -71,4 +71,13 @@ test('refuses bad input', () => {
   assert.equal(reason({ name: { no: 'X', en: '' }, category: 'soda', allergens: ['XX' as never] }), 'badAllergens')
   assert.equal(reason({ name: { no: 'X', en: '' }, category: 'soda', stockQuantity: -2 }), 'badStock')
   assert.equal(reason({ name: { no: 'X', en: '' }, catalogueId: 'drinks' }), 'ok')
+})
+
+test('VAT category: food is stored as absent, others are kept, junk is refused', () => {
+  const standard = upsertRegisterProduct([cola], catalogues, { itemID: 'cola', name: cola.name, category: 'soda', vatCategory: 'standard' }, newId)
+  assert.equal(standard.ok && standard.product.vatCategory, 'standard')
+  const food = upsertRegisterProduct([{ ...cola, vatCategory: 'standard' }], catalogues, { itemID: 'cola', name: cola.name, category: 'soda', vatCategory: 'food' }, newId)
+  assert.equal(food.ok && 'vatCategory' in food.product, false)
+  const junk = upsertRegisterProduct([cola], catalogues, { itemID: 'cola', name: cola.name, category: 'soda', vatCategory: 'luxury' as never }, newId)
+  assert.deepEqual(junk, { ok: false, reason: 'badVatCategory' })
 })

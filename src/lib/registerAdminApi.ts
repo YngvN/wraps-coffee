@@ -1,5 +1,6 @@
 /**
- * The admin dashboard's calls to the local server for the Register — the staff PIN, the barcode
+ * The admin dashboard's calls to the local server for the Register — the staff list, the journal's
+ * health, the cash registers' names, the barcode
  * lookup behind the product editor's "Look up", changing a counter sale's status from the Orders
  * view, and the payment integrations' credentials. Every call carries the admin's session token;
  * the tablet's own calls are in `registerApi.ts`.
@@ -7,6 +8,7 @@
 import type { BarcodeLookupResult } from '../types/barcode'
 import type { OrderStatus } from '../types/order'
 import type { PaymentCredentialsByKind, PaymentCredentialsKind } from '../types/payments'
+import type { RegisterReport } from '../types/registerReport'
 import { serverBaseUrl } from './localServer'
 
 /** Throws the server's own message for a failed response. */
@@ -24,20 +26,92 @@ export async function pushRegisterOrderStatus(token: string, orderId: string, st
   if (!response.ok) unexpected(response.status, await response.json().catch(() => ({})))
 }
 
-/** Admin only: whether a staff PIN is set for the registers (never the PIN itself). */
-export async function fetchRegisterPinStatus(token: string): Promise<boolean> {
-  const response = await fetch(`${serverBaseUrl()}/register/pin`, { headers: { Authorization: `Bearer ${token}` } })
-  const body = (await response.json().catch(() => ({}))) as { isSet?: boolean; error?: string }
-  if (!response.ok) unexpected(response.status, body)
-  return Boolean(body.isSet)
+/** A register staff member as the dashboard sees them — never the PIN (see `server/register/staff.ts`). */
+export interface RegisterStaffMember {
+  id: string
+  name: string
+  employeeNumber: string
+  role: 'staff' | 'manager'
+  active: boolean
+  hasPin: boolean
 }
 
-/** Admin only: sets the registers' staff PIN (4–6 digits), or removes it with `null`. Every unlocked register locks again. */
-export async function saveRegisterPin(token: string, pin: string | null): Promise<void> {
-  const response = await fetch(`${serverBaseUrl()}/register/pin`, {
+/** What can be set on a staff member; `pin` present means "set this PIN" (4 digits). */
+export interface RegisterStaffInput {
+  name?: string
+  employeeNumber?: string
+  role?: 'staff' | 'manager'
+  active?: boolean
+  pin?: string
+}
+
+/** Admin only: every register staff member, active or not. */
+export async function fetchRegisterStaffList(token: string): Promise<RegisterStaffMember[]> {
+  const response = await fetch(`${serverBaseUrl()}/register/admin/staff`, { headers: { Authorization: `Bearer ${token}` } })
+  const body = (await response.json().catch(() => ({}))) as { staff?: RegisterStaffMember[]; error?: string }
+  if (!response.ok) unexpected(response.status, body)
+  return body.staff ?? []
+}
+
+/** Admin only: adds a staff member (`id` absent) or changes one. Resolves the saved member; rejects with the server's reason. */
+export async function saveRegisterStaff(token: string, input: RegisterStaffInput, id?: string): Promise<RegisterStaffMember> {
+  const response = await fetch(`${serverBaseUrl()}/register/admin/staff${id ? `/${encodeURIComponent(id)}` : ''}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ pin }),
+    body: JSON.stringify(input),
+  })
+  const body = (await response.json().catch(() => ({}))) as { member?: RegisterStaffMember; reason?: string; error?: string }
+  if (!response.ok || !body.member) throw new Error(body.reason ?? body.error ?? `The server answered ${response.status}`)
+  return body.member
+}
+
+/** One problem the journal check found (see `server/journal/journal.ts`). */
+export interface JournalProblemSummary {
+  kind: string
+  file: string
+  seq?: number
+  detail: string
+}
+
+/** The journal's size and the last integrity check's result. */
+export interface JournalHealth {
+  entries: number
+  problems: JournalProblemSummary[]
+  checkedAt: string
+}
+
+/** Admin only: the journal's health, or (`verify`) a fresh full check of it. */
+export async function fetchJournalHealth(token: string, verify = false): Promise<JournalHealth> {
+  const response = await fetch(`${serverBaseUrl()}/register/admin/journal${verify ? '/verify' : ''}`, {
+    method: verify ? 'POST' : 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const body = (await response.json().catch(() => ({}))) as JournalHealth & { error?: string }
+  if (!response.ok) unexpected(response.status, body)
+  return body
+}
+
+/** One cash register (tablet) as the admin sees it — see `server/register/registers.ts`. */
+export interface CashRegisterSummary {
+  number: number
+  name: string
+  createdAt: string
+}
+
+/** Admin only: every cash register, numbered in the order the tablets first opened the register. */
+export async function fetchCashRegisters(token: string): Promise<CashRegisterSummary[]> {
+  const response = await fetch(`${serverBaseUrl()}/register/registers`, { headers: { Authorization: `Bearer ${token}` } })
+  const body = (await response.json().catch(() => ({}))) as { registers?: CashRegisterSummary[]; error?: string }
+  if (!response.ok) unexpected(response.status, body)
+  return body.registers ?? []
+}
+
+/** Admin only: renames cash register `number`. Its number, printed on receipts, never changes. */
+export async function renameCashRegister(token: string, number: number, name: string): Promise<void> {
+  const response = await fetch(`${serverBaseUrl()}/register/registers/${number}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ name }),
   })
   if (!response.ok) unexpected(response.status, await response.json().catch(() => ({})))
 }
@@ -66,4 +140,45 @@ export async function savePaymentCredentials<K extends PaymentCredentialsKind>(t
     body: JSON.stringify(credentials),
   })
   if (!response.ok) unexpected(response.status, await response.json().catch(() => ({})))
+}
+
+/** One Z report from the journal. */
+export interface ZReportSummary {
+  seq: number
+  at: string
+  register: number
+  number: number
+  report: RegisterReport
+}
+
+/** Admin only: every Z report, newest first. */
+export async function fetchZReports(token: string): Promise<ZReportSummary[]> {
+  const response = await fetch(`${serverBaseUrl()}/register/admin/z-reports`, { headers: { Authorization: `Bearer ${token}` } })
+  const body = (await response.json().catch(() => ({}))) as { reports?: ZReportSummary[]; error?: string }
+  if (!response.ok) unexpected(response.status, body)
+  return body.reports ?? []
+}
+
+/** Admin only: prints Z report `seq` again on the default printer, marked KOPI. */
+export async function reprintZReport(token: string, seq: number): Promise<'printed' | 'notFound' | 'noPrinter' | 'printerFailed'> {
+  const response = await fetch(`${serverBaseUrl()}/register/admin/z-reports/${seq}/print`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+  const body = (await response.json().catch(() => ({}))) as { result?: 'printed' | 'notFound' | 'noPrinter' | 'printerFailed' }
+  return body.result ?? 'printerFailed'
+}
+
+/** Admin only: the SAF-T Cash Register file for `from`–`to` (Oslo dates, inclusive), for every register or just `register`. */
+export async function downloadSaft(token: string, from: string, to: string, register?: number): Promise<{ blob: Blob; filename: string }> {
+  const query = new URLSearchParams({ from, to, ...(register ? { register: String(register) } : {}) })
+  const response = await fetch(`${serverBaseUrl()}/register/admin/saft?${query}`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!response.ok) unexpected(response.status, await response.json().catch(() => ({})))
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const filename = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `SAF-T Cash Register_${from}_${to}.xml`
+  return { blob: await response.blob(), filename }
+}
+
+/** Admin only: the journal's public signing keys (PEM), for Skatteetaten to verify the SAF-T signatures. */
+export async function downloadPublicKey(token: string): Promise<Blob> {
+  const response = await fetch(`${serverBaseUrl()}/register/admin/public-key`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!response.ok) unexpected(response.status, await response.json().catch(() => ({})))
+  return response.blob()
 }

@@ -1,0 +1,112 @@
+// The register's login screen (`RegisterLoginScreen`): the staff list, or one person's PIN pad. Uses
+// the board's palette (`--ob-*`, light and dark), 56px+ targets and inset pressed states.
+
+.register-login {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 1em;
+  min-height: 0;
+  padding: 1.5em 1em;
+  overflow-y: auto;
+
+  &--pin {
+    justify-content: center;
+
+    .register-pin {
+      width: min(22em, 100%);
+    }
+  }
+}
+
+.register-login__title {
+  margin: 0;
+  font-size: 1.4em;
+}
+
+.register-login__note {
+  margin: 0;
+  color: var(--ob-muted);
+  text-align: center;
+}
+
+.register-login__grid {
+  display: grid;
+  // Fixed-width cards, centred under the heading however few staff there are.
+  grid-template-columns: repeat(auto-fit, 11em);
+  justify-content: center;
+  gap: 0.8em;
+  width: min(60em, 100%);
+}
+
+.register-login__person {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3em;
+  min-height: 9em;
+  padding: 1em 0.6em;
+  border: none;
+  border-radius: 16px;
+  background: var(--ob-card);
+  color: var(--ob-text);
+  box-shadow: 0 1px 3px var(--ob-shadow);
+  cursor: pointer;
+
+  small {
+    color: var(--ob-muted);
+  }
+
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background: var(--ob-button);
+    }
+  }
+
+  &:active:not(:disabled) {
+    box-shadow: inset 0 3px 10px var(--ob-press);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.register-login__initial {
+  display: grid;
+  place-items: center;
+  width: 2.6em;
+  height: 2.6em;
+  border-radius: 50%;
+  background: var(--ob-accent);
+  color: var(--ob-accent-text);
+  font-size: 1.3em;
+  font-weight: 800;
+}
+
+.register-login__name {
+  font-size: 1.1em;
+  font-weight: 700;
+  text-align: center;
+}
+
+.register-login__back {
+  min-height: 56px;
+  border: none;
+  border-radius: 12px;
+  background: var(--ob-button);
+  color: var(--ob-text);
+  font-weight: 600;
+
+  @media (hover: hover) {
+    &:hover:not(:disabled) {
+      background: var(--ob-button-hover);
+    }
+  }
+
+  &:active:not(:disabled) {
+    box-shadow: inset 0 3px 10px var(--ob-press);
+  }
+}

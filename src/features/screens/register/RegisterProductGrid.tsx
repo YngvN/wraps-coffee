@@ -15,7 +15,8 @@ interface RegisterProductGridProps {
   /** The catalogues this pane offers (all of them when the pane doesn't narrow it). */
   catalogues: Catalogue[]
   serving: Serving
-  unlocked: boolean
+  /** A manager is signed in: each tile gets an edit button, and a "New product" tile appears. */
+  canEdit: boolean
   onAdd: (product: Product) => void
   onEdit: (product: Product) => void
   onCreate: () => void
@@ -37,9 +38,9 @@ type CategoryChoice = 'all' | 'none' | string
  * Whenever the tiles mix categories (searching, or the "All" chip) they show which category each one
  * is from: in menu order under a small header per category, in the other orders on each tile. Sold-out products stay visible but dimmed (staff
  * can still sell one after confirming, since the stock count can drift from the shelf). While the
- * register is unlocked each tile gets an edit button and a "New product" tile appears.
+ * a manager is signed in each tile gets an edit button and a "New product" tile appears.
  */
-export function RegisterProductGrid({ catalogue, catalogues, serving, unlocked, onAdd, onEdit, onCreate, popularity, sort, onSortChange, onScan }: RegisterProductGridProps) {
+export function RegisterProductGrid({ catalogue, catalogues, serving, canEdit, onAdd, onEdit, onCreate, popularity, sort, onSortChange, onScan }: RegisterProductGridProps) {
   const { t, language } = useLanguage()
   const lang = language === 'en' ? 'en' : 'no'
   const [catalogueId, setCatalogueId] = useState<string | null>(null)
@@ -143,7 +144,7 @@ export function RegisterProductGrid({ catalogue, catalogues, serving, unlocked, 
                     {soldOut ? t('screenDisplay.register.soldOut') : price === undefined ? t('screenDisplay.register.noPrice') : t('menu.price', { price })}
                   </span>
                 </button>
-                {unlocked && (
+                {canEdit && (
                   <button type="button" className="register__tile-edit" onClick={() => onEdit(product)} aria-label={t('screenDisplay.register.editProduct')}>
                     <EditIcon />
                   </button>
@@ -152,13 +153,13 @@ export function RegisterProductGrid({ catalogue, catalogues, serving, unlocked, 
             )
           }),
         ])}
-        {unlocked && (
+        {canEdit && (
           <button type="button" className="register__tile register__tile--new" onClick={onCreate}>
             <PlusIcon />
             <span>{t('screenDisplay.register.newProduct')}</span>
           </button>
         )}
-        {products.length === 0 && !unlocked && <p className="orders-board__muted">{t(searching ? 'screenDisplay.register.searchEmpty' : 'screenDisplay.register.noProducts')}</p>}
+        {products.length === 0 && !canEdit && <p className="orders-board__muted">{t(searching ? 'screenDisplay.register.searchEmpty' : 'screenDisplay.register.noProducts')}</p>}
       </div>
     </section>
   )

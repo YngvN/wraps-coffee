@@ -1,6 +1,6 @@
 {
   "name": "adhdisplay-companion",
-  "version": "0.3.17",
+  "version": "0.3.25",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {

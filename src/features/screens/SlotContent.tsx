@@ -153,6 +153,6 @@ export function SlotContent({ slot, newsSlots, stageTick, stage, onRequestStageA
       />
     )
   }
-  if (slot.kind === 'register') return <RegisterSlide catalogueIds={slot.catalogueIds} autoPrintReceipt={slot.autoPrintReceipt} allowPickupScan={slot.allowPickupScan} />
+  if (slot.kind === 'register') return <RegisterSlide catalogueIds={slot.catalogueIds} allowPickupScan={slot.allowPickupScan} />
   return null
 }

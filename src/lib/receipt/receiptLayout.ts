@@ -74,14 +74,19 @@ export function receiptOrderNumber(order: OrderRecord): string {
  *
  * store name, order number (large) and where it came from; customer, phone, pickup time and when it was
  * placed; every item with its quantity and line price; the order's notes in bold (allergies must not
- * be missed); the total, and how it was paid for a register sale; when it was printed. A counter sale
- * leaves out the customer and pickup lines it has nothing for. Then a partial cut. Labels are translated into
+ * be missed); the total; when it was printed. Then a partial cut. Labels are translated into
  * `options.language` with the same keys the order board uses.
+ *
+ * A register sale prints as an **order ticket** instead: headed "ORDRESEDDEL – IKKE KVITTERING", with
+ * its items but no prices, total or payment. Its only receipt is the legal one the register prints
+ * (`legalReceipt.ts`), which the law allows one copy of — so the board must never print another. It
+ * also leaves out the customer and pickup lines it has nothing for.
  */
 export function buildReceipt(order: OrderRecord, options: ReceiptOptions): Uint8Array {
   const t = (key: string, vars?: Record<string, string | number>) => translate(options.language, `receipt.${key}`, vars)
   const width = charsPerLine(options.paperWidthMm)
   const rule = '-'.repeat(width)
+  const ticket = order.source === 'register'
   const source = order.source === 'wolt' ? 'Wolt' : order.source === 'foodora' ? 'Foodora' : order.source === 'register' ? t('sourceRegister') : t('sourceWebsite')
   const printer = new EscPosBuilder().init()
 
@@ -94,7 +99,9 @@ export function buildReceipt(order: OrderRecord, options: ReceiptOptions): Uint8
     .line(`#${receiptOrderNumber(order)}`)
     .size(1, 1)
     .bold(false)
-  printer.line(source).feed(1).align('left').line(rule)
+  printer.line(source)
+  if (ticket) printer.bold(true).line(t('orderTicket')).bold(false)
+  printer.feed(1).align('left').line(rule)
 
   const field = (label: string, value: string) => twoColumns(`${label}:`, value, width).forEach((line) => printer.line(line))
   if (order.source !== 'register' || order.customerName) field(t('customer'), order.customerName || '-')
@@ -104,7 +111,8 @@ export function buildReceipt(order: OrderRecord, options: ReceiptOptions): Uint8
   printer.line(rule)
 
   for (const item of order.items) {
-    for (const line of twoColumns(`${item.quantity} x ${item.name}`, formatKroner(item.quantity * item.unitPrice), width)) printer.line(line)
+    if (ticket) wrapText(`${item.quantity} x ${item.name}`, width).forEach((line) => printer.line(line))
+    else for (const line of twoColumns(`${item.quantity} x ${item.name}`, formatKroner(item.quantity * item.unitPrice), width)) printer.line(line)
   }
   printer.line(rule)
 
@@ -114,10 +122,11 @@ export function buildReceipt(order: OrderRecord, options: ReceiptOptions): Uint8
     printer.bold(false).line(rule)
   }
 
-  printer.bold(true).size(1, 2)
-  for (const line of twoColumns(t('total'), formatKroner(order.totalPrice), width)) printer.line(line)
-  printer.size(1, 1).bold(false)
-  if (order.payment) field(t('paid'), t(`method.${order.payment.method}`))
+  if (!ticket) {
+    printer.bold(true).size(1, 2)
+    for (const line of twoColumns(t('total'), formatKroner(order.totalPrice), width)) printer.line(line)
+    printer.size(1, 1).bold(false)
+  }
   printer.feed(1)
   printer.align('center').line(t('printedAt', { time: formatReceiptDate(options.printedAt) }))
   return printer.feed(4).cut().bytes()

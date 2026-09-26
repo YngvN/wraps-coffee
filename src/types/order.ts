@@ -10,6 +10,8 @@ export interface OrderItem {
   name: string
   quantity: number
   unitPrice: number
+  /** Register sales only: the VAT rate in percent the line was sold at, snapshotted with the price so later product edits never change a past sale. */
+  vatRate?: number
 }
 
 /** How a customer paid. `card`/`vipps` without a `provider` were recorded by hand at the register ("Paid by card") because no payment provider is configured yet. */
@@ -57,6 +59,34 @@ export interface OrderRecord {
   payment?: OrderPayment
   /** Register orders only: ids of the items that were handed over at the counter (`Product.readyToServe`), so the kitchen card can show them as already served. */
   servedAtCounter?: string[]
+  /** Register orders only: the number of the cash register (tablet) that made the sale — see `server/register/registers.ts`. */
+  registerNumber?: number
+  /** Register orders only: the staff member who made the sale (see `server/register/staff.ts`). */
+  staffId?: string
+  /**
+   * Register orders only: the sale's legal receipt — its number in the register's sales series and its
+   * journal entry — and whether the original and the one allowed copy have been printed.
+   */
+  receipt?: { number: number; journalSeq: number; at: string; printedAt?: string; copyPrintedAt?: string }
+  /** Register orders only: every return made against this sale, each with its own return receipt (see `server/register/returns.ts`). */
+  returns?: OrderReturn[]
+  /** Register orders only: whether the sale was taken away or eaten in, which sets the VAT rate of `food` lines (see `src/lib/vat.ts`). */
+  serving?: 'takeaway' | 'eatIn'
   /** ISO date-time string of when the customer's name, phone and notes were cleared by the 7-day retention rule (see `src/utils/orderRetention.ts`). */
   anonymisedAt?: string
 }
+
+/** One return against a register sale: which lines came back, why, and its return receipt. Amounts are in øre. */
+export interface OrderReturn {
+  /** The return receipt's number in the register's return series. */
+  number: number
+  journalSeq: number
+  at: string
+  lines: { itemID: string; quantity: number }[]
+  totalOre: number
+  reason: ReturnReason
+  method: PaymentMethod
+}
+
+/** Why something came back. `other` comes with a note. */
+export type ReturnReason = 'wrongItem' | 'complaint' | 'changedMind' | 'other'

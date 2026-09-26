@@ -13,7 +13,10 @@ import { BOARD_COLUMNS, columnOf, customerOrderLabel, historyOrders, laneOf, sor
 import { OrderDetailSheet } from './OrderDetailSheet'
 import { OrderHistoryDrawer } from './OrderHistoryDrawer'
 import { PaneLanguageScope } from '../PaneLanguageScope'
-import { OrdersSettingsMenu } from './OrdersSettingsMenu'
+import { OrdersSettingsChoice, OrdersSettingsMenu } from './OrdersSettingsMenu'
+import { SCREENSAVER_MINUTES, useMinutesSetting, type ScreensaverMinutes } from './useDeviceSetting'
+import { ScreenSaver } from '../../../components'
+import { useIdleTimer } from '../../../hooks/useIdleTimer'
 import { useNewOrderAlert } from './useNewOrderAlert'
 import { useOfflineSince } from './useOfflineSince'
 import { useOrderBoard } from './useOrderBoard'
@@ -83,6 +86,11 @@ function OrdersBoard({
   const history = useMemo(() => historyOrders(byColumn.history, now, historyHours), [byColumn.history, now, historyHours])
   const toMake = useMemo(() => summariseItems(byColumn.doing), [byColumn.doing])
   const flashing = useNewOrderAlert(byColumn.incoming, chime)
+  // Touch boards only: a wall board must always show its orders. Any change to Incoming (a new order)
+  // wakes it, so the kitchen never misses one behind the screensaver.
+  const [screensaverMinutes, setScreensaverMinutes] = useMinutesSetting<ScreensaverMinutes>('orders.screensaverMinutes', SCREENSAVER_MINUTES, 15)
+  const incomingIds = byColumn.incoming.map((order) => order.id).join(',')
+  const screensaver = useIdleTimer(screensaverMinutes * 60_000, interactive && screensaverMinutes > 0, incomingIds)
 
   const locked = offlineSince !== null
   const openOrder = openId ? board.orders.find((order) => order.id === openId) : undefined
@@ -158,7 +166,16 @@ function OrdersBoard({
               {t('screenDisplay.orders.history')} <span className="orders-board__count">{history.length}</span>
             </button>
           )}
-          <OrdersSettingsMenu theme={theme} onThemeChange={setTheme} language={languageChoice} onLanguageChange={onLanguageChange} printing={interactive ? printing : undefined} />
+          <OrdersSettingsMenu theme={theme} onThemeChange={setTheme} language={languageChoice} onLanguageChange={onLanguageChange} printing={interactive ? printing : undefined}>
+            {interactive && (
+              <OrdersSettingsChoice
+                label={t('screenDisplay.orders.screensaverAfter')}
+                value={String(screensaverMinutes)}
+                options={SCREENSAVER_MINUTES.map((value) => ({ value: String(value), label: value === 0 ? t('screenDisplay.orders.off') : t('screenDisplay.orders.minutes', { count: value }) }))}
+                onChange={(value) => setScreensaverMinutes(Number(value) as ScreensaverMinutes)}
+              />
+            )}
+          </OrdersSettingsMenu>
         </div>
 
         <LayoutGroup>
@@ -220,6 +237,7 @@ function OrdersBoard({
           )}
         </AnimatePresence>
         <UndoToast message={toastMessage} actionLabel={t('screenDisplay.orders.undo')} onAction={board.undo} onDismiss={board.dismissLastMove} resetKey={board.lastMove?.seq} />
+        {screensaver && <ScreenSaver text={t('screenDisplay.orders.touchToOpen')} />}
       </div>
     </MotionConfig>
   )

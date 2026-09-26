@@ -649,3 +649,12 @@
   background: var(--ob-accent);
   color: var(--ob-accent-text);
 }
+
+// A register sale with a return against it (see `OrderCard`).
+.order-card__returned {
+  padding: 0 0.4em;
+  border-radius: 6px;
+  background: var(--ob-amber);
+  color: var(--ob-amber-text);
+  font-weight: 700;
+}

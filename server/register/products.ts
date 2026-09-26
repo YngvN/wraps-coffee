@@ -1,12 +1,13 @@
 /**
- * Adding or editing one product from an unlocked Register. Only a narrow set of fields can be
+ * Adding or editing one product from a Register, by a signed-in manager. Only a narrow set of fields can be
  * changed here — what staff need at the counter (name, price, barcode, photo, placement, allergens,
  * stock) — while everything else about an existing product (description, dietary tags, custom
  * fields, discount) is kept exactly as it was. Pure: the route reads `admin.products`, calls this,
  * and writes the result back without any `await` in between.
  */
 import type { Catalogue } from '../../src/types/category'
-import { ALLERGEN_OPTIONS, type AllergenCode, type Price, type Product } from '../../src/types/product'
+import { ALLERGEN_OPTIONS, type AllergenCode, type Price, type Product, type VatCategory } from '../../src/types/product'
+import { VAT_CATEGORIES } from '../../src/lib/vat'
 import type { BilingualText } from '../../src/types/bilingual'
 import { isValidGtin } from '../../src/lib/gtin'
 
@@ -19,6 +20,8 @@ export interface RegisterProductInput {
   image?: string
   available?: boolean
   readyToServe?: boolean
+  /** How the product is taxed; `food` is stored as absent, like everywhere else. */
+  vatCategory?: VatCategory
   trackStock?: boolean
   stockQuantity?: number
   allergens?: AllergenCode[]
@@ -28,7 +31,7 @@ export interface RegisterProductInput {
 }
 
 /** Why an edit was refused. */
-export type RegisterProductError = 'unknownProduct' | 'noName' | 'badPrice' | 'badBarcode' | 'duplicateBarcode' | 'badPlacement' | 'badAllergens' | 'badStock'
+export type RegisterProductError = 'unknownProduct' | 'noName' | 'badPrice' | 'badBarcode' | 'duplicateBarcode' | 'badPlacement' | 'badAllergens' | 'badStock' | 'badVatCategory'
 
 const ALLERGEN_CODES = new Set<string>(ALLERGEN_OPTIONS.map((option) => option.code))
 const MAX_NAME_LENGTH = 80
@@ -73,6 +76,7 @@ export function upsertRegisterProduct(
   if (!placementExists(input, catalogues)) return { ok: false, reason: 'badPlacement' }
   if (input.allergens && !input.allergens.every((code) => ALLERGEN_CODES.has(code))) return { ok: false, reason: 'badAllergens' }
   if (input.stockQuantity !== undefined && (!Number.isInteger(input.stockQuantity) || input.stockQuantity < 0)) return { ok: false, reason: 'badStock' }
+  if (input.vatCategory !== undefined && !VAT_CATEGORIES.includes(input.vatCategory)) return { ok: false, reason: 'badVatCategory' }
 
   const base: Product = existing ?? { itemID: newId(), name, description: { no: '', en: '' }, allergens: [], dietaryTags: [], available: true }
   const product: Product = {
@@ -83,6 +87,7 @@ export function upsertRegisterProduct(
     image: input.image ?? base.image,
     available: input.available ?? base.available,
     readyToServe: input.readyToServe ?? base.readyToServe,
+    vatCategory: input.vatCategory === undefined ? base.vatCategory : input.vatCategory === 'food' ? undefined : input.vatCategory,
     trackStock: input.trackStock ?? base.trackStock,
     stockQuantity: input.stockQuantity ?? base.stockQuantity,
     allergens: input.allergens ? [...new Set(input.allergens)] : base.allergens,

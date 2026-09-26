@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import { buildDrawerKick, decodeEscPos } from '../../src/lib/receipt'
 import type { OrderRecord } from '../../src/types/order'
 import type { ConfiguredPrinter, PrinterSettings } from '../../src/types/printer'
-import { SALE_DRAWER_WINDOW_MS, drawerPrinter, saleDrawerRefusal } from './drawer'
+import { SALE_DRAWER_WINDOW_MS, drawerPrinter, returnDrawerRefusal, saleDrawerRefusal } from './drawer'
 
 const now = Date.parse('2026-09-25T18:00:00Z')
 const sale = (extra: Partial<OrderRecord> = {}): OrderRecord => ({
@@ -48,4 +48,31 @@ test('the kick job pulses both drawer pins and prints no paper', () => {
   assert.deepEqual(preview.lines, [])
   assert.equal(preview.cut, false)
   assert.deepEqual(preview.unknownCommands, [])
+})
+
+test('a cash refund may open the drawer once, just after the return', () => {
+  const now = Date.parse('2026-09-25T12:00:00Z')
+  const withReturn = (method: 'cash' | 'card', at: string) =>
+    ({ id: 'o1', source: 'register', returns: [{ number: 4, journalSeq: 1, at, lines: [], totalOre: -100, reason: 'complaint', method }] }) as unknown as OrderRecord
+  assert.equal(returnDrawerRefusal(withReturn('cash', '2026-09-25T11:59:00Z'), [], now), null)
+  assert.equal(returnDrawerRefusal(withReturn('card', '2026-09-25T11:59:00Z'), [], now), 'notCash')
+  assert.equal(returnDrawerRefusal(withReturn('cash', '2026-09-25T11:50:00Z'), [], now), 'tooLate')
+  assert.equal(returnDrawerRefusal(withReturn('cash', '2026-09-25T11:59:00Z'), [{ at: '', deviceId: 'd', reason: 'return', orderId: 'o1', returnNumber: 4, printer: 'p' }], now), 'alreadyOpened')
+  assert.equal(returnDrawerRefusal({ id: 'o2', source: 'register' } as OrderRecord, [], now), 'unknownOrder')
+})
+
+test('the drawer is checked against the return it was asked for, not just the latest one', () => {
+  const now = Date.parse('2026-09-25T12:00:00Z')
+  const order = {
+    id: 'o1',
+    source: 'register',
+    returns: [
+      { number: 4, journalSeq: 1, at: '2026-09-25T11:59:00Z', lines: [], totalOre: -100, reason: 'complaint', method: 'cash' },
+      { number: 5, journalSeq: 2, at: '2026-09-25T11:59:30Z', lines: [], totalOre: -100, reason: 'complaint', method: 'cash' },
+    ],
+  } as unknown as OrderRecord
+  const openedForFive = [{ at: '', deviceId: 'd', reason: 'return' as const, orderId: 'o1', returnNumber: 5, printer: 'p' }]
+  assert.equal(returnDrawerRefusal(order, openedForFive, now, 4), null)
+  assert.equal(returnDrawerRefusal(order, openedForFive, now, 5), 'alreadyOpened')
+  assert.equal(returnDrawerRefusal(order, [], now, 9), 'unknownOrder')
 })

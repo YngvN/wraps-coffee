@@ -17,6 +17,11 @@ export interface Category {
   image?: string
   /** Admin-defined extra fields specific to this category's own kind of product (e.g. "Bedrooms" for a "Houses" category, "Mileage" for a "Cars" one) — lets the same Product/Category system sell things beyond food. Empty/omitted for a traditional food category. See `CustomFieldDefinition`. */
   customFields?: CustomFieldDefinition[]
+  /**
+   * The SAF-T Cash Register article group code (type 04, e.g. `04006` Mat, `04012` Annen drikke) this
+   * category's register sales are exported under. Absent means `04006` (food). See `server/saft/codes.ts`.
+   */
+  saftArticleGroup?: string
 }
 
 /**

@@ -301,18 +301,20 @@ function preserveLocalProductOrder(remote: Product[], local: Product[]): Product
 }
 
 /**
- * Carries the Register's own product fields (`barcode`, `readyToServe`) over from the local copy
- * onto pulled products. The website's `products` table has no columns for them, so without this
- * every reconnect's pull would silently erase every barcode staff had set up.
+ * Carries the Register's own product fields (`barcode`, `readyToServe`, `vatCategory`) over from the
+ * local copy onto pulled products. The website's `products` table has no columns for them, so without
+ * this every reconnect's pull would silently erase every barcode staff had set up (and reset every
+ * product's VAT category to `food`).
  */
 function keepLocalRegisterFields(pulled: Product[], local: Product[]): Product[] {
   const localById = new Map(local.map((product) => [product.itemID, product]))
   return pulled.map((product) => {
     const own = localById.get(product.itemID)
-    if (!own || (own.barcode === undefined && own.readyToServe === undefined)) return product
+    if (!own || (own.barcode === undefined && own.readyToServe === undefined && own.vatCategory === undefined)) return product
     const merged = { ...product }
     if (own.barcode !== undefined) merged.barcode = own.barcode
     if (own.readyToServe !== undefined) merged.readyToServe = own.readyToServe
+    if (own.vatCategory !== undefined) merged.vatCategory = own.vatCategory
     return merged
   })
 }

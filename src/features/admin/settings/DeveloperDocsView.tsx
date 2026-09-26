@@ -4,6 +4,8 @@ import { useAdminSession } from '../../../hooks/useAdminSession'
 import { useLanguage } from '../../../i18n'
 import { getDeveloperKey, regenerateDeveloperKey } from '../../../lib/localServer'
 import { RegisterDeveloperDocs } from './RegisterDeveloperDocs'
+import { RegisterCashDocs } from './RegisterCashDocs'
+import { RegisterComplianceDocs } from './RegisterComplianceDocs'
 import './DeveloperDocsView.scss'
 
 /** Every `SYNCED_KEY` (see `src/types/sync.ts`) paired with its own one-line description key — kept in sync with that list by hand; see the `keep-in-sync` skill. */
@@ -515,7 +517,11 @@ POST /backups/restore              (Authorization: Bearer <token>, admin/subadmi
 
 POST /backups/restore-from-folder  (Authorization: Bearer <token>, admin/subadmin only, no body)
 → 200 { "ok": true }
-→ 400 { "error": "..." }   (no sibling ADHDisplayBackup folder found)`}</code>
+→ 400 { "error": "..." }   (no sibling ADHDisplayBackup folder found)
+
+Neither restore ever rolls back the register's electronic journal (server/data/journal/): a journal file is only taken
+from the backup when it extends the one on disk, and the signing key (register-signing-keys.json) only alongside a
+journal that had none on disk. A backup whose journal disagrees with the one on disk leaves the disk copy as it is.`}</code>
         </pre>
       </Card>
 
@@ -704,6 +710,8 @@ POST /printers/test               (same access as /printers/discover)
       </Card>
 
       <RegisterDeveloperDocs />
+      <RegisterCashDocs />
+      <RegisterComplianceDocs />
 
       <Card title={t('admin.settings.developerDocs.assistantTitle')}>
         <p>{t('admin.settings.developerDocs.assistantIntro')}</p>

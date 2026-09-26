@@ -63,7 +63,25 @@
   padding: 0 1em;
 }
 
+// A manager's product-editing lock: amber while editing is unlocked.
 .register__lock--open {
+  background: var(--ob-amber);
+  color: var(--ob-amber-text);
+}
+
+// The signed-in staff member; a tap signs them out. A manager's initial is amber, so it's clear who
+// can edit products.
+.register__staff-initial {
+  display: grid;
+  place-items: center;
+  width: 1.8em;
+  height: 1.8em;
+  border-radius: 50%;
+  background: var(--ob-card);
+  font-weight: 800;
+}
+
+.register__staff--manager .register__staff-initial {
   background: var(--ob-amber);
   color: var(--ob-amber-text);
 }
@@ -390,6 +408,10 @@
   display: grid;
   grid-template-columns: 1fr 2fr;
   gap: 0.5em;
+
+  &--three {
+    grid-template-columns: 1fr 1fr 2fr;
+  }
 }
 
 .register__clear {
@@ -567,4 +589,15 @@
   color: var(--ob-muted);
   font-size: 0.8em;
   font-weight: 600;
+}
+
+// Training mode (see `server/register/training.ts`): a striped banner above everything, so nobody takes
+// a practice sale for a real one.
+.register__training {
+  padding: 0.4em 1em;
+  background: repeating-linear-gradient(135deg, var(--ob-amber) 0 14px, var(--ob-amber-text) 14px 28px);
+  color: #fff;
+  font-weight: 800;
+  text-align: center;
+  text-shadow: 0 1px 2px #000;
 }

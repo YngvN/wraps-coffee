@@ -104,6 +104,19 @@ export function PrintersSettingsView() {
                       <input type="checkbox" checked={Boolean(printer.cashDrawer)} onChange={(event) => patch(printer.id, { cashDrawer: event.target.checked || undefined })} />
                       {t('admin.settings.printers.cashDrawer')} <HelpTip text={t('admin.settings.printers.cashDrawerHint')} />
                     </label>
+                    {printer.cashDrawer && printer.transport === 'network' && (
+                      <label className="printers-settings__default">
+                        {t('admin.settings.printers.drawerSensor')} <HelpTip text={t('admin.settings.printers.drawerSensorHint')} />
+                        <select
+                          value={printer.drawerSensor ?? 'off'}
+                          onChange={(event) => patch(printer.id, { drawerSensor: event.target.value === 'off' ? undefined : (event.target.value as 'openWhenHigh' | 'openWhenLow') })}
+                        >
+                          <option value="off">{t('admin.settings.printers.drawerSensorOff')}</option>
+                          <option value="openWhenHigh">{t('admin.settings.printers.drawerSensorHigh')}</option>
+                          <option value="openWhenLow">{t('admin.settings.printers.drawerSensorLow')}</option>
+                        </select>
+                      </label>
+                    )}
                     <label className="printers-settings__default">
                       <input type="radio" name="default-printer" checked={settings.defaultPrinterId === printer.id} onChange={() => update(settings.printers, printer.id)} />
                       {t('admin.settings.printers.default')}

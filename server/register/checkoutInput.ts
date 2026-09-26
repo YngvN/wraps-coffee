@@ -15,7 +15,7 @@ function parseLine(value: unknown): CartLineInput | null {
 }
 
 /** The checkout fields of `body`, or `null` when any are missing or malformed. Quantities and products are checked later, by pricing. */
-export function parseCheckout(body: Record<string, unknown>): Omit<RegisterOrderInput, 'payment' | 'lockedCart'> | null {
+export function parseCheckout(body: Record<string, unknown>): Omit<RegisterOrderInput, 'payment' | 'lockedCart' | 'registerNumber'> | null {
   const { clientOrderId, lines, serving, expectedTotal, customerName } = body
   if (typeof clientOrderId !== 'string' || clientOrderId.length < 8 || clientOrderId.length > 64) return null
   if (!Array.isArray(lines) || lines.length === 0 || lines.length > MAX_LINES) return null

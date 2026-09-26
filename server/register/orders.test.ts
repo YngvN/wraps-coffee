@@ -22,7 +22,7 @@ const products: Product[] = [
 ]
 
 function makeDeps(initial: OrderRecord[] = []) {
-  const store = { orders: initial, writes: 0 }
+  const store = { orders: initial, writes: 0, journaled: 0 }
   let nextId = 1
   const deps: RegisterOrderDeps = {
     readOrders: () => store.orders,
@@ -33,12 +33,13 @@ function makeDeps(initial: OrderRecord[] = []) {
     readCatalogue: () => ({ products, catalogues: [] as Catalogue[], categoryPrices: {} }),
     now: () => new Date(2026, 8, 25, 12, 0),
     newId: () => `id-${nextId++}`,
+    journalSale: () => ({ number: ++store.journaled, journalSeq: store.journaled, at: '2026-09-25T10:00:00.000Z' }),
   }
   return { store, deps }
 }
 
 function input(extra: Partial<RegisterOrderInput> = {}): RegisterOrderInput {
-  return { clientOrderId: 'c1', lines: [{ productId: 'soda', quantity: 2 }], serving: 'takeaway', expectedTotal: 60, payment: { method: 'cash' }, ...extra }
+  return { clientOrderId: 'c1', lines: [{ productId: 'soda', quantity: 2 }], serving: 'takeaway', expectedTotal: 60, payment: { method: 'cash' }, registerNumber: 1, ...extra }
 }
 
 test('creates a paid, numbered register order straight into History when all ready-made', () => {
@@ -95,4 +96,13 @@ test('keeps orders written before it and numbers after them', () => {
   assert.equal(store.orders.length, 2)
   assert.equal(store.orders[1].displayNumber, 'K5')
   assert.equal(store.orders[1].customerName, 'Kari')
+})
+
+test('a new sale is journaled once, and its receipt number is saved on the order', () => {
+  const { store, deps } = makeDeps()
+  const first = createRegisterOrder(deps, input())
+  assert.equal(first.ok && first.order.receipt?.number, 1)
+  const repeat = createRegisterOrder(deps, input())
+  assert.equal(repeat.ok && repeat.created, false)
+  assert.equal(store.journaled, 1)
 })

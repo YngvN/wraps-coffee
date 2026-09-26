@@ -149,6 +149,56 @@ function copyDirContents(sourceDir: string, destDir: string) {
   }
 }
 
+/** The electronic journal's folder and the key that signs it, relative to `DATA_DIR` — see `server/journal/`. */
+const JOURNAL_DIR_NAME = 'journal'
+const SIGNING_KEYS_FILE = 'register-signing-keys.json'
+
+/**
+ * Copies a backup's `data/` folder over `DATA_DIR`, except that the electronic journal is never rolled
+ * back. The law requires the journal to be protected against deletion and change, and a restore of an
+ * older backup would otherwise silently remove every sale since it was taken. So a journal file is
+ * only replaced when the backup's copy *extends* the one on disk (the disk copy is a prefix of it, as
+ * after losing the machine); when the disk copy is the same or longer it's kept, and when the two
+ * disagree the disk copy is kept and the file is reported. The signing key is only restored alongside
+ * a journal that had none on disk, so signatures and the key that made them always travel together.
+ * Returns the journal files that were kept because the backup disagreed with them. `destDir` is only
+ * ever not `DATA_DIR` in tests.
+ */
+export function restoreDataDir(sourceDir: string, destDir = DATA_DIR): string[] {
+  const conflicts: string[] = []
+  mkdirSync(destDir, { recursive: true })
+  const liveJournalDir = join(destDir, JOURNAL_DIR_NAME)
+  const liveJournalEmpty = !existsSync(liveJournalDir) || readdirSync(liveJournalDir).length === 0
+  for (const name of readdirSync(sourceDir)) {
+    const sourcePath = join(sourceDir, name)
+    const destPath = join(destDir, name)
+    if (name === JOURNAL_DIR_NAME && statSync(sourcePath).isDirectory()) {
+      mkdirSync(destPath, { recursive: true })
+      for (const file of readdirSync(sourcePath)) {
+        const from = join(sourcePath, file)
+        const to = join(destPath, file)
+        if (!existsSync(to)) {
+          copyFileSync(from, to)
+          continue
+        }
+        const backupText = readFileSync(from, 'utf-8')
+        const liveText = readFileSync(to, 'utf-8')
+        if (liveText.startsWith(backupText)) continue
+        if (backupText.startsWith(liveText)) copyFileSync(from, to)
+        else conflicts.push(file)
+      }
+    } else if (name === SIGNING_KEYS_FILE) {
+      if (!existsSync(destPath) || liveJournalEmpty) copyFileSync(sourcePath, destPath)
+    } else if (statSync(sourcePath).isDirectory()) {
+      copyDirContents(sourcePath, destPath)
+    } else {
+      copyFileSync(sourcePath, destPath)
+    }
+  }
+  if (conflicts.length > 0) console.warn(`[backup] kept the journal on disk for ${conflicts.join(', ')}: the backup's copy disagrees with it`)
+  return conflicts
+}
+
 function hasAnyDataFiles(): boolean {
   return existsSync(DATA_DIR) && readdirSync(DATA_DIR).some((name) => name.endsWith('.json'))
 }
@@ -166,7 +216,7 @@ export function restoreFromSiblingBackupIfFresh() {
   const { dataDir, uploadsDir } = resolveBackupReadDirs()
   if (!existsSync(dataDir)) return
   console.log('[backup] fresh install with a sibling backup folder present — restoring from it')
-  copyDirContents(dataDir, DATA_DIR)
+  restoreDataDir(dataDir)
   if (existsSync(uploadsDir)) copyDirContents(uploadsDir, UPLOADS_DIR)
 }
 
@@ -223,7 +273,7 @@ export function restoreBackupFromZip(zipBuffer: Buffer): { ok: true } | { ok: fa
 
   const stagedData = join(stagingDir, 'data')
   const stagedUploads = join(stagingDir, 'uploads')
-  if (existsSync(stagedData)) copyDirContents(stagedData, DATA_DIR)
+  if (existsSync(stagedData)) restoreDataDir(stagedData)
   if (existsSync(stagedUploads)) copyDirContents(stagedUploads, UPLOADS_DIR)
   rmSync(stagingDir, { recursive: true, force: true })
 
@@ -241,7 +291,7 @@ export function restoreFromBackupFolder(): { ok: true } | { ok: false; error: st
   // exact moment — force those through first so a restore never pulls in a
   // copy that's staler than it needs to be.
   flushPendingMirrors()
-  copyDirContents(dataDir, DATA_DIR)
+  restoreDataDir(dataDir)
   if (existsSync(uploadsDir)) copyDirContents(uploadsDir, UPLOADS_DIR)
   return { ok: true }
 }

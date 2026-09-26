@@ -86,6 +86,8 @@ export function OrderCard({ order, now, ageWarnMinutes, noteKeywords, interactiv
           {order.pickupTime ? t('screenDisplay.orders.pickupAt', { time: order.pickupTime }) : t('screenDisplay.orders.counterSale')}
         </span>
         <span>{t('screenDisplay.orders.itemCount', { count: itemCount })}</span>
+        {/* Something was returned: the kitchen should know before making or handing it over. */}
+        {order.returns?.length ? <span className="order-card__returned">{t('screenDisplay.orders.returned')}</span> : null}
       </div>
       {order.notes && <p className={alertNote ? 'order-card__notes order-card__notes--alert' : 'order-card__notes'}>{order.notes}</p>}
       {failedMessage && (

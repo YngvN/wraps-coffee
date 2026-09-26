@@ -41,6 +41,8 @@ export function CategoryForm({ category, forceLanguage, onSave, onCancel }: Cate
     event.preventDefault()
     const hasDescription = description.en.trim() !== '' || description.no.trim() !== ''
     onSave({
+      // Fields this form doesn't edit (e.g. `saftArticleGroup`, set in Settings → Register) carry over.
+      ...category,
       id: category?.id ?? `category-${Date.now()}`,
       name,
       description: hasDescription ? description : undefined,
